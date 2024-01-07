@@ -1,0 +1,49 @@
+
+
+<mat-card    class="custom-theme" >
+  <mat-card-header>
+    <mat-card-title >
+        <!-- <button mat-icon-button color="primary"  (click)="onNoClick()"class="close" style="position: relative;top: -8px;">
+            <mat-icon (click)="onNoClick()">close</mat-icon>
+        </button>
+   -->
+        <div class="close" (click)="onNoClick()">
+          <mat-icon >close</mat-icon>
+
+        </div>
+        <span>تسجيل يوميه</span>
+
+    </mat-card-title>
+
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" class="form-dialg" (ngSubmit)="onSubmit()">
+
+
+
+
+      <mat-form-field appearance="outline">
+        <mat-label> البيان</mat-label>
+        <textarea matInput formControlName="description" rows="15">
+        </textarea>
+      </mat-form-field>
+
+
+
+
+
+      </form>
+      <div class="action-button">
+        <button   mat-raised-button color="primary" type="submit"  (click)="onSubmit()" [disabled]="form.invalid">
+            حفظ
+        </button>
+        <button mat-raised-button color="warn" (click)="onNoClick()">
+          الغاء
+      </button>
+    </div>
+  </mat-card-content>
+
+
+
+</mat-card>
+

@@ -1,0 +1,56 @@
+
+using Application.Dtos;
+using Application.Dtos.Requests;
+using Application.Features;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Api.Controllers
+{
+    public class ReportPdfController : BaseApiController
+    {
+        private readonly ReportService _reportService;
+
+        public ReportPdfController(ReportService reportService)
+        {
+            this._reportService = reportService;
+        }
+        [HttpPost("PrintFormPdf")]
+        [AllowAnonymous]
+        public async Task<ActionResult> PrintFormPdf([FromBody] ReportFormPdfRequest request)
+        {
+
+            var pdf = await _reportService.PrintFormPdf(request);
+
+            var path = Path.GetTempPath() + "test.pdf";
+
+
+            var memory = new MemoryStream(pdf);
+            await using (var stream = new FileStream(path, FileMode.Create))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+            return File(memory, "application/pdf", "test.pdf");
+        }
+
+
+        [HttpGet("PrintFormWithDetailsPdf/{formId}")]
+        public async Task<ActionResult> PrintFormPdf(int formId)
+        {
+
+            var pdf = await _reportService.PrintFormWithDetailsPdf(formId);
+
+            var path = Path.GetTempPath() + "test.pdf";
+
+
+            var memory = new MemoryStream(pdf);
+            await using (var stream = new FileStream(path, FileMode.Create))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+            return File(memory, "application/pdf", "test.pdf");
+        }
+    }
+}

@@ -1,0 +1,46 @@
+<div class="page-content">
+
+  <div class="form">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()"  class="mat-mdc-form-transparent">
+      <div class="title">
+        <mat-icon>group_plus</mat-icon>
+        اضافة موظف
+      </div>
+  <div>
+    <div class="col">
+      <app-input-text formControlName="name" [appearance]="'outline'" [matSuffix]="'account_circle'" [label]="'اسم الموظف'"></app-input-text>
+    </div>
+    <div class="col">
+      <app-input-text formControlName="nationalId" [appearance]="'outline'" [matSuffix]="'credit_card'" [label]="'الرقم القومى'"></app-input-text>
+    </div>
+
+    <div class="col">
+      <app-input-text formControlName="tabCode" [appearance]="'outline'" [matSuffix]="'123'" [label]="'كود طب'" ></app-input-text>
+      <app-input-text formControlName="tegaraCode" [appearance]="'outline'" [matSuffix]="'12mp'" [label]="'كود تجارة'"></app-input-text>
+    </div>
+    <div class="col">
+      <mat-form-field appearance="outline">
+        <mat-label> الاقسام  </mat-label>
+        <mat-select   formControlName="departmentId" [(value)]="employee.departmentId">
+        @for (department of departments; track $index) {
+          <mat-option value="{{department.id}}" >{{department.name}}</mat-option>
+          }
+        </mat-select>
+        <mat-icon matSuffix style="color: #fff !important;">account_balance</mat-icon>
+      </mat-form-field>
+    </div>
+    <div class="col">
+      <app-input-text formControlName="collage" [appearance]="'outline'" [matSuffix]="'account_balance'" [label]="'الكليه'"></app-input-text>
+    </div>
+  </div>
+  <div class="form-action">
+        <button mat-raised-button color="primary" [disabled]="form.invalid">
+          حفظ
+      </button>
+      <button mat-raised-button color="warn">
+        الغاء
+    </button>
+      </div>
+      </form>
+  </div>
+</div>

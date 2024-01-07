@@ -1,0 +1,180 @@
+
+
+<mat-sidenav-container class="sidenav-container">
+
+  <mat-sidenav-content>
+    <div class="contents">
+      <!-- <video autoplay muted loop id="myVideo" >
+        <source src="../assets/bg/Technology_09.mov" type="video/mp4" >
+
+      </video> -->
+
+      <!--[if lt IE 9]>
+<script>
+document.createElement('video');
+</script>
+<![endif]-->
+<div class="video-container">
+  <video autoplay loop muted id="video-bg">
+
+    <source src="../assets/images/bg/SciFi_01.mov" type="video/mp4" />
+
+  </video>
+</div>
+<div class="nav-bar-container">
+
+  <mat-toolbar>
+      <div>
+
+
+    <ng-container *ngIf="(accountService.currentUserSig())==null" >
+
+    <div class="auth-user" >
+      <a  mat-icon-button color="primary"  routerLink="/account/login" >
+        <mat-icon>login</mat-icon>
+      </a>
+
+    <span>  Please Login</span>
+    </div>
+
+    </ng-container>
+    <ng-container *ngIf="(accountService.isAuthenticated()) as user">
+    <div class="auth-user">
+      <button mat-icon-button class="example-icon" aria-label="Example icon-button with menu icon"   (click)="drawer.toggle()"
+        [hidden]="(accountService.currentUserSig())===null">
+        <mat-icon>menu</mat-icon>
+      </button>
+      <button mat-icon-button color="accent" class="example-icon" aria-label="Example icon-button with share icon" (click)="logout()">
+
+        <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
+      </button>
+
+      <span class="welcome-msg">
+
+       مرحبا بك
+
+       <span class="user-name">
+
+       {{(accountService.currentUserSig()).displayName}}
+      </span>
+      </span>
+    </div>
+
+
+    </ng-container>
+      </div>
+          <span class="spacer">
+
+          </span>
+
+    <div class="navbar-title">
+
+      <span [routerLink]="['/']" style="cursor: pointer;" >الوحدة الحسابيه المركزيه للمجمع الطبى </span>
+
+    </div>
+        </mat-toolbar>
+
+      </div>
+
+    </div>
+  <!-- Add Content Here -->
+
+
+<div class="container">
+
+  <ng-content></ng-content>
+</div>
+
+
+
+
+
+
+
+</mat-sidenav-content>
+<mat-sidenav #drawer class="sidenav" fixedInViewport
+    [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
+    [mode]="(isHandset$ | async) ? 'over' : 'side'"
+    opened= false
+
+    >
+
+  <mat-toolbar class="menu title"  >
+
+    القائمه
+    <mat-divider></mat-divider>
+   </mat-toolbar>
+
+  <!-- <mat-nav-list class="list" >
+    <a *ngIf="auth.isUserAdmin()" mat-list-item  [routerLink]="['/account/register']" routerLinkActive="active" > <mat-icon color="primary">home_work</mat-icon> حسابات  </a>
+    <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee']" routerLinkActive="active"  > <mat-icon color="primary">people</mat-icon> الموظفين  </a>
+    <a mat-list-item [routerLink]="['/order']"  routerLinkActive="active" >  <mat-icon color="primary">receipt</mat-icon> ملفات الاوامر  </a>
+
+    <a mat-list-item  [routerLink]="['/collection']" routerLinkActive="active" > <mat-icon color="primary">group</mat-icon>  مجموعه التعيين  </a>
+    <a mat-list-item  [routerLink]="['/accounts-tree']" routerLinkActive="active" ><mat-icon color="primary">settings</mat-icon>
+       ادارة العناصر  </a>
+  </mat-nav-list> -->
+
+
+  <mat-accordion multi="false">
+
+
+    <mat-expansion-panel (opened)="panelOpenState = true"
+    (closed)="panelOpenState = false">
+<mat-expansion-panel-header>
+<mat-panel-title>
+  حسابات
+</mat-panel-title>
+
+</mat-expansion-panel-header>
+<mat-nav-list class="list" >
+<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/account/register']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  حسابات   </a>
+<a *ngIf="!auth.isAuthenticated()"  mat-list-item [routerLink]="['/account/login']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon>   دخول   </a>
+
+</mat-nav-list>
+
+</mat-expansion-panel>
+
+    <mat-expansion-panel (opened)="panelOpenState = true"
+                         (closed)="panelOpenState = false">
+      <mat-expansion-panel-header>
+        <mat-panel-title>
+        الموظفين
+        </mat-panel-title>
+
+      </mat-expansion-panel-header>
+      <mat-nav-list class="list" >
+      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/add']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon> تكوين موظف   </a>
+      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a>
+      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"  > <mat-icon >people</mat-icon>  الموظفين  </a>
+      </mat-nav-list>
+
+    </mat-expansion-panel>
+
+    <mat-expansion-panel (opened)="panelOpenState = true"
+    (closed)="panelOpenState = false">
+<mat-expansion-panel-header>
+<mat-panel-title>
+اليوميات و الملفات
+</mat-panel-title>
+
+</mat-expansion-panel-header>
+<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/daily']" routerLinkActive="active"  > <mat-icon >folders</mat-icon>اليوميات  </a>
+<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/:id/bank']" routerLinkActive="active"  > <mat-icon >file</mat-icon> الملفات </a>
+</mat-expansion-panel>
+
+    <mat-expansion-panel (opened)="panelOpenState = true"
+    (closed)="panelOpenState = false">
+<mat-expansion-panel-header>
+<mat-panel-title>
+  مجموعه التعيين
+</mat-panel-title>
+
+</mat-expansion-panel-header>
+<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/orders']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الموظفين  </a>
+</mat-expansion-panel>
+
+  </mat-accordion>
+</mat-sidenav>
+
+</mat-sidenav-container>

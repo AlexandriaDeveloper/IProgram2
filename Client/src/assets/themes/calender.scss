@@ -1,0 +1,48 @@
+@import "~/../varibale.scss";
+.mat-calendar{
+height: auto !important;
+.mat-calendar-controls{
+  background-color:  $primary-color !important;
+  color: $accent2-color !important;
+}
+  .mat-calendar-body-label{
+  //  background-color:  $accent-color !important;
+  color: $white-color !important;
+  }
+  .mat-calendar-header{
+    background-color:  $accent2-color !important;
+    color: $primary-color !important;
+  }
+  background-color:  $primary-color !important;
+
+  .mat-calendar-body-selected{
+    background-color:  $accent2-color !important;
+  }
+  .mat-calendar-content{
+
+    .mat-calendar-table {
+      width: 100% !important;
+      background-color:  $primary-color !important;
+
+      .mat-calendar-table-header{
+        color: $white-color !important;
+      }
+
+
+    }
+  }
+  .mat-calendar-body-cell-content:hover{
+    transition: 0.4s ease-in-out;
+    background-color: $accent2-color !important;
+  }
+  .mat-calendar-body-cell.mat-calendar-body-in-range {
+    color: #fff !important;
+      span{
+        background-color: rgba($color: $accent2-color, $alpha:1) !important;
+        color: $primary-color !important;
+       // border-radius: 25px !important;
+      }
+
+  }
+  background-color:  $accent2-color !important;
+}

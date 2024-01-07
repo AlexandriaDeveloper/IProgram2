@@ -1,0 +1,140 @@
+@import "~/../../../../../assets/themes/varibale.scss";
+.container-zone {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+    .upload-form{
+      //background-color: rgba(54, 78, 93, 0.8) !important;
+      background: $background-gradient;
+      padding: 40px 80px;
+      border: 4px solid rgba($color: #fff, $alpha: 0.8) !important;
+      border-radius: 25px;
+    }
+  }
+  .drag-drop-zone{
+    width: 600px;
+    height: 300px;
+
+    border: 2px dashed rgba($color: #fff, $alpha: 0.8) !important;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+
+    .icon{
+
+      mat-icon{
+        display: inline;
+        font-size: 100px !important;
+        color: rgba($color: #fff, $alpha: 0.2) !important;;
+
+      }
+
+    }
+      .upload-content{
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      margin-top: 15px;
+    }
+    &:hover{
+      border : 2px dashed rgba($color: #fff, $alpha: 1) !important;
+      .icon{
+      mat-icon{
+        color: rgba($color: #fff, $alpha: 0.8) !important;
+        transition: 0.4s;
+      }
+    }
+
+    }
+  }
+  .file-list{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 10px;
+    .file{
+      display: flex;
+      flex-direction: column;
+      border: 3px dashed #ccc !important;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      padding: 5px 0;
+    }
+    .file-content{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 600px;
+      padding: 0px 20px;
+      // border: 1px dashed #ccc;
+      // border-radius: 5px;
+      // margin-bottom: 10px;
+      .file-info{
+        display: flex;
+        flex-direction: row;
+        color :#fff !important;
+        .file-icon{
+          justify-items: center;
+          mat-icon{
+            display: inline;
+            font-size:40px !important;
+            color :#fff !important;
+          }
+        }
+        .file-details{
+          padding: 10px;
+          display: flex;
+          flex-direction: column;
+
+          .name{
+            margin-right: 10px;
+            font-family: Cairo;
+          }
+          .size{
+            margin-right: 10px;
+            font-size: 4px !important;
+            color: #999;
+          }
+
+
+
+      }
+
+
+    }
+
+  }
+  .upload-progress{
+    padding: 5px 30px !important;
+  }
+  }
+  .fileover{
+    border: dashed 3px green !important;
+    background-color: rgba($color: #fff, $alpha: 0.3);
+
+    .icon{
+      mat-icon{
+        color: rgba($color: #fff, $alpha: 0.8) !important;
+      }
+
+    }
+  }
+  .remove{
+    cursor: pointer;
+    text-align: center;
+    padding: 5px !important;
+    mat-icon{
+      display: inline;
+      font-size: 30px !important;
+      &:hover{
+        background-color: rgba($color: #999, $alpha: 0.2);
+        transition: 0.4s;
+        border-radius: 25px;
+      }
+    }
+
+  }

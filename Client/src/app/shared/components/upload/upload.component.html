@@ -1,0 +1,56 @@
+<div class="container-zone">
+  <div class="upload-form">
+    <div class="drag-drop-zone" appDnd (fileDropped)="onDrop($event)" (click)="fileInput.click()">
+      <div class="icon">
+        <mat-icon>cloud_upload</mat-icon>
+      </div>
+
+
+
+        <input id="fileInput" hidden multiple="true" type="file" #fileInput (change)="onFileSelected($event)"  />
+        <!-- <button mat-raised-button color="primary" (click)="fileInput.click()">ارفع الملف....</button> -->
+
+
+    </div>
+    <!-- <div class="file-list" *ngIf="files.length > 0"> -->
+
+      <div class="file-list">
+
+
+          <div class="file" *ngFor="let file of files; let i = index">
+           <div class="file-content" >
+            <div  class="file-info">
+              <div class="file-icon">
+                <mat-icon>insert_drive_file</mat-icon>
+              </div>
+
+              <div class="file-details">
+                <strong class="name">  اسم الملف : {{file.name}}  </strong>
+                <sub class="size">  <h6>حجم الملف :{{formatBytes(file.size) }}</h6></sub>
+              </div>
+
+              </div>
+              <!-- <mat-progress-bar mode="determinate" *ngIf="onProgress" [value]="progress()"></mat-progress-bar> -->
+
+              <div class="remove" (click)="removeFile(i)">
+                  <mat-icon color="warn" class="remove">delete</mat-icon>
+                </div>
+           </div>
+           <div class="upload-progress" *ngIf="onProgress">
+
+
+            <mat-progress-bar mode="indeterminate" [value]="progress()"></mat-progress-bar>
+           </div>
+            </div>
+
+
+      <div class="upload-button">
+        <button mat-raised-button color="primary" (click)="uploadFiles()" [disabled]="files.length == 0">تحميل الملفات</button>
+      </div>
+
+
+    </div>
+
+
+  </div>
+</div>

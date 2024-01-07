@@ -1,0 +1,120 @@
+@import "~/../assets/themes/varibale.scss";
+@import "~/../assets/themes/dialog.scss";
+@import "~/../assets/themes/calender.scss";
+
+@import "~/../assets/themes/form.scss";
+@import "~/../assets/themes/dropdpwn.scss";
+@import "~/../assets/themes/form.scss";
+
+@import "~/../assets/themes/menu.scss";
+@import "~/../assets/themes/drag.scss";
+@import "~/../assets/themes/table.scss";
+/* You can add global styles to this file, and also import other style files */
+html, body { height: 100%; margin: 0 auto;padding: 0; }
+body { font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+.container {
+  width: 100%;
+  margin-top: 50px;
+}
+
+
+.nav-bar{
+  position: sticky;
+}
+
+.toaster-success{
+  color: rgba(65, 90, 93, 1) !important;
+  background-color: #0ca07b !important;
+
+}
+.toaster-error{
+  color: rgba(65, 90, 93, 1) !important;
+  text-shadow: 2px 2px 2px rgba(65, 90, 93, 1) !important;
+  background-color: #f44336 !important;
+}
+
+
+
+
+.fileover{
+  border: dotted 3px green !important;
+}
+
+//modal close button
+.close{
+  display: flex;
+  justify-content:center !important;
+  align-items: center !important;
+  font-size: 14px;
+  background-color: #476936;
+  height: 30px;
+  width: 30px;
+  border-radius:25px;
+  margin-left: 15px;
+  cursor: pointer;
+mat-icon{
+  position: relative;
+  left: 0px !important;
+  top:0px !important;
+  display: inline;
+  color: rgb(37, 51, 53) !important;
+}
+&:hover{
+  background-color: rgb(37, 51, 53) !important;
+  mat-icon{
+    color:#476936 !important;
+  }
+  transition: 0.3s ease-in-out;
+  border:  1px solid #476936 !important;
+}
+}
+//center form button
+.action-buttons{
+display: flex;
+justify-content: center;
+
+
+}
+:ng-deep{
+
+  .mat-mdc-form-field{
+    color: #fff !important;
+  }
+
+}
+
+.date-input{
+  outline-style: none !important;
+  padding: 15px;
+  width: 100% !important;
+  background-color: $primary-color !important;
+  border: 1px solid #293d1f !important;
+  border-radius: 5px;
+
+  &:focus-visible{
+    border: 2px solid rgba( #476936,1) !important;
+    .ng-invalid.ng-touched{
+      border: 3px solid rgba( #e57373,1) !important;
+    }
+
+  }
+  &.ng-invalid.ng-touched{
+    border: 1px solid rgba( #e57373,1) !important;
+  }
+  &.ng-valid.ng-touched{
+  //  border: 2px solid rgba( #476936,1) !important;
+  }
+  // .mat-datepicker-toggle-default-icon{
+  //   color: #fff !important;
+  // }
+  // .mat-datepicker-toggle-active{
+  //   color: #fff !important;
+  // }
+
+
+
+
+}
+
+

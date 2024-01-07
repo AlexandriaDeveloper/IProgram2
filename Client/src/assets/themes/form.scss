@@ -1,0 +1,92 @@
+@import "./varibale.scss";
+.example-full-width{
+  width: 100%;
+}
+.mat-form-field{
+  width: 100% !important;
+  &> mat-label {
+    color: $black-color !important;
+    background-color: red !important;
+  }
+}
+.form{
+  background-color: rgba(54, 78, 93, 0.8) !important;
+  padding: 40px 80px;
+  width: 100%;
+  border-radius: 25px;
+  border :3px solid rgba($color: #fff, $alpha: 0.6) !important;
+
+  .form-action{
+    display: flex;
+    justify-content: center;
+  }
+}
+.title{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: Cairo;
+  padding: 10px;
+  color: #fff;
+  mat-icon{
+   position: relative;
+    top: -2px !important;
+  }
+}
+  .mat-mdc-form-field{
+    color: rgba(179, 177, 177,0.6) !important;
+    input{
+      color: #000 !important;
+    }
+
+    label{
+      color: rgba(179, 177, 177,0.4) !important;
+    }
+  }
+  .mat-mdc-form-transparent{
+      .mat-mdc-input-element{
+        color: #fff !important;
+      }
+      .mat-mdc-select {
+        text-align: center !important;
+      }
+  }
+.multi-lines{
+  white-space: pre-line;
+  font-family: cairo;
+ line-height: 40px;
+}
+
+
+.data-input{
+  outline-style: none !important;
+  padding: 15px;
+  width: 100% !important;
+  background-color: $primary-color !important;
+  border: 2px solid #293d1f !important;
+  border-radius: 5px;
+
+  &:focus-visible{
+    border: 2px solid rgba( #476936,1) !important;
+    .ng-invalid.ng-touched{
+      border: 3px solid rgba( #e57373,1) !important;
+    }
+
+  }
+  &.ng-invalid.ng-touched{
+    border: 1px solid rgba( #e57373,1) !important;
+  }
+  &.ng-valid.ng-touched{
+  //  border: 2px solid rgba( #476936,1) !important;
+  }
+  // .mat-datepicker-toggle-default-icon{
+  //   color: #fff !important;
+  // }
+  // .mat-datepicker-toggle-active{
+  //   color: #fff !important;
+  // }
+
+
+
+
+}

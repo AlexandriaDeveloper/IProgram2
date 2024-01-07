@@ -1,0 +1,32 @@
+<mat-card    class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+  <mat-card-header>
+    <mat-card-title >
+        <div class="close" (click)="onNoClick()">
+          <mat-icon >close</mat-icon>
+        </div>
+        <span>تسجيل يوميه</span>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" class="form-dialg"  (ngSubmit)="onSubmit()">
+      <mat-form-field appearance="outline">
+        <mat-label> البيان</mat-label>
+        <input matInput formControlName="name" >
+
+      </mat-form-field>
+
+      <div class="col">
+        <input type="date" formControlName="dailyDate" class="date-input input-dialog" (change)="setDate($event.target.value)"  >
+      </div>
+      <div class="action-buttons">
+          <button   mat-raised-button color="primary"  [disabled]="form.invalid">
+              حفظ
+          </button>
+          <button mat-raised-button color="warn">
+            الغاء
+        </button>
+      </div>
+      </form>
+  </mat-card-content>
+</mat-card>
+

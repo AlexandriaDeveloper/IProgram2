@@ -1,0 +1,36 @@
+<div class="page-content">
+  <div class="login-form">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="mat-mdc-form-transparent">
+      <div class="title">
+        <mat-icon>group</mat-icon>
+       دخول المستخدم
+
+      </div>
+
+    <div>
+
+      <mat-form-field class="example-full-width   mat-mdc-form-field-transparent" appearance="outline" >
+        <mat-label>اسم المستخدم</mat-label>
+        <input matInput placeholder="Ex. Pizza" formControlName="username" >
+        <mat-icon matSuffix>account_circle</mat-icon>
+      </mat-form-field>
+      </div>
+      <div>
+        <mat-form-field class="example-full-width" appearance="outline">
+          <mat-label>كلمه المرور</mat-label>
+          <input matInput type="password"  formControlName="password" >
+          <mat-icon matSuffix>vpn_key</mat-icon>
+        </mat-form-field>
+      </div>
+      <div >
+        <button  mat-raised-button color="primary" type="submit">دخول</button>
+        <button mat-raised-button color="warn">الغاء</button>
+
+
+      </div>
+    </form>
+
+  </div>
+
+
+</div>

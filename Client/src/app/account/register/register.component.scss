@@ -1,0 +1,38 @@
+.page-content{
+  display: flex;
+  justify-content: center;
+  padding-top: 40px;
+
+}
+.login-form{
+
+  background-color: rgba(54, 78, 93, 0.5) !important;
+  border-radius: 25px;
+  //padding: 60px 100px;
+  border :3px solid rgba($color: #fff, $alpha: 0.6) !important;
+
+  width: 60%;
+  div{
+    display: flex;
+    justify-content: center;
+
+    .example-full-width{
+      width: 100% !important;
+
+
+    }
+
+    input{
+      text-align: center;
+      font-size: 14px;
+      color: #fff !important;
+    }
+
+
+  }
+
+
+}
+mat-icon{
+  color :#fff !important;
+}

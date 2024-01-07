@@ -1,0 +1,24 @@
+div.mat-mdc-select-panel{
+  background-color: #263843 !important;
+  mat-option{
+    span{
+      color: #fff !important;
+
+    }
+    &:hover{
+      background-color: rgba(65, 90, 93, 1) !important;
+      transition: .4s;
+    }
+    transition: .4s;
+
+    height: 30px;
+  }
+  .mat-mdc-option-pseudo-checkbox{
+   color: #fff;
+   background-color: rgba(230, 81, 0, 0.8) !important;
+  }
+}
+.mat-mdc-select-value {
+  color: #fff !important;
+
+  }

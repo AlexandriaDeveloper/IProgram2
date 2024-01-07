@@ -1,0 +1,53 @@
+import { AuthService } from './../../service/auth.service';
+
+import { Component, ViewChild, NgModule, inject } from '@angular/core';
+import { AngularComponentsModule } from '../../angular-components.module';
+import { SharedModule } from '../../shared.module';
+import { RouterModule } from '@angular/router';
+import { MatSidenav, MatSidenavModule ,  } from '@angular/material/sidenav';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatIconModule } from '@angular/material/icon';
+import { MatDividerModule } from '@angular/material/divider';
+import {MatListModule} from '@angular/material/list';
+import { Observable, map, shareReplay } from 'rxjs';
+
+import  {BreakpointObserver, Breakpoints} from '@angular/cdk/layout';
+
+import { CommonModule } from '@angular/common';
+
+
+@Component({
+  selector: 'app-navbar',
+  standalone: true,
+  imports: [RouterModule,
+  SharedModule,
+  MatDividerModule,
+  MatListModule,
+  MatToolbarModule,
+  CommonModule
+  ],
+  templateUrl: './navbar.component.html',
+  styleUrl: './navbar.component.scss'
+})
+export class NavbarComponent {
+  auth =inject(AuthService);
+  panelOpenState = false;
+  @ViewChild('drawer',{static:true}) drawer :MatSidenav;
+  isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
+.pipe(
+  map(result => result.matches),
+  shareReplay()
+);
+
+constructor(
+  private breakpointObserver: BreakpointObserver,
+  public accountService : AuthService,
+  ) {
+
+  }
+
+  logout(){
+    this.accountService.logout();
+  }
+
+}

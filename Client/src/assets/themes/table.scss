@@ -1,0 +1,87 @@
+@import "~/../varibale.scss";
+.full-width-table {
+  background-color: rgba($primary-color, 0.6) !important;
+  .mat-mdc-row{
+    mat-icon{
+      display: inline;
+    }
+  .info-button{
+      color: rgba($white-color,.6) !important;
+    }
+  .edit-button{
+      color: rgba($accent2-color,0.6) !important;
+    }
+  .delete-button{
+    color: rgba($warn-color,0.6) !important;
+    }
+  }
+  .table-spacer{
+   width: 100px !important;
+  }
+  .mat-mdc-row:hover .mat-mdc-cell {
+   background-color:rgba($accent2-color ,0.6) !important;
+   color:rgba( $black-color,.8)  !important;
+   font-weight: bolder;
+   transition: 0.4s ease-in-out;
+    cursor: pointer;
+    color: $black-color !important;
+  .info-button{
+      color: rgba($white-color,1) !important;
+      text-shadow: 2px 2px 4px #000000;
+    }
+  .edit-button{
+      color: rgba($accent2-color,1) !important;
+      text-shadow: 2px 2px 4px #000000;
+    }
+  .delete-button{
+    color: rgba($warn-color,1) !important;
+    text-shadow: 2px 2px 4px #000000;
+    }
+  }
+  .mat-mdc-row{
+    color: rgba($white-color,1) !important;
+  }
+  .mat-mdc-header-cell{
+    background-color: $primary-color !important;
+}}
+.mat-mdc-paginator{
+  background-color:rgba($primary-color, 0.8) !important;
+}
+.search{
+  position: relative;
+    bottom: -20px;
+   height: 70px;
+ }
+table .saerch-title{
+  color: rgba(100, 98, 98,0.6) !important;
+  font-size: 12px;
+  font-weight: bold;
+}
+.mat-mdc-header-cell{
+  padding: auto !important;
+  text-align: center !important;
+}
+.mat-mdc-form-field{
+  color:  #000000 !important;
+  .search-input{
+    color: #000 !important;
+  }
+}
+.mat-mdc-row{
+  .mat-mdc-cell{
+    text-align: center !important;
+  }
+}
+.mat-mdc-input-element{
+  color:  #000000 !important;
+}
+.no-data{
+  color :#fff !important;
+  text-align: center;
+  padding: 10px;
+  font-family: cairo;
+  background-color: rgba($primary-color, 0.8);
+}
+.search-field{
+  color :#000 !important;
+}
