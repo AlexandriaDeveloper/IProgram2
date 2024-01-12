@@ -11,6 +11,8 @@ import { AddFormComponent } from './form/add-form/add-form.component';
 import { FormDetailsComponent } from './form/form-details/form-details.component';
 import { DescriptionDialogComponent } from './form/form-details/description-dialog/description-dialog.component';
 import { AddEmployeeDialogComponent } from './form/form-details/add-employee-dialog/add-employee-dialog.component';
+import { ArchivedFormsComponent } from './archived-forms/archived-forms.component';
+import { MoveToDailyDialogComponent } from './archived-forms/move-to-daily-dialog/move-to-daily-dialog.component';
 
 
 
@@ -22,8 +24,9 @@ import { AddEmployeeDialogComponent } from './form/form-details/add-employee-dia
     FormComponent,
     AddEmployeeDialogComponent,
     DescriptionDialogComponent,
-
-     FormDetailsComponent
+    ArchivedFormsComponent,
+     FormDetailsComponent,
+     MoveToDailyDialogComponent
 ],
   imports: [
     MatDatepickerModule ,

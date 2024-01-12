@@ -1,0 +1,54 @@
+@import "./varibale.scss";
+.toaster-success{
+  background-color: $success-color  !important;
+}
+.toaster-error{
+  background-color: $error-color !important;
+}
+.toaster-info{
+
+  background-color: $info-color !important;
+}
+
+
+.toaster-container{
+  height: 60px;
+  .close-toaster{
+    position: absolute;
+    display: flex;
+    justify-content: flex-start;
+    top: -15px;
+    right: -5px;
+    margin: 5px;
+    .close-icon{
+      position: relative;
+      top: 15px  !important;
+      right: 5px ;
+      cursor: pointer;
+      &:hover{
+        transition: .4s;
+        background-color: rgba(transparent, $alpha: 0.6);
+      }
+    }
+  }
+  .message{
+    position: relative;
+    font-family: Cairo;
+    font-size: bolder;
+    text-shadow: 10px 10px 10px rgba($color: #0d0d0e, $alpha: .9);
+    top: 20px;
+    display: flex;
+    justify-content: flex-start;
+    mat-icon{
+      background-color: rgba(transparent, $alpha: 0.2);
+      border-radius: 20px;
+      margin-left: 10px !important;
+      top: 2px !important;
+    }
+
+    //color: $white-color !important;
+  }
+
+}
+
+

@@ -19,7 +19,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import {DragDropModule} from '@angular/cdk/drag-drop';
 import { MatMomentDateModule } from "@angular/material-moment-adapter";
-
+import {MatCheckboxModule} from '@angular/material/checkbox';
 
 @NgModule({
   declarations: [],
@@ -55,6 +55,8 @@ import { MatMomentDateModule } from "@angular/material-moment-adapter";
     MatAutocompleteModule,
     DragDropModule,
     MatMomentDateModule,
+    MatCheckboxModule
+
 
   ]
 })

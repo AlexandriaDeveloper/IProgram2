@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Auth.Infrastructure;
 using Core.Interfaces;
@@ -26,6 +27,8 @@ namespace Persistence.Extensions
             services.AddScoped<IDailyRepository, DailyRepository>();
             services.AddScoped<IFormRepository, FormRepository>();
             services.AddScoped<IFormDetailsRepository, FormDetailsRepository>();
+
+
             // services.AddScoped<IParam, Param>();
             return services;
         }

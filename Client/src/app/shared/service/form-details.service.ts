@@ -41,6 +41,8 @@ export class FormDetailsService {
    reOrderRows(id,model){
      return this.http.put(this.apiUrl+'formDetails/reOrderRows/'+id,model)
    }
+
+
 }
 
 

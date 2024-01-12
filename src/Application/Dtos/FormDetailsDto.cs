@@ -26,4 +26,6 @@ namespace Application.Dtos
         //   public int OrderNum { get; set; }
 
     }
+
+
 }

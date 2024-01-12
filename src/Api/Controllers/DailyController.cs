@@ -20,7 +20,7 @@ namespace Api.Controllers
         }
 
         [HttpPost]
-        [AllowAnonymous]
+
         public async Task<Result<DailyDto>> AddDaily(DailyDto form, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
@@ -32,7 +32,7 @@ namespace Api.Controllers
             return result;
         }
         [HttpPut]
-        [AllowAnonymous]
+
         public async Task<Result<DailyDto>> EditDaily(DailyDto form, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
@@ -45,7 +45,7 @@ namespace Api.Controllers
         }
 
         [HttpGet()]
-        [AllowAnonymous]
+
         public async Task<Result<PaginatedResult<DailyDto>>> GetDailies([FromQuery] DailyParam form, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)

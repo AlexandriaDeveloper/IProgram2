@@ -36,6 +36,11 @@ namespace Api.Controllers
             var result = await _formService.UpdateForm(id, form);
             return result;
         }
+        [HttpPut("MoveFormDailyArchives")]
+        public async Task<Result> MoveFormDailyToArchives([FromBody] MoveFormRequest request)
+        {
+            return await _formService.MoveFormDailyToArchive(request);
+        }
 
         [HttpGet("{dailyId}")]
 
@@ -44,6 +49,14 @@ namespace Api.Controllers
             var result = await _formService.GetForms(dailyId, param);
             return result;
         }
+        // [HttpGet("getArchivedForms")]
+
+        // public async Task<Result<PaginatedResult<FormDto>>> getArchivedForms([FromQuery] FormParam param)
+        // {
+        //     var result = await _formService.GetArchivedForms(param);
+        //     return result;
+        // }
+
 
         [HttpGet("formDetails/{id}")]
 
@@ -54,6 +67,13 @@ namespace Api.Controllers
         }
 
 
+        [HttpGet("CopyFormToArchive/{id}")]
+
+        public async Task<Result> CopyFormToArchive(int id)
+        {
+            var result = await _formDetailsService.CopyFormToArchive(id);
+            return result;
+        }
 
 
 

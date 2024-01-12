@@ -1,0 +1,31 @@
+<mat-card    class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+  <mat-card-header>
+    <mat-card-title >
+        <div class="close" (click)="onNoClick()">
+          <mat-icon >close</mat-icon>
+        </div>
+        <span>تسجيل يوميه</span>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+
+    <mat-form-field appearance="outline" style="width: 100% !important;padding-top: 20px;">
+      <label for="item">اختار اليوميه</label>
+      <mat-select name="item" (selectionChange)="selectedDaily= $event.value">
+        <mat-option *ngFor="let daily of dalies" [value]="daily.id">
+          {{daily.name}}
+        </mat-option>
+      </mat-select>
+
+    </mat-form-field>
+    <div class="action-buttons">
+        <button   mat-raised-button color="primary" (click)="onSubmit()"  [disabled]="!selectedDaily">
+            حفظ
+        </button>
+        <button mat-raised-button color="warn">
+          الغاء
+      </button>
+    </div>
+
+  </mat-card-content>
+</mat-card>

@@ -102,6 +102,8 @@ console.log(this.dailyId);
      // this.animal = result;
     });
   }
+
+
   onDelete(row){
   if(  confirm(` أنت على وشك حذف ملف ${row.name} هل انت متاكد ؟؟!`)){
     this.formService.deleteForm(row.id).subscribe({

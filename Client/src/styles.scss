@@ -9,6 +9,7 @@
 @import "~/../assets/themes/menu.scss";
 @import "~/../assets/themes/drag.scss";
 @import "~/../assets/themes/table.scss";
+@import "~/../assets/themes/toaster.scss";
 /* You can add global styles to this file, and also import other style files */
 html, body { height: 100%; margin: 0 auto;padding: 0; }
 body { font-family: Roboto, "Helvetica Neue", sans-serif; }
@@ -23,16 +24,6 @@ body { font-family: Roboto, "Helvetica Neue", sans-serif; }
   position: sticky;
 }
 
-.toaster-success{
-  color: rgba(65, 90, 93, 1) !important;
-  background-color: #0ca07b !important;
-
-}
-.toaster-error{
-  color: rgba(65, 90, 93, 1) !important;
-  text-shadow: 2px 2px 2px rgba(65, 90, 93, 1) !important;
-  background-color: #f44336 !important;
-}
 
 
 
@@ -41,34 +32,7 @@ body { font-family: Roboto, "Helvetica Neue", sans-serif; }
   border: dotted 3px green !important;
 }
 
-//modal close button
-.close{
-  display: flex;
-  justify-content:center !important;
-  align-items: center !important;
-  font-size: 14px;
-  background-color: #476936;
-  height: 30px;
-  width: 30px;
-  border-radius:25px;
-  margin-left: 15px;
-  cursor: pointer;
-mat-icon{
-  position: relative;
-  left: 0px !important;
-  top:0px !important;
-  display: inline;
-  color: rgb(37, 51, 53) !important;
-}
-&:hover{
-  background-color: rgb(37, 51, 53) !important;
-  mat-icon{
-    color:#476936 !important;
-  }
-  transition: 0.3s ease-in-out;
-  border:  1px solid #476936 !important;
-}
-}
+
 //center form button
 .action-buttons{
 display: flex;

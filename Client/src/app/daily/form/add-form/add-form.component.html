@@ -1,35 +1,21 @@
 
 
 <mat-card    class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
-  <mat-card-header>
-    <mat-card-title >
-        <!-- <button mat-icon-button color="primary"  (click)="onNoClick()"class="close" style="position: relative;top: -8px;">
-            <mat-icon (click)="onNoClick()">close</mat-icon>
-        </button>
-   -->
-        <div class="close" (click)="onNoClick()">
-          <mat-icon >close</mat-icon>
-
-        </div>
-        <span>تسجيل يوميه</span>
-
-    </mat-card-title>
-
-  </mat-card-header>
+    <mat-card-header>
+      <mat-card-title >
+          <div class="close" (click)="onNoClick()">
+            <mat-icon >close</mat-icon>
+          </div>
+          <span>تسجيل يوميه</span>
+      </mat-card-title>
+    </mat-card-header>
   <mat-card-content>
     <form [formGroup]="form" class="form-dialg" (ngSubmit)="onSubmit()">
 
-
-
-
-      <mat-form-field appearance="outline">
+      <mat-form-field appearance="outline" class="form-dialog-input">
         <mat-label> البيان</mat-label>
-        <input matInput formControlName="name">
-
+        <input matInput formControlName="name" >
       </mat-form-field>
-
-
-
 
       <div class="action-buttons">
           <button   mat-raised-button color="primary"  [disabled]="form.invalid">
@@ -38,8 +24,9 @@
           <button mat-raised-button color="warn">
             الغاء
         </button>
+
       </div>
-      </form>
+    </form>
 
   </mat-card-content>
 

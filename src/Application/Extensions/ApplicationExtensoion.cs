@@ -1,3 +1,4 @@
+using System.Reflection;
 using Application.Features;
 using Application.Services;
 using Microsoft.AspNetCore.Http;
@@ -13,13 +14,23 @@ namespace Application.Extensions
 
             QuestPDF.Settings.License = LicenseType.Community;
             QuestPDF.Settings.EnableDebugging = true;
-            services.AddScoped<AccountService>();
-            services.AddScoped<RoleService>();
-            services.AddScoped<EmployeeService>();
-            services.AddScoped<ReportService>();
-            services.AddScoped<DailyService>();
-            services.AddScoped<FormService>();
-            services.AddScoped<FormDetailsService>();
+
+
+            // services.AddScoped<AccountService>();
+            // services.AddScoped<RoleService>();
+            // services.AddScoped<EmployeeService>();
+            // services.AddScoped<ReportService>();
+            // services.AddScoped<DailyService>();
+            // services.AddScoped<FormService>();
+            // services.AddScoped<FormDetailsService>();
+
+            //get all classes from assembly end with service
+            var assembly = Assembly.GetAssembly(typeof(AccountService));
+            var types = assembly.GetTypes().Where(t => t.Name.EndsWith("Service")).ToList();
+            foreach (var type in types)
+            {
+                services.AddScoped(type);
+            }
             return services;
         }
     }

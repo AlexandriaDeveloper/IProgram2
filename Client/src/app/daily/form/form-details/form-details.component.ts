@@ -1,4 +1,4 @@
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormDetailsService } from './../../../shared/service/form-details.service';
 import { AfterViewInit, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { DescriptionDialogComponent } from './description-dialog/description-dialog.component';
@@ -10,6 +10,8 @@ import { IEmployee } from '../../../shared/models/IEmployee';
 import { AddEmployeeDialogComponent } from './add-employee-dialog/add-employee-dialog.component';
 import { moveItemInArray } from '@angular/cdk/drag-drop';
 import { fromEvent, debounceTime, distinctUntilChanged, map } from 'rxjs';
+import { FormService } from '../../../shared/service/form.service';
+import { ToasterService } from '../../../shared/components/toaster/toaster.service';
 
 
 @Component({
@@ -21,7 +23,11 @@ import { fromEvent, debounceTime, distinctUntilChanged, map } from 'rxjs';
 export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   dialog =inject(MatDialog)
   formDetailsService= inject(FormDetailsService);
+  formService= inject(FormService);
+  router =inject(Router)
   id = inject(ActivatedRoute).snapshot.params['formid']
+  dailyId = inject(ActivatedRoute).snapshot.params['id']
+   toasterService = inject(ToasterService);
   data :any;
   dataSource;
   filteredData :IEmployee[]=[]
@@ -80,7 +86,6 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
 
 
   loadData(){
-    console.log(this.id);
 
     this.formDetailsService.GetFormDetails(this.id).subscribe(x=>
       {
@@ -97,7 +102,6 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
 
 
   openDescriptionDialog(){
-console.log(this.id);
 
     const dialogRef = this.dialog.open(DescriptionDialogComponent, {
        data: {form :this.data},
@@ -111,7 +115,6 @@ console.log(this.id);
 
      dialogRef.afterClosed().subscribe(result => {
        this.loadData();
-      // this.animal = result;
      });
 
   }
@@ -165,6 +168,23 @@ console.log(this.id);
       this.amountInput.nativeElement.value=''
     }
     this.dataSource=this.data.formDetails;
+  }
+  moveFromDailyToArchive(){
+    if(confirm(`هل تريد الغاء استمارة ${this.data.name} ؟من اليوميه!`)){
+
+      this.formService.moveFormDetailsDailyArchive({formId:this.id, dailyId:null}).subscribe(x=>{
+        this.router.navigateByUrl(`/daily/${this.dailyId}/form`);
+      });
+
+    }
+  }
+  copyFormToArchive(){
+
+    this.formService.CopyFormToArchive(this.id).subscribe({
+      next:(x:any)=>{
+       this.toasterService.openSuccessToaster('تم نسخ النموذج بنجاح')
+      }
+    })
   }
 
 

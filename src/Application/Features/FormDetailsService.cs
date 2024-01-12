@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Application.Dtos;
 using Application.Helpers;
 using Application.Shared;
 using Core.Interfaces;
+using Core.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using NPOI.Util;
+using Persistence.Extensions;
 
 namespace Application.Features
 {
@@ -17,10 +22,12 @@ namespace Application.Features
 
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IUniteOfWork _unitOfWork;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public FormDetailsService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IUniteOfWork unitOfWork)
+        public FormDetailsService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
         {
             this._unitOfWork = unitOfWork;
+            this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
             this._formDetailsRepository = formDetailsRepository;
         }
@@ -78,6 +85,40 @@ namespace Application.Features
             await _unitOfWork.SaveChangesAsync();
 
             return Result.Success("تم الحفظ بنجاح");
+        }
+
+        public async Task<Result> CopyFormToArchive(int id)
+        {
+            var form = await _formRepository.GetFormWithDetailsByIdAsync(id);
+            if (form == null)
+            {
+                return Result.Failure(new Error("400", "عفوا الملف غير موجود"));
+            }
+            var copy = new Form
+            {
+                Name = form.Name,
+                Description = form.Description,
+                DailyId = null,
+                FormDetails = form.FormDetails.Select(x => new FormDetails
+                {
+                    Amount = x.Amount,
+                    EmployeeId = x.EmployeeId,
+                    FormId = x.FormId,
+                    IsActive = x.IsActive,
+                    OrderNum = x.OrderNum,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User), //_httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value
+                }).ToList()
+
+            };
+
+            await _formRepository.Insert(copy);
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "Internal Server Error"));
+            }
+            return Result.Success("تم نسخ الملف بنجاح");
         }
         public async Task<Result> EditEmployeeToFormDetails(FormDetailsRequest form)
         {
@@ -141,6 +182,7 @@ namespace Application.Features
             await _unitOfWork.SaveChangesAsync();
             return Result.Success("تم التعديل بنجاح");
         }
+
 
     }
 }

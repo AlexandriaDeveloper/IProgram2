@@ -151,7 +151,7 @@ document.createElement('video');
 
     </mat-expansion-panel>
 
-    <mat-expansion-panel (opened)="panelOpenState = true"
+  <mat-expansion-panel (opened)="panelOpenState = true"
     (closed)="panelOpenState = false">
 <mat-expansion-panel-header>
 <mat-panel-title>
@@ -159,8 +159,10 @@ document.createElement('video');
 </mat-panel-title>
 
 </mat-expansion-panel-header>
-<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/daily']" routerLinkActive="active"  > <mat-icon >folders</mat-icon>اليوميات  </a>
-<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/:id/bank']" routerLinkActive="active"  > <mat-icon >file</mat-icon> الملفات </a>
+<mat-nav-list class="list" >
+<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/daily']" routerLinkActive="active"  [routerLinkActiveOptions]="{exact: true}" > <mat-icon >folders</mat-icon>اليوميات  </a>
+<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/daily/archivedform' ]" routerLinkActive="active" > <mat-icon >insert_drive_file</mat-icon> الملفات </a>
+</mat-nav-list>
 </mat-expansion-panel>
 
     <mat-expansion-panel (opened)="panelOpenState = true"
@@ -171,7 +173,9 @@ document.createElement('video');
 </mat-panel-title>
 
 </mat-expansion-panel-header>
+<mat-nav-list class="list" >
 <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/orders']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الموظفين  </a>
+</mat-nav-list>
 </mat-expansion-panel>
 
   </mat-accordion>

@@ -9,12 +9,12 @@ using NPOI.XSSF.UserModel;
 
 namespace Application.Services
 {
-    public class NpoiService
+    public class NpoiServiceProvider
     {
         IWorkbook workbook;
         int headerIndex = 0;
 
-        public NpoiService(string path)
+        public NpoiServiceProvider(string path)
         {
             //get extension
             string extension = Path.GetExtension(path);

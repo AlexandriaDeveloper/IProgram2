@@ -46,7 +46,7 @@ console.log(this.data);
       return this.fb.group({
         id:[this.formData?.id,[]],
         name : [this.formData?.name,[Validators.required]],
-       dailyId : [this.data?.dailyId,[Validators.required]],
+       dailyId : [this.data?.dailyId,[]],
       })
     }
     onSubmit(){

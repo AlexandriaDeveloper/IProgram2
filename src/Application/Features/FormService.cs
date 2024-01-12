@@ -33,18 +33,17 @@ namespace Application.Features
             var count = await _formRepository.CountAsync(new FormCountSpecification(id, param));
             var resultToReturn = result.Select(x => new FormDto
             {
-                //  Description = x.Description,
                 Name = x.Name,
                 Id = x.Id,
                 DailyId = x.DailyId,
                 Count = x.FormDetails.Count,
                 TotalAmount = x.FormDetails.Sum(x => x.Amount)
-
-
             }).ToList();
             var pagedResult = PaginatedResult<FormDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormDto>>(pagedResult);
         }
+
+
 
         public async Task<Result<FormDto>> AddForm(FormDto form)
         {
@@ -92,13 +91,30 @@ namespace Application.Features
             return Result.Failure(new Error("500", "Internal Server Error"));
         }
 
+        public async Task<Result> MoveFormDailyToArchive(MoveFormRequest request)
+        {
+
+            var formFromDb = await _formRepository.GetById(request.FormId);
+            if (formFromDb == null)
+                return Result.Failure(new Error("404", "Not Found"));
+            formFromDb.DailyId = request.DailyId;
+            _formRepository.Update(formFromDb);
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "Internal Server Error"));
+            }
+            return Result.Success("تم التعديل بنجاح");
+        }
+
+
         public async Task<Result> SoftDelete(int id)
         {
             var form = await _formRepository.GetById(id);
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
-            form.IsActive = false;
-            _formRepository.Update(form);
+
+            await _formRepository.DeActive(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (result)
                 return Result.Success("تم الحذف بنجاح");

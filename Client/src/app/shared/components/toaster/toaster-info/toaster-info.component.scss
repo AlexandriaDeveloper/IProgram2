@@ -1,0 +1,11 @@
+@import "./../../../../../assets/themes/varibale.scss";
+.message{
+  color: $black-color !important;
+}
+.close-icon{
+  color: $black-color !important;
+  &:hover{
+    color: $white-color !important;
+  }
+}
+

@@ -117,7 +117,7 @@ namespace Application.Features
             }
             UploadFile upload = new UploadFile(file);
             var path = await upload.UploadFileToTempPath();
-            NpoiService npoi = new NpoiService(path);
+            NpoiServiceProvider npoi = new NpoiServiceProvider(path);
 
             //Check Header Row
             var header = npoi.GetHeaders("Sheet1");

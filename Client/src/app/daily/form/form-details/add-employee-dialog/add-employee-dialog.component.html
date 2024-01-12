@@ -29,20 +29,20 @@
           <form [formGroup]="form" class="form-dialog" (ngSubmit)="onSubmit()" >
             <input type="hidden" formControlName="employeeId" value="{{employee?.id}}" >
             <div>
-              <mat-form-field appearance="outline">
+              <mat-form-field appearance="outline" class="form-dialog-input">
                 <mat-label class="saerch-title">الاسم</mat-label>
                   <input matInput placeholder="الاسم" [value]="employee?.name"  color="primary" readonly>
               </mat-form-field>
             </div>
 
             <div>
-              <mat-form-field appearance="outline">
+              <mat-form-field appearance="outline" class="form-dialog-input">
                 <mat-label class="saerch-title">الرقم القومى</mat-label>
                   <input matInput placeholder="الرقم القومى" [value]="employee?.nationalId"  color="primary" readonly>
               </mat-form-field>
             </div>
             <div>
-               <mat-form-field appearance="outline">
+               <mat-form-field appearance="outline" class="form-dialog-input">
                 <mat-label class="saerch-title"> الكليه</mat-label>
                   <input matInput placeholder="الكليه " [value]="employee.collage?employee?.collage:'غير محدد'"  color="primary" readonly>
               </mat-form-field>

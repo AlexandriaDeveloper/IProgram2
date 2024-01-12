@@ -1,39 +1,10 @@
+@import "./../../../../../assets/themes/varibale.scss";
+.message{
+  color: $white-color !important;
+}
+.close-icon{
+  color: $white-color !important;
+}
 
-
-
-.toaster-container{
-  height: 60px;
-    .close{
-      position: absolute;
-      display: flex;
-      justify-content: flex-start;
-      top: -15px;
-      right: -5px;
-
-
-      .example-icon {
-        color: rgba(255, 255, 255, 0.8) !important;
-
-        &:hover{
-          color: rgb(202, 72, 2) !important;
-          transition: .4s;
-        }
-      }
-    }
-    .message{
-      position: relative;
-      mat-icon{
-        margin-left: 10px !important;
-        top: 2px !important;
-
-      }
-      font-family: Cairo;
-      top: 20px;
-      display: flex;
-      justify-content: flex-start;
-      color: rgba(255,255,255, 1) !important;
-    }
-
-  }
 
 

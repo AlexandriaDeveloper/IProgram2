@@ -11,6 +11,7 @@ export class DailyParam extends Param{
   name : string;
   startDate:string;
   endDate:string;
+  closed?:boolean;
 }
 
 export class IFormDetailsEmployee {

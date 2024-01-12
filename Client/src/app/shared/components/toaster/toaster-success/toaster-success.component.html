@@ -1,10 +1,8 @@
 
 
 <div  class="toaster-container">
-  <div class="close">
-    <button mat-icon-button color="warn" ripple class="example-icon" aria-label="Example icon-button with share icon" (click)="close()">
-      <mat-icon color="warn">close</mat-icon>
-    </button>
+  <div class="close-toaster">
+    <mat-icon  class="close-icon" (click)="close()">close</mat-icon>
   </div>
   <div class="message">
     <mat-icon>{{data.icon}}</mat-icon>

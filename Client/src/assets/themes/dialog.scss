@@ -50,3 +50,36 @@
 .form-dialog{
   color :$white-color !important;
 }
+//modal close button
+.close{
+  display: flex;
+  justify-content:center !important;
+  align-items: center !important;
+  font-size: 14px;
+  background-color: #476936;
+  height: 30px;
+  width: 30px;
+  border-radius:25px;
+  margin-left: 15px;
+  cursor: pointer;
+    mat-icon{
+      position: relative;
+      left: 0px !important;
+      top:0px !important;
+      display: inline;
+      color: rgb(37, 51, 53) !important;
+    }
+    &:hover{
+      background-color: rgb(37, 51, 53) !important;
+      mat-icon{
+        color:#476936 !important;
+      }
+      transition: 0.3s ease-in-out;
+      border:  1px solid #476936 !important;
+    }
+}
+.form-dialog-input{
+  input{
+    color :#fff !important;
+  }
+}

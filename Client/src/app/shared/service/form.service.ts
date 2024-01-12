@@ -32,6 +32,7 @@ export class FormService {
     return this.http.get<IForm[]>(this.apiUrl+'form/'+id,{params:params})
   }
 
+
   GetFormByDetails(id){
 
     return this.http.get<IForm[]>(this.apiUrl+'form/formDetails/'+id)
@@ -40,9 +41,15 @@ export class FormService {
   addForm (model : IForm){
     return this.http.post(this.apiUrl+'form',model);
   }
+  CopyFormToArchive (id){
 
+    return this.http.get(this.apiUrl+'form/copyFormToArchive/'+id)
+  }
   editForm (model : IForm){
     return this.http.put(this.apiUrl+'form/'+model.id,model);
+  }
+  moveFormDetailsDailyArchive(model){
+    return this.http.put(this.apiUrl+'form/MoveFormDailyArchives/',model)
   }
   updateDescription(id,val){
     return this.http.put<any>(this.apiUrl+'form/updateDescription/'+id,val)
@@ -51,6 +58,7 @@ export class FormService {
 deleteForm(id){
   return this.http.delete(this.apiUrl+'form/'+id);
 }
+
 exportFormsInsidDaily(dailyId){
 
   return this.http.get(this.apiUrl+`daily/exportPdf/${dailyId}`,{ observe: 'response', responseType: 'blob' }).pipe(

@@ -3,6 +3,7 @@ import { ToasterComponent } from './toaster/toaster.component';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ToasterSuccessComponent } from './toaster-success/toaster-success.component';
 import { ToasterFailComponent } from './toaster-fail/toaster-fail.component';
+import { ToasterInfoComponent } from './toaster-info/toaster-info.component';
 
 @Injectable({
   providedIn: 'root'
@@ -41,6 +42,18 @@ export class ToasterService {
     })
   }
 
-  openInfoToaster(message: string) {
+  openInfoToaster(message: string,icon ?:string) {
+    this._snackBar.openFromComponent(ToasterInfoComponent, {
+      duration: 300000,
+      verticalPosition: 'top',
+      horizontalPosition: 'right',
+      panelClass: ['toaster-info'],
+      politeness: 'assertive',
+      data: {
+        message,
+        icon
+      }
+
+    })
   }
 }

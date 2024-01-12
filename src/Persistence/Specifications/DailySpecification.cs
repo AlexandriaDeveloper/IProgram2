@@ -17,6 +17,11 @@ namespace Persistence.Specifications
 
                 AddCriteries(x => x.DailyDate <= param.EndDate.Value && x.DailyDate >= param.StartDate.Value);
             }
+            if (param.Closed.HasValue)
+            {
+
+                AddCriteries(x => x.Closed == param.Closed);
+            }
             AddOrderByDescending(x => x.Id);
 
             ApplyPaging(param.PageIndex, param.PageSize);
@@ -34,6 +39,11 @@ namespace Persistence.Specifications
             if (param.StartDate.HasValue && param.EndDate.HasValue)
             {
                 AddCriteries(x => x.DailyDate <= param.EndDate.Value && x.DailyDate >= param.StartDate.Value);
+            }
+            if (param.Closed.HasValue)
+            {
+
+                AddCriteries(x => x.Closed == param.Closed);
             }
         }
     }
