@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+
 using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
@@ -20,11 +17,7 @@ namespace Api.Controllers
             this._formArchivedService = formService;
 
         }
-        // [HttpPut("MoveFormArchiveToDaily")]
-        // public async Task<Result> MoveFormDailyToArchives([FromBody] MoveFormRequest request)
-        // {
-        //     return await _formArchivedService.MoveFormArchiveToDaily(request);
-        // }
+
         [HttpPut("MoveFormArchiveToDaily")]
         public async Task<Result> MoveFormDailyToArchives([FromBody] MoveFromArchiveToDaily request)
         {

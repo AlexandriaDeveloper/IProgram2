@@ -17,8 +17,8 @@ export class AddEmployeeComponent implements OnInit {
   toaster = inject(ToasterService)
   employee : IEmployee = {
     name: 'محمد على شريف',
-    tabCode :1,
-    tegaraCode : 1,
+    tabCode :null,
+    tegaraCode : null,
     nationalId:'12345678901234',
     collage:'طب',
     departmentId : null
@@ -44,6 +44,7 @@ export class AddEmployeeComponent implements OnInit {
   onSubmit(){
 
    this.employee={...this.employee,...this.form.value};
+console.log(this.employee);
 
     this.employeeService.addEmployee(this.employee).subscribe({
       next:(res)=>{this.toaster.openSuccessToaster('تم اضافة الموظف بنجاح','check')},

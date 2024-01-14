@@ -4,6 +4,7 @@ import { AddEmployeeComponent } from "./add-employee/add-employee.component";
 import { RouterModule, Routes } from "@angular/router";
 import { UploadEmployeeComponent } from "./upload-employee/upload-employee.component";
 import { ListComponent } from "./list/list.component";
+import { EmployeeDetailsComponent } from "./list/employee-details/employee-details.component";
 
 const routes: Routes = [
 {path:'add',
@@ -18,6 +19,9 @@ component:AddEmployeeComponent,
 },{
 path:'list',
 component :ListComponent}
+,{
+  path:'details/:id',
+  component :EmployeeDetailsComponent}
 ];
 
 @NgModule({

@@ -8,6 +8,7 @@ using Core.Models;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using QuestPDF.Previewer;
 
 namespace Application.Features
 {
@@ -25,158 +26,159 @@ namespace Application.Features
             this.formDetailsRepository = formDetailsRepository;
             this.unitOfWork = unitOfWork;
         }
-        public async Task<byte[]> PrintFormPdf(ReportFormPdfRequest request)
-        {
-            var pdf = Document.Create(c =>
-             {
-                 c.Page(p =>
-                 {
-                     p.Foreground().PaddingTop(10).PaddingBottom(10).PaddingRight(10).PaddingLeft(10).Border(3).BorderColor("#444444");
-                     p.ContentFromRightToLeft();
-                     p.DefaultTextStyle(TextStyle.Default.FontFamily("Arial"));
-                     p.Size(PageSizes.A4);
-                     p.Header().DefaultTextStyle(TextStyle.Default.FontFamily("Cairo"));
-                     p.Header().PaddingTop(0, Unit.Centimetre);
-                     p.Header().ScaleHorizontal(1.5f).ScaleVertical(.8f).AlignCenter().Column(c =>
-                     {
-                         c.Item().Row(r =>
-                         {
-                             r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image("../Api/Content/images.png");
-                         });
-                         if (!string.IsNullOrEmpty(request.Description))
-                             c.Item().Column(c =>
-                             {
-                                 c.Item().ShowOnce().LineHorizontal(1).LineColor(Colors.Black);
-                             });
-                     });
-                     p.Margin(15, QuestPDF.Infrastructure.Unit.Millimetre);
-                     p.PageColor(Colors.White);
-                     p.Content()
-                         .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Millimetre)
-                         .ContentFromRightToLeft()
-                         .Column(x =>
-                         {
-                             if (!string.IsNullOrEmpty(request.Description))
-                                 x.Item().Row(r =>
-                                 {
-                                     r.RelativeItem().AlignRight().Text(t =>
-                                     {
-                                         t.Span(" السيد الاستاذ الدكتور / عميد كليه الطب البشرى").FontSize(18).FontFamily("Andalus").Underline().ExtraBold();
-                                         t.EmptyLine();
-                                     });
-                                 });
-                             if (!string.IsNullOrEmpty(request.Description))
-                                 x.Item().Row(r2 =>
-                                 {
+        // public async Task<byte[]> PrintFormPdf(ReportFormPdfRequest request)
+        // {
+        //     var pdf = Document.Create(c =>
+        //      {
+        //          c.Page(p =>
+        //          {
+        //              p.Foreground().PaddingTop(10).PaddingBottom(10).PaddingRight(10).PaddingLeft(10).Border(3).BorderColor("#444444");
+        //              p.ContentFromRightToLeft();
+        //              p.DefaultTextStyle(TextStyle.Default.FontFamily("Arial"));
+        //              p.Size(PageSizes.A4);
+        //              p.Header().DefaultTextStyle(TextStyle.Default.FontFamily("Cairo"));
+        //              p.Header().PaddingTop(0, Unit.Centimetre);
+        //              p.Header().ScaleHorizontal(1.5f).ScaleVertical(.8f).AlignCenter().Column(c =>
+        //              {
+        //                  c.Item().Row(r =>
+        //                  {
+        //                      r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image("../Api/Content/images.png");
+        //                  });
+        //                  if (!string.IsNullOrEmpty(request.Description))
+        //                      c.Item().Column(c =>
+        //                      {
+        //                          c.Item().ShowOnce().LineHorizontal(1).LineColor(Colors.Black);
+        //                      });
+        //              });
+        //              p.Margin(15, QuestPDF.Infrastructure.Unit.Millimetre);
+        //              p.PageColor(Colors.White);
+        //              p.Content()
+        //                  .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Millimetre)
+        //                  .ContentFromRightToLeft()
+        //                  .Column(x =>
+        //                  {
+        //                      if (!string.IsNullOrEmpty(request.Description))
+        //                          x.Item().Row(r =>
+        //                          {
+        //                              r.RelativeItem().AlignRight().Text(t =>
+        //                              {
+        //                                  t.Span(" السيد الاستاذ الدكتور / عميد كليه الطب البشرى").FontSize(18).FontFamily("Andalus").Underline().ExtraBold();
+        //                                  t.EmptyLine();
+        //                              });
+        //                          });
+        //                      if (!string.IsNullOrEmpty(request.Description))
+        //                          x.Item().Row(r2 =>
+        //                          {
 
-                                     r2.RelativeItem().AlignCenter().Text(t =>
-                                 {
-                                     t.Span("تحيه طيبه و بعد ،،،،").Bold().FontSize(14);
-                                     t.EmptyLine();
-                                 });
-                                 });
-                             if (!string.IsNullOrEmpty(request.Description))
-                                 x.Item().Row(r3 =>
-                                 {
-                                     r3.RelativeItem().AlignRight().Text(t =>
-                                     {
+        //                              r2.RelativeItem().AlignCenter().Text(t =>
+        //                          {
+        //                              t.Span("تحيه طيبه و بعد ،،،،").Bold().FontSize(14);
+        //                              t.EmptyLine();
+        //                          });
+        //                          });
+        //                      if (!string.IsNullOrEmpty(request.Description))
+        //                          x.Item().Row(r3 =>
+        //                          {
+        //                              r3.RelativeItem().AlignRight().Text(t =>
+        //                              {
 
-                                         t.ParagraphSpacing(5, Unit.Millimetre);
-                                         t.Span(request.Description).FontSize(14);
-                                         t.EmptyLine();
+        //                                  t.ParagraphSpacing(5, Unit.Millimetre);
+        //                                  t.Span(request.Description).FontSize(14);
+        //                                  t.EmptyLine();
 
-                                     });
-                                 });
-                             x.Item().Border(1).Table(t =>
-                             {
-                                 t.ColumnsDefinition(h =>
-                                 {
-                                     h.ConstantColumn(30);
-                                     h.ConstantColumn(60);
-                                     h.ConstantColumn(60);
-                                     h.RelativeColumn();
-                                     h.ConstantColumn(80);
-                                 });
-                                 t.Header(h =>
-                                 {
-                                     h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("م").Bold();
-                                     h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("كود تجارة").Bold();
-                                     h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("كود طب").Bold();
-                                     h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("الاسم").Bold();
-                                     h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("المبلغ").Bold();
-                                 });
+        //                              });
+        //                          });
+        //                      x.Item().Border(1).Table(t =>
+        //                      {
+        //                          t.ColumnsDefinition(h =>
+        //                          {
+        //                              h.ConstantColumn(30);
+        //                              h.ConstantColumn(60);
+        //                              h.ConstantColumn(60);
+        //                              h.RelativeColumn();
+        //                              h.ConstantColumn(80);
+        //                          });
+        //                          t.Header(h =>
+        //                          {
+        //                              h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("م").Bold();
+        //                              h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("كود تجارة").Bold();
+        //                              h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("كود طب").Bold();
+        //                              h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("الرقم القومى").Bold();
+        //                              h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("الاسم").Bold();
+        //                              h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text("المبلغ").Bold();
+        //                          });
 
-                                 decimal total = 0;
-                                 uint row = 0;
-                                 for (int r = 1; r < 4; r++)
-                                 {
-                                     t.Cell().Row((uint)r).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((r).ToString());
-                                     t.Cell().Row((uint)r).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text("9302");
-                                     t.Cell().Row((uint)r).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text("2308");
-                                     t.Cell().Row((uint)r).Column(4).Border(1).Padding(2).AlignMiddle().AlignRight().Text("محمود محمد عبد الحميد");
-                                     t.Cell().Row((uint)r).Column(5).Border(1).Padding(2).AlignMiddle().AlignCenter().Text("1300.25");
-                                     total += 1300.25m;
-                                     row = (uint)r;
-                                 }
-                                 t.Cell().Row((row + 1)).ColumnSpan(4).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text("المبلغ الاجمالى").Bold();
-                                 t.Cell().Row((row + 1)).Column(5).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(total.ToString()).Bold();
-                             });
+        //                          decimal total = 0;
+        //                          uint row = 0;
+        //                          for (int r = 1; r < 4; r++)
+        //                          {
+        //                              t.Cell().Row((uint)r).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((r).ToString());
+        //                              t.Cell().Row((uint)r).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text("9302");
+        //                              t.Cell().Row((uint)r).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text("2308");
+        //                              t.Cell().Row((uint)r).Column(4).Border(1).Padding(2).AlignMiddle().AlignRight().Text("محمود محمد عبد الحميد");
+        //                              t.Cell().Row((uint)r).Column(5).Border(1).Padding(2).AlignMiddle().AlignCenter().Text("1300.25");
+        //                              total += 1300.25m;
+        //                              row = (uint)r;
+        //                          }
+        //                          t.Cell().Row((row + 1)).ColumnSpan(4).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text("المبلغ الاجمالى").Bold();
+        //                          t.Cell().Row((row + 1)).Column(5).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(total.ToString()).Bold();
+        //                      });
 
-                             if (!string.IsNullOrEmpty(request.Description))
-                                 x.Item().Text(t =>
-                                 {
-                                     t.EmptyLine();
-                                     t.AlignCenter();
-                                     t.Span("و تفضلوا سيادتكم بقبول وافر الشكر و الاحترام").FontSize(14).FontFamily("Andalus").Bold();
-                                 });
-                         }
+        //                      if (!string.IsNullOrEmpty(request.Description))
+        //                          x.Item().Text(t =>
+        //                          {
+        //                              t.EmptyLine();
+        //                              t.AlignCenter();
+        //                              t.Span("و تفضلوا سيادتكم بقبول وافر الشكر و الاحترام").FontSize(14).FontFamily("Andalus").Bold();
+        //                          });
+        //                  }
 
-                         )
+        //                  )
 
-                         ;
-                     p.Background()
-                     .AlignBottom()
-                     .Image("../Api/Content/logo3.png");
-                     p.Footer()
-                            .Table(t =>
-                            {
-                                t.ColumnsDefinition(c =>
-                                {
-                                    c.RelativeColumn();
-                                    c.RelativeColumn();
-                                    c.RelativeColumn();
-                                });
-                                t.Cell().Row(1).Column(1).AlignRight().Text("الموظف المختص").Bold();
-                                t.Cell().Row(1).Column(2).AlignCenter().Text("رئيس القسم").Bold();
-                                t.Cell().Row(1).Column(3).AlignLeft().Text("رئيس المصلحة").Bold();
-                                t.Cell().Row(2).Column(2).AlignCenter().Text(x =>
-                                {
-                                    x.EmptyLine();
-                                    x.EmptyLine();
-                                    x.Span("-").FontSize(12).FontColor("#484848");
-                                    x.CurrentPageNumber().FontSize(12).FontColor("#484848");
-                                    x.Span("-").FontSize(12).FontColor("#484848");
-                                });
-                            });
-                 });
-             }).WithMetadata(new DocumentMetadata()
-             {
-                 Title = "Report",
-                 Author = "mohamed",
-                 Subject = "hello",
-                 Keywords = "Test",
+        //                  ;
+        //              p.Background()
+        //              .AlignBottom()
+        //              .Image("../Api/Content/logo3.png");
+        //              p.Footer()
+        //                     .Table(t =>
+        //                     {
+        //                         t.ColumnsDefinition(c =>
+        //                         {
+        //                             c.RelativeColumn();
+        //                             c.RelativeColumn();
+        //                             c.RelativeColumn();
+        //                         });
+        //                         t.Cell().Row(1).Column(1).AlignRight().Text("الموظف المختص").Bold();
+        //                         t.Cell().Row(1).Column(2).AlignCenter().Text("رئيس القسم").Bold();
+        //                         t.Cell().Row(1).Column(3).AlignLeft().Text("رئيس المصلحة").Bold();
+        //                         t.Cell().Row(2).Column(2).AlignCenter().Text(x =>
+        //                         {
+        //                             x.EmptyLine();
+        //                             x.EmptyLine();
+        //                             x.Span("-").FontSize(12).FontColor("#484848");
+        //                             x.CurrentPageNumber().FontSize(12).FontColor("#484848");
+        //                             x.Span("-").FontSize(12).FontColor("#484848");
+        //                         });
+        //                     });
+        //          });
+        //      }).WithMetadata(new DocumentMetadata()
+        //      {
+        //          Title = "Report",
+        //          Author = "mohamed",
+        //          Subject = "hello",
+        //          Keywords = "Test",
 
-             })
-             .WithSettings(new DocumentSettings()
-             {
+        //      })
+        //      .WithSettings(new DocumentSettings()
+        //      {
 
-             })
-             .GeneratePdf();
+        //      })
+        //      .GeneratePdf();
 
 
-            return await Task.FromResult(pdf);
+        //     return await Task.FromResult(pdf);
 
-        }
+        // }
 
         public async Task<byte[]> PrintFormWithDetailsPdf(int formId)
         {
@@ -279,8 +281,9 @@ namespace Application.Features
                                   t.ColumnsDefinition(h =>
                                   {
                                       h.ConstantColumn(35);
-                                      h.ConstantColumn(60);
-                                      h.ConstantColumn(60);
+                                      h.ConstantColumn(50);
+                                      h.ConstantColumn(50);
+                                      h.RelativeColumn();
                                       h.RelativeColumn();
                                       h.ConstantColumn(80);
                                   });
@@ -302,6 +305,10 @@ namespace Application.Features
                                          });
                                       h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(t =>
                                          {
+                                             t.Span("الرقم القومى").Bold().FontFamily("Cairo").FontSize(10);
+                                         });
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(t =>
+                                         {
                                              t.Span("الاسم").Bold().FontFamily("Cairo").FontSize(10);
                                          });
                                       h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(t =>
@@ -315,16 +322,17 @@ namespace Application.Features
                                       t.Cell().Row((uint)row + 1).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((row + 1).ToString());
                                       t.Cell().Row((uint)row + 1).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.TegaraCode.ToString());
                                       t.Cell().Row((uint)row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.TabCode.ToString());
-                                      t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Name);
-                                      t.Cell().Row((uint)row + 1).Column(5).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Amount.ToString());
+                                      t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.NationalId.ToString());
+                                      t.Cell().Row((uint)row + 1).Column(5).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Name);
+                                      t.Cell().Row((uint)row + 1).Column(6).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Amount.ToString());
                                       row++;
                                   }
-                                  t.Cell().Row((row + 1)).ColumnSpan(4).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(
+                                  t.Cell().Row((row + 1)).ColumnSpan(5).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(
                                      t =>
                                      {
                                          t.Span(" اجمالى المبلغ : " + totalText + "فقط لا غير").Bold().FontSize(9).FontFamily("Cairo");
                                      });
-                                  t.Cell().Row((row + 1)).Column(5).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
+                                  t.Cell().Row((row + 1)).Column(6).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
                                   (formModel.FormDetails.Sum(x => x.Amount).ToString()).Bold().FontFamily("Cairo");
                               });
 
@@ -367,10 +375,205 @@ namespace Application.Features
                  Author = "mohamed",
                  Subject = "hello",
                  Keywords = "Test"
+             })
+            .GeneratePdf();
+            //pdf.show
+            return await Task.FromResult(pdf);
+        }
+        /*
+        {
+  "id": 1460115,
+  "startDate": "2020-01-13T20:04:58.347Z",
+  "endDate": "2024-01-13T20:04:58.347Z"
+}
+        */
+
+        public async Task<byte[]> PrintEmployeeReportDetailsPdf(EmployeeReportDto formModel)
+        {
+            var nationalIdChars = formModel.NationalId.ToCharArray();
+            Array.Reverse(nationalIdChars);
+            var nationalId = new string(nationalIdChars);
+
+            var tabCodeChars = formModel.TabCode.ToString().ToCharArray();
+            Array.Reverse(tabCodeChars);
+            var tabCode = new string(tabCodeChars);
+
+            var tegaraCodeChars = formModel.TegaraCode.ToString().ToCharArray();
+            Array.Reverse(tegaraCodeChars);
+            var tegaraCode = new string(tegaraCodeChars);
+
+
+            var totalText = NumericToLiteral.Convert(formModel.GrandTotal, false, "جنيه", "جنيهات");
+            totalText = totalText.Replace("(", "");
+            totalText = totalText.Replace(")", "");
+            totalText = totalText.Replace("،", "");
+
+            var pdf = QuestPDF.Fluent.Document.Create(c =>
+             {
+
+                 c.Page(p =>
+                  {
+
+                      p.Foreground().PaddingTop(10).PaddingBottom(10).PaddingRight(10).PaddingLeft(10).Border(3).BorderColor("#444444");
+                      p.ContentFromRightToLeft();
+                      p.DefaultTextStyle(TextStyle.Default.FontFamily("Arial"));
+                      p.Size(PageSizes.A4);
+
+                      p.Header().DefaultTextStyle(TextStyle.Default.FontFamily("Arial"));
+                      p.Header().ContentFromRightToLeft();
+                      p.Header().PaddingTop(0, Unit.Centimetre);
+                      p.Header().ScaleHorizontal(1.5f).ScaleVertical(.8f).AlignCenter().Column(c =>
+                      {
+                          c.Item().Row(r =>
+                          {
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image("../Api/Content/images.png");
+                          });
+
+                      });
+                      p.Margin(15, QuestPDF.Infrastructure.Unit.Millimetre);
+                      p.PageColor(Colors.White);
+                      p.Content()
+                          .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Millimetre)
+
+                          .Column(x =>
+                          {
+
+                              x.Item().AlignMiddle().Row(r =>
+                              {
+                                  r.RelativeItem(200)
+                                  .AlignCenter()
+                                    .PaddingBottom(7, Unit.Millimetre)
+                                  .Text($"تقرير  :  {formModel.Name}")
+
+                                  .FontSize(14)
+                                  .Underline()
+                                  .Bold()
+                                  .FontFamily("Cairo").FontColor("#1d2281");
+
+
+
+
+                              });
+
+                              x.Item().Row(r =>
+                                {
+                                    r.ConstantItem(200).Text($"الرقم القومى :  {nationalId}").DirectionAuto().FontSize(12).FontFamily("arial").SemiBold();
+                                    r.ConstantItem(150).Text($"كود طب :  {tabCode}").FontSize(12).FontFamily("arial").SemiBold();
+                                    r.ConstantItem(150).Text($"كود تجارة :  {tegaraCode}").FontSize(12).FontFamily("arial").SemiBold();
+
+                                });
+
+
+
+                              x.Item().Border(1).Table(async t =>
+                              {
+                                  t.ColumnsDefinition(h =>
+                                  {
+                                      h.ConstantColumn(35);
+                                      h.ConstantColumn(350);
+                                      h.RelativeColumn();
+                                      // h.ConstantColumn(35);
+
+                                  });
+                                  t.Header(h =>
+                                  {
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(
+                                         t =>
+                                         {
+                                             t.Span("م").ExtraBold().FontFamily("Cairo").FontSize(12);
+                                         });
+
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(
+                                            t =>
+                                         {
+                                             t.Span("البيان").ExtraBold().Bold().FontFamily("Cairo").FontSize(12);
+                                         });
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(t =>
+                                         {
+                                             t.Span("المبلغ").Bold().FontFamily("Cairo").FontSize(12);
+                                         });
+                                      //   h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(t =>
+                                      //      {
+                                      //          t.Span("الحاله").Bold().FontFamily("Cairo").FontSize(12);
+                                      //      });
+
+                                  });
+                                  uint row = 0;
+                                  uint dailyCounter = 0;
+                                  foreach (var daily in formModel.Dailies)
+                                  {
+                                      uint formCounter = 0;
+                                      foreach (var form in daily.Forms)
+                                      {
+                                          t.Cell().Row((uint)row + 1).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((formCounter + 1).ToString());
+                                          t.Cell().Row((uint)row + 1).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.FormName.ToString());
+                                          t.Cell().Row((uint)row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Amount.ToString());
+                                          // t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(string.Empty);
+                                          formCounter++;
+                                          row++;
+
+                                      }
+                                      t.Cell().Row((uint)row + 1).Column(1).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text((dailyCounter + 1).ToString()).Bold();
+                                      t.Cell().Row((uint)row + 1).Column(2).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text("  إجمالى  " + daily.DailyName).Bold();
+                                      t.Cell().Row((uint)row + 1).Column(3).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text(daily.TotalAmount.ToString()).Bold();
+                                      //  t.Cell().Row((uint)row + 1).Column(4).Background("#b8b8b8").Border(1).Padding(2).AlignMiddle().AlignCenter().Text(daily.State.ToString()).Bold();
+                                      dailyCounter++;
+                                      row++;
+                                  }
+                                  t.Cell().Row((row + 1)).ColumnSpan(2).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(
+                                     t =>
+                                     {
+                                         t.Span("الاجمالى الكلى").Bold().FontSize(12).FontFamily("Cairo");
+                                         //  t.Span(" اجمالى المبلغ : " + totalText + "فقط لا غير").Bold().FontSize(9).FontFamily("Cairo");
+                                     });
+                                  t.Cell().Row((row + 1)).Column(3).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
+                                  (formModel.GrandTotal.ToString()).Bold().FontFamily("Cairo");
+                              });
+
+
+
+
+                              x.Item().AlignMiddle().Row(r =>
+                              {
+                                  r.RelativeItem(200).Text("اجمالى المبلغ : " + totalText + "فقط لا غير ").FontSize(10).Bold().FontFamily("Cairo");
+
+                              });
+
+
+                          });
+                      p.Background()
+                      .AlignBottom()
+                      .Image("../Api/Content/logo3.png");
+                      p.Footer()
+                             .Table(t =>
+                             {
+                                 t.ColumnsDefinition(c =>
+                                 {
+                                     c.RelativeColumn();
+                                     c.RelativeColumn();
+                                     c.RelativeColumn();
+                                 });
+                                 t.Cell().Row(1).Column(1).AlignRight().Text("الموظف المختص").Bold();
+                                 t.Cell().Row(1).Column(2).AlignCenter().Text("رئيس القسم").Bold();
+                                 t.Cell().Row(1).Column(3).AlignLeft().Text("رئيس المصلحة").Bold();
+                                 t.Cell().Row(2).Column(2).AlignCenter().Text(x =>
+                                 {
+                                     x.EmptyLine();
+                                     x.EmptyLine();
+                                     x.Span("-").FontSize(12).FontColor("#484848");
+                                     x.CurrentPageNumber().FontSize(12).FontColor("#484848");
+                                     x.Span("-").FontSize(12).FontColor("#484848");
+                                 });
+                             });
+                  });
+             }).WithMetadata(new DocumentMetadata()
+             {
+                 Title = "Report",
+                 Author = "mohamed",
+                 Subject = "hello",
+                 Keywords = "Test"
              }).GeneratePdf();
             return await Task.FromResult(pdf);
         }
-
-
     }
 }

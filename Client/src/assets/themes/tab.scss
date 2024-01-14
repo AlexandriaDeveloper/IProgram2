@@ -1,0 +1,29 @@
+@import "./varibale.scss";
+
+.mat-mdc-tab-group{
+  background-color: rgba( $primary-color ,0.9) !important;
+
+  .mat-mdc-tab{
+
+    background-color: rgba( $black-color ,0.2) !important;
+    span{
+      color: $white-color !important;
+    }
+  }
+  .mat-mdc-tab.mdc-tab--active{
+
+    span{
+      color: $accent-color !important;
+    }
+  }
+
+  .mat-mdc-tab-body{
+
+    color: #fff !important;
+    font-family: cairo;
+
+    padding: 20px 40px !important;
+    min-height: 400px;
+
+  }
+}

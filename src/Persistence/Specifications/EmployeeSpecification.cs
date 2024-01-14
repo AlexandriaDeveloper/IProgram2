@@ -11,7 +11,10 @@ namespace Persistence.Specifications
     {
         public EmployeeSpecification(EmployeeParam param)
         {
-
+            if (param.Id.HasValue)
+            {
+                AddCriteries(x => x.Id == param.Id);
+            }
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));

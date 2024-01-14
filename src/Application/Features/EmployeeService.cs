@@ -1,5 +1,6 @@
 using System.Data;
 using Application.Dtos;
+using Application.Dtos.Requests;
 using Application.Helpers;
 using Application.Services;
 using Application.Shared;
@@ -7,6 +8,7 @@ using Application.Shared.ErrorResult;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Persistence.Helpers;
 using Persistence.Specifications;
 namespace Application.Features
@@ -15,9 +17,11 @@ namespace Application.Features
     {
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IUniteOfWork _uow;
-        public EmployeeService(IEmployeeRepository employeeRepository
+        private readonly IFormDetailsRepository _formDetailsRepository;
+        public EmployeeService(IEmployeeRepository employeeRepository, IFormDetailsRepository formDetailsRepository
         , IUniteOfWork uow)
         {
+            this._formDetailsRepository = formDetailsRepository;
             this._uow = uow;
 
             this._employeeRepository = employeeRepository;
@@ -108,6 +112,45 @@ namespace Application.Features
 
         }
 
+        public async Task<Result<EmployeeReportDto>> EmployeeReport(EmployeeReportRequest request)
+        {
+
+            var employee = _formDetailsRepository.GetQueryable()
+            .Where(x => x.EmployeeId == request.Id && x.Form.Daily.DailyDate >= request.StartDate && x.Form.Daily.DailyDate <= request.EndDate && x.Form.IsActive && x.IsActive)
+            .Include(x => x.Form)
+            .ThenInclude(x => x.Daily).ToList();
+
+
+            var EmployeeReportDto = new EmployeeReportDto();
+            var emp = await _employeeRepository.GetById(request.Id);
+            if (emp == null)
+            {
+                return Result.Failure<EmployeeReportDto>(new Error("500", "الموظف غير موجود"));
+            }
+            EmployeeReportDto.TabCode = emp.TabCode;
+            EmployeeReportDto.TegaraCode = emp.TegaraCode;
+            EmployeeReportDto.NationalId = emp.NationalId;
+            EmployeeReportDto.Name = emp.Name;
+
+
+            EmployeeReportDto.Dailies = employee.SelectMany(x => x.Form.FormDetails).Select(x => x.Form).GroupBy(g => g.Daily).Select(x => new EmployeeDailyDto()
+            {
+                DailyDate = x.Key.DailyDate,
+                DailyName = x.Key.Name,
+                State = x.Key.Closed ? "مغلق" : "مفتوح",
+                Forms = x.Select(x => new EmployeeFormDto()
+                {
+                    Amount = x.FormDetails.Where(y => y.EmployeeId == request.Id).Sum(y => y.Amount),
+                    FormId = x.Id,
+                    FormName = x.Name
+
+                }).ToList()
+            }).ToList();
+            return Result.Success(EmployeeReportDto);
+
+
+        }
+
         public async Task<Result> UploadEmployees(IFormFile file)
         {
 
@@ -159,6 +202,8 @@ namespace Application.Features
             return Result.Success("تم الرفع بنجاح");
 
         }
+
+
 
         private bool CheckHeaderRow(List<string> header)
         {

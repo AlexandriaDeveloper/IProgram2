@@ -1,5 +1,6 @@
 @import "~/../varibale.scss";
 .full-width-table {
+  box-shadow: -5px 5px 25px 5px rgba(0, 0, 0, 0.6);
   background-color: rgba($primary-color, 0.6) !important;
   .mat-mdc-row{
     mat-icon{
@@ -72,9 +73,7 @@ table .saerch-title{
     text-align: center !important;
   }
 }
-.mat-mdc-input-element{
-  //color:  #000000 !important;
-}
+
 .no-data{
   color :#fff !important;
   text-align: center;

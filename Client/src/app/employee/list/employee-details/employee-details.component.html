@@ -1,0 +1,14 @@
+
+<mat-tab-group color="accent">
+  <mat-tab label="بيانات الموظف" >
+    <ng-template matTabContent>
+      <app-employee-info [employee] ="employee"></app-employee-info>
+    </ng-template>
+  </mat-tab>
+  <mat-tab label="صرفيات">
+    <ng-template matTabContent>
+      <app-employee-report [employee] ="employee" ></app-employee-report>
+    </ng-template>
+  </mat-tab>
+  <mat-tab label="حساب البنك"> Content 3 </mat-tab>
+</mat-tab-group>

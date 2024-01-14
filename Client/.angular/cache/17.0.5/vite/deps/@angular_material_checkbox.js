@@ -1,4 +1,9 @@
 import {
+  CheckboxRequiredValidator,
+  NG_VALIDATORS,
+  NG_VALUE_ACCESSOR
+} from "./chunk-IDLSIQ2B.js";
+import {
   MatCommonModule,
   MatRipple,
   MatRippleModule
@@ -8,11 +13,6 @@ import "./chunk-4F74E6RB.js";
 import "./chunk-5SBMSZOM.js";
 import "./chunk-SFCFP7Z3.js";
 import "./chunk-U346D2SR.js";
-import {
-  CheckboxRequiredValidator,
-  NG_VALIDATORS,
-  NG_VALUE_ACCESSOR
-} from "./chunk-IDLSIQ2B.js";
 import "./chunk-YZEMK44K.js";
 import {
   ANIMATION_MODULE_TYPE,

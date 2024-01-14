@@ -78,6 +78,7 @@ namespace Api.Controllers
 
         }
 
+
         [HttpGet("Test")]
         [AllowAnonymous]
         public async Task<Result<string>> ConvetNumToStrin(decimal num)
@@ -86,6 +87,15 @@ namespace Api.Controllers
             return await _employeeService.ConvertNumber(num);
 
         }
+        [AllowAnonymous]
+
+        [HttpPost("EmployeeReport")]
+        public async Task<Result<EmployeeReportDto>> EmployeeReport([FromBody] EmployeeReportRequest request)
+        {
+            return await _employeeService.EmployeeReport(request);
+            // return null;
+        }
 
     }
+
 }

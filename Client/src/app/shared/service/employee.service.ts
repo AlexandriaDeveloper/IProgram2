@@ -65,6 +65,7 @@ export class EmployeeService {
 
     // if(param.sortBy) params = params.append('sortBy',param.sortBy);
     // if(param.direction) params = params.append('direction',param.direction);
+    if(param.id) params = params.append('id',param.id);
 
     if(param.tegaraCode) params = params.append('tegaraCode',param.tegaraCode);
     if(param.nationalId) params = params.append('nationalId',param.nationalId);

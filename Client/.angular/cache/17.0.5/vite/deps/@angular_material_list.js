@@ -5,6 +5,9 @@ import {
   SelectionModel
 } from "./chunk-UXVKRNCZ.js";
 import {
+  NG_VALUE_ACCESSOR
+} from "./chunk-IDLSIQ2B.js";
+import {
   MAT_RIPPLE_GLOBAL_OPTIONS,
   MatCommonModule,
   MatPseudoCheckboxModule,
@@ -29,9 +32,6 @@ import {
   coerceNumberProperty
 } from "./chunk-SFCFP7Z3.js";
 import "./chunk-U346D2SR.js";
-import {
-  NG_VALUE_ACCESSOR
-} from "./chunk-IDLSIQ2B.js";
 import {
   CommonModule,
   NgTemplateOutlet
