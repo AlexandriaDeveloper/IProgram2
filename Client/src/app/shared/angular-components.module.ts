@@ -21,7 +21,7 @@ import {DragDropModule} from '@angular/cdk/drag-drop';
 import { MatMomentDateModule } from "@angular/material-moment-adapter";
 import {MatCheckboxModule} from '@angular/material/checkbox';
 import {MatTabsModule} from '@angular/material/tabs';
-
+import {MatListModule} from '@angular/material/list';
 @NgModule({
   declarations: [],
   imports: [
@@ -57,7 +57,7 @@ import {MatTabsModule} from '@angular/material/tabs';
     DragDropModule,
     MatMomentDateModule,
     MatCheckboxModule,
-    MatTabsModule
+    MatTabsModule,MatListModule
 
 
   ]

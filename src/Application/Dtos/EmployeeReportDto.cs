@@ -21,6 +21,7 @@ namespace Application.Dtos
     public class EmployeeDailyDto
     {
         public List<EmployeeFormDto> Forms { get; set; }
+        public int DailyId { get; set; }
         public string DailyName { get; set; }
         public string State { get; set; }
         public DateTime DailyDate { get; set; }

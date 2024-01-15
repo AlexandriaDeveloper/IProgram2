@@ -26,6 +26,11 @@ body { font-family: Roboto, "Helvetica Neue", sans-serif; }
 .nav-bar{
   position: sticky;
 }
+.content{
+  padding-top: 40px;
+ display: flex;
+ justify-content: center;
+}
 
 
 
@@ -64,24 +69,10 @@ justify-content: center;
     .ng-invalid.ng-touched{
       border: 3px solid rgba( #e57373,1) !important;
     }
-
   }
   &.ng-invalid.ng-touched{
     border: 1px solid rgba( #e57373,1) !important;
   }
-  &.ng-valid.ng-touched{
-  //  border: 2px solid rgba( #476936,1) !important;
-  }
-  // .mat-datepicker-toggle-default-icon{
-  //   color: #fff !important;
-  // }
-  // .mat-datepicker-toggle-active{
-  //   color: #fff !important;
-  // }
-
-
-
-
 }
 
 

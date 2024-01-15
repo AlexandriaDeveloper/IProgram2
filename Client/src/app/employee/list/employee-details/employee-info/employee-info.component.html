@@ -1,2 +1,25 @@
-<p>employee-info works!</p>
-{{employee.name}}
+<div class="content">
+  <div class="employee-info">
+
+      <div class="employee-info-item">
+       <mat-icon>person</mat-icon> الاسم :  {{employee?.name}}
+      </div>
+      <div class="employee-info-item">
+        <mat-icon>credit_card</mat-icon> الرقم القومى :  {{employee?.nationalId}}
+      </div>
+      <div class="employee-info-item">
+     <mat-icon>123</mat-icon>    كود طب :  {{employee?.tabCode}}
+      </div>
+      <div class="employee-info-item">
+     <mat-icon>#</mat-icon>   كود تجارة :  {{employee?.tegaraCode}}
+      </div>
+      <div class="employee-info-item">
+        <mat-icon>account_balance</mat-icon>   الكليه :  {{employee?.collage}}
+      </div>
+      <div class="employee-info-item">
+       <mat-icon>business</mat-icon> القسم:  {{employee?.departmentId}}
+      </div>
+
+  </div>
+
+</div>

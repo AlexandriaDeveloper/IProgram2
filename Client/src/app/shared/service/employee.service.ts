@@ -1,9 +1,9 @@
-import { EmployeeParam } from '../models/IEmployee';
-import { HttpClient, HttpEventType, HttpHeaders, HttpParams } from '@angular/common/http';
+import { EmployeeParam, EmployeeReportRequest } from '../models/IEmployee';
+import { HttpClient, HttpEventType, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environment';
 import { IEmployee, IUploadEmployee } from '../models/IEmployee';
-import { map, tap } from 'rxjs';
+import { catchError, map, of, tap } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -76,6 +76,16 @@ export class EmployeeService {
     return this.http.get<IEmployee>(this.apiUrl+'employee/getEmployee',{params:params})
   }
 
+  employeeReport(model :EmployeeReportRequest){
 
 
+
+    return this.http.post(this.apiUrl+`employee/EmployeeReport/`,model)
+   // return this.http.get(this.apiUrl+'reportPdf/PrintEmployeeReportDetailsPdf',{params})
+  }
 }
+
+
+
+
+

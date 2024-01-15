@@ -135,7 +135,9 @@ namespace Application.Features
 
             EmployeeReportDto.Dailies = employee.SelectMany(x => x.Form.FormDetails).Select(x => x.Form).GroupBy(g => g.Daily).Select(x => new EmployeeDailyDto()
             {
+
                 DailyDate = x.Key.DailyDate,
+                DailyId = x.Key.Id,
                 DailyName = x.Key.Name,
                 State = x.Key.Closed ? "مغلق" : "مفتوح",
                 Forms = x.Select(x => new EmployeeFormDto()
