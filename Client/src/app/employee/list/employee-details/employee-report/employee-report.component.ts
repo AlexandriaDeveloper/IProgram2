@@ -63,4 +63,11 @@ export class EmployeeReportComponent implements OnInit ,AfterViewInit{
 
      this.load();
    }
+   clearEnd (){
+
+    this.request.endDate= null;
+   }
+   clearStart (){
+    this.request.startDate=null;
+   }
 }

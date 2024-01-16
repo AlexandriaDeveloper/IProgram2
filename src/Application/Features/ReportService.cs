@@ -535,7 +535,7 @@ namespace Application.Features
 
                               x.Item().AlignMiddle().Row(r =>
                               {
-                                  r.RelativeItem(200).Text("اجمالى المبلغ : " + totalText + "فقط لا غير ").FontSize(10).Bold().FontFamily("Cairo");
+                                  r.RelativeItem(200).Text("اجمالى المبلغ : " + totalText + " فقط لا غير ").FontSize(10).Bold().FontFamily("Cairo");
 
                               });
 

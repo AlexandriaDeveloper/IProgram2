@@ -27,7 +27,7 @@ loadingService.isLoading();
         if(event.body?.isSuccess===false && event.body?.error){
 
           toaster.openErrorToaster(
-            event.body?.error?.message
+            event.body?.error?.message ,'error'
           )
           event = event.clone({ body:  null})
         }

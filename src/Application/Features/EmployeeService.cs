@@ -116,16 +116,34 @@ namespace Application.Features
         {
 
             var employee = _formDetailsRepository.GetQueryable()
-            .Where(x => x.EmployeeId == request.Id && x.Form.Daily.DailyDate >= request.StartDate && x.Form.Daily.DailyDate <= request.EndDate && x.Form.IsActive && x.IsActive)
+            .Where(x => x.EmployeeId == request.Id &&
+             x.Form.IsActive && x.IsActive)
             .Include(x => x.Form)
-            .ThenInclude(x => x.Daily).ToList();
+            .ThenInclude(x => x.Daily).AsQueryable();
+
+            if (request.StartDate.HasValue)
+            {
+                employee = employee.Where(x => x.Form.Daily.DailyDate >= request.StartDate);
+            }
+            else
+            {
+                employee = employee.Where(x => x.Form.Daily.DailyDate >= DateTime.Now.AddYears(-5));
+            }
+            if (request.EndDate.HasValue)
+            {
+                employee = employee.Where(x => x.Form.Daily.DailyDate <= request.EndDate);
+            }
+            else
+            {
+                employee = employee.Where(x => x.Form.Daily.DailyDate <= DateTime.Now.AddYears(5));
+            }
 
 
             var EmployeeReportDto = new EmployeeReportDto();
             var emp = await _employeeRepository.GetById(request.Id);
             if (emp == null)
             {
-                return Result.Failure<EmployeeReportDto>(new Error("500", "الموظف غير موجود"));
+                return Result.Failure<EmployeeReportDto>(new Error("404", "الموظف غير موجود"));
             }
             EmployeeReportDto.TabCode = emp.TabCode;
             EmployeeReportDto.TegaraCode = emp.TegaraCode;
@@ -133,18 +151,20 @@ namespace Application.Features
             EmployeeReportDto.Name = emp.Name;
 
 
-            EmployeeReportDto.Dailies = employee.SelectMany(x => x.Form.FormDetails).Select(x => x.Form).GroupBy(g => g.Daily).Select(x => new EmployeeDailyDto()
+            EmployeeReportDto.Dailies = employee
+           .GroupBy(g => g.Form.Daily)
+            .Select(x => new EmployeeDailyDto()
             {
 
                 DailyDate = x.Key.DailyDate,
                 DailyId = x.Key.Id,
                 DailyName = x.Key.Name,
                 State = x.Key.Closed ? "مغلق" : "مفتوح",
-                Forms = x.Select(x => new EmployeeFormDto()
+                Forms = x.Select(x2 => new EmployeeFormDto()
                 {
-                    Amount = x.FormDetails.Where(y => y.EmployeeId == request.Id).Sum(y => y.Amount),
-                    FormId = x.Id,
-                    FormName = x.Name
+                    Amount = x2.Amount,
+                    FormId = x2.Id,
+                    FormName = x2.Form.Name
 
                 }).ToList()
             }).ToList();

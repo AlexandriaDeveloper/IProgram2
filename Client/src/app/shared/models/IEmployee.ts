@@ -35,6 +35,6 @@ export interface IEmployeeSearch {
 
 export class EmployeeReportRequest{
   id:number;
-  startDate:string;
-  endDate:string;
+  startDate?:string;
+  endDate?:string;
 }
