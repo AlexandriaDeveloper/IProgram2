@@ -24,4 +24,10 @@ export const routes: Routes = [
     loadChildren: () => import('./daily/daily.module').then(m => m.DailyModule)
 
   }
+  ,
+  {
+    path:'department',
+    loadChildren: () => import('./department/department.module').then(m => m.DepartmentModule)
+
+  }
 ];

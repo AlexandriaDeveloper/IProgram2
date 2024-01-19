@@ -146,7 +146,7 @@ document.createElement('video');
       <mat-nav-list class="list" >
       <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/add']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon> تكوين موظف   </a>
       <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a>
-      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"  > <mat-icon >people</mat-icon>  الموظفين  </a>
+      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"   > <mat-icon >people</mat-icon>  الموظفين  </a>
       </mat-nav-list>
 
     </mat-expansion-panel>
@@ -169,12 +169,14 @@ document.createElement('video');
     (closed)="panelOpenState = false">
 <mat-expansion-panel-header>
 <mat-panel-title>
-  مجموعه التعيين
+   الأقسام
 </mat-panel-title>
 
 </mat-expansion-panel-header>
 <mat-nav-list class="list" >
 <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/orders']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الموظفين  </a>
+
+<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/department']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الاقسام   </a>
 </mat-nav-list>
 </mat-expansion-panel>
 

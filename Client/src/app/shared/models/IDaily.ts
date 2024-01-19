@@ -16,7 +16,6 @@ export class DailyParam extends Param{
 
 export class IFormDetailsEmployee {
   employeeId:number;
-
   amount : number
 }
 

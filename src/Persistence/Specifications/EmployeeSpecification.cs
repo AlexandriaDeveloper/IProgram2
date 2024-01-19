@@ -31,6 +31,10 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.TegaraCode.Equals(param.TegaraCode));
             }
+            if (param.DepartmentId.HasValue)
+            {
+                AddCriteries(x => x.DepartmentId.Equals(param.DepartmentId));
+            }
             if (!string.IsNullOrEmpty(param.Collage))
             {
                 AddCriteries(x => x.Collage.Contains(param.Collage));
@@ -67,7 +71,16 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.TegaraCode.Equals(param.TegaraCode.Value.ToString()));
             }
+            if (param.DepartmentId.HasValue)
+            {
+                AddCriteries(x => x.DepartmentId.Equals(param.DepartmentId));
+            }
+            if (!string.IsNullOrEmpty(param.Collage))
+            {
+                AddCriteries(x => x.Collage.Contains(param.Collage));
+            }
 
+            this.PaginationEnabled = false;
 
         }
 

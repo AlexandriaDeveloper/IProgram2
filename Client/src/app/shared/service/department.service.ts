@@ -1,4 +1,8 @@
-import { Injectable } from '@angular/core';
+import { IDepartment } from './../models/Department';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { environment } from '../../environment';
+import { DepartmentParam } from '../models/Department';
 
 @Injectable({
   providedIn: 'root'
@@ -6,4 +10,39 @@ import { Injectable } from '@angular/core';
 export class DepartmentService {
 
   constructor() { }
+  apiUrl=environment.apiUrl;
+  http =inject(HttpClient);
+
+   getDepartments(param :DepartmentParam){
+
+    let params = new HttpParams();
+    param.pageSize!==null? params= params.append('pageSize',param.pageSize):params = params.append('pageSize',30);
+    param.pageIndex!==null?params= params.append('pageIndex',param.pageIndex):params = params.append('pageIndex',0)
+
+    if(param.name) params = params.append('name',param.name);
+
+    return this.http.get(this.apiUrl+'department',{params:params})
+
+   }
+
+    addDepartment( department :IDepartment){
+      return this.http.post(this.apiUrl+'department',department)
+    }
+
+    editDepartment(department :IDepartment){
+      return this.http.put(this.apiUrl+'department',department)
+    }
+    addEmployeesToDepartment(id,employeeIds){
+      return this.http.put(this.apiUrl+'department/'+id+'/employees',employeeIds)
+    }
+
+    deleteDepartment(id){
+
+      return this.http.delete(this.apiUrl+'department/'+id)
+    }
+    deleteEmployeeFromDepartment( ids){
+      return this.http.put(this.apiUrl+'department/removeEmployees',ids)
+    }
+
+
 }

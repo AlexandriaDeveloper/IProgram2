@@ -1,24 +1,31 @@
-import { EmployeeParam } from '../../shared/models/IEmployee';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
-import { MatTableModule, MatTable } from '@angular/material/table';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
-import { MatSortModule, MatSort } from '@angular/material/sort';
-
-import { EmployeeService } from '../../shared/service/employee.service';
-import { IEmployee } from '../../shared/models/IEmployee';
-import { debounceTime, distinctUntilChanged, fromEvent, map, of } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { MatPaginator } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
+import { MatTable } from '@angular/material/table';
+import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
+import { fromEvent, debounceTime, distinctUntilChanged, map, filter } from 'rxjs';
+import { EmployeeParam, IEmployee } from '../../../shared/models/IEmployee';
+import { EmployeeService } from '../../../shared/service/employee.service';
+import { AddEmployeeDialogComponent } from './add-employee-dialog/add-employee-dialog.component';
+import { MatDialog } from '@angular/material/dialog';
+import { DepartmentService } from '../../../shared/service/department.service';
+import { ToasterService } from '../../../shared/components/toaster/toaster.service';
 
 @Component({
-  selector: 'app-list',
-  templateUrl: './list.component.html',
-  styleUrls: ['./list.component.scss'],
+  selector: 'app-employees-department',
   standalone: false,
 
+  templateUrl: './employees-department.component.html',
+  styleUrl: './employees-department.component.scss'
 })
-export class ListComponent implements AfterViewInit,OnInit {
+export class EmployeesDepartmentComponent implements AfterViewInit,OnInit {
   employeeService = inject(EmployeeService);
+  departmentService = inject(DepartmentService);
   router = inject(ActivatedRoute);
+  toaster =inject(ToasterService);
+  router2 = inject(Router);
+  dialog =inject(MatDialog)
+  title :'';
   public param :   EmployeeParam=new EmployeeParam();
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
@@ -33,16 +40,8 @@ export class ListComponent implements AfterViewInit,OnInit {
 
 constructor( private cdref: ChangeDetectorRef ) {}
   ngOnInit(): void {
-    console.log('onInit');
-
-    if(this.router.snapshot.queryParams['departmentId']){
-
-      this.param.departmentId=this.router.snapshot.queryParams['departmentId']
-    }
-    else{
-
-      this.param=new EmployeeParam();
-    }
+    this.param.departmentId=this.router.snapshot.params['id']
+    this.title=this.router.snapshot.params['title']
     this.loadData();
     this.cdref.detectChanges();
   }
@@ -81,25 +80,32 @@ constructor( private cdref: ChangeDetectorRef ) {}
     })
   }
 
+  onCheck(row){
 
+    row.checked=  !row.checked;
+  }
+  removeEmployees(){
+    const ids= this.dataSource.filter(x=>x.checked).map(x=>x.id);
+    this.departmentService.deleteEmployeeFromDepartment(ids).subscribe({
+      next:(x)=>{
+        this.loadData();
+        this.toaster.openSuccessToaster('تم الحذف بنجاح','check_circle');
 
+      }
+    })
+  }
   /** Columns displayed in the table. Columns IDs can be added, removed, or reordered. */
   displayedColumns = ['action','tabCode','tegaraCode', 'name','nationalId','collage'];
 
 
 
   loadData(): void {
-
-
-
   this.employeeService.GetEmployees(this.param).subscribe((x:any) =>{
     this.dataSource=x.data
     this.paginator.length=x.count;
     // this.paginator.pageIndex=x.pageIndex;
     // this.paginator.pageSize=x.pageSize;
   });
-
-
   }
   onChange(ev){
     this.param.pageSize=ev.pageSize;
@@ -109,12 +115,22 @@ constructor( private cdref: ChangeDetectorRef ) {}
     this.loadData();
 
   }
-  editEmployee(id:number){
-    console.log(id);
+  addEmployeeDialog(){
+    const dialogRef = this.dialog.open(AddEmployeeDialogComponent,{
+      width: '50%',
+      data: {
+        title:'إضافة موظف',
+        departmentId:this.param.departmentId
+      },
+
+      disableClose: true,
+    })
+    dialogRef.afterClosed().subscribe(result => {
+    this.loadData();
+     // this.animal = result;
+    });
   }
-  deleteEmployee(id:number){
-    console.log(id);
-  }
+
   clear(input:any){
 
 

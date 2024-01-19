@@ -19,6 +19,10 @@ export class EmployeeService {
     return this.http.post(this.apiUrl+'employee/add',model)
   }
 
+  updateEmployee(model: IEmployee){
+    return this.http.put(this.apiUrl+'employee',model)
+  }
+
   uploadEmployeeFile (file) {
     console.log(file);
     const formData  = new FormData();
@@ -47,6 +51,7 @@ export class EmployeeService {
     if(param.sortBy) params = params.append('sortBy',param.sortBy);
     if(param.direction) params = params.append('direction',param.direction);
 
+    if(param.departmentId) params = params.append('departmentId',param.departmentId);
     if(param.tegaraCode) params = params.append('tegaraCode',param.tegaraCode);
     if(param.collage) params = params.append('collage',param.collage);
     if(param.name) params = params.append('name',param.name);

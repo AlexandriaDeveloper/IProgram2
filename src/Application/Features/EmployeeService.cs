@@ -112,6 +112,45 @@ namespace Application.Features
 
         }
 
+        public async Task<Result<EmployeeDto>> UpdateEmployee(EmployeeDto employee)
+        {
+            var employeeFromDb = await _employeeRepository.GetById(employee.Id);
+            if (employeeFromDb == null)
+            {
+                return Result.Failure<EmployeeDto>(new Error("500", "الموظف غير موجود"));
+            }
+
+            if (!employeeFromDb.Collage.Equals(employee.Collage))
+                employeeFromDb.Collage = employee.Collage;
+
+            if (!employeeFromDb.DepartmentId.Equals(employee.DepartmentId))
+                employeeFromDb.DepartmentId = employee.DepartmentId;
+
+            if (!employeeFromDb.TabCode.Equals(employee.TabCode))
+                employeeFromDb.TabCode = employee.TabCode;
+
+            if (!employeeFromDb.TegaraCode.Equals(employee.TegaraCode))
+                employeeFromDb.TegaraCode = employee.TegaraCode;
+
+            if (!employeeFromDb.Name.Equals(employee.Name))
+                employeeFromDb.Name = employee.Name;
+
+            if (!employeeFromDb.NationalId.Equals(employee.NationalId))
+                employeeFromDb.NationalId = employee.NationalId;
+
+            _employeeRepository.Update(employeeFromDb);
+
+            var result = await _uow.SaveChangesAsync() > 0;
+
+            if (!result)
+            {
+                return Result.Failure<EmployeeDto>(new Error("500", "حدث خطأ في تحديث الموظف"));
+            }
+
+            return Result.Success(employee);
+
+        }
+
         public async Task<Result<EmployeeReportDto>> EmployeeReport(EmployeeReportRequest request)
         {
 
@@ -163,7 +202,7 @@ namespace Application.Features
                 Forms = x.Select(x2 => new EmployeeFormDto()
                 {
                     Amount = x2.Amount,
-                    FormId = x2.Id,
+                    FormId = x2.Form.Id,
                     FormName = x2.Form.Name
 
                 }).ToList()

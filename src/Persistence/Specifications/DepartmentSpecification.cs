@@ -7,10 +7,15 @@ using Persistence.Helpers;
 
 namespace Persistence.Specifications
 {
-    public class FormSpecification : Specification<Form>
+    public class DepartmentSpecification : Specification<Department>
     {
-        public FormSpecification(int id, FormParam param) : base(x => x.DailyId == id)
+
+        public DepartmentSpecification(DepartmentParam param)
         {
+            if (param.Id.HasValue)
+            {
+                AddCriteries(x => x.Id == param.Id);
+            }
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
@@ -21,30 +26,24 @@ namespace Persistence.Specifications
             ApplyPaging(param.PageIndex, param.PageSize);
         }
 
-
-
     }
 
-    public class FormCountSpecification : Specification<Form>
+    public class DepartmentCountSpecification : Specification<Department>
     {
-        public FormCountSpecification(int id, FormParam param) : base(x => x.DailyId == id)
+        public DepartmentCountSpecification(DepartmentParam param)
         {
+            if (param.Id.HasValue)
+            {
+                AddCriteries(x => x.Id == param.Id);
+            }
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
             }
 
             this.PaginationEnabled = false;
-            // AddOrderByDescending(x => x.Id);
 
-            //  ApplyPaging(param.PageIndex, param.PageSize);
+
         }
-
-
-
     }
-
-
-
-
 }

@@ -1,15 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Core.Models;
 using Persistence.Helpers;
 
 namespace Persistence.Specifications
 {
-    public class FormSpecification : Specification<Form>
+    public class ArchivedFormsSpecification : Specification<Form>
     {
-        public FormSpecification(int id, FormParam param) : base(x => x.DailyId == id)
+        public ArchivedFormsSpecification(FormArchivedParam param) : base(x => x.DailyId == null)
         {
             if (!string.IsNullOrEmpty(param.Name))
             {
@@ -25,9 +21,9 @@ namespace Persistence.Specifications
 
     }
 
-    public class FormCountSpecification : Specification<Form>
+    public class ArchivedFormsCountSpecification : Specification<Form>
     {
-        public FormCountSpecification(int id, FormParam param) : base(x => x.DailyId == id)
+        public ArchivedFormsCountSpecification(FormArchivedParam param) : base(x => x.DailyId == null)
         {
             if (!string.IsNullOrEmpty(param.Name))
             {
@@ -37,14 +33,10 @@ namespace Persistence.Specifications
             this.PaginationEnabled = false;
             // AddOrderByDescending(x => x.Id);
 
-            //  ApplyPaging(param.PageIndex, param.PageSize);
+            // ApplyPaging(param.PageIndex, param.PageSize);
         }
 
 
 
     }
-
-
-
-
 }

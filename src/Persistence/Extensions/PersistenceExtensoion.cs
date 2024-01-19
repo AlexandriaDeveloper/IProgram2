@@ -27,6 +27,8 @@ namespace Persistence.Extensions
             services.AddScoped<IDailyRepository, DailyRepository>();
             services.AddScoped<IFormRepository, FormRepository>();
             services.AddScoped<IFormDetailsRepository, FormDetailsRepository>();
+            services.AddScoped<IDepartmentRepository, DepartmentRepository>();
+
 
 
             // services.AddScoped<IParam, Param>();

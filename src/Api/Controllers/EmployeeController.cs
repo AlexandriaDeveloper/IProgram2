@@ -53,6 +53,27 @@ namespace Api.Controllers
 
         }
 
+        [HttpPut()]
+        public async Task<ActionResult<Result<EmployeeDto>>> PutEmployee(EmployeeDto employee)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState.FirstOrDefault().Value);
+            }
+            try
+            {
+                return await _employeeService.UpdateEmployee(employee);
+            }
+            catch (Exception ex)
+            {
+                return Result.Failure<EmployeeDto>(new Error("500", ex.Message));
+            }
+
+
+
+        }
+
+
 
         [HttpPost("Upload")] // 10 MB
 

@@ -36,7 +36,7 @@ height: auto !important;
     background-color: $accent2-color !important;
   }
   .mat-calendar-body-cell.mat-calendar-body-in-range {
-    color: #fff !important;
+    color: $white-color !important;
       span{
         background-color: rgba($color: $accent2-color, $alpha:1) !important;
         color: $primary-color !important;

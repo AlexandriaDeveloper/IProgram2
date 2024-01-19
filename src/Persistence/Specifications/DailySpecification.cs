@@ -45,6 +45,8 @@ namespace Persistence.Specifications
 
                 AddCriteries(x => x.Closed == param.Closed);
             }
+
+            this.PaginationEnabled = false;
         }
     }
 }

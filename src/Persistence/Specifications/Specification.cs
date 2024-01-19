@@ -69,7 +69,7 @@ namespace Persistence.Specifications
             }
             Skip = pageSize * (pageIndex);
             Take = pageSize;
-            // PaginationEnabled = true;
+            PaginationEnabled = true;
 
 
         }
