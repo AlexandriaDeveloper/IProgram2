@@ -33,7 +33,7 @@ namespace Application.Features
             var employeeReferncesToReturn = employeeRefernces.Select(x => new EmployeeRefernceDto()
             {
                 EmployeeId = x.EmployeeId,
-                ReferencePath = _config["ApiContent"] + "EmployeeRefernces/" + x.ReferencePath,
+                ReferencePath = _config["ApiContent"] + "EmployeeReferences/" + x.ReferencePath,
                 Id = x.Id
             }).ToList();
 
@@ -62,12 +62,12 @@ namespace Application.Features
         {
             var fileName = request.EmployeeId.ToString() + "_" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + Path.GetExtension(request.File.FileName);
             //check directory exist
-            if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeRefernces")))
+            if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences")))
             {
-                Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeRefernces"));
+                Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences"));
             }
 
-            var path = Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeRefernces", fileName);
+            var path = Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences", fileName);
 
 
             using (var fileStream = new FileStream(path, FileMode.Create))

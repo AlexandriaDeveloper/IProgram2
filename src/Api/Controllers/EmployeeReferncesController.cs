@@ -34,7 +34,7 @@ namespace Api.Controllers
         [HttpPost("UploadRefernce")]
         public async Task<Application.Helpers.Result> UploadRefernce(EmployeeRefernceFileUploadRequest request)
         {
-            var random = Random.Shared.Next(1000, 9999);
+            var random = Random.Shared.Next(1000, 5000);
             Task.Delay(random).Wait();
             return await _employeeRefernceService.UploadRefernce(request);
         }

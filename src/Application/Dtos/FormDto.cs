@@ -6,6 +6,7 @@ namespace Application.Dtos
         public string Name { get; set; }
         public string Description { get; set; }
         public int? DailyId { get; set; }
+        public bool HasReferences { get; set; }
 
         public double TotalAmount { get; set; }
         public int Count { get; set; }

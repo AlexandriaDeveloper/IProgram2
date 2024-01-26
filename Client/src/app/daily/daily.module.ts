@@ -13,6 +13,9 @@ import { DescriptionDialogComponent } from './form/form-details/description-dial
 import { AddEmployeeDialogComponent } from './form/form-details/add-employee-dialog/add-employee-dialog.component';
 import { ArchivedFormsComponent } from './archived-forms/archived-forms.component';
 import { MoveToDailyDialogComponent } from './archived-forms/move-to-daily-dialog/move-to-daily-dialog.component';
+import { ReferencesDialogComponent } from './form/form-details/references-dialog/references-dialog.component';
+import { UploadReferencesDialogComponent } from './form/form-details/upload-references-dialog/upload-references-dialog.component';
+import { UploadComponent } from '../shared/components/upload/upload.component';
 
 
 
@@ -26,7 +29,9 @@ import { MoveToDailyDialogComponent } from './archived-forms/move-to-daily-dialo
     DescriptionDialogComponent,
     ArchivedFormsComponent,
      FormDetailsComponent,
-     MoveToDailyDialogComponent
+     ReferencesDialogComponent,
+     MoveToDailyDialogComponent,
+     UploadReferencesDialogComponent
 ],
   imports: [
     MatDatepickerModule ,
@@ -35,6 +40,7 @@ import { MoveToDailyDialogComponent } from './archived-forms/move-to-daily-dialo
     DailyRoutingModule,
     SharedModule,
     InputTextComponent,
+    UploadComponent
   ]
 })
 export class DailyModule { }

@@ -83,6 +83,6 @@
     color :#fff !important;
   }
 }
-.dialog-container{
-  background-color: $accent-color !important;
+.mat-mdc-dialog-container .mdc-dialog__surface{
+  background-color: $primary-color !important;
 }

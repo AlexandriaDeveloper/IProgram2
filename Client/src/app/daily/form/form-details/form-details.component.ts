@@ -12,6 +12,8 @@ import { moveItemInArray } from '@angular/cdk/drag-drop';
 import { fromEvent, debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { FormService } from '../../../shared/service/form.service';
 import { ToasterService } from '../../../shared/components/toaster/toaster.service';
+import { ReferencesDialogComponent } from './references-dialog/references-dialog.component';
+import { UploadReferencesDialogComponent } from './upload-references-dialog/upload-references-dialog.component';
 
 
 @Component({
@@ -45,7 +47,6 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   this.loadData();
   }
   ngAfterViewInit(): void {
-
     this.search();
   }
   search(){
@@ -118,6 +119,39 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
      });
 
   }
+
+  openReferenceDialog(){
+
+    const dialogRef = this.dialog.open(ReferencesDialogComponent, {
+       data: {formId :this.data.id},
+       width: '80%',
+        height:'610px',
+      disableClose: true,
+      panelClass:['dialog-container'],
+     });
+
+     dialogRef.afterClosed().subscribe(result => {
+       this.loadData();
+     });
+
+  }
+  uploadReferenceDialog(){
+    const dialogRef = this.dialog.open(UploadReferencesDialogComponent, {
+      // data: {name: this.name, animal: this.animal},
+
+
+      disableClose: true,
+       data:  { formId :this.id },
+      panelClass: ['dialog-container'],
+
+
+     });
+
+     dialogRef.afterClosed().subscribe(result => {
+       this.ngOnInit();
+      // this.animal = result;
+     });
+  }
   addEmployeeFormDialog(model){
     const dialogRef = this.dialog.open(AddEmployeeDialogComponent,{
       width: '50%',
@@ -186,6 +220,8 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
       }
     })
   }
+
+
 
 
 

@@ -32,7 +32,14 @@
     <mat-icon>content_copy</mat-icon>
     النسخ الالى
   </button>
+  <button mat-menu-item (click)="uploadReferenceDialog()" >
+    <mat-icon>upload</mat-icon>
+    رفع صور الموافقات</button>
+
 </mat-menu>
+<button mat-icon-button color="primary" *ngIf="data?.hasReferences" (click)="openReferenceDialog()">
+  <mat-icon style="color:#fff">image</mat-icon>
+</button>
 
 <div class="mat-elevation-z8">
   <table [dataSource]="dataSource" mat-table class="example-list full-width-table" matSort aria-label="Elements"   cdkDropList

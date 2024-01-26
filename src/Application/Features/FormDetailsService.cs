@@ -1,16 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
 using Application.Dtos;
+using Application.Dtos.Requests;
 using Application.Helpers;
-using Application.Shared;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using NPOI.Util;
 using Persistence.Extensions;
 
 namespace Application.Features
@@ -19,16 +13,22 @@ namespace Application.Features
     {
 
         private readonly IFormRepository _formRepository;
-
+        private readonly IFormReferencesRepository _formReferencesRepository;
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IUniteOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public FormDetailsService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
+        public FormDetailsService(
+            IFormRepository formRepository,
+            IFormReferencesRepository formReferencesRepository,
+         IFormDetailsRepository formDetailsRepository,
+         IUniteOfWork unitOfWork,
+          IHttpContextAccessor httpContextAccessor)
         {
             this._unitOfWork = unitOfWork;
             this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
+            this._formReferencesRepository = formReferencesRepository;
             this._formDetailsRepository = formDetailsRepository;
         }
 
@@ -46,6 +46,7 @@ namespace Application.Features
                 Description = result.Description,
                 Id = result.Id,
                 Name = result.Name,
+                HasReferences = await _formReferencesRepository.CheckFomHaveReferences(result.Id),
                 FormDetails = result.FormDetails.OrderBy(x => x.OrderNum).Select(x => new FormDetailsDto()
                 {
                     Id = x.Id,
