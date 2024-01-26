@@ -156,4 +156,11 @@ this.formArchiveService.moveFormArchiveToDaily({ dailyId :result ,formIds:this.d
  error(){
   this.toaster.openErrorToaster('تم حذف الملفات بنجاح','check')
 }
+clear(name){
+  if(name==='name'){
+    this.nameInput.nativeElement.value=''
+    this.param.name=''
+    this.loadData();
+  }
+}
 }

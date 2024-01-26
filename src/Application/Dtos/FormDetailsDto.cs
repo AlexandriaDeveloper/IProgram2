@@ -7,7 +7,7 @@ namespace Application.Dtos
         public virtual int Id { get; set; }
         public virtual int FormId { get; set; }
         public int EmployeeId { get; set; }
-        public decimal Amount { get; set; }
+        public double Amount { get; set; }
 
         public int? TabCode { get; set; }
         public int? TegaraCode { get; set; }
@@ -22,7 +22,7 @@ namespace Application.Dtos
         public int Id { get; set; }
         public int FormId { get; set; }
         public int EmployeeId { get; set; }
-        public decimal Amount { get; set; }
+        public double Amount { get; set; }
         //   public int OrderNum { get; set; }
 
     }

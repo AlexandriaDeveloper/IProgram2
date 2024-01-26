@@ -55,7 +55,7 @@
     <!-- Name Column -->
     <ng-container matColumnDef="name">
       <th mat-header-cell *matHeaderCellDef >
-      <mat-form-field apperance="outline" class="search" color="primary " style="width: 40vh !important;">
+      <mat-form-field apperance="outline" class="search"style="width: 40vh !important;">
         <mat-label class="saerch-title">الاسم</mat-label>
         <input  matInput   #nameInput (search)="clear('name')"   >
         @if (nameInput.value) {

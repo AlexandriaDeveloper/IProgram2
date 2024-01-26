@@ -1,6 +1,16 @@
-
+<button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >    <mat-icon>more_vert</mat-icon></button>
+<mat-menu #menu="matMenu">
+  <button mat-menu-item >
+    <mat-icon >picture_as_pdf</mat-icon>
+      اضافة حساب بنكى
+  </button>
+  <button mat-menu-item  (click)="openDialog()">
+    <mat-icon>voicemail</mat-icon>
+    اضافة مستند</button>
+</mat-menu>
 <mat-tab-group color="accent">
   <mat-tab label="بيانات الموظف" >
+
     <ng-template matTabContent>
       <app-employee-info [employee] ="employee"></app-employee-info>
     </ng-template>
@@ -10,5 +20,16 @@
       <app-employee-report [employee] ="employee" ></app-employee-report>
     </ng-template>
   </mat-tab>
-  <mat-tab label="حساب البنك ">  Content 3 </mat-tab>
+  <mat-tab label="حساب البنك ">
+    <app-bank-info [employee] ="employee"></app-bank-info>
+  </mat-tab>
+
+  <mat-tab label=" مستندات ">
+
+    <ng-template matTabContent>
+      <app-employee-references [employeeId]="employee?.id"></app-employee-references>
+    </ng-template>
+
+    </mat-tab>
 </mat-tab-group>
+

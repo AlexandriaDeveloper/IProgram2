@@ -17,11 +17,17 @@ namespace Core.Models
         [Required]
         public string NationalId { get; set; }
         public string Collage { get; set; }
+        [MaxLength(25)]
+        public string Section { get; set; }
+        [MaxLength(250)]
+        [EmailAddress]
+        public string Email { get; set; }
         public int? DepartmentId { get; set; }
 
         public Department Department { get; set; }
         public EmployeeBank EmployeeBank { get; set; }
         public ICollection<FormDetails> FormDetails { get; set; }
+        public ICollection<EmployeeRefernce> EmployeeRefernces { get; set; }
 
     }
 

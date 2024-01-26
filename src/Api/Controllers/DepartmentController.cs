@@ -41,6 +41,16 @@ namespace Api.Controllers
             }
             return await _departmentService.AddDepartment(departmentDto);
         }
+
+        [HttpPost("upload-employees-department")]
+        public async Task<Result> UploadDepartment(EmployeesDepartmentFileUploadRequest departmentDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
+            }
+            return await _departmentService.UploadEmployeesDepartment(departmentDto);
+        }
         [HttpPut]
         public async Task<Result<DepartmentDto>> EditDepartment(DepartmentDto departmentDto)
         {

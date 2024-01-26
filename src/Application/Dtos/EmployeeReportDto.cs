@@ -9,13 +9,13 @@ namespace Application.Dtos
         public string NationalId { get; set; }
         public string Name { get; set; }
         public List<EmployeeDailyDto> Dailies { get; set; } = new List<EmployeeDailyDto>();
-        public decimal GrandTotal => Dailies.Sum(x => x.TotalAmount);
+        public double GrandTotal => Dailies.Sum(x => x.TotalAmount);
     }
     public class EmployeeFormDto
     {
         public int FormId { get; set; }
         public string FormName { get; set; }
-        public decimal Amount { get; set; }
+        public double Amount { get; set; }
     }
 
     public class EmployeeDailyDto
@@ -25,6 +25,6 @@ namespace Application.Dtos
         public string DailyName { get; set; }
         public string State { get; set; }
         public DateTime DailyDate { get; set; }
-        public decimal TotalAmount => Forms.Sum(x => x.Amount);
+        public double TotalAmount => Forms.Sum(x => x.Amount);
     }
 }

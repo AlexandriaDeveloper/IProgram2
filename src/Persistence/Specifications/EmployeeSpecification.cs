@@ -11,6 +11,10 @@ namespace Persistence.Specifications
     {
         public EmployeeSpecification(EmployeeParam param)
         {
+
+            AddInclude(x => x.Department);
+            AddInclude(x => x.EmployeeBank);
+            //  AddInclude(x => x.EmployeeRefernces);
             if (param.Id.HasValue)
             {
                 AddCriteries(x => x.Id == param.Id);
@@ -39,6 +43,10 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.Collage.Contains(param.Collage));
             }
+            if (!string.IsNullOrEmpty(param.DepartmentName))
+            {
+                AddCriteries(x => x.Department.Name.Contains(param.DepartmentName));
+            }
             if (PaginationEnabled)
             {
                 ApplyPaging(param.PageIndex, param.PageSize);
@@ -54,6 +62,7 @@ namespace Persistence.Specifications
     {
         public EmployeeCountSpecification(EmployeeParam param)
         {
+            AddInclude(x => x.Department);
 
             if (!string.IsNullOrEmpty(param.Name))
             {

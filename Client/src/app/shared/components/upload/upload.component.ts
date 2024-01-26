@@ -1,4 +1,5 @@
-import { Component, ElementRef, ViewChild, inject, EventEmitter, Output, OnInit, Self, signal } from '@angular/core';
+import { shareReplay } from 'rxjs';
+import { Component, ElementRef, ViewChild, inject, EventEmitter, Output, OnInit, Self, signal, Input, AfterViewInit } from '@angular/core';
 import { ToasterService } from '../toaster/toaster.service';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
@@ -21,20 +22,36 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
   templateUrl: './upload.component.html',
   styleUrl: './upload.component.scss'
 })
-export class UploadComponent implements OnInit, ControlValueAccessor {
+export class UploadComponent implements OnInit,AfterViewInit, ControlValueAccessor {
 
-  progress = signal(0);
-  onProgress=false;
+  progress = signal<number[]>([0]);
+  onProgress :boolean[] = [];
   toaster = inject(ToasterService);
   @ViewChild("fileInput", { static: true }) fileInput: ElementRef;
+  @Input('fileType') fileType='excel'
   @Output() upload = new EventEmitter<any>();
-  @Output() changeFile = new EventEmitter<any>();
+  @Output('changeFile') changeFile = new EventEmitter<any>();
   files: any[] = [];
   onChange(event) {}
   onTouched() {}
   constructor(@Self() public controlDir: NgControl) {
     this.controlDir.valueAccessor = this;
-    console.log(this.controlDir);
+
+  }
+  ngAfterViewInit(): void {
+    switch(this.fileType)
+    {
+      case 'excel':
+      this.fileInput.nativeElement.accept='.xlsx, .xls';
+      break;
+      case 'image':
+      this.fileInput.nativeElement.accept=".jpeg, .jpg, .png";
+      break
+      default:
+        this.fileInput.nativeElement.accept=".xlsx";
+      break;
+    }
+
   }
     ngOnInit(): void {
       const control = this.controlDir.control;
@@ -42,7 +59,6 @@ export class UploadComponent implements OnInit, ControlValueAccessor {
       const asyncValidators = control.asyncValidator
         ? [control.asyncValidator]
         : [];
-
       control.setValidators(validators);
       control.setAsyncValidators(asyncValidators);
       control.updateValueAndValidity();
@@ -53,21 +69,12 @@ export class UploadComponent implements OnInit, ControlValueAccessor {
    this.fileInput.nativeElement.value = obj || '';
   }
   registerOnChange(fn: any): void {
-
-
     this.onChange = fn;
-
   }
 
   registerOnTouched(fn: any): void {
     this.onTouched = fn;
-
-
   }
-  // setDisabledState?(isDisabled: boolean): void {
-  //   throw new Error('Method not implemented.');
-  // }
-
 
 
   formatBytes(bytes, decimals = 2) {
@@ -81,14 +88,15 @@ export class UploadComponent implements OnInit, ControlValueAccessor {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
   }
   onFileSelected(ev){
+    console.log(ev);
 
+    console.log('selected');
 
     for (let index = 0; index < ev.target.files.length; index++) {
       this.checkFile(ev.target.files[index])
-
     }
-
-
+    ev.target.value=null
+    this.onProgress=[]
   }
   removeFile(i){
     this.files.splice(i,1)
@@ -98,36 +106,55 @@ export class UploadComponent implements OnInit, ControlValueAccessor {
     for (let i = 0; i < ev.length; i++) {
      this.checkFile(ev[i])
     }
+    ev.target.value=null
+    this.onProgress=[]
   }
 
   private checkFile(file) :boolean{
 
+
     var result =true
    let ext = file.name.split('.').pop();
-      if(ext!=="xlsx"){
+
+   //Check File Type
+      if(this.fileType==="image"){
+        if(ext!=="jpg"&&ext!=="png"&&ext!=="jpeg"){
+          this.toaster.openErrorToaster('يجب ان يكون الملف من نوع jpg/png/jpeg','warning')
+          result=false
+          return result;
+        }
+      }
+
+     else if(this.fileType==="excel"){
+        if(ext!=="xlsx"){
           this.toaster.openErrorToaster('يجب ان يكون الملف من نوع xlsx','warning')
           result=false
           return result;
         }
-
+      }
+      else{
+        this.toaster.openErrorToaster('عفوا لا يمكن رفع نوع هذا الملف','warning')
+      }
 
     this.files.filter((f)=>{
-      if(f.name===file.name && f.size===file.size && ext==="xlsx"){
+      if(f.name===file.name && f.size===file.size){
         this.toaster.openErrorToaster('هذا الملف موجود مسبقا','warning')
         result=false
       }
     })
     if(result){
-
-    //  this.files.push(file);
-      this.onChange(this.files)
-      this.writeValue(this.files)
       this.files.push(file);
+      this.onProgress.push(false)
+
+
+    //  this.onChange(this.files);
+      this.changeFile.emit(this.files)
     }
     return result;
   }
 
   uploadFiles(){
     this.upload.emit(this.files)
+
   }
 }

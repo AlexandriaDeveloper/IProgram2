@@ -1,8 +1,9 @@
 import { IDepartment } from './../models/Department';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environment';
 import { DepartmentParam } from '../models/Department';
+import { map, retry } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -43,6 +44,31 @@ export class DepartmentService {
     deleteEmployeeFromDepartment( ids){
       return this.http.put(this.apiUrl+'department/removeEmployees',ids)
     }
+
+    downloadEmployeeDepartmentFile(){
+      return this.http.get( this.apiUrl+'download/employees-department', { observe: 'response', responseType: 'blob' }).pipe(
+        map((x: HttpResponse<any>) => {
+          let blob = new Blob([x.body], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
+          window.open(url);
+        })
+      );
+    }
+
+    uploadEmployeesDepartmentFile (file) {
+      console.log(file);
+
+      const formData  = new FormData();
+
+        formData.append("file", file.file as Blob,file.file.name);
+        formData.append("departmentId",file.departmentId);
+
+    return this.http.post(this.apiUrl+'department/upload-employees-department',formData,{
+    responseType: "blob",
+    reportProgress: true,
+    observe: "events"
+    })
+  }
 
 
 }

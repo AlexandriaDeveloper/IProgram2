@@ -45,8 +45,8 @@
       <th mat-header-cell *matHeaderCellDef >
       <mat-form-field apperance="outline" class="search" color="primary" >
         <mat-label class="saerch-title">الاسم</mat-label>
-        <input   matInput    #nameInput (search)="clear('name')" class="search-field">
-        <mat-icon style="color: #000;" *ngIf="nameInput.value" matSuffix (click)="clear('name')">close</mat-icon>
+        <input   matInput (click)="clear('name')"   #nameInput class="search-field">
+        <mat-icon style="color: #000;" *ngIf="nameInput.value" matSuffix >close</mat-icon>
       </mat-form-field>
       </th>
       <td mat-cell *matCellDef="let row">

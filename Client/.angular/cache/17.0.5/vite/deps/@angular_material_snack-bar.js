@@ -1,43 +1,46 @@
 import {
+  MatButton,
+  MatButtonModule
+} from "./chunk-BKRWSSG7.js";
+import {
   Overlay,
   OverlayConfig,
   OverlayModule
-} from "./chunk-QFOCKJLD.js";
+} from "./chunk-CROM2MYI.js";
 import {
   BasePortalOutlet,
   CdkPortalOutlet,
   ComponentPortal,
   PortalModule,
   TemplatePortal
-} from "./chunk-I42VWIVA.js";
-import "./chunk-5VTZAY6X.js";
-import "./chunk-UXVKRNCZ.js";
-import {
-  MatButton,
-  MatButtonModule
-} from "./chunk-7B2LLNLQ.js";
+} from "./chunk-I3SP4PLD.js";
+import "./chunk-AGMDCL4X.js";
+import "./chunk-3QVPOIIK.js";
 import {
   MatCommonModule
-} from "./chunk-3CDZT44J.js";
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
 import {
   animate,
   state,
   style,
   transition,
   trigger
-} from "./chunk-EWUG7RS4.js";
+} from "./chunk-3MUY5ZR6.js";
 import "./chunk-4F74E6RB.js";
 import {
   LiveAnnouncer
-} from "./chunk-5SBMSZOM.js";
+} from "./chunk-J6QNFSAM.js";
+import "./chunk-O5NFCFBL.js";
 import {
   BreakpointObserver,
-  Breakpoints,
+  Breakpoints
+} from "./chunk-MSQSFN32.js";
+import {
   Platform
-} from "./chunk-SFCFP7Z3.js";
+} from "./chunk-DMLWJ7GQ.js";
 import "./chunk-U346D2SR.js";
 import {
-  CommonModule,
   DOCUMENT
 } from "./chunk-YZEMK44K.js";
 import {
@@ -90,7 +93,6 @@ import {
 } from "./chunk-PA7AHZKQ.js";
 import {
   Subject,
-  take,
   takeUntil
 } from "./chunk-AFRS2OIU.js";
 import {
@@ -315,7 +317,7 @@ _SimpleSnackBar.ɵcmp = ɵɵdefineComponent({
       ɵɵconditional(2, ctx.hasAction ? 2 : -1);
     }
   },
-  dependencies: [MatButtonModule, MatButton, MatSnackBarLabel, MatSnackBarActions, MatSnackBarAction, CommonModule],
+  dependencies: [MatButton, MatSnackBarLabel, MatSnackBarActions, MatSnackBarAction],
   styles: [".mat-mdc-simple-snack-bar{display:flex}"],
   encapsulation: 2,
   changeDetection: 0
@@ -329,7 +331,7 @@ var SimpleSnackBar = _SimpleSnackBar;
       exportAs: "matSnackBar",
       encapsulation: ViewEncapsulation$1.None,
       changeDetection: ChangeDetectionStrategy.OnPush,
-      imports: [MatButtonModule, MatSnackBarLabel, MatSnackBarActions, MatSnackBarAction, CommonModule],
+      imports: [MatButton, MatSnackBarLabel, MatSnackBarActions, MatSnackBarAction],
       standalone: true,
       host: {
         "class": "mat-mdc-simple-snack-bar"
@@ -434,6 +436,7 @@ var _MatSnackBarContainer = class _MatSnackBarContainer extends BasePortalOutlet
   enter() {
     if (!this._destroyed) {
       this._animationState = "visible";
+      this._changeDetectorRef.markForCheck();
       this._changeDetectorRef.detectChanges();
       this._screenReaderAnnounce();
     }
@@ -442,6 +445,7 @@ var _MatSnackBarContainer = class _MatSnackBarContainer extends BasePortalOutlet
   exit() {
     this._ngZone.run(() => {
       this._animationState = "hidden";
+      this._changeDetectorRef.markForCheck();
       this._elementRef.nativeElement.setAttribute("mat-exit", "");
       clearTimeout(this._announceTimeoutId);
     });
@@ -454,15 +458,13 @@ var _MatSnackBarContainer = class _MatSnackBarContainer extends BasePortalOutlet
     this._completeExit();
   }
   /**
-   * Waits for the zone to settle before removing the element. Helps prevent
-   * errors where we end up removing an element which is in the middle of an animation.
+   * Removes the element in a microtask. Helps prevent errors where we end up
+   * removing an element which is in the middle of an animation.
    */
   _completeExit() {
-    this._ngZone.onMicrotaskEmpty.pipe(take(1)).subscribe(() => {
-      this._ngZone.run(() => {
-        this._onExit.next();
-        this._onExit.complete();
-      });
+    queueMicrotask(() => {
+      this._onExit.next();
+      this._onExit.complete();
     });
   }
   /**
@@ -597,7 +599,7 @@ _MatSnackBarContainer.ɵcmp = ɵɵdefineComponent({
       ɵɵattribute("aria-live", ctx._live)("role", ctx._role)("id", ctx._liveElementId);
     }
   },
-  dependencies: [PortalModule, CdkPortalOutlet],
+  dependencies: [CdkPortalOutlet],
   styles: ['.mdc-snackbar{display:none;position:fixed;right:0;bottom:0;left:0;align-items:center;justify-content:center;box-sizing:border-box;pointer-events:none;-webkit-tap-highlight-color:rgba(0,0,0,0)}.mdc-snackbar--opening,.mdc-snackbar--open,.mdc-snackbar--closing{display:flex}.mdc-snackbar--open .mdc-snackbar__label,.mdc-snackbar--open .mdc-snackbar__actions{visibility:visible}.mdc-snackbar__surface{padding-left:0;padding-right:8px;display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;transform:scale(0.8);opacity:0}.mdc-snackbar__surface::before{position:absolute;box-sizing:border-box;width:100%;height:100%;top:0;left:0;border:1px solid rgba(0,0,0,0);border-radius:inherit;content:"";pointer-events:none}@media screen and (forced-colors: active){.mdc-snackbar__surface::before{border-color:CanvasText}}[dir=rtl] .mdc-snackbar__surface,.mdc-snackbar__surface[dir=rtl]{padding-left:8px;padding-right:0}.mdc-snackbar--open .mdc-snackbar__surface{transform:scale(1);opacity:1;pointer-events:auto}.mdc-snackbar--closing .mdc-snackbar__surface{transform:scale(1)}.mdc-snackbar__label{padding-left:16px;padding-right:8px;width:100%;flex-grow:1;box-sizing:border-box;margin:0;visibility:hidden;padding-top:14px;padding-bottom:14px}[dir=rtl] .mdc-snackbar__label,.mdc-snackbar__label[dir=rtl]{padding-left:8px;padding-right:16px}.mdc-snackbar__label::before{display:inline;content:attr(data-mdc-snackbar-label-text)}.mdc-snackbar__actions{display:flex;flex-shrink:0;align-items:center;box-sizing:border-box;visibility:hidden}.mdc-snackbar__action+.mdc-snackbar__dismiss{margin-left:8px;margin-right:0}[dir=rtl] .mdc-snackbar__action+.mdc-snackbar__dismiss,.mdc-snackbar__action+.mdc-snackbar__dismiss[dir=rtl]{margin-left:0;margin-right:8px}.mat-mdc-snack-bar-container{margin:8px;position:static}.mat-mdc-snack-bar-container .mdc-snackbar__surface{min-width:344px}@media(max-width: 480px),(max-width: 344px){.mat-mdc-snack-bar-container .mdc-snackbar__surface{min-width:100%}}@media(max-width: 480px),(max-width: 344px){.mat-mdc-snack-bar-container{width:100vw}}.mat-mdc-snack-bar-container .mdc-snackbar__surface{max-width:672px}.mat-mdc-snack-bar-container .mdc-snackbar__surface{box-shadow:0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px 0px rgba(0, 0, 0, 0.14), 0px 1px 18px 0px rgba(0, 0, 0, 0.12)}.mat-mdc-snack-bar-container .mdc-snackbar__surface{background-color:var(--mdc-snackbar-container-color)}.mat-mdc-snack-bar-container .mdc-snackbar__surface{border-radius:var(--mdc-snackbar-container-shape)}.mat-mdc-snack-bar-container .mdc-snackbar__label{color:var(--mdc-snackbar-supporting-text-color)}.mat-mdc-snack-bar-container .mdc-snackbar__label{font-size:var(--mdc-snackbar-supporting-text-size);font-family:var(--mdc-snackbar-supporting-text-font);font-weight:var(--mdc-snackbar-supporting-text-weight);line-height:var(--mdc-snackbar-supporting-text-line-height)}.mat-mdc-snack-bar-container .mat-mdc-button.mat-mdc-snack-bar-action:not(:disabled){color:var(--mat-snack-bar-button-color);--mat-text-button-state-layer-color:currentColor;--mat-text-button-ripple-color:currentColor}.mat-mdc-snack-bar-container .mat-mdc-button.mat-mdc-snack-bar-action:not(:disabled) .mat-ripple-element{opacity:.1}.mat-mdc-snack-bar-container .mdc-snackbar__label::before{display:none}.mat-mdc-snack-bar-handset,.mat-mdc-snack-bar-container,.mat-mdc-snack-bar-label{flex:1 1 auto}.mat-mdc-snack-bar-handset .mdc-snackbar__surface{width:100%}'],
   encapsulation: 2,
   data: {
@@ -614,13 +616,13 @@ var MatSnackBarContainer = _MatSnackBarContainer;
       encapsulation: ViewEncapsulation$1.None,
       animations: [matSnackBarAnimations.snackBarState],
       standalone: true,
-      imports: [PortalModule],
+      imports: [CdkPortalOutlet],
       host: {
         "class": "mdc-snackbar mat-mdc-snack-bar-container mdc-snackbar--open",
         "[@state]": "_animationState",
         "(@state.done)": "onAnimationEnd($event)"
       },
-      template: '<div class="mdc-snackbar__surface">\n  <!--\n    This outer label wrapper will have the class `mdc-snackbar__label` applied if\n    the attached template/component does not contain it.\n  -->\n  <div class="mat-mdc-snack-bar-label" #label>\n    <!-- Initialy holds the snack bar content, will be empty after announcing to screen readers. -->\n    <div aria-hidden="true">\n      <ng-template cdkPortalOutlet></ng-template>\n    </div>\n\n    <!-- Will receive the snack bar content from the non-live div, move will happen a short delay after opening -->\n    <div [attr.aria-live]="_live" [attr.role]="_role" [attr.id]="_liveElementId"></div>\n  </div>\n</div>\n',
+      template: '<div class="mdc-snackbar__surface">\n  <!--\n    This outer label wrapper will have the class `mdc-snackbar__label` applied if\n    the attached template/component does not contain it.\n  -->\n  <div class="mat-mdc-snack-bar-label" #label>\n    <!-- Initialy holds the snack bar content, will be empty after announcing to screen readers. -->\n    <div aria-hidden="true">\n      <ng-template cdkPortalOutlet />\n    </div>\n\n    <!-- Will receive the snack bar content from the non-live div, move will happen a short delay after opening -->\n    <div [attr.aria-live]="_live" [attr.role]="_role" [attr.id]="_liveElementId"></div>\n  </div>\n</div>\n',
       styles: ['.mdc-snackbar{display:none;position:fixed;right:0;bottom:0;left:0;align-items:center;justify-content:center;box-sizing:border-box;pointer-events:none;-webkit-tap-highlight-color:rgba(0,0,0,0)}.mdc-snackbar--opening,.mdc-snackbar--open,.mdc-snackbar--closing{display:flex}.mdc-snackbar--open .mdc-snackbar__label,.mdc-snackbar--open .mdc-snackbar__actions{visibility:visible}.mdc-snackbar__surface{padding-left:0;padding-right:8px;display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;transform:scale(0.8);opacity:0}.mdc-snackbar__surface::before{position:absolute;box-sizing:border-box;width:100%;height:100%;top:0;left:0;border:1px solid rgba(0,0,0,0);border-radius:inherit;content:"";pointer-events:none}@media screen and (forced-colors: active){.mdc-snackbar__surface::before{border-color:CanvasText}}[dir=rtl] .mdc-snackbar__surface,.mdc-snackbar__surface[dir=rtl]{padding-left:8px;padding-right:0}.mdc-snackbar--open .mdc-snackbar__surface{transform:scale(1);opacity:1;pointer-events:auto}.mdc-snackbar--closing .mdc-snackbar__surface{transform:scale(1)}.mdc-snackbar__label{padding-left:16px;padding-right:8px;width:100%;flex-grow:1;box-sizing:border-box;margin:0;visibility:hidden;padding-top:14px;padding-bottom:14px}[dir=rtl] .mdc-snackbar__label,.mdc-snackbar__label[dir=rtl]{padding-left:8px;padding-right:16px}.mdc-snackbar__label::before{display:inline;content:attr(data-mdc-snackbar-label-text)}.mdc-snackbar__actions{display:flex;flex-shrink:0;align-items:center;box-sizing:border-box;visibility:hidden}.mdc-snackbar__action+.mdc-snackbar__dismiss{margin-left:8px;margin-right:0}[dir=rtl] .mdc-snackbar__action+.mdc-snackbar__dismiss,.mdc-snackbar__action+.mdc-snackbar__dismiss[dir=rtl]{margin-left:0;margin-right:8px}.mat-mdc-snack-bar-container{margin:8px;position:static}.mat-mdc-snack-bar-container .mdc-snackbar__surface{min-width:344px}@media(max-width: 480px),(max-width: 344px){.mat-mdc-snack-bar-container .mdc-snackbar__surface{min-width:100%}}@media(max-width: 480px),(max-width: 344px){.mat-mdc-snack-bar-container{width:100vw}}.mat-mdc-snack-bar-container .mdc-snackbar__surface{max-width:672px}.mat-mdc-snack-bar-container .mdc-snackbar__surface{box-shadow:0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px 0px rgba(0, 0, 0, 0.14), 0px 1px 18px 0px rgba(0, 0, 0, 0.12)}.mat-mdc-snack-bar-container .mdc-snackbar__surface{background-color:var(--mdc-snackbar-container-color)}.mat-mdc-snack-bar-container .mdc-snackbar__surface{border-radius:var(--mdc-snackbar-container-shape)}.mat-mdc-snack-bar-container .mdc-snackbar__label{color:var(--mdc-snackbar-supporting-text-color)}.mat-mdc-snack-bar-container .mdc-snackbar__label{font-size:var(--mdc-snackbar-supporting-text-size);font-family:var(--mdc-snackbar-supporting-text-font);font-weight:var(--mdc-snackbar-supporting-text-weight);line-height:var(--mdc-snackbar-supporting-text-line-height)}.mat-mdc-snack-bar-container .mat-mdc-button.mat-mdc-snack-bar-action:not(:disabled){color:var(--mat-snack-bar-button-color);--mat-text-button-state-layer-color:currentColor;--mat-text-button-ripple-color:currentColor}.mat-mdc-snack-bar-container .mat-mdc-button.mat-mdc-snack-bar-action:not(:disabled) .mat-ripple-element{opacity:.1}.mat-mdc-snack-bar-container .mdc-snackbar__label::before{display:none}.mat-mdc-snack-bar-handset,.mat-mdc-snack-bar-container,.mat-mdc-snack-bar-label{flex:1 1 auto}.mat-mdc-snack-bar-handset .mdc-snackbar__surface{width:100%}']
     }]
   }], () => [{
@@ -897,7 +899,7 @@ _MatSnackBarModule.ɵmod = ɵɵdefineNgModule({
 });
 _MatSnackBarModule.ɵinj = ɵɵdefineInjector({
   providers: [MatSnackBar],
-  imports: [OverlayModule, PortalModule, MatButtonModule, MatCommonModule, SimpleSnackBar, MatSnackBarContainer, MatCommonModule]
+  imports: [OverlayModule, PortalModule, MatButtonModule, MatCommonModule, SimpleSnackBar, MatCommonModule]
 });
 var MatSnackBarModule = _MatSnackBarModule;
 (() => {

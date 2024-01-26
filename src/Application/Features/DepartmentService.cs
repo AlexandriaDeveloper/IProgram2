@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using Application.Dtos;
 using Application.Helpers;
+using Application.Services;
 using Application.Shared;
 using Core.Interfaces;
 using Core.Models;
@@ -81,7 +83,57 @@ namespace Application.Features
             departmentDto.Id = department.Id;
             return Result.Success<DepartmentDto>(departmentDto);
         }
+        public async Task<Result> UploadEmployeesDepartment(EmployeesDepartmentFileUploadRequest request)
+        {
+            await Task.Delay(5000);
+            if (request.File == null)
+            {
+                return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
+            }
+            UploadFile upload = new UploadFile(request.File);
+            var path = await upload.UploadFileToTempPath();
+            NpoiServiceProvider npoi = new NpoiServiceProvider(path);
 
+            //Check Header Row
+
+
+            DataTable dt = npoi.ReadSheetData("Sheet1");
+            foreach (DataRow row in dt.Rows)
+            {
+                Employee empExist = null;
+                if (!string.IsNullOrEmpty(row.ItemArray[0].ToString()))
+                {
+                    empExist = await _employeeRepository.GetEmployeeByNationalId(row.ItemArray[0].ToString());
+                }
+                else if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()))
+                {
+                    var result = int.TryParse(row.ItemArray[1].ToString(), out int id);
+                    if (result)
+                    {
+                        empExist = _employeeRepository.GetQueryable().FirstOrDefault(x => x.TabCode == id);
+                    }
+                }
+                else if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()))
+                {
+                    var result = int.TryParse(row.ItemArray[2].ToString(), out int id);
+                    if (result)
+                    {
+                        empExist = _employeeRepository.GetQueryable().FirstOrDefault(x => x.TegaraCode == id);
+                    }
+                }
+                else if (empExist == null)
+                {
+                    return Result.Failure(new Error("500", "الملف غير متاح للرفع"));
+                }
+
+                empExist.DepartmentId = request.DepartmentId;
+                _employeeRepository.Update(empExist);
+
+            }
+            await _unitOfWork.SaveChangesAsync();
+            return Result.Success("تم الرفع بنجاح");
+
+        }
 
         public async Task<Result<DepartmentDto>> EditDepartment(DepartmentDto departmentDto)
         {

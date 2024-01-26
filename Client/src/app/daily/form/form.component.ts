@@ -1,5 +1,5 @@
 import { Param } from './../../shared/models/Param';
-import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ReportpdfService } from '../../shared/service/reportpdf.service';
 import { EmployeeService } from '../../shared/service/employee.service';
@@ -15,6 +15,7 @@ import { ActivatedRoute } from '@angular/router';
 import { AddFormComponent } from './add-form/add-form.component';
 import { FormParam } from '../../shared/models/IForm';
 import { AddEmployeeDialogComponent } from './form-details/add-employee-dialog/add-employee-dialog.component';
+import { debounceTime, distinctUntilChanged, fromEvent, map } from 'rxjs';
 
 @Component({
   selector: 'app-form',
@@ -23,7 +24,7 @@ import { AddEmployeeDialogComponent } from './form-details/add-employee-dialog/a
   templateUrl: './form.component.html',
   styleUrl: './form.component.scss'
 })
-export class FormComponent implements OnInit {
+export class FormComponent implements OnInit,AfterViewInit {
 
   //dailyId;
   dialog =inject(MatDialog)
@@ -47,11 +48,14 @@ fb =inject(FormBuilder);
   constructor(private cdref: ChangeDetectorRef) {
 
   }
+  ngAfterViewInit(): void {
+ this.onSearch();
+  }
   ngOnInit(): void {
-console.log(this.dailyId);
 
    this.form=this.initilizeForm();
    this.loadData();
+
    this.cdref.detectChanges();
   }
 
@@ -119,6 +123,29 @@ console.log(this.dailyId);
         console.log(x);
       }
     })
+  }
+
+  onSearch(){
+    fromEvent(this.nameInput.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+    map((event: any) => {
+    return event.target.value;
+    })
+    ).subscribe(x=>{
+
+          this.param.name=x
+          this.loadData()
+    })
+
+    }
+
+
+  clear(input){
+      if(input==='name'){
+        this.nameInput.nativeElement.value=''
+        this.param.name=''
+        this.loadData();
+      }
+
   }
 
 

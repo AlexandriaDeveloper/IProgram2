@@ -2,13 +2,16 @@ import {
   CdkScrollableModule,
   ScrollDispatcher,
   ViewportRuler
-} from "./chunk-5VTZAY6X.js";
-import "./chunk-UXVKRNCZ.js";
+} from "./chunk-AGMDCL4X.js";
+import "./chunk-3QVPOIIK.js";
 import {
-  Directionality,
   isFakeMousedownFromScreenReader,
   isFakeTouchstartFromScreenReader
-} from "./chunk-5SBMSZOM.js";
+} from "./chunk-J6QNFSAM.js";
+import {
+  Directionality
+} from "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
 import {
   _getEventTarget,
   _getShadowRoot,
@@ -16,7 +19,7 @@ import {
   coerceElement,
   coerceNumberProperty,
   normalizePassiveListenerOptions
-} from "./chunk-SFCFP7Z3.js";
+} from "./chunk-DMLWJ7GQ.js";
 import {
   DOCUMENT
 } from "./chunk-YZEMK44K.js";
@@ -130,16 +133,16 @@ function parseCssPropertyValue(computedStyle, name) {
   return value.split(",").map((part) => part.trim());
 }
 function getMutableClientRect(element) {
-  const clientRect = element.getBoundingClientRect();
+  const rect = element.getBoundingClientRect();
   return {
-    top: clientRect.top,
-    right: clientRect.right,
-    bottom: clientRect.bottom,
-    left: clientRect.left,
-    width: clientRect.width,
-    height: clientRect.height,
-    x: clientRect.x,
-    y: clientRect.y
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+    x: rect.x,
+    y: rect.y
   };
 }
 function isInsideClientRect(clientRect, x, y) {
@@ -151,13 +154,13 @@ function isInsideClientRect(clientRect, x, y) {
   } = clientRect;
   return y >= top && y <= bottom && x >= left && x <= right;
 }
-function adjustClientRect(clientRect, top, left) {
-  clientRect.top += top;
-  clientRect.bottom = clientRect.top + clientRect.height;
-  clientRect.left += left;
-  clientRect.right = clientRect.left + clientRect.width;
+function adjustDomRect(domRect, top, left) {
+  domRect.top += top;
+  domRect.bottom = domRect.top + domRect.height;
+  domRect.left += left;
+  domRect.right = domRect.left + domRect.width;
 }
-function isPointerNearClientRect(rect, threshold, pointerX, pointerY) {
+function isPointerNearDomRect(rect, threshold, pointerX, pointerY) {
   const {
     top,
     right,
@@ -217,7 +220,7 @@ var ParentPositionTracker = class {
     const leftDifference = scrollPosition.left - newLeft;
     this.positions.forEach((position, node) => {
       if (position.clientRect && target !== node && target.contains(node)) {
-        adjustClientRect(position.clientRect, topDifference, leftDifference);
+        adjustDomRect(position.clientRect, topDifference, leftDifference);
       }
     });
     scrollPosition.top = newTop;
@@ -382,7 +385,7 @@ var DragRef = class {
       if (this._dropContainer) {
         this._updateActiveDropContainer(constrainedPointerPosition, pointerPosition);
       } else {
-        const offset = this.constrainPosition ? this._initialClientRect : this._pickupPositionOnPage;
+        const offset = this.constrainPosition ? this._initialDomRect : this._pickupPositionOnPage;
         const activeTransform = this._activeTransform;
         activeTransform.x = constrainedPointerPosition.x - offset.x + this._passiveTransform.x;
         activeTransform.y = constrainedPointerPosition.y - offset.y + this._passiveTransform.y;
@@ -744,7 +747,7 @@ var DragRef = class {
     }
     this._hasStartedDragging = this._hasMoved = false;
     this._removeSubscriptions();
-    this._initialClientRect = this._rootElement.getBoundingClientRect();
+    this._initialDomRect = this._rootElement.getBoundingClientRect();
     this._pointerMoveSubscription = this._dragDropRegistry.pointerMove.subscribe(this._pointerMove);
     this._pointerUpSubscription = this._dragDropRegistry.pointerUp.subscribe(this._pointerUp);
     this._scrollSubscription = this._dragDropRegistry.scrolled(this._getShadowRoot()).subscribe((scrollEvent) => this._updateOnScroll(scrollEvent));
@@ -755,7 +758,7 @@ var DragRef = class {
     this._pickupPositionInElement = previewTemplate && previewTemplate.template && !previewTemplate.matchSize ? {
       x: 0,
       y: 0
-    } : this._getPointerPositionInElement(this._initialClientRect, referenceElement, event);
+    } : this._getPointerPositionInElement(this._initialDomRect, referenceElement, event);
     const pointerPosition = this._pickupPositionOnPage = this._lastKnownPointerPosition = this._getPointerPositionOnPage(event);
     this._pointerDirectionDelta = {
       x: 0,
@@ -774,7 +777,7 @@ var DragRef = class {
     this._anchor.parentNode.replaceChild(this._rootElement, this._anchor);
     this._destroyPreview();
     this._destroyPlaceholder();
-    this._initialClientRect = this._boundaryRect = this._previewRect = this._initialTransform = void 0;
+    this._initialDomRect = this._boundaryRect = this._previewRect = this._initialTransform = void 0;
     this._ngZone.run(() => {
       const container = this._dropContainer;
       const currentIndex = container.getItemIndex(this);
@@ -855,7 +858,7 @@ var DragRef = class {
     const previewTemplate = previewConfig ? previewConfig.template : null;
     let preview;
     if (previewTemplate && previewConfig) {
-      const rootRect = previewConfig.matchSize ? this._initialClientRect : null;
+      const rootRect = previewConfig.matchSize ? this._initialDomRect : null;
       const viewRef = previewConfig.viewContainer.createEmbeddedView(previewTemplate, previewConfig.context);
       viewRef.detectChanges();
       preview = getRootNode(viewRef, this._document);
@@ -867,7 +870,7 @@ var DragRef = class {
       }
     } else {
       preview = deepCloneNode(this._rootElement);
-      matchElementSize(preview, this._initialClientRect);
+      matchElementSize(preview, this._initialDomRect);
       if (this._initialTransform) {
         preview.style.transform = this._initialTransform;
       }
@@ -995,7 +998,7 @@ var DragRef = class {
     let {
       x,
       y
-    } = this.constrainPosition ? this.constrainPosition(point, this, this._initialClientRect, this._pickupPositionInElement) : point;
+    } = this.constrainPosition ? this.constrainPosition(point, this, this._initialDomRect, this._pickupPositionInElement) : point;
     if (this.lockAxis === "x" || dropContainerLock === "x") {
       y = this._pickupPositionOnPage.y - (this.constrainPosition ? this._pickupPositionInElement.y : 0);
     } else if (this.lockAxis === "y" || dropContainerLock === "y") {
@@ -1172,7 +1175,7 @@ var DragRef = class {
     if (scrollDifference) {
       const target = _getEventTarget(event);
       if (this._boundaryRect && target !== this._boundaryElement && target.contains(this._boundaryElement)) {
-        adjustClientRect(this._boundaryRect, scrollDifference.top, scrollDifference.left);
+        adjustDomRect(this._boundaryRect, scrollDifference.top, scrollDifference.left);
       }
       this._pickupPositionOnPage.x += scrollDifference.left;
       this._pickupPositionOnPage.y += scrollDifference.top;
@@ -1214,7 +1217,7 @@ var DragRef = class {
   /** Lazily resolves and returns the dimensions of the preview. */
   _getPreviewRect() {
     if (!this._previewRect || !this._previewRect.width && !this._previewRect.height) {
-      this._previewRect = this._preview ? this._preview.getBoundingClientRect() : this._initialClientRect;
+      this._previewRect = this._preview ? this._preview.getBoundingClientRect() : this._initialDomRect;
     }
     return this._previewRect;
   }
@@ -1329,10 +1332,10 @@ var SingleAxisSortStrategy = class {
       sibling.offset += offset;
       if (isHorizontal) {
         elementToOffset.style.transform = combineTransforms(`translate3d(${Math.round(sibling.offset)}px, 0, 0)`, sibling.initialTransform);
-        adjustClientRect(sibling.clientRect, 0, offset);
+        adjustDomRect(sibling.clientRect, 0, offset);
       } else {
         elementToOffset.style.transform = combineTransforms(`translate3d(0, ${Math.round(sibling.offset)}px, 0)`, sibling.initialTransform);
-        adjustClientRect(sibling.clientRect, offset, 0);
+        adjustDomRect(sibling.clientRect, offset, 0);
       }
     });
     this._previousSwap.overlaps = isInsideClientRect(newPosition, pointerX, pointerY);
@@ -1422,7 +1425,7 @@ var SingleAxisSortStrategy = class {
     this._itemPositions.forEach(({
       clientRect
     }) => {
-      adjustClientRect(clientRect, topDifference, leftDifference);
+      adjustDomRect(clientRect, topDifference, leftDifference);
     });
     this._itemPositions.forEach(({
       drag
@@ -1536,6 +1539,18 @@ var SingleAxisSortStrategy = class {
 };
 var DROP_PROXIMITY_THRESHOLD = 0.05;
 var SCROLL_PROXIMITY_THRESHOLD = 0.05;
+var AutoScrollVerticalDirection;
+(function(AutoScrollVerticalDirection2) {
+  AutoScrollVerticalDirection2[AutoScrollVerticalDirection2["NONE"] = 0] = "NONE";
+  AutoScrollVerticalDirection2[AutoScrollVerticalDirection2["UP"] = 1] = "UP";
+  AutoScrollVerticalDirection2[AutoScrollVerticalDirection2["DOWN"] = 2] = "DOWN";
+})(AutoScrollVerticalDirection || (AutoScrollVerticalDirection = {}));
+var AutoScrollHorizontalDirection;
+(function(AutoScrollHorizontalDirection2) {
+  AutoScrollHorizontalDirection2[AutoScrollHorizontalDirection2["NONE"] = 0] = "NONE";
+  AutoScrollHorizontalDirection2[AutoScrollHorizontalDirection2["LEFT"] = 1] = "LEFT";
+  AutoScrollHorizontalDirection2[AutoScrollHorizontalDirection2["RIGHT"] = 2] = "RIGHT";
+})(AutoScrollHorizontalDirection || (AutoScrollHorizontalDirection = {}));
 var DropListRef = class {
   constructor(element, _dragDropRegistry, _document, _ngZone, _viewportRuler) {
     this._dragDropRegistry = _dragDropRegistry;
@@ -1559,8 +1574,8 @@ var DropListRef = class {
     this._siblings = [];
     this._activeSiblings = /* @__PURE__ */ new Set();
     this._viewportScrollSubscription = Subscription.EMPTY;
-    this._verticalScrollDirection = 0;
-    this._horizontalScrollDirection = 0;
+    this._verticalScrollDirection = AutoScrollVerticalDirection.NONE;
+    this._horizontalScrollDirection = AutoScrollHorizontalDirection.NONE;
     this._stopScrollTimers = new Subject();
     this._cachedShadowRoot = null;
     this._startScrollInterval = () => {
@@ -1568,14 +1583,14 @@ var DropListRef = class {
       interval(0, animationFrameScheduler).pipe(takeUntil(this._stopScrollTimers)).subscribe(() => {
         const node = this._scrollNode;
         const scrollStep = this.autoScrollStep;
-        if (this._verticalScrollDirection === 1) {
+        if (this._verticalScrollDirection === AutoScrollVerticalDirection.UP) {
           node.scrollBy(0, -scrollStep);
-        } else if (this._verticalScrollDirection === 2) {
+        } else if (this._verticalScrollDirection === AutoScrollVerticalDirection.DOWN) {
           node.scrollBy(0, scrollStep);
         }
-        if (this._horizontalScrollDirection === 1) {
+        if (this._horizontalScrollDirection === AutoScrollHorizontalDirection.LEFT) {
           node.scrollBy(-scrollStep, 0);
-        } else if (this._horizontalScrollDirection === 2) {
+        } else if (this._horizontalScrollDirection === AutoScrollHorizontalDirection.RIGHT) {
           node.scrollBy(scrollStep, 0);
         }
       });
@@ -1749,7 +1764,7 @@ var DropListRef = class {
    * @param pointerDelta Direction in which the pointer is moving along each axis.
    */
   _sortItem(item, pointerX, pointerY, pointerDelta) {
-    if (this.sortingDisabled || !this._clientRect || !isPointerNearClientRect(this._clientRect, DROP_PROXIMITY_THRESHOLD, pointerX, pointerY)) {
+    if (this.sortingDisabled || !this._domRect || !isPointerNearDomRect(this._domRect, DROP_PROXIMITY_THRESHOLD, pointerX, pointerY)) {
       return;
     }
     const result = this._sortStrategy.sort(item, pointerX, pointerY, pointerDelta);
@@ -1773,14 +1788,14 @@ var DropListRef = class {
       return;
     }
     let scrollNode;
-    let verticalScrollDirection = 0;
-    let horizontalScrollDirection = 0;
+    let verticalScrollDirection = AutoScrollVerticalDirection.NONE;
+    let horizontalScrollDirection = AutoScrollHorizontalDirection.NONE;
     this._parentPositions.positions.forEach((position, element) => {
       if (element === this._document || !position.clientRect || scrollNode) {
         return;
       }
-      if (isPointerNearClientRect(position.clientRect, DROP_PROXIMITY_THRESHOLD, pointerX, pointerY)) {
-        [verticalScrollDirection, horizontalScrollDirection] = getElementScrollDirections(element, position.clientRect, pointerX, pointerY);
+      if (isPointerNearDomRect(position.clientRect, DROP_PROXIMITY_THRESHOLD, pointerX, pointerY)) {
+        [verticalScrollDirection, horizontalScrollDirection] = getElementScrollDirections(element, position.clientRect, this._sortStrategy.direction, pointerX, pointerY);
         if (verticalScrollDirection || horizontalScrollDirection) {
           scrollNode = element;
         }
@@ -1791,7 +1806,7 @@ var DropListRef = class {
         width,
         height
       } = this._viewportRuler.getViewportSize();
-      const clientRect = {
+      const domRect = {
         width,
         height,
         top: 0,
@@ -1799,8 +1814,8 @@ var DropListRef = class {
         bottom: height,
         left: 0
       };
-      verticalScrollDirection = getVerticalScrollDirection(clientRect, pointerY);
-      horizontalScrollDirection = getHorizontalScrollDirection(clientRect, pointerX);
+      verticalScrollDirection = getVerticalScrollDirection(domRect, pointerY);
+      horizontalScrollDirection = getHorizontalScrollDirection(domRect, pointerX);
       scrollNode = window;
     }
     if (scrollNode && (verticalScrollDirection !== this._verticalScrollDirection || horizontalScrollDirection !== this._horizontalScrollDirection || scrollNode !== this._scrollNode)) {
@@ -1834,7 +1849,7 @@ var DropListRef = class {
   _cacheParentPositions() {
     const element = coerceElement(this.element);
     this._parentPositions.cache(this._scrollableElements);
-    this._clientRect = this._parentPositions.positions.get(element).clientRect;
+    this._domRect = this._parentPositions.positions.get(element).clientRect;
   }
   /** Resets the container to its initial state. */
   _reset() {
@@ -1853,7 +1868,7 @@ var DropListRef = class {
    * @param y Pointer position along the Y axis.
    */
   _isOverContainer(x, y) {
-    return this._clientRect != null && isInsideClientRect(this._clientRect, x, y);
+    return this._domRect != null && isInsideClientRect(this._domRect, x, y);
   }
   /**
    * Figures out whether an item should be moved into a sibling
@@ -1872,7 +1887,7 @@ var DropListRef = class {
    * @param y Position of the item along the Y axis.
    */
   _canReceive(item, x, y) {
-    if (!this._clientRect || !isInsideClientRect(this._clientRect, x, y) || !this.enterPredicate(item, this)) {
+    if (!this._domRect || !isInsideClientRect(this._domRect, x, y) || !this.enterPredicate(item, this)) {
       return false;
     }
     const elementFromPoint = this._getShadowRoot().elementFromPoint(x, y);
@@ -1956,11 +1971,11 @@ function getVerticalScrollDirection(clientRect, pointerY) {
   } = clientRect;
   const yThreshold = height * SCROLL_PROXIMITY_THRESHOLD;
   if (pointerY >= top - yThreshold && pointerY <= top + yThreshold) {
-    return 1;
+    return AutoScrollVerticalDirection.UP;
   } else if (pointerY >= bottom - yThreshold && pointerY <= bottom + yThreshold) {
-    return 2;
+    return AutoScrollVerticalDirection.DOWN;
   }
-  return 0;
+  return AutoScrollVerticalDirection.NONE;
 }
 function getHorizontalScrollDirection(clientRect, pointerX) {
   const {
@@ -1970,35 +1985,45 @@ function getHorizontalScrollDirection(clientRect, pointerX) {
   } = clientRect;
   const xThreshold = width * SCROLL_PROXIMITY_THRESHOLD;
   if (pointerX >= left - xThreshold && pointerX <= left + xThreshold) {
-    return 1;
+    return AutoScrollHorizontalDirection.LEFT;
   } else if (pointerX >= right - xThreshold && pointerX <= right + xThreshold) {
-    return 2;
+    return AutoScrollHorizontalDirection.RIGHT;
   }
-  return 0;
+  return AutoScrollHorizontalDirection.NONE;
 }
-function getElementScrollDirections(element, clientRect, pointerX, pointerY) {
+function getElementScrollDirections(element, clientRect, direction, pointerX, pointerY) {
   const computedVertical = getVerticalScrollDirection(clientRect, pointerY);
   const computedHorizontal = getHorizontalScrollDirection(clientRect, pointerX);
-  let verticalScrollDirection = 0;
-  let horizontalScrollDirection = 0;
+  let verticalScrollDirection = AutoScrollVerticalDirection.NONE;
+  let horizontalScrollDirection = AutoScrollHorizontalDirection.NONE;
   if (computedVertical) {
     const scrollTop = element.scrollTop;
-    if (computedVertical === 1) {
+    if (computedVertical === AutoScrollVerticalDirection.UP) {
       if (scrollTop > 0) {
-        verticalScrollDirection = 1;
+        verticalScrollDirection = AutoScrollVerticalDirection.UP;
       }
     } else if (element.scrollHeight - scrollTop > element.clientHeight) {
-      verticalScrollDirection = 2;
+      verticalScrollDirection = AutoScrollVerticalDirection.DOWN;
     }
   }
   if (computedHorizontal) {
     const scrollLeft = element.scrollLeft;
-    if (computedHorizontal === 1) {
-      if (scrollLeft > 0) {
-        horizontalScrollDirection = 1;
+    if (direction === "rtl") {
+      if (computedHorizontal === AutoScrollHorizontalDirection.RIGHT) {
+        if (scrollLeft < 0) {
+          horizontalScrollDirection = AutoScrollHorizontalDirection.RIGHT;
+        }
+      } else if (element.scrollWidth + scrollLeft > element.clientWidth) {
+        horizontalScrollDirection = AutoScrollHorizontalDirection.LEFT;
       }
-    } else if (element.scrollWidth - scrollLeft > element.clientWidth) {
-      horizontalScrollDirection = 2;
+    } else {
+      if (computedHorizontal === AutoScrollHorizontalDirection.LEFT) {
+        if (scrollLeft > 0) {
+          horizontalScrollDirection = AutoScrollHorizontalDirection.LEFT;
+        }
+      } else if (element.scrollWidth - scrollLeft > element.clientWidth) {
+        horizontalScrollDirection = AutoScrollHorizontalDirection.RIGHT;
+      }
     }
   }
   return [verticalScrollDirection, horizontalScrollDirection];

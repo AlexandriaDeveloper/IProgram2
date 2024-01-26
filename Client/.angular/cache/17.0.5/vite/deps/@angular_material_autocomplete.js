@@ -1,33 +1,35 @@
 import {
-  Overlay,
-  OverlayConfig,
-  OverlayModule
-} from "./chunk-QFOCKJLD.js";
-import {
   MAT_FORM_FIELD,
   MatFormField
-} from "./chunk-5QFOSCO3.js";
-import {
-  TemplatePortal
-} from "./chunk-I42VWIVA.js";
-import {
-  CdkScrollableModule,
-  ViewportRuler
-} from "./chunk-5VTZAY6X.js";
-import "./chunk-UXVKRNCZ.js";
+} from "./chunk-OCU657C3.js";
 import {
   NG_VALUE_ACCESSOR
 } from "./chunk-IDLSIQ2B.js";
 import {
+  Overlay,
+  OverlayConfig,
+  OverlayModule
+} from "./chunk-CROM2MYI.js";
+import {
+  TemplatePortal
+} from "./chunk-I3SP4PLD.js";
+import {
+  CdkScrollableModule,
+  ViewportRuler
+} from "./chunk-AGMDCL4X.js";
+import "./chunk-3QVPOIIK.js";
+import {
   MAT_OPTGROUP,
   MAT_OPTION_PARENT_COMPONENT,
   MatCommonModule,
+  MatOptgroup,
   MatOption,
   MatOptionModule,
   MatOptionSelectionChange,
   _countGroupLabelsBeforeOption,
   _getOptionScrollPosition
-} from "./chunk-3CDZT44J.js";
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
 import {
   animate,
   group,
@@ -35,12 +37,11 @@ import {
   style,
   transition,
   trigger
-} from "./chunk-EWUG7RS4.js";
+} from "./chunk-3MUY5ZR6.js";
 import "./chunk-4F74E6RB.js";
 import {
   ActiveDescendantKeyManager,
   DOWN_ARROW,
-  Directionality,
   ENTER,
   ESCAPE,
   TAB,
@@ -48,12 +49,16 @@ import {
   addAriaReferencedId,
   hasModifierKey,
   removeAriaReferencedId
-} from "./chunk-5SBMSZOM.js";
+} from "./chunk-J6QNFSAM.js";
+import {
+  Directionality
+} from "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
 import {
   Platform,
   _getEventTarget,
   coerceStringArray
-} from "./chunk-SFCFP7Z3.js";
+} from "./chunk-DMLWJ7GQ.js";
 import "./chunk-U346D2SR.js";
 import {
   CommonModule,
@@ -87,6 +92,7 @@ import {
   ɵɵInputTransformsFeature,
   ɵɵNgOnChangesFeature,
   ɵɵProvidersFeature,
+  ɵɵStandaloneFeature,
   ɵɵattribute,
   ɵɵcontentQuery,
   ɵɵdefineComponent,
@@ -349,7 +355,7 @@ _MatAutocomplete.ɵcmp = ɵɵdefineComponent({
       ɵɵqueryRefresh(_t = ɵɵloadQuery()) && (ctx.panel = _t.first);
     }
   },
-  hostAttrs: ["ngSkipHydration", "", 1, "mat-mdc-autocomplete"],
+  hostAttrs: [1, "mat-mdc-autocomplete"],
   inputs: {
     ariaLabel: ["aria-label", "ariaLabel"],
     ariaLabelledby: ["aria-labelledby", "ariaLabelledby"],
@@ -369,10 +375,11 @@ _MatAutocomplete.ɵcmp = ɵɵdefineComponent({
     optionActivated: "optionActivated"
   },
   exportAs: ["matAutocomplete"],
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: MAT_OPTION_PARENT_COMPONENT,
     useExisting: _MatAutocomplete
-  }]), ɵɵInputTransformsFeature],
+  }]), ɵɵInputTransformsFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c1,
   decls: 1,
   vars: 0,
@@ -401,14 +408,15 @@ var MatAutocomplete = _MatAutocomplete;
       changeDetection: ChangeDetectionStrategy.OnPush,
       exportAs: "matAutocomplete",
       host: {
-        "class": "mat-mdc-autocomplete",
-        "ngSkipHydration": ""
+        "class": "mat-mdc-autocomplete"
       },
       providers: [{
         provide: MAT_OPTION_PARENT_COMPONENT,
         useExisting: MatAutocomplete
       }],
       animations: [panelAnimation],
+      standalone: true,
+      imports: [NgClass],
       template: `<ng-template let-formFieldId="id">
   <div
     class="mat-mdc-autocomplete-panel mdc-menu-surface mdc-menu-surface--open"
@@ -534,7 +542,8 @@ _MatAutocompleteOrigin.ɵfac = function MatAutocompleteOrigin_Factory(t) {
 _MatAutocompleteOrigin.ɵdir = ɵɵdefineDirective({
   type: _MatAutocompleteOrigin,
   selectors: [["", "matAutocompleteOrigin", ""]],
-  exportAs: ["matAutocompleteOrigin"]
+  exportAs: ["matAutocompleteOrigin"],
+  standalone: true
 });
 var MatAutocompleteOrigin = _MatAutocompleteOrigin;
 (() => {
@@ -542,7 +551,8 @@ var MatAutocompleteOrigin = _MatAutocompleteOrigin;
     type: Directive,
     args: [{
       selector: "[matAutocompleteOrigin]",
-      exportAs: "matAutocompleteOrigin"
+      exportAs: "matAutocompleteOrigin",
+      standalone: true
     }]
   }], () => [{
     type: ElementRef
@@ -715,7 +725,7 @@ var _MatAutocompleteTrigger = class _MatAutocompleteTrigger {
   _getOutsideClickStream() {
     return merge(fromEvent(this._document, "click"), fromEvent(this._document, "auxclick"), fromEvent(this._document, "touchend")).pipe(filter((event) => {
       const clickTarget = _getEventTarget(event);
-      const formField = this._formField ? this._formField._elementRef.nativeElement : null;
+      const formField = this._formField ? this._formField.getConnectedOverlayOrigin().nativeElement : null;
       const customOrigin = this.connectedTo ? this.connectedTo.elementRef.nativeElement : null;
       return this._overlayAttached && clickTarget !== this._element.nativeElement && // Normally focus moves inside `mousedown` so this condition will almost always be
       // true. Its main purpose is to handle the case where the input is focused from an
@@ -1181,6 +1191,7 @@ _MatAutocompleteTrigger.ɵdir = ɵɵdefineDirective({
     autocompleteDisabled: ["matAutocompleteDisabled", "autocompleteDisabled", booleanAttribute]
   },
   exportAs: ["matAutocompleteTrigger"],
+  standalone: true,
   features: [ɵɵProvidersFeature([MAT_AUTOCOMPLETE_VALUE_ACCESSOR]), ɵɵInputTransformsFeature, ɵɵNgOnChangesFeature]
 });
 var MatAutocompleteTrigger = _MatAutocompleteTrigger;
@@ -1207,7 +1218,8 @@ var MatAutocompleteTrigger = _MatAutocompleteTrigger;
         "(click)": "_handleClick()"
       },
       exportAs: "matAutocompleteTrigger",
-      providers: [MAT_AUTOCOMPLETE_VALUE_ACCESSOR]
+      providers: [MAT_AUTOCOMPLETE_VALUE_ACCESSOR],
+      standalone: true
     }]
   }], () => [{
     type: ElementRef
@@ -1291,8 +1303,7 @@ _MatAutocompleteModule.ɵfac = function MatAutocompleteModule_Factory(t) {
 };
 _MatAutocompleteModule.ɵmod = ɵɵdefineNgModule({
   type: _MatAutocompleteModule,
-  declarations: [MatAutocomplete, MatAutocompleteTrigger, MatAutocompleteOrigin],
-  imports: [OverlayModule, MatOptionModule, MatCommonModule, CommonModule],
+  imports: [OverlayModule, MatOptionModule, MatCommonModule, CommonModule, MatAutocomplete, MatAutocompleteTrigger, MatAutocompleteOrigin],
   exports: [CdkScrollableModule, MatAutocomplete, MatOptionModule, MatCommonModule, MatAutocompleteTrigger, MatAutocompleteOrigin]
 });
 _MatAutocompleteModule.ɵinj = ɵɵdefineInjector({
@@ -1304,9 +1315,8 @@ var MatAutocompleteModule = _MatAutocompleteModule;
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatAutocompleteModule, [{
     type: NgModule,
     args: [{
-      imports: [OverlayModule, MatOptionModule, MatCommonModule, CommonModule],
+      imports: [OverlayModule, MatOptionModule, MatCommonModule, CommonModule, MatAutocomplete, MatAutocompleteTrigger, MatAutocompleteOrigin],
       exports: [CdkScrollableModule, MatAutocomplete, MatOptionModule, MatCommonModule, MatAutocompleteTrigger, MatAutocompleteOrigin],
-      declarations: [MatAutocomplete, MatAutocompleteTrigger, MatAutocompleteOrigin],
       providers: [MAT_AUTOCOMPLETE_SCROLL_STRATEGY_FACTORY_PROVIDER]
     }]
   }], null, null);
@@ -1323,6 +1333,8 @@ export {
   MatAutocompleteOrigin,
   MatAutocompleteSelectedEvent,
   MatAutocompleteTrigger,
+  MatOptgroup,
+  MatOption,
   getMatAutocompleteMissingPanelError
 };
 //# sourceMappingURL=@angular_material_autocomplete.js.map

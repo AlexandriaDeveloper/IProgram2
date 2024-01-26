@@ -25,7 +25,7 @@ namespace Core.Interfaces
         Task Delete(int id);
         Task InActive(int id);
         Task DeActive(int id);
-        IQueryable<TValue> GetQueryable();
+        IQueryable<TValue> GetQueryable(bool isActive = true);
         Task<int> CountAsync(ISpecification<TValue> spec);
 
 

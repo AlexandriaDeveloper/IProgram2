@@ -15,9 +15,9 @@
     <!-- <div class="file-list" *ngIf="files.length > 0"> -->
 
       <div class="file-list">
+        <ng-container *ngFor="let file of files; let i = index">
 
-
-          <div class="file" *ngFor="let file of files; let i = index">
+          <div class="file" *ngIf="file!== null">
            <div class="file-content" >
             <div  class="file-info">
               <div class="file-icon">
@@ -36,12 +36,12 @@
                   <mat-icon color="warn" class="remove">delete</mat-icon>
                 </div>
            </div>
-           <div class="upload-progress" *ngIf="onProgress">
-
-
-            <mat-progress-bar mode="indeterminate" [value]="progress()"></mat-progress-bar>
+           <div class="upload-progress" *ngIf="onProgress[i]">
+            <mat-progress-bar  mode="indeterminate" [value]="progress()[i]"></mat-progress-bar>
+            {{onProgress[i]}}
            </div>
             </div>
+          </ng-container>
 
 
       <div class="upload-button">
@@ -54,3 +54,4 @@
 
   </div>
 </div>
+

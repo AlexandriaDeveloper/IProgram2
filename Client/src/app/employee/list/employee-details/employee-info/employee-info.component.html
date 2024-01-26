@@ -1,9 +1,13 @@
-<div class="content">
-  <div class="employee-info">
 
-      <div class="employee-info-item">
-       <mat-icon>person</mat-icon> الاسم :  {{employee?.name}}
-      </div>
+<div class="employee-info-item">
+  <mat-icon>person</mat-icon> اسم الموظف  :  {{employee?.name}}
+ </div>
+<div class="content">
+
+  <div class="employee-info">
+    <div style="display: flex; justify-content: space-between;">
+      <div style="flex: 3">
+
       <div class="employee-info-item">
         <mat-icon>credit_card</mat-icon> الرقم القومى :  {{employee?.nationalId}}
       </div>
@@ -14,12 +18,24 @@
      <mat-icon>#</mat-icon>   كود تجارة :  {{employee?.tegaraCode}}
       </div>
       <div class="employee-info-item">
+        <mat-icon>business</mat-icon> القسم:  {{employee?.departmentName ? employee.departmentName: 'لايوجد'}}
+       </div>
+      </div>
+      <div style="flex: 2">
+      <div class="employee-info-item">
         <mat-icon>account_balance</mat-icon>   الكليه :  {{employee?.collage}}
       </div>
       <div class="employee-info-item">
        <mat-icon>business</mat-icon> القسم:  {{employee?.departmentId}}
       </div>
-
+      <div class="employee-info-item">
+        <mat-icon>email</mat-icon> البريد الالكترونى :  {{employee?.email}}
+       </div>
+       <div class="employee-info-item">
+        <mat-icon>business</mat-icon>  الوظيفه :  {{employee?.section}}
+       </div>
+      </div>
+    </div>
   </div>
 
 </div>

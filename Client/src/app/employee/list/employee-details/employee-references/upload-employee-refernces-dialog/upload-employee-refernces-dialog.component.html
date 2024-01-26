@@ -1,0 +1,30 @@
+
+  <mat-card    class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+    <mat-card-header>
+      <mat-card-title >
+          <div class="close" (click)="onNoClick()">
+            <mat-icon >close</mat-icon>
+          </div>
+          <span>قسم جديد </span>
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="uploadForm">
+
+        <app-upload #fileDropRef (upload)="uploadFiles()"  formControlName="file" [fileType]="'image'"></app-upload>
+
+
+        </form>
+
+
+        <!-- <div class="action-buttons">
+            <button   mat-raised-button color="primary"  [disabled]="uploadForm.invalid">
+                حفظ
+            </button>
+            <button mat-raised-button color="warn">
+              الغاء
+          </button>
+        </div> -->
+
+    </mat-card-content>
+  </mat-card>

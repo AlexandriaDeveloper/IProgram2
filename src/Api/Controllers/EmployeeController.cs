@@ -75,9 +75,10 @@ namespace Api.Controllers
 
 
 
-        [HttpPost("Upload")] // 10 MB
+        [HttpPost("Upload")]
+        [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
 
-        public async Task<ActionResult<Result>> UploadEmployees([FromForm] UploadEmployeesRequest model)
+        public async Task<ActionResult<Result>> UploadEmployees(EmployeeFileUploadRequest model)
         {
 
             if (!ModelState.IsValid)
@@ -86,10 +87,36 @@ namespace Api.Controllers
             }
             try
             {
-                foreach (var file in model.Files)
-                {
-                    await _employeeService.UploadEmployees(file);
-                }
+                // foreach (var file in model.Files)
+                // {
+                await _employeeService.UploadTabFile(model.File);
+                // }
+                return Result.Success("تم الرفع بنجاح");
+            }
+            catch (Exception ex)
+            {
+                return Result.Failure<EmployeeDto>(new Error("500", ex.Message));
+            }
+
+        }
+
+        [HttpPost("UploadTegaraFile")]
+        [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+
+        public async Task<ActionResult<Result>> UploadTegaraFile(EmployeeFileUploadRequest model)
+        {
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState.FirstOrDefault().Value);
+            }
+            try
+            {
+                // foreach (var file in model.Files)
+                // {
+                await _employeeService.UploadTegaraFile(model);
+                // }
+
                 return Result.Success("تم الرفع بنجاح");
             }
             catch (Exception ex)
@@ -102,7 +129,7 @@ namespace Api.Controllers
 
         [HttpGet("Test")]
         [AllowAnonymous]
-        public async Task<Result<string>> ConvetNumToStrin(decimal num)
+        public async Task<Result<string>> ConvetNumToStrin(double num)
         {
 
             return await _employeeService.ConvertNumber(num);

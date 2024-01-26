@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, Input, OnInit, Self, ViewChild } from '@angular/core';
 import { ControlValueAccessor, NgControl, ReactiveFormsModule } from '@angular/forms';
-import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatFormFieldAppearance, MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import {MatProgressSpinnerModule} from '@angular/material/progress-spinner';
@@ -43,7 +43,7 @@ export class InputTextComponent implements OnInit, ControlValueAccessor {
   // @Input() name: string;
   // @Input() placeholder: string;
   // @Input() required: boolean;
-   @Input() appearance: string="outline";
+   @Input() appearance: MatFormFieldAppearance="outline";
    @Input() matSuffix: string="settings";
   // @Input() matPrefix: string;
   // @Input() matHint: string;

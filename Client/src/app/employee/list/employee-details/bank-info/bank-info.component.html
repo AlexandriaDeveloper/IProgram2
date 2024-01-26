@@ -1,0 +1,24 @@
+
+
+@if(employee?.bankInfo.bankName !== null) {
+  <div style="position: relative; ">
+    <mat-icon>account_balance</mat-icon>
+    بيانات حساب البنك
+  </div>
+  <div class="bank-info">
+
+  <div class="bank-info-item">
+   اسم البنك :  {{employee?.bankInfo?.bankName}}
+  </div>
+  <div class="bank-info-item">
+  اسم الفرع :  {{employee?.bankInfo?.branchName}}
+  </div>
+  <div >
+   رقم الحساب : {{employee?.bankInfo?.accountNumber}}
+  </div>
+
+  </div>
+}
+@else {
+ليس له حساب بنكى
+}

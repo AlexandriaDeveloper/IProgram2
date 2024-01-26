@@ -2,31 +2,31 @@ import {
   Overlay,
   OverlayConfig,
   OverlayModule
-} from "./chunk-QFOCKJLD.js";
+} from "./chunk-CROM2MYI.js";
 import {
   DomPortalOutlet,
   TemplatePortal
-} from "./chunk-I42VWIVA.js";
+} from "./chunk-I3SP4PLD.js";
 import {
   CdkScrollableModule
-} from "./chunk-5VTZAY6X.js";
-import "./chunk-UXVKRNCZ.js";
+} from "./chunk-AGMDCL4X.js";
+import "./chunk-3QVPOIIK.js";
 import {
   MatCommonModule,
   MatRipple,
   MatRippleModule
-} from "./chunk-3CDZT44J.js";
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
 import {
   animate,
   state,
   style,
   transition,
   trigger
-} from "./chunk-EWUG7RS4.js";
+} from "./chunk-3MUY5ZR6.js";
 import "./chunk-4F74E6RB.js";
 import {
   DOWN_ARROW,
-  Directionality,
   ENTER,
   ESCAPE,
   FocusKeyManager,
@@ -38,10 +38,14 @@ import {
   hasModifierKey,
   isFakeMousedownFromScreenReader,
   isFakeTouchstartFromScreenReader
-} from "./chunk-5SBMSZOM.js";
+} from "./chunk-J6QNFSAM.js";
+import {
+  Directionality
+} from "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
 import {
   normalizePassiveListenerOptions
-} from "./chunk-SFCFP7Z3.js";
+} from "./chunk-DMLWJ7GQ.js";
 import "./chunk-U346D2SR.js";
 import {
   CommonModule,
@@ -78,6 +82,7 @@ import {
   setClassMetadata,
   ɵɵInputTransformsFeature,
   ɵɵProvidersFeature,
+  ɵɵStandaloneFeature,
   ɵɵadvance,
   ɵɵattribute,
   ɵɵclassProp,
@@ -272,7 +277,8 @@ _MatMenuItem.ɵcmp = ɵɵdefineComponent({
     disableRipple: ["disableRipple", "disableRipple", booleanAttribute]
   },
   exportAs: ["matMenuItem"],
-  features: [ɵɵInputTransformsFeature],
+  standalone: true,
+  features: [ɵɵInputTransformsFeature, ɵɵStandaloneFeature],
   attrs: _c0,
   ngContentSelectors: _c2,
   decls: 5,
@@ -319,6 +325,8 @@ var MatMenuItem = _MatMenuItem;
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
+      standalone: true,
+      imports: [MatRipple],
       template: '<ng-content select="mat-icon, [matMenuItemIcon]"></ng-content>\n<span class="mat-mdc-menu-item-text"><ng-content></ng-content></span>\n<div class="mat-mdc-menu-ripple" matRipple\n     [matRippleDisabled]="disableRipple || disabled"\n     [matRippleTrigger]="_getHostElement()">\n</div>\n\n@if (_triggersSubmenu) {\n     <svg\n       class="mat-mdc-menu-submenu-icon"\n       viewBox="0 0 5 10"\n       focusable="false"\n       aria-hidden="true"><polygon points="0,0 5,5 0,10"/></svg>\n}\n'
     }]
   }], () => [{
@@ -421,6 +429,7 @@ _MatMenuContent.ɵfac = function MatMenuContent_Factory(t) {
 _MatMenuContent.ɵdir = ɵɵdefineDirective({
   type: _MatMenuContent,
   selectors: [["ng-template", "matMenuContent", ""]],
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: MAT_MENU_CONTENT,
     useExisting: _MatMenuContent
@@ -435,7 +444,8 @@ var MatMenuContent = _MatMenuContent;
       providers: [{
         provide: MAT_MENU_CONTENT,
         useExisting: MatMenuContent
-      }]
+      }],
+      standalone: true
     }]
   }], () => [{
     type: TemplateRef
@@ -780,7 +790,6 @@ _MatMenu.ɵcmp = ɵɵdefineComponent({
       ɵɵqueryRefresh(_t = ɵɵloadQuery()) && (ctx.templateRef = _t.first);
     }
   },
-  hostAttrs: ["ngSkipHydration", ""],
   hostVars: 3,
   hostBindings: function MatMenu_HostBindings(rf, ctx) {
     if (rf & 2) {
@@ -804,10 +813,11 @@ _MatMenu.ɵcmp = ɵɵdefineComponent({
     close: "close"
   },
   exportAs: ["matMenu"],
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: MAT_MENU_PANEL,
     useExisting: _MatMenu
-  }]), ɵɵInputTransformsFeature],
+  }]), ɵɵInputTransformsFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c3,
   decls: 1,
   vars: 0,
@@ -838,14 +848,15 @@ var MatMenu = _MatMenu;
       host: {
         "[attr.aria-label]": "null",
         "[attr.aria-labelledby]": "null",
-        "[attr.aria-describedby]": "null",
-        "ngSkipHydration": ""
+        "[attr.aria-describedby]": "null"
       },
       animations: [matMenuAnimations.transformMenu, matMenuAnimations.fadeInItems],
       providers: [{
         provide: MAT_MENU_PANEL,
         useExisting: MatMenu
       }],
+      standalone: true,
+      imports: [NgClass],
       template: `<ng-template>
   <div
     class="mat-mdc-menu-panel mat-mdc-elevation-specific"
@@ -1362,7 +1373,8 @@ _MatMenuTrigger.ɵdir = ɵɵdefineDirective({
     menuClosed: "menuClosed",
     onMenuClose: "onMenuClose"
   },
-  exportAs: ["matMenuTrigger"]
+  exportAs: ["matMenuTrigger"],
+  standalone: true
 });
 var MatMenuTrigger = _MatMenuTrigger;
 (() => {
@@ -1379,7 +1391,8 @@ var MatMenuTrigger = _MatMenuTrigger;
         "(mousedown)": "_handleMousedown($event)",
         "(keydown)": "_handleKeydown($event)"
       },
-      exportAs: "matMenuTrigger"
+      exportAs: "matMenuTrigger",
+      standalone: true
     }]
   }], () => [{
     type: Overlay
@@ -1455,8 +1468,7 @@ _MatMenuModule.ɵfac = function MatMenuModule_Factory(t) {
 };
 _MatMenuModule.ɵmod = ɵɵdefineNgModule({
   type: _MatMenuModule,
-  declarations: [MatMenu, MatMenuItem, MatMenuContent, MatMenuTrigger],
-  imports: [CommonModule, MatRippleModule, MatCommonModule, OverlayModule],
+  imports: [CommonModule, MatRippleModule, MatCommonModule, OverlayModule, MatMenu, MatMenuItem, MatMenuContent, MatMenuTrigger],
   exports: [CdkScrollableModule, MatMenu, MatCommonModule, MatMenuItem, MatMenuContent, MatMenuTrigger]
 });
 _MatMenuModule.ɵinj = ɵɵdefineInjector({
@@ -1468,9 +1480,8 @@ var MatMenuModule = _MatMenuModule;
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatMenuModule, [{
     type: NgModule,
     args: [{
-      imports: [CommonModule, MatRippleModule, MatCommonModule, OverlayModule],
+      imports: [CommonModule, MatRippleModule, MatCommonModule, OverlayModule, MatMenu, MatMenuItem, MatMenuContent, MatMenuTrigger],
       exports: [CdkScrollableModule, MatMenu, MatCommonModule, MatMenuItem, MatMenuContent, MatMenuTrigger],
-      declarations: [MatMenu, MatMenuItem, MatMenuContent, MatMenuTrigger],
       providers: [MAT_MENU_SCROLL_STRATEGY_FACTORY_PROVIDER]
     }]
   }], null, null);

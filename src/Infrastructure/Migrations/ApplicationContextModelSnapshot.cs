@@ -203,6 +203,10 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<int?>("DepartmentId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Email")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -214,6 +218,10 @@ namespace Auth.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(14)
                         .HasColumnType("nvarchar(14)");
+
+                    b.Property<string>("Section")
+                        .HasMaxLength(25)
+                        .HasColumnType("nvarchar(25)");
 
                     b.Property<int?>("TabCode")
                         .HasColumnType("int");
@@ -283,6 +291,48 @@ namespace Auth.Infrastructure.Migrations
                     b.ToTable("EmployeeBank");
                 });
 
+            modelBuilder.Entity("Core.Models.EmployeeRefernce", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeactivatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ReferencePath")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("EmployeeRefernce");
+                });
+
             modelBuilder.Entity("Core.Models.Form", b =>
                 {
                     b.Property<int>("Id")
@@ -339,8 +389,8 @@ namespace Auth.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<double>("Amount")
+                        .HasColumnType("float");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -379,6 +429,49 @@ namespace Auth.Infrastructure.Migrations
                     b.HasIndex("FormId");
 
                     b.ToTable("FormDetails");
+                });
+
+            modelBuilder.Entity("Core.Models.FormRefernce", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeactivatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("FormId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ReferencePath")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FormId");
+
+                    b.ToTable("FormRefernce");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -534,6 +627,17 @@ namespace Auth.Infrastructure.Migrations
                     b.Navigation("Employee");
                 });
 
+            modelBuilder.Entity("Core.Models.EmployeeRefernce", b =>
+                {
+                    b.HasOne("Core.Models.Employee", "Employee")
+                        .WithMany("EmployeeRefernces")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
             modelBuilder.Entity("Core.Models.Form", b =>
                 {
                     b.HasOne("Core.Models.Daily", "Daily")
@@ -558,6 +662,17 @@ namespace Auth.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Employee");
+
+                    b.Navigation("Form");
+                });
+
+            modelBuilder.Entity("Core.Models.FormRefernce", b =>
+                {
+                    b.HasOne("Core.Models.Form", "Form")
+                        .WithMany("FormRefernces")
+                        .HasForeignKey("FormId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Form");
                 });
@@ -627,12 +742,16 @@ namespace Auth.Infrastructure.Migrations
                 {
                     b.Navigation("EmployeeBank");
 
+                    b.Navigation("EmployeeRefernces");
+
                     b.Navigation("FormDetails");
                 });
 
             modelBuilder.Entity("Core.Models.Form", b =>
                 {
                     b.Navigation("FormDetails");
+
+                    b.Navigation("FormRefernces");
                 });
 #pragma warning restore 612, 618
         }

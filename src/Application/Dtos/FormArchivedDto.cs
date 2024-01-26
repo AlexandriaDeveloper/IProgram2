@@ -7,7 +7,7 @@ namespace Application.Dtos
         public string Description { get; set; }
         public int? DailyId { get; set; }
 
-        public decimal TotalAmount { get; set; }
+        public double TotalAmount { get; set; }
         public int Count { get; set; }
         public List<FormDetailsDto> FormDetails { get; set; }
 

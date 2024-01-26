@@ -22,6 +22,7 @@ import { MatMomentDateModule } from "@angular/material-moment-adapter";
 import {MatCheckboxModule} from '@angular/material/checkbox';
 import {MatTabsModule} from '@angular/material/tabs';
 import {MatListModule} from '@angular/material/list';
+import {MatBottomSheetModule} from '@angular/material/bottom-sheet';
 @NgModule({
   declarations: [],
   imports: [
@@ -57,7 +58,8 @@ import {MatListModule} from '@angular/material/list';
     DragDropModule,
     MatMomentDateModule,
     MatCheckboxModule,
-    MatTabsModule,MatListModule
+    MatTabsModule,MatListModule,
+    MatBottomSheetModule,
 
 
   ]

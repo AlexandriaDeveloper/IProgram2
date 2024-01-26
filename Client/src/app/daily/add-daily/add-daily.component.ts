@@ -90,6 +90,8 @@ export class AddDailyComponent implements OnInit {
       this.dialogRef.close();
     }
     setDate(ev){
+      console.log(ev.value);
+
 
       this.daily.dailyDate=ev.value;
 

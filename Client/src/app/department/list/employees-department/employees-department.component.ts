@@ -10,6 +10,8 @@ import { AddEmployeeDialogComponent } from './add-employee-dialog/add-employee-d
 import { MatDialog } from '@angular/material/dialog';
 import { DepartmentService } from '../../../shared/service/department.service';
 import { ToasterService } from '../../../shared/components/toaster/toaster.service';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
+import { UploadEmployeesBottomSheetComponent } from './upload-employees-bottom-sheet/upload-employees-bottom-sheet.component';
 
 @Component({
   selector: 'app-employees-department',
@@ -25,6 +27,7 @@ export class EmployeesDepartmentComponent implements AfterViewInit,OnInit {
   toaster =inject(ToasterService);
   router2 = inject(Router);
   dialog =inject(MatDialog)
+  bottomSheet =inject(MatBottomSheet)
   title :'';
   public param :   EmployeeParam=new EmployeeParam();
   @ViewChild(MatPaginator) paginator!: MatPaginator;
@@ -156,5 +159,32 @@ constructor( private cdref: ChangeDetectorRef ) {}
     }
       this.loadData();
 
+  }
+  downloadFile(){
+    this.departmentService.downloadEmployeeDepartmentFile().subscribe({
+      next:(x)=>{
+        console.log(x);
+
+      }
+    })
+  }
+
+  uploadFile(){
+    this.bottomSheet.open(UploadEmployeesBottomSheetComponent, {
+      panelClass: ['bottomSheet'],
+      hasBackdrop:true,
+      data: {
+        departmentId:this.param.departmentId
+      }
+
+
+    });
+
+    this.bottomSheet._openedBottomSheetRef.afterDismissed().subscribe(result => {
+      if(result){
+      this.loadData();
+      this.toaster.openSuccessToaster('تم رفع الملف  بنجاح','check_circle');
+      }
+    })
   }
 }

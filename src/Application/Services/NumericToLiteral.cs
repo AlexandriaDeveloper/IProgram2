@@ -397,7 +397,7 @@ namespace Application.Services
             }
         }
 
-        public static string Convert(decimal a, bool Female = false, string SingleName = "", string PluralName = "")
+        public static string Convert(double a, bool Female = false, string SingleName = "", string PluralName = "")
         {
             if ((int)(a) > long.MaxValue)
             {

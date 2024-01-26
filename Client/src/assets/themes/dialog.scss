@@ -1,4 +1,4 @@
-
+@import "./varibale.scss";
 .mat-mdc-card-header{
   padding: 0;
   margin: 0;
@@ -82,4 +82,7 @@
   input{
     color :#fff !important;
   }
+}
+.dialog-container{
+  background-color: $accent-color !important;
 }

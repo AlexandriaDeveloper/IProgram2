@@ -1,5 +1,5 @@
 
-<div class="title">
+<div class="title" style="font-size: 24px;">
   {{title}}
 </div>
 <button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >    <mat-icon>more_vert</mat-icon></button>
@@ -12,6 +12,14 @@
   <button mat-menu-item  (click)="removeEmployees()">
     <mat-icon>delete</mat-icon>
     حذف
+  </button>
+  <button mat-menu-item  (click)="downloadFile()">
+    <mat-icon>download</mat-icon>
+   تنزيل ملف موظفين
+  </button>
+  <button mat-menu-item  (click)="uploadFile()">
+    <mat-icon>upload</mat-icon>
+   تحميل ملف موظفين
   </button>
 </mat-menu>
 <div class="mat-elevation-z8">
@@ -56,7 +64,7 @@
      <!-- tegaraCode Column -->
     <ng-container matColumnDef="tegaraCode">
       <th mat-header-cell *matHeaderCellDef >
-        <mat-form-field apperance="outline" class="search" color="primary"  style="width: 15vh !important;" >
+        <mat-form-field apperance="outline" class="search"  style="width: 15vh !important;" >
         <mat-label class="saerch-title">كود تجارة</mat-label>
         <input  matInput   #tegaraCodeInput (search)="clear('tegaraCode')" >
         @if (tegaraCodeInput.value) {
@@ -72,7 +80,7 @@
     <!-- Name Column -->
     <ng-container matColumnDef="name">
       <th mat-header-cell *matHeaderCellDef >
-      <mat-form-field apperance="outline" class="search" color="primary " style="width: 40vh !important;">
+      <mat-form-field apperance="outline" class="search" style="width: 40vh !important;">
         <mat-label class="saerch-title">الاسم</mat-label>
         <input  matInput   #nameInput (search)="clear('name')"   >
         @if (nameInput.value) {

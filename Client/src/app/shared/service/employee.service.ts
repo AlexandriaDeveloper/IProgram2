@@ -26,11 +26,7 @@ export class EmployeeService {
   uploadEmployeeFile (file) {
     console.log(file);
     const formData  = new FormData();
-    file.file.forEach(x => {
-      console.log(x);
-      formData.append("files", x as Blob,x.filename);
-    });
-
+    formData.append("file", file as Blob,file.name);
   return this.http.post(this.apiUrl+'employee/upload',formData
  , {
   responseType: "blob",
@@ -41,7 +37,21 @@ export class EmployeeService {
   )
 
   }
+//UploadTegaraFile
+uploadEmployeeTegaraFile (file) {
+  console.log(file);
+  const formData  = new FormData();
+  formData.append("file", file as Blob,file.name);
+return this.http.post(this.apiUrl+'employee/uploadTegaraFile',formData
+, {
+responseType: "blob",
+reportProgress: true,
+observe: "events"
+}
 
+)
+
+}
 
   GetEmployees(param : EmployeeParam){
     let params = new HttpParams();

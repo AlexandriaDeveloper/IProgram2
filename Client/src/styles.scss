@@ -12,6 +12,7 @@
 @import "~/../assets/themes/toaster.scss";
 
 @import "~/../assets/themes/tab.scss";
+// @import '../node_modules//lightgallery/scss/lightgallery';
 
 /* You can add global styles to this file, and also import other style files */
 html, body { height: 100%; margin: 0 auto;padding: 0; }
@@ -76,3 +77,26 @@ justify-content: center;
 }
 
 
+.bottomSheet{
+  background-color: $primary-color !important;
+  color: $white-color !important;
+  min-height: 200px;
+  overflow: hidden;
+  transition: 0.4s ease-in-out;
+
+}
+.bottomSheet-button{
+  border: 1px solid $white-color !important;
+  color: $white-color !important;
+  padding: 5px 30px !important;
+  &:hover{
+    background-color: $white-color !important;
+    color: $primary-color !important;
+  }
+  &:disabled{
+    color: $white-color !important;
+    border: 1px solid $white-color !important;
+    background-color: gray !important;
+  }
+
+}

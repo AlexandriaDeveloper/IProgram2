@@ -1,0 +1,6 @@
+<form [formGroup]="uploadForm">
+
+  <app-upload #fileDropRef (upload)="uploadFiles()" (change)="onFileSelected($event)" formControlName="file"></app-upload>
+
+
+  </form>

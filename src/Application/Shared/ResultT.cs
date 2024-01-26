@@ -1,6 +1,6 @@
 using Application.Helpers;
 
-namespace Application.Shared
+namespace Application.Helpers
 {
     public class Result<TValue> : Result
     {

@@ -5,6 +5,7 @@ import { RouterModule, Routes } from "@angular/router";
 import { UploadEmployeeComponent } from "./upload-employee/upload-employee.component";
 import { ListComponent } from "./list/list.component";
 import { EmployeeDetailsComponent } from "./list/employee-details/employee-details.component";
+import { UploadEmployeeTegaraComponent } from "./upload-employee-tegara/upload-employee-tegara.component";
 
 const routes: Routes = [
 {path:'add',
@@ -16,7 +17,12 @@ component:AddEmployeeComponent,
   component:UploadEmployeeComponent,
 
 
-},{
+},
+{
+  path:'upload-tegara',
+  component:UploadEmployeeTegaraComponent,
+}
+,{
 path:'list',
 component :ListComponent}
 ,{

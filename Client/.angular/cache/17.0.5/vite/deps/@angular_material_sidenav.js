@@ -3,32 +3,36 @@ import {
   CdkScrollableModule,
   ScrollDispatcher,
   ViewportRuler
-} from "./chunk-5VTZAY6X.js";
-import "./chunk-UXVKRNCZ.js";
+} from "./chunk-AGMDCL4X.js";
+import "./chunk-3QVPOIIK.js";
 import {
   MatCommonModule
-} from "./chunk-3CDZT44J.js";
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
 import {
   animate,
   state,
   style,
   transition,
   trigger
-} from "./chunk-EWUG7RS4.js";
+} from "./chunk-3MUY5ZR6.js";
 import "./chunk-4F74E6RB.js";
 import {
-  Directionality,
   ESCAPE,
   FocusMonitor,
   FocusTrapFactory,
   InteractivityChecker,
   hasModifierKey
-} from "./chunk-5SBMSZOM.js";
+} from "./chunk-J6QNFSAM.js";
+import {
+  Directionality
+} from "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
 import {
   Platform,
   coerceBooleanProperty,
   coerceNumberProperty
-} from "./chunk-SFCFP7Z3.js";
+} from "./chunk-DMLWJ7GQ.js";
 import "./chunk-U346D2SR.js";
 import {
   DOCUMENT
@@ -56,6 +60,7 @@ import {
   setClassMetadata,
   ɵɵInheritDefinitionFeature,
   ɵɵProvidersFeature,
+  ɵɵStandaloneFeature,
   ɵɵadvance,
   ɵɵattribute,
   ɵɵclassProp,
@@ -201,17 +206,18 @@ _MatDrawerContent.ɵfac = function MatDrawerContent_Factory(t) {
 _MatDrawerContent.ɵcmp = ɵɵdefineComponent({
   type: _MatDrawerContent,
   selectors: [["mat-drawer-content"]],
-  hostAttrs: ["ngSkipHydration", "", 1, "mat-drawer-content"],
+  hostAttrs: [1, "mat-drawer-content"],
   hostVars: 4,
   hostBindings: function MatDrawerContent_HostBindings(rf, ctx) {
     if (rf & 2) {
       ɵɵstyleProp("margin-left", ctx._container._contentMargins.left, "px")("margin-right", ctx._container._contentMargins.right, "px");
     }
   },
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: CdkScrollable,
     useExisting: _MatDrawerContent
-  }]), ɵɵInheritDefinitionFeature],
+  }]), ɵɵInheritDefinitionFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c0,
   decls: 1,
   vars: 0,
@@ -234,15 +240,15 @@ var MatDrawerContent = _MatDrawerContent;
       host: {
         "class": "mat-drawer-content",
         "[style.margin-left.px]": "_container._contentMargins.left",
-        "[style.margin-right.px]": "_container._contentMargins.right",
-        "ngSkipHydration": ""
+        "[style.margin-right.px]": "_container._contentMargins.right"
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
       providers: [{
         provide: CdkScrollable,
         useExisting: MatDrawerContent
-      }]
+      }],
+      standalone: true
     }]
   }], () => [{
     type: ChangeDetectorRef
@@ -334,6 +340,7 @@ var _MatDrawer = class _MatDrawer {
     this._interactivityChecker = _interactivityChecker;
     this._doc = _doc;
     this._container = _container;
+    this._focusTrap = null;
     this._elementFocusedBeforeDrawerWasOpened = null;
     this._enableAnimations = false;
     this._position = "start";
@@ -469,10 +476,12 @@ var _MatDrawer = class _MatDrawer {
   }
   ngAfterViewInit() {
     this._isAttached = true;
-    this._focusTrap = this._focusTrapFactory.create(this._elementRef.nativeElement);
-    this._updateFocusTrapState();
     if (this._position === "end") {
       this._updatePositionInParent("end");
+    }
+    if (this._platform.isBrowser) {
+      this._focusTrap = this._focusTrapFactory.create(this._elementRef.nativeElement);
+      this._updateFocusTrapState();
     }
   }
   ngAfterContentChecked() {
@@ -481,9 +490,7 @@ var _MatDrawer = class _MatDrawer {
     }
   }
   ngOnDestroy() {
-    if (this._focusTrap) {
-      this._focusTrap.destroy();
-    }
+    this._focusTrap?.destroy();
     this._anchor?.remove();
     this._anchor = null;
     this._animationStarted.complete();
@@ -572,6 +579,9 @@ var _MatDrawer = class _MatDrawer {
    * started off as `end` and was changed to `start`.
    */
   _updatePositionInParent(newPosition) {
+    if (!this._platform.isBrowser) {
+      return;
+    }
     const element = this._elementRef.nativeElement;
     const parent = element.parentNode;
     if (newPosition === "end") {
@@ -600,7 +610,7 @@ _MatDrawer.ɵcmp = ɵɵdefineComponent({
       ɵɵqueryRefresh(_t = ɵɵloadQuery()) && (ctx._content = _t.first);
     }
   },
-  hostAttrs: ["tabIndex", "-1", "ngSkipHydration", "", 1, "mat-drawer"],
+  hostAttrs: ["tabIndex", "-1", 1, "mat-drawer"],
   hostVars: 12,
   hostBindings: function MatDrawer_HostBindings(rf, ctx) {
     if (rf & 1) {
@@ -632,6 +642,8 @@ _MatDrawer.ɵcmp = ɵɵdefineComponent({
     onPositionChanged: "positionChanged"
   },
   exportAs: ["matDrawer"],
+  standalone: true,
+  features: [ɵɵStandaloneFeature],
   ngContentSelectors: _c0,
   decls: 3,
   vars: 0,
@@ -671,11 +683,12 @@ var MatDrawer = _MatDrawer;
         "tabIndex": "-1",
         "[@transform]": "_animationState",
         "(@transform.start)": "_animationStarted.next($event)",
-        "(@transform.done)": "_animationEnd.next($event)",
-        "ngSkipHydration": ""
+        "(@transform.done)": "_animationEnd.next($event)"
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
+      standalone: true,
+      imports: [CdkScrollable],
       template: '<div class="mat-drawer-inner-container" cdkScrollable #content>\r\n  <ng-content></ng-content>\r\n</div>\r\n'
     }]
   }], () => [{
@@ -1017,7 +1030,7 @@ _MatDrawerContainer.ɵcmp = ɵɵdefineComponent({
       ɵɵqueryRefresh(_t = ɵɵloadQuery()) && (ctx._userContent = _t.first);
     }
   },
-  hostAttrs: ["ngSkipHydration", "", 1, "mat-drawer-container"],
+  hostAttrs: [1, "mat-drawer-container"],
   hostVars: 2,
   hostBindings: function MatDrawerContainer_HostBindings(rf, ctx) {
     if (rf & 2) {
@@ -1032,10 +1045,11 @@ _MatDrawerContainer.ɵcmp = ɵɵdefineComponent({
     backdropClick: "backdropClick"
   },
   exportAs: ["matDrawerContainer"],
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: MAT_DRAWER_CONTAINER,
     useExisting: _MatDrawerContainer
-  }])],
+  }]), ɵɵStandaloneFeature],
   ngContentSelectors: _c3,
   decls: 4,
   vars: 2,
@@ -1068,8 +1082,7 @@ var MatDrawerContainer = _MatDrawerContainer;
       exportAs: "matDrawerContainer",
       host: {
         "class": "mat-drawer-container",
-        "[class.mat-drawer-container-explicit-backdrop]": "_backdropOverride",
-        "ngSkipHydration": ""
+        "[class.mat-drawer-container-explicit-backdrop]": "_backdropOverride"
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
@@ -1077,6 +1090,8 @@ var MatDrawerContainer = _MatDrawerContainer;
         provide: MAT_DRAWER_CONTAINER,
         useExisting: MatDrawerContainer
       }],
+      standalone: true,
+      imports: [MatDrawerContent],
       template: '@if (hasBackdrop) {\n  <div class="mat-drawer-backdrop" (click)="_onBackdropClicked()"\n       [class.mat-drawer-shown]="_isShowingBackdrop()"></div>\n}\n\n<ng-content select="mat-drawer"></ng-content>\n\n<ng-content select="mat-drawer-content">\n</ng-content>\n\n@if (!_content) {\n  <mat-drawer-content>\n    <ng-content></ng-content>\n  </mat-drawer-content>\n}\n',
       styles: ['.mat-drawer-container{position:relative;z-index:1;color:var(--mat-sidenav-content-text-color);background-color:var(--mat-sidenav-content-background-color);box-sizing:border-box;-webkit-overflow-scrolling:touch;display:block;overflow:hidden}.mat-drawer-container[fullscreen]{top:0;left:0;right:0;bottom:0;position:absolute}.mat-drawer-container[fullscreen].mat-drawer-container-has-open{overflow:hidden}.mat-drawer-container.mat-drawer-container-explicit-backdrop .mat-drawer-side{z-index:3}.mat-drawer-container.ng-animate-disabled .mat-drawer-backdrop,.mat-drawer-container.ng-animate-disabled .mat-drawer-content,.ng-animate-disabled .mat-drawer-container .mat-drawer-backdrop,.ng-animate-disabled .mat-drawer-container .mat-drawer-content{transition:none}.mat-drawer-backdrop{top:0;left:0;right:0;bottom:0;position:absolute;display:block;z-index:3;visibility:hidden}.mat-drawer-backdrop.mat-drawer-shown{visibility:visible;background-color:var(--mat-sidenav-scrim-color)}.mat-drawer-transition .mat-drawer-backdrop{transition-duration:400ms;transition-timing-function:cubic-bezier(0.25, 0.8, 0.25, 1);transition-property:background-color,visibility}.cdk-high-contrast-active .mat-drawer-backdrop{opacity:.5}.mat-drawer-content{position:relative;z-index:1;display:block;height:100%;overflow:auto}.mat-drawer-transition .mat-drawer-content{transition-duration:400ms;transition-timing-function:cubic-bezier(0.25, 0.8, 0.25, 1);transition-property:transform,margin-left,margin-right}.mat-drawer{box-shadow:0px 8px 10px -5px rgba(0, 0, 0, 0.2), 0px 16px 24px 2px rgba(0, 0, 0, 0.14), 0px 6px 30px 5px rgba(0, 0, 0, 0.12);position:relative;z-index:4;color:var(--mat-sidenav-container-text-color);background-color:var(--mat-sidenav-container-background-color);border-top-right-radius:var(--mat-sidenav-container-shape);border-bottom-right-radius:var(--mat-sidenav-container-shape);display:block;position:absolute;top:0;bottom:0;z-index:3;outline:0;box-sizing:border-box;overflow-y:auto;transform:translate3d(-100%, 0, 0)}.cdk-high-contrast-active .mat-drawer,.cdk-high-contrast-active [dir=rtl] .mat-drawer.mat-drawer-end{border-right:solid 1px currentColor}.cdk-high-contrast-active [dir=rtl] .mat-drawer,.cdk-high-contrast-active .mat-drawer.mat-drawer-end{border-left:solid 1px currentColor;border-right:none}.mat-drawer.mat-drawer-side{z-index:2}.mat-drawer.mat-drawer-end{right:0;transform:translate3d(100%, 0, 0);border-top-left-radius:var(--mat-sidenav-container-shape);border-bottom-left-radius:var(--mat-sidenav-container-shape);border-top-right-radius:0;border-bottom-right-radius:0}[dir=rtl] .mat-drawer{border-top-left-radius:var(--mat-sidenav-container-shape);border-bottom-left-radius:var(--mat-sidenav-container-shape);border-top-right-radius:0;border-bottom-right-radius:0;transform:translate3d(100%, 0, 0)}[dir=rtl] .mat-drawer.mat-drawer-end{border-top-right-radius:var(--mat-sidenav-container-shape);border-bottom-right-radius:var(--mat-sidenav-container-shape);border-top-left-radius:0;border-bottom-left-radius:0;left:0;right:auto;transform:translate3d(-100%, 0, 0)}.mat-drawer[style*="visibility: hidden"]{display:none}.mat-drawer-side{box-shadow:none;border-right-color:var(--mat-sidenav-container-divider-color);border-right-width:1px;border-right-style:solid}.mat-drawer-side.mat-drawer-end{border-left-color:var(--mat-sidenav-container-divider-color);border-left-width:1px;border-left-style:solid;border-right:none}[dir=rtl] .mat-drawer-side{border-left-color:var(--mat-sidenav-container-divider-color);border-left-width:1px;border-left-style:solid;border-right:none}[dir=rtl] .mat-drawer-side.mat-drawer-end{border-right-color:var(--mat-sidenav-container-divider-color);border-right-width:1px;border-right-style:solid;border-left:none}.mat-drawer-inner-container{width:100%;height:100%;overflow:auto;-webkit-overflow-scrolling:touch}.mat-sidenav-fixed{position:fixed}']
     }]
@@ -1146,17 +1161,18 @@ _MatSidenavContent.ɵfac = function MatSidenavContent_Factory(t) {
 _MatSidenavContent.ɵcmp = ɵɵdefineComponent({
   type: _MatSidenavContent,
   selectors: [["mat-sidenav-content"]],
-  hostAttrs: ["ngSkipHydration", "", 1, "mat-drawer-content", "mat-sidenav-content"],
+  hostAttrs: [1, "mat-drawer-content", "mat-sidenav-content"],
   hostVars: 4,
   hostBindings: function MatSidenavContent_HostBindings(rf, ctx) {
     if (rf & 2) {
       ɵɵstyleProp("margin-left", ctx._container._contentMargins.left, "px")("margin-right", ctx._container._contentMargins.right, "px");
     }
   },
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: CdkScrollable,
     useExisting: _MatSidenavContent
-  }]), ɵɵInheritDefinitionFeature],
+  }]), ɵɵInheritDefinitionFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c0,
   decls: 1,
   vars: 0,
@@ -1179,15 +1195,15 @@ var MatSidenavContent = _MatSidenavContent;
       host: {
         "class": "mat-drawer-content mat-sidenav-content",
         "[style.margin-left.px]": "_container._contentMargins.left",
-        "[style.margin-right.px]": "_container._contentMargins.right",
-        "ngSkipHydration": ""
+        "[style.margin-right.px]": "_container._contentMargins.right"
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
       providers: [{
         provide: CdkScrollable,
         useExisting: MatSidenavContent
-      }]
+      }],
+      standalone: true
     }]
   }], () => [{
     type: ChangeDetectorRef
@@ -1249,7 +1265,7 @@ _MatSidenav.ɵfac = (() => {
 _MatSidenav.ɵcmp = ɵɵdefineComponent({
   type: _MatSidenav,
   selectors: [["mat-sidenav"]],
-  hostAttrs: ["tabIndex", "-1", "ngSkipHydration", "", 1, "mat-drawer", "mat-sidenav"],
+  hostAttrs: ["tabIndex", "-1", 1, "mat-drawer", "mat-sidenav"],
   hostVars: 17,
   hostBindings: function MatSidenav_HostBindings(rf, ctx) {
     if (rf & 2) {
@@ -1264,7 +1280,8 @@ _MatSidenav.ɵcmp = ɵɵdefineComponent({
     fixedBottomGap: "fixedBottomGap"
   },
   exportAs: ["matSidenav"],
-  features: [ɵɵInheritDefinitionFeature],
+  standalone: true,
+  features: [ɵɵInheritDefinitionFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c0,
   decls: 3,
   vars: 0,
@@ -1304,11 +1321,12 @@ var MatSidenav = _MatSidenav;
         "[class.mat-drawer-opened]": "opened",
         "[class.mat-sidenav-fixed]": "fixedInViewport",
         "[style.top.px]": "fixedInViewport ? fixedTopGap : null",
-        "[style.bottom.px]": "fixedInViewport ? fixedBottomGap : null",
-        "ngSkipHydration": ""
+        "[style.bottom.px]": "fixedInViewport ? fixedBottomGap : null"
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
+      standalone: true,
+      imports: [CdkScrollable],
       template: '<div class="mat-drawer-inner-container" cdkScrollable #content>\r\n  <ng-content></ng-content>\r\n</div>\r\n'
     }]
   }], null, {
@@ -1350,7 +1368,7 @@ _MatSidenavContainer.ɵcmp = ɵɵdefineComponent({
       ɵɵqueryRefresh(_t = ɵɵloadQuery()) && (ctx._allDrawers = _t);
     }
   },
-  hostAttrs: ["ngSkipHydration", "", 1, "mat-drawer-container", "mat-sidenav-container"],
+  hostAttrs: [1, "mat-drawer-container", "mat-sidenav-container"],
   hostVars: 2,
   hostBindings: function MatSidenavContainer_HostBindings(rf, ctx) {
     if (rf & 2) {
@@ -1358,10 +1376,11 @@ _MatSidenavContainer.ɵcmp = ɵɵdefineComponent({
     }
   },
   exportAs: ["matSidenavContainer"],
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: MAT_DRAWER_CONTAINER,
     useExisting: _MatSidenavContainer
-  }]), ɵɵInheritDefinitionFeature],
+  }]), ɵɵInheritDefinitionFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c5,
   decls: 4,
   vars: 2,
@@ -1394,8 +1413,7 @@ var MatSidenavContainer = _MatSidenavContainer;
       exportAs: "matSidenavContainer",
       host: {
         "class": "mat-drawer-container mat-sidenav-container",
-        "[class.mat-drawer-container-explicit-backdrop]": "_backdropOverride",
-        "ngSkipHydration": ""
+        "[class.mat-drawer-container-explicit-backdrop]": "_backdropOverride"
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
@@ -1403,6 +1421,8 @@ var MatSidenavContainer = _MatSidenavContainer;
         provide: MAT_DRAWER_CONTAINER,
         useExisting: MatSidenavContainer
       }],
+      standalone: true,
+      imports: [MatSidenavContent],
       template: '@if (hasBackdrop) {\n  <div class="mat-drawer-backdrop" (click)="_onBackdropClicked()"\n       [class.mat-drawer-shown]="_isShowingBackdrop()"></div>\n}\n\n<ng-content select="mat-sidenav"></ng-content>\n\n<ng-content select="mat-sidenav-content">\n</ng-content>\n\n@if (!_content) {\n  <mat-sidenav-content>\n    <ng-content></ng-content>\n  </mat-sidenav-content>\n}\n',
       styles: ['.mat-drawer-container{position:relative;z-index:1;color:var(--mat-sidenav-content-text-color);background-color:var(--mat-sidenav-content-background-color);box-sizing:border-box;-webkit-overflow-scrolling:touch;display:block;overflow:hidden}.mat-drawer-container[fullscreen]{top:0;left:0;right:0;bottom:0;position:absolute}.mat-drawer-container[fullscreen].mat-drawer-container-has-open{overflow:hidden}.mat-drawer-container.mat-drawer-container-explicit-backdrop .mat-drawer-side{z-index:3}.mat-drawer-container.ng-animate-disabled .mat-drawer-backdrop,.mat-drawer-container.ng-animate-disabled .mat-drawer-content,.ng-animate-disabled .mat-drawer-container .mat-drawer-backdrop,.ng-animate-disabled .mat-drawer-container .mat-drawer-content{transition:none}.mat-drawer-backdrop{top:0;left:0;right:0;bottom:0;position:absolute;display:block;z-index:3;visibility:hidden}.mat-drawer-backdrop.mat-drawer-shown{visibility:visible;background-color:var(--mat-sidenav-scrim-color)}.mat-drawer-transition .mat-drawer-backdrop{transition-duration:400ms;transition-timing-function:cubic-bezier(0.25, 0.8, 0.25, 1);transition-property:background-color,visibility}.cdk-high-contrast-active .mat-drawer-backdrop{opacity:.5}.mat-drawer-content{position:relative;z-index:1;display:block;height:100%;overflow:auto}.mat-drawer-transition .mat-drawer-content{transition-duration:400ms;transition-timing-function:cubic-bezier(0.25, 0.8, 0.25, 1);transition-property:transform,margin-left,margin-right}.mat-drawer{box-shadow:0px 8px 10px -5px rgba(0, 0, 0, 0.2), 0px 16px 24px 2px rgba(0, 0, 0, 0.14), 0px 6px 30px 5px rgba(0, 0, 0, 0.12);position:relative;z-index:4;color:var(--mat-sidenav-container-text-color);background-color:var(--mat-sidenav-container-background-color);border-top-right-radius:var(--mat-sidenav-container-shape);border-bottom-right-radius:var(--mat-sidenav-container-shape);display:block;position:absolute;top:0;bottom:0;z-index:3;outline:0;box-sizing:border-box;overflow-y:auto;transform:translate3d(-100%, 0, 0)}.cdk-high-contrast-active .mat-drawer,.cdk-high-contrast-active [dir=rtl] .mat-drawer.mat-drawer-end{border-right:solid 1px currentColor}.cdk-high-contrast-active [dir=rtl] .mat-drawer,.cdk-high-contrast-active .mat-drawer.mat-drawer-end{border-left:solid 1px currentColor;border-right:none}.mat-drawer.mat-drawer-side{z-index:2}.mat-drawer.mat-drawer-end{right:0;transform:translate3d(100%, 0, 0);border-top-left-radius:var(--mat-sidenav-container-shape);border-bottom-left-radius:var(--mat-sidenav-container-shape);border-top-right-radius:0;border-bottom-right-radius:0}[dir=rtl] .mat-drawer{border-top-left-radius:var(--mat-sidenav-container-shape);border-bottom-left-radius:var(--mat-sidenav-container-shape);border-top-right-radius:0;border-bottom-right-radius:0;transform:translate3d(100%, 0, 0)}[dir=rtl] .mat-drawer.mat-drawer-end{border-top-right-radius:var(--mat-sidenav-container-shape);border-bottom-right-radius:var(--mat-sidenav-container-shape);border-top-left-radius:0;border-bottom-left-radius:0;left:0;right:auto;transform:translate3d(-100%, 0, 0)}.mat-drawer[style*="visibility: hidden"]{display:none}.mat-drawer-side{box-shadow:none;border-right-color:var(--mat-sidenav-container-divider-color);border-right-width:1px;border-right-style:solid}.mat-drawer-side.mat-drawer-end{border-left-color:var(--mat-sidenav-container-divider-color);border-left-width:1px;border-left-style:solid;border-right:none}[dir=rtl] .mat-drawer-side{border-left-color:var(--mat-sidenav-container-divider-color);border-left-width:1px;border-left-style:solid;border-right:none}[dir=rtl] .mat-drawer-side.mat-drawer-end{border-right-color:var(--mat-sidenav-container-divider-color);border-right-width:1px;border-right-style:solid;border-left:none}.mat-drawer-inner-container{width:100%;height:100%;overflow:auto;-webkit-overflow-scrolling:touch}.mat-sidenav-fixed{position:fixed}']
     }]
@@ -1428,8 +1448,7 @@ _MatSidenavModule.ɵfac = function MatSidenavModule_Factory(t) {
 };
 _MatSidenavModule.ɵmod = ɵɵdefineNgModule({
   type: _MatSidenavModule,
-  declarations: [MatDrawer, MatDrawerContainer, MatDrawerContent, MatSidenav, MatSidenavContainer, MatSidenavContent],
-  imports: [MatCommonModule, CdkScrollableModule],
+  imports: [MatCommonModule, CdkScrollableModule, MatDrawer, MatDrawerContainer, MatDrawerContent, MatSidenav, MatSidenavContainer, MatSidenavContent],
   exports: [CdkScrollableModule, MatCommonModule, MatDrawer, MatDrawerContainer, MatDrawerContent, MatSidenav, MatSidenavContainer, MatSidenavContent]
 });
 _MatSidenavModule.ɵinj = ɵɵdefineInjector({
@@ -1440,9 +1459,8 @@ var MatSidenavModule = _MatSidenavModule;
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatSidenavModule, [{
     type: NgModule,
     args: [{
-      imports: [MatCommonModule, CdkScrollableModule],
-      exports: [CdkScrollableModule, MatCommonModule, MatDrawer, MatDrawerContainer, MatDrawerContent, MatSidenav, MatSidenavContainer, MatSidenavContent],
-      declarations: [MatDrawer, MatDrawerContainer, MatDrawerContent, MatSidenav, MatSidenavContainer, MatSidenavContent]
+      imports: [MatCommonModule, CdkScrollableModule, MatDrawer, MatDrawerContainer, MatDrawerContent, MatSidenav, MatSidenavContainer, MatSidenavContent],
+      exports: [CdkScrollableModule, MatCommonModule, MatDrawer, MatDrawerContainer, MatDrawerContent, MatSidenav, MatSidenavContainer, MatSidenavContent]
     }]
   }], null, null);
 })();

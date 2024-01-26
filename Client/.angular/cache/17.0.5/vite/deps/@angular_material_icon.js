@@ -1,15 +1,15 @@
 import {
-  MatCommonModule,
-  mixinColor
-} from "./chunk-3CDZT44J.js";
-import "./chunk-EWUG7RS4.js";
+  MatCommonModule
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
+import "./chunk-3MUY5ZR6.js";
 import {
   DomSanitizer
 } from "./chunk-4F74E6RB.js";
-import "./chunk-5SBMSZOM.js";
-import {
-  coerceBooleanProperty
-} from "./chunk-SFCFP7Z3.js";
+import "./chunk-J6QNFSAM.js";
+import "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
+import "./chunk-DMLWJ7GQ.js";
 import {
   HttpClient
 } from "./chunk-U346D2SR.js";
@@ -31,10 +31,13 @@ import {
   SecurityContext,
   SkipSelf,
   ViewEncapsulation$1,
+  booleanAttribute,
   inject,
   setClassMetadata,
-  ɵɵInheritDefinitionFeature,
+  ɵɵInputTransformsFeature,
+  ɵɵStandaloneFeature,
   ɵɵattribute,
+  ɵɵclassMap,
   ɵɵclassProp,
   ɵɵdefineComponent,
   ɵɵdefineInjectable,
@@ -569,11 +572,6 @@ function iconKey(namespace, name) {
 function isSafeUrlWithOptions(value) {
   return !!(value.url && value.options);
 }
-var _MatIconBase = mixinColor(class {
-  constructor(_elementRef) {
-    this._elementRef = _elementRef;
-  }
-});
 var MAT_ICON_DEFAULT_OPTIONS = new InjectionToken("MAT_ICON_DEFAULT_OPTIONS");
 var MAT_ICON_LOCATION = new InjectionToken("mat-icon-location", {
   providedIn: "root",
@@ -591,16 +589,13 @@ function MAT_ICON_LOCATION_FACTORY() {
 var funcIriAttributes = ["clip-path", "color-profile", "src", "cursor", "fill", "filter", "marker", "marker-start", "marker-mid", "marker-end", "mask", "stroke"];
 var funcIriAttributeSelector = funcIriAttributes.map((attr) => `[${attr}]`).join(", ");
 var funcIriPattern = /^url\(['"]?#(.*?)['"]?\)$/;
-var _MatIcon = class _MatIcon extends _MatIconBase {
-  /**
-   * Whether the icon should be inlined, automatically sizing the icon to match the font size of
-   * the element the icon is contained in.
-   */
-  get inline() {
-    return this._inline;
+var _MatIcon = class _MatIcon {
+  /** Theme palette color of the icon. */
+  get color() {
+    return this._color || this._defaultColor;
   }
-  set inline(inline) {
-    this._inline = coerceBooleanProperty(inline);
+  set color(value) {
+    this._color = value;
   }
   /** Name of the icon in the SVG icon set. */
   get svgIcon() {
@@ -638,24 +633,24 @@ var _MatIcon = class _MatIcon extends _MatIconBase {
       this._updateFontIconClasses();
     }
   }
-  constructor(elementRef, _iconRegistry, ariaHidden, _location, _errorHandler, defaults) {
-    super(elementRef);
+  constructor(_elementRef, _iconRegistry, ariaHidden, _location, _errorHandler, defaults) {
+    this._elementRef = _elementRef;
     this._iconRegistry = _iconRegistry;
     this._location = _location;
     this._errorHandler = _errorHandler;
-    this._inline = false;
+    this.inline = false;
     this._previousFontSetClass = [];
     this._currentIconFetch = Subscription.EMPTY;
     if (defaults) {
       if (defaults.color) {
-        this.color = this.defaultColor = defaults.color;
+        this.color = this._defaultColor = defaults.color;
       }
       if (defaults.fontSet) {
         this.fontSet = defaults.fontSet;
       }
     }
     if (!ariaHidden) {
-      elementRef.nativeElement.setAttribute("aria-hidden", "true");
+      _elementRef.nativeElement.setAttribute("aria-hidden", "true");
     }
   }
   /**
@@ -823,22 +818,24 @@ _MatIcon.ɵcmp = ɵɵdefineComponent({
   type: _MatIcon,
   selectors: [["mat-icon"]],
   hostAttrs: ["role", "img", 1, "mat-icon", "notranslate"],
-  hostVars: 8,
+  hostVars: 10,
   hostBindings: function MatIcon_HostBindings(rf, ctx) {
     if (rf & 2) {
       ɵɵattribute("data-mat-icon-type", ctx._usingFontIcon() ? "font" : "svg")("data-mat-icon-name", ctx._svgName || ctx.fontIcon)("data-mat-icon-namespace", ctx._svgNamespace || ctx.fontSet)("fontIcon", ctx._usingFontIcon() ? ctx.fontIcon : null);
+      ɵɵclassMap(ctx.color ? "mat-" + ctx.color : "");
       ɵɵclassProp("mat-icon-inline", ctx.inline)("mat-icon-no-color", ctx.color !== "primary" && ctx.color !== "accent" && ctx.color !== "warn");
     }
   },
   inputs: {
     color: "color",
-    inline: "inline",
+    inline: ["inline", "inline", booleanAttribute],
     svgIcon: "svgIcon",
     fontSet: "fontSet",
     fontIcon: "fontIcon"
   },
   exportAs: ["matIcon"],
-  features: [ɵɵInheritDefinitionFeature],
+  standalone: true,
+  features: [ɵɵInputTransformsFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c0,
   decls: 1,
   vars: 0,
@@ -860,10 +857,10 @@ var MatIcon = _MatIcon;
       template: "<ng-content></ng-content>",
       selector: "mat-icon",
       exportAs: "matIcon",
-      inputs: ["color"],
       host: {
         "role": "img",
         "class": "mat-icon notranslate",
+        "[class]": 'color ? "mat-" + color : ""',
         "[attr.data-mat-icon-type]": '_usingFontIcon() ? "font" : "svg"',
         "[attr.data-mat-icon-name]": "_svgName || fontIcon",
         "[attr.data-mat-icon-namespace]": "_svgNamespace || fontSet",
@@ -873,6 +870,7 @@ var MatIcon = _MatIcon;
       },
       encapsulation: ViewEncapsulation$1.None,
       changeDetection: ChangeDetectionStrategy.OnPush,
+      standalone: true,
       styles: ["mat-icon,mat-icon.mat-primary,mat-icon.mat-accent,mat-icon.mat-warn{color:var(--mat-icon-color)}.mat-icon{-webkit-user-select:none;user-select:none;background-repeat:no-repeat;display:inline-block;fill:currentColor;height:24px;width:24px;overflow:hidden}.mat-icon.mat-icon-inline{font-size:inherit;height:inherit;line-height:inherit;width:inherit}.mat-icon.mat-ligature-font[fontIcon]::before{content:attr(fontIcon)}[dir=rtl] .mat-icon-rtl-mirror{transform:scale(-1, 1)}.mat-form-field:not(.mat-form-field-appearance-legacy) .mat-form-field-prefix .mat-icon,.mat-form-field:not(.mat-form-field-appearance-legacy) .mat-form-field-suffix .mat-icon{display:block}.mat-form-field:not(.mat-form-field-appearance-legacy) .mat-form-field-prefix .mat-icon-button .mat-icon,.mat-form-field:not(.mat-form-field-appearance-legacy) .mat-form-field-suffix .mat-icon-button .mat-icon{margin:auto}"]
     }]
   }], () => [{
@@ -902,8 +900,14 @@ var MatIcon = _MatIcon;
       args: [MAT_ICON_DEFAULT_OPTIONS]
     }]
   }], {
-    inline: [{
+    color: [{
       type: Input
+    }],
+    inline: [{
+      type: Input,
+      args: [{
+        transform: booleanAttribute
+      }]
     }],
     svgIcon: [{
       type: Input
@@ -923,8 +927,7 @@ _MatIconModule.ɵfac = function MatIconModule_Factory(t) {
 };
 _MatIconModule.ɵmod = ɵɵdefineNgModule({
   type: _MatIconModule,
-  declarations: [MatIcon],
-  imports: [MatCommonModule],
+  imports: [MatCommonModule, MatIcon],
   exports: [MatIcon, MatCommonModule]
 });
 _MatIconModule.ɵinj = ɵɵdefineInjector({
@@ -935,9 +938,8 @@ var MatIconModule = _MatIconModule;
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatIconModule, [{
     type: NgModule,
     args: [{
-      imports: [MatCommonModule],
-      exports: [MatIcon, MatCommonModule],
-      declarations: [MatIcon]
+      imports: [MatCommonModule, MatIcon],
+      exports: [MatIcon, MatCommonModule]
     }]
   }], null, null);
 })();

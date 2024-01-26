@@ -1,13 +1,15 @@
 import {
-  MatCommonModule,
-  mixinColor
-} from "./chunk-3CDZT44J.js";
-import "./chunk-EWUG7RS4.js";
+  MatCommonModule
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
+import "./chunk-3MUY5ZR6.js";
 import "./chunk-4F74E6RB.js";
-import "./chunk-5SBMSZOM.js";
+import "./chunk-J6QNFSAM.js";
+import "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
 import {
   Platform
-} from "./chunk-SFCFP7Z3.js";
+} from "./chunk-DMLWJ7GQ.js";
 import "./chunk-U346D2SR.js";
 import {
   DOCUMENT
@@ -19,10 +21,12 @@ import {
   Directive,
   ElementRef,
   Inject,
+  Input,
   NgModule,
   ViewEncapsulation$1,
   setClassMetadata,
-  ɵɵInheritDefinitionFeature,
+  ɵɵStandaloneFeature,
+  ɵɵclassMap,
   ɵɵclassProp,
   ɵɵcontentQuery,
   ɵɵdefineComponent,
@@ -41,11 +45,6 @@ import "./chunk-J5XZNU7V.js";
 // node_modules/@angular/material/fesm2022/toolbar.mjs
 var _c0 = ["*", [["mat-toolbar-row"]]];
 var _c1 = ["*", "mat-toolbar-row"];
-var _MatToolbarBase = mixinColor(class {
-  constructor(_elementRef) {
-    this._elementRef = _elementRef;
-  }
-});
 var _MatToolbarRow = class _MatToolbarRow {
 };
 _MatToolbarRow.ɵfac = function MatToolbarRow_Factory(t) {
@@ -55,7 +54,8 @@ _MatToolbarRow.ɵdir = ɵɵdefineDirective({
   type: _MatToolbarRow,
   selectors: [["mat-toolbar-row"]],
   hostAttrs: [1, "mat-toolbar-row"],
-  exportAs: ["matToolbarRow"]
+  exportAs: ["matToolbarRow"],
+  standalone: true
 });
 var MatToolbarRow = _MatToolbarRow;
 (() => {
@@ -66,13 +66,14 @@ var MatToolbarRow = _MatToolbarRow;
       exportAs: "matToolbarRow",
       host: {
         "class": "mat-toolbar-row"
-      }
+      },
+      standalone: true
     }]
   }], null, null);
 })();
-var _MatToolbar = class _MatToolbar extends _MatToolbarBase {
-  constructor(elementRef, _platform, document) {
-    super(elementRef);
+var _MatToolbar = class _MatToolbar {
+  constructor(_elementRef, _platform, document) {
+    this._elementRef = _elementRef;
     this._platform = _platform;
     this._document = document;
   }
@@ -110,9 +111,10 @@ _MatToolbar.ɵcmp = ɵɵdefineComponent({
     }
   },
   hostAttrs: [1, "mat-toolbar"],
-  hostVars: 4,
+  hostVars: 6,
   hostBindings: function MatToolbar_HostBindings(rf, ctx) {
     if (rf & 2) {
+      ɵɵclassMap(ctx.color ? "mat-" + ctx.color : "");
       ɵɵclassProp("mat-toolbar-multiple-rows", ctx._toolbarRows.length > 0)("mat-toolbar-single-row", ctx._toolbarRows.length === 0);
     }
   },
@@ -120,7 +122,8 @@ _MatToolbar.ɵcmp = ɵɵdefineComponent({
     color: "color"
   },
   exportAs: ["matToolbar"],
-  features: [ɵɵInheritDefinitionFeature],
+  standalone: true,
+  features: [ɵɵStandaloneFeature],
   ngContentSelectors: _c1,
   decls: 2,
   vars: 0,
@@ -131,7 +134,7 @@ _MatToolbar.ɵcmp = ɵɵdefineComponent({
       ɵɵprojection(1, 1);
     }
   },
-  styles: [".mat-toolbar{background:var(--mat-toolbar-container-background-color);color:var(--mat-toolbar-container-text-color)}.mat-toolbar,.mat-toolbar h1,.mat-toolbar h2,.mat-toolbar h3,.mat-toolbar h4,.mat-toolbar h5,.mat-toolbar h6{font-family:var(--mat-toolbar-title-text-font);font-size:var(--mat-toolbar-title-text-size);line-height:var(--mat-toolbar-title-text-line-height);font-weight:var(--mat-toolbar-title-text-weight);letter-spacing:var(--mat-toolbar-title-text-tracking);margin:0}.cdk-high-contrast-active .mat-toolbar{outline:solid 1px}.mat-toolbar .mat-form-field-underline,.mat-toolbar .mat-form-field-ripple,.mat-toolbar .mat-focused .mat-form-field-ripple{background-color:currentColor}.mat-toolbar .mat-form-field-label,.mat-toolbar .mat-focused .mat-form-field-label,.mat-toolbar .mat-select-value,.mat-toolbar .mat-select-arrow,.mat-toolbar .mat-form-field.mat-focused .mat-select-arrow{color:inherit}.mat-toolbar .mat-input-element{caret-color:currentColor}.mat-toolbar .mat-mdc-button-base.mat-mdc-button-base.mat-unthemed{--mdc-text-button-label-text-color: inherit;--mdc-outlined-button-label-text-color: inherit}.mat-toolbar-row,.mat-toolbar-single-row{display:flex;box-sizing:border-box;padding:0 16px;width:100%;flex-direction:row;align-items:center;white-space:nowrap;height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-row,.mat-toolbar-single-row{height:var(--mat-toolbar-mobile-height)}}.mat-toolbar-multiple-rows{display:flex;box-sizing:border-box;flex-direction:column;width:100%;min-height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-multiple-rows{min-height:var(--mat-toolbar-mobile-height)}}"],
+  styles: [".mat-toolbar{background:var(--mat-toolbar-container-background-color);color:var(--mat-toolbar-container-text-color)}.mat-toolbar,.mat-toolbar h1,.mat-toolbar h2,.mat-toolbar h3,.mat-toolbar h4,.mat-toolbar h5,.mat-toolbar h6{font-family:var(--mat-toolbar-title-text-font);font-size:var(--mat-toolbar-title-text-size);line-height:var(--mat-toolbar-title-text-line-height);font-weight:var(--mat-toolbar-title-text-weight);letter-spacing:var(--mat-toolbar-title-text-tracking);margin:0}.cdk-high-contrast-active .mat-toolbar{outline:solid 1px}.mat-toolbar .mat-form-field-underline,.mat-toolbar .mat-form-field-ripple,.mat-toolbar .mat-focused .mat-form-field-ripple{background-color:currentColor}.mat-toolbar .mat-form-field-label,.mat-toolbar .mat-focused .mat-form-field-label,.mat-toolbar .mat-select-value,.mat-toolbar .mat-select-arrow,.mat-toolbar .mat-form-field.mat-focused .mat-select-arrow{color:inherit}.mat-toolbar .mat-input-element{caret-color:currentColor}.mat-toolbar .mat-mdc-button-base.mat-mdc-button-base.mat-unthemed{--mdc-text-button-label-text-color:var(--mat-toolbar-container-text-color);--mdc-outlined-button-label-text-color:var(--mat-toolbar-container-text-color)}.mat-toolbar-row,.mat-toolbar-single-row{display:flex;box-sizing:border-box;padding:0 16px;width:100%;flex-direction:row;align-items:center;white-space:nowrap;height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-row,.mat-toolbar-single-row{height:var(--mat-toolbar-mobile-height)}}.mat-toolbar-multiple-rows{display:flex;box-sizing:border-box;flex-direction:column;width:100%;min-height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-multiple-rows{min-height:var(--mat-toolbar-mobile-height)}}"],
   encapsulation: 2,
   changeDetection: 0
 });
@@ -142,16 +145,17 @@ var MatToolbar = _MatToolbar;
     args: [{
       selector: "mat-toolbar",
       exportAs: "matToolbar",
-      inputs: ["color"],
       host: {
         "class": "mat-toolbar",
+        "[class]": 'color ? "mat-" + color : ""',
         "[class.mat-toolbar-multiple-rows]": "_toolbarRows.length > 0",
         "[class.mat-toolbar-single-row]": "_toolbarRows.length === 0"
       },
       changeDetection: ChangeDetectionStrategy.OnPush,
       encapsulation: ViewEncapsulation$1.None,
+      standalone: true,
       template: '<ng-content></ng-content>\n<ng-content select="mat-toolbar-row"></ng-content>\n',
-      styles: [".mat-toolbar{background:var(--mat-toolbar-container-background-color);color:var(--mat-toolbar-container-text-color)}.mat-toolbar,.mat-toolbar h1,.mat-toolbar h2,.mat-toolbar h3,.mat-toolbar h4,.mat-toolbar h5,.mat-toolbar h6{font-family:var(--mat-toolbar-title-text-font);font-size:var(--mat-toolbar-title-text-size);line-height:var(--mat-toolbar-title-text-line-height);font-weight:var(--mat-toolbar-title-text-weight);letter-spacing:var(--mat-toolbar-title-text-tracking);margin:0}.cdk-high-contrast-active .mat-toolbar{outline:solid 1px}.mat-toolbar .mat-form-field-underline,.mat-toolbar .mat-form-field-ripple,.mat-toolbar .mat-focused .mat-form-field-ripple{background-color:currentColor}.mat-toolbar .mat-form-field-label,.mat-toolbar .mat-focused .mat-form-field-label,.mat-toolbar .mat-select-value,.mat-toolbar .mat-select-arrow,.mat-toolbar .mat-form-field.mat-focused .mat-select-arrow{color:inherit}.mat-toolbar .mat-input-element{caret-color:currentColor}.mat-toolbar .mat-mdc-button-base.mat-mdc-button-base.mat-unthemed{--mdc-text-button-label-text-color: inherit;--mdc-outlined-button-label-text-color: inherit}.mat-toolbar-row,.mat-toolbar-single-row{display:flex;box-sizing:border-box;padding:0 16px;width:100%;flex-direction:row;align-items:center;white-space:nowrap;height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-row,.mat-toolbar-single-row{height:var(--mat-toolbar-mobile-height)}}.mat-toolbar-multiple-rows{display:flex;box-sizing:border-box;flex-direction:column;width:100%;min-height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-multiple-rows{min-height:var(--mat-toolbar-mobile-height)}}"]
+      styles: [".mat-toolbar{background:var(--mat-toolbar-container-background-color);color:var(--mat-toolbar-container-text-color)}.mat-toolbar,.mat-toolbar h1,.mat-toolbar h2,.mat-toolbar h3,.mat-toolbar h4,.mat-toolbar h5,.mat-toolbar h6{font-family:var(--mat-toolbar-title-text-font);font-size:var(--mat-toolbar-title-text-size);line-height:var(--mat-toolbar-title-text-line-height);font-weight:var(--mat-toolbar-title-text-weight);letter-spacing:var(--mat-toolbar-title-text-tracking);margin:0}.cdk-high-contrast-active .mat-toolbar{outline:solid 1px}.mat-toolbar .mat-form-field-underline,.mat-toolbar .mat-form-field-ripple,.mat-toolbar .mat-focused .mat-form-field-ripple{background-color:currentColor}.mat-toolbar .mat-form-field-label,.mat-toolbar .mat-focused .mat-form-field-label,.mat-toolbar .mat-select-value,.mat-toolbar .mat-select-arrow,.mat-toolbar .mat-form-field.mat-focused .mat-select-arrow{color:inherit}.mat-toolbar .mat-input-element{caret-color:currentColor}.mat-toolbar .mat-mdc-button-base.mat-mdc-button-base.mat-unthemed{--mdc-text-button-label-text-color:var(--mat-toolbar-container-text-color);--mdc-outlined-button-label-text-color:var(--mat-toolbar-container-text-color)}.mat-toolbar-row,.mat-toolbar-single-row{display:flex;box-sizing:border-box;padding:0 16px;width:100%;flex-direction:row;align-items:center;white-space:nowrap;height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-row,.mat-toolbar-single-row{height:var(--mat-toolbar-mobile-height)}}.mat-toolbar-multiple-rows{display:flex;box-sizing:border-box;flex-direction:column;width:100%;min-height:var(--mat-toolbar-standard-height)}@media(max-width: 599px){.mat-toolbar-multiple-rows{min-height:var(--mat-toolbar-mobile-height)}}"]
     }]
   }], () => [{
     type: ElementRef
@@ -164,6 +168,9 @@ var MatToolbar = _MatToolbar;
       args: [DOCUMENT]
     }]
   }], {
+    color: [{
+      type: Input
+    }],
     _toolbarRows: [{
       type: ContentChildren,
       args: [MatToolbarRow, {
@@ -182,8 +189,7 @@ _MatToolbarModule.ɵfac = function MatToolbarModule_Factory(t) {
 };
 _MatToolbarModule.ɵmod = ɵɵdefineNgModule({
   type: _MatToolbarModule,
-  declarations: [MatToolbar, MatToolbarRow],
-  imports: [MatCommonModule],
+  imports: [MatCommonModule, MatToolbar, MatToolbarRow],
   exports: [MatToolbar, MatToolbarRow, MatCommonModule]
 });
 _MatToolbarModule.ɵinj = ɵɵdefineInjector({
@@ -194,9 +200,8 @@ var MatToolbarModule = _MatToolbarModule;
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatToolbarModule, [{
     type: NgModule,
     args: [{
-      imports: [MatCommonModule],
-      exports: [MatToolbar, MatToolbarRow, MatCommonModule],
-      declarations: [MatToolbar, MatToolbarRow]
+      imports: [MatCommonModule, MatToolbar, MatToolbarRow],
+      exports: [MatToolbar, MatToolbarRow, MatCommonModule]
     }]
   }], null, null);
 })();

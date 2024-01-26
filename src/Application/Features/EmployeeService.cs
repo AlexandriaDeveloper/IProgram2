@@ -7,8 +7,10 @@ using Application.Shared;
 using Application.Shared.ErrorResult;
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Persistence.Helpers;
 using Persistence.Specifications;
 namespace Application.Features
@@ -18,12 +20,14 @@ namespace Application.Features
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IUniteOfWork _uow;
         private readonly IFormDetailsRepository _formDetailsRepository;
+        private readonly IConfiguration _config;
         public EmployeeService(IEmployeeRepository employeeRepository, IFormDetailsRepository formDetailsRepository
-        , IUniteOfWork uow)
+
+        , IUniteOfWork uow, IConfiguration config)
         {
+            this._config = config;
             this._formDetailsRepository = formDetailsRepository;
             this._uow = uow;
-
             this._employeeRepository = employeeRepository;
 
         }
@@ -51,7 +55,7 @@ namespace Application.Features
             //return Result.Success<PA<EmployeeDto>>(employeeToReturn);
 
         }
-        public async Task<Result<string>> ConvertNumber(decimal num)
+        public async Task<Result<string>> ConvertNumber(double num)
         {
             var result = NumericToLiteral.Convert(num, false, "جنيه", "جنيهات");
 
@@ -74,16 +78,31 @@ namespace Application.Features
                 Collage = employee.Collage,
                 DepartmentId = employee.DepartmentId,
                 Id = employee.Id,
-
+                DepartmentName = employee.Department != null ? employee.Department.Name : "",
                 Name = employee.Name,
                 NationalId = employee.NationalId,
                 TabCode = employee.TabCode,
-                TegaraCode = employee.TegaraCode
+                TegaraCode = employee.TegaraCode,
+                Email = employee.Email,
+                Section = employee.Section,
+                BankInfo = new EmployeeBankDto
+                {
+                    BankName = employee.EmployeeBank != null ? employee.EmployeeBank.BankName : "",
+                    BranchName = employee.EmployeeBank != null ? employee.EmployeeBank.BranchName : "",
+                    AccountNumber = employee.EmployeeBank != null ? employee.EmployeeBank.AccountNumber : ""
+                }
+                ,
+                // EmployeeRefernces = employee.EmployeeRefernces.Select(x => new EmployeeRefernceDto
+                // {
+                //     // EmployeeId = x.EmployeeId,
+                //     Id = x.Id,
+                //     ReferencePath = _config["ApiContent"] + x.ReferencePath,
+
+                // }).ToList()
+
             };
+
             return Result.Success(employeeToReturn);
-
-            //return Result.Success<PA<EmployeeDto>>(employeeToReturn);
-
         }
         public async Task<Result<EmployeeDto>> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
         {
@@ -212,7 +231,89 @@ namespace Application.Features
 
         }
 
-        public async Task<Result> UploadEmployees(IFormFile file)
+        public async Task<Result> UploadTegaraFile(EmployeeFileUploadRequest file)
+        {
+
+            if (file == null)
+            {
+                return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
+            }
+            UploadFile upload = new UploadFile(file.File);
+            var path = await upload.UploadFileToTempPath();
+            NpoiServiceProvider npoi = new NpoiServiceProvider(path);
+
+            //Check Header Row
+            var header = npoi.GetHeaders("Sheet1");
+            // if (!CheckHeaderRow(header))
+            // {
+            //     return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
+            // }
+            DataTable dt = npoi.ReadSheetData("Sheet1");
+            foreach (DataRow row in dt.Rows)
+            {
+
+                var empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[3].ToString());
+
+                if (empExist == null)
+                {
+                    continue;
+                }
+                try
+                {
+                    if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()) && !row.ItemArray[1].ToString().Equals(empExist.TegaraCode))
+                    {
+                        empExist.TegaraCode = int.Parse(row.ItemArray[1].ToString());
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[4].ToString()) && !row.ItemArray[4].ToString().Equals(empExist.Section))
+                    {
+                        empExist.Section = row.ItemArray[4].ToString();
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[6].ToString()) && row.ItemArray[6].ToString() != empExist.Email)
+                    {
+                        empExist.Email = row.ItemArray[6].ToString();
+                    }
+                    if (empExist.EmployeeBank == null && row.ItemArray[8].ToString() != null)
+                    {
+                        empExist.EmployeeBank = new EmployeeBank();
+                    }
+
+                    if (!string.IsNullOrEmpty(row.ItemArray[9].ToString()) && row.ItemArray[9].ToString() != empExist.EmployeeBank.BankName)
+                    {
+                        empExist.EmployeeBank.BankName = row.ItemArray[9].ToString();
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[10].ToString()) && row.ItemArray[10].ToString() != empExist.EmployeeBank.BranchName)
+                    {
+                        empExist.EmployeeBank.BranchName = row.ItemArray[10].ToString();
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[11].ToString()) && row.ItemArray[11].ToString() != empExist.EmployeeBank.AccountNumber)
+                    {
+                        empExist.EmployeeBank.AccountNumber = row.ItemArray[11].ToString();
+                    }
+                    _employeeRepository.Update(empExist);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+
+                }
+
+            }
+            try
+            {
+                await _uow.SaveChangesAsync();
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return Result.Success("تم الرفع بنجاح");
+
+        }
+
+
+
+        public async Task<Result> UploadTabFile(IFormFile file)
         {
 
             if (file == null)

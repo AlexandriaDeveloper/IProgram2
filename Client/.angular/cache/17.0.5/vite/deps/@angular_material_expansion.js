@@ -2,21 +2,21 @@ import {
   CdkPortalOutlet,
   PortalModule,
   TemplatePortal
-} from "./chunk-I42VWIVA.js";
+} from "./chunk-I3SP4PLD.js";
 import {
   UniqueSelectionDispatcher
-} from "./chunk-UXVKRNCZ.js";
+} from "./chunk-3QVPOIIK.js";
 import {
-  MatCommonModule,
-  mixinTabIndex
-} from "./chunk-3CDZT44J.js";
+  MatCommonModule
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
 import {
   animate,
   state,
   style,
   transition,
   trigger
-} from "./chunk-EWUG7RS4.js";
+} from "./chunk-3MUY5ZR6.js";
 import "./chunk-4F74E6RB.js";
 import {
   ENTER,
@@ -24,10 +24,10 @@ import {
   FocusMonitor,
   SPACE,
   hasModifierKey
-} from "./chunk-5SBMSZOM.js";
-import {
-  coerceBooleanProperty
-} from "./chunk-SFCFP7Z3.js";
+} from "./chunk-J6QNFSAM.js";
+import "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
+import "./chunk-DMLWJ7GQ.js";
 import "./chunk-U346D2SR.js";
 import {
   DOCUMENT
@@ -57,11 +57,13 @@ import {
   ViewContainerRef,
   ViewEncapsulation$1,
   booleanAttribute,
+  numberAttribute,
   setClassMetadata,
   ɵɵInheritDefinitionFeature,
   ɵɵInputTransformsFeature,
   ɵɵNgOnChangesFeature,
   ɵɵProvidersFeature,
+  ɵɵStandaloneFeature,
   ɵɵadvance,
   ɵɵattribute,
   ɵɵclassProp,
@@ -138,6 +140,7 @@ _CdkAccordion.ɵdir = ɵɵdefineDirective({
     multi: ["multi", "multi", booleanAttribute]
   },
   exportAs: ["cdkAccordion"],
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: CDK_ACCORDION,
     useExisting: _CdkAccordion
@@ -153,7 +156,8 @@ var CdkAccordion = _CdkAccordion;
       providers: [{
         provide: CDK_ACCORDION,
         useExisting: CdkAccordion
-      }]
+      }],
+      standalone: true
     }]
   }], null, {
     multi: [{
@@ -259,6 +263,7 @@ _CdkAccordionItem.ɵdir = ɵɵdefineDirective({
     expandedChange: "expandedChange"
   },
   exportAs: ["cdkAccordionItem"],
+  standalone: true,
   features: [ɵɵProvidersFeature([
     // Provide `CDK_ACCORDION` as undefined to prevent nested accordion items from
     // registering to the same accordion.
@@ -282,7 +287,8 @@ var CdkAccordionItem = _CdkAccordionItem;
           provide: CDK_ACCORDION,
           useValue: void 0
         }
-      ]
+      ],
+      standalone: true
     }]
   }], () => [{
     type: CdkAccordion,
@@ -332,7 +338,7 @@ _CdkAccordionModule.ɵfac = function CdkAccordionModule_Factory(t) {
 };
 _CdkAccordionModule.ɵmod = ɵɵdefineNgModule({
   type: _CdkAccordionModule,
-  declarations: [CdkAccordion, CdkAccordionItem],
+  imports: [CdkAccordion, CdkAccordionItem],
   exports: [CdkAccordion, CdkAccordionItem]
 });
 _CdkAccordionModule.ɵinj = ɵɵdefineInjector({});
@@ -341,8 +347,8 @@ var CdkAccordionModule = _CdkAccordionModule;
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(CdkAccordionModule, [{
     type: NgModule,
     args: [{
-      exports: [CdkAccordion, CdkAccordionItem],
-      declarations: [CdkAccordion, CdkAccordionItem]
+      imports: [CdkAccordion, CdkAccordionItem],
+      exports: [CdkAccordion, CdkAccordionItem]
     }]
   }], null, null);
 })();
@@ -401,14 +407,16 @@ _MatExpansionPanelContent.ɵfac = function MatExpansionPanelContent_Factory(t) {
 };
 _MatExpansionPanelContent.ɵdir = ɵɵdefineDirective({
   type: _MatExpansionPanelContent,
-  selectors: [["ng-template", "matExpansionPanelContent", ""]]
+  selectors: [["ng-template", "matExpansionPanelContent", ""]],
+  standalone: true
 });
 var MatExpansionPanelContent = _MatExpansionPanelContent;
 (() => {
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatExpansionPanelContent, [{
     type: Directive,
     args: [{
-      selector: "ng-template[matExpansionPanelContent]"
+      selector: "ng-template[matExpansionPanelContent]",
+      standalone: true
     }]
   }], () => [{
     type: TemplateRef
@@ -430,7 +438,7 @@ var _MatExpansionPanel = class _MatExpansionPanel extends CdkAccordionItem {
     return this._hideToggle || this.accordion && this.accordion.hideToggle;
   }
   set hideToggle(value) {
-    this._hideToggle = coerceBooleanProperty(value);
+    this._hideToggle = value;
   }
   /** The position of the expansion indicator. */
   get togglePosition() {
@@ -546,19 +554,15 @@ _MatExpansionPanel.ɵcmp = ɵɵdefineComponent({
     }
   },
   inputs: {
-    disabled: "disabled",
-    expanded: "expanded",
-    hideToggle: "hideToggle",
+    hideToggle: ["hideToggle", "hideToggle", booleanAttribute],
     togglePosition: "togglePosition"
   },
   outputs: {
-    opened: "opened",
-    closed: "closed",
-    expandedChange: "expandedChange",
     afterExpand: "afterExpand",
     afterCollapse: "afterCollapse"
   },
   exportAs: ["matExpansionPanel"],
+  standalone: true,
   features: [ɵɵProvidersFeature([
     // Provide MatAccordion as undefined to prevent nested expansion panels from registering
     // to the same accordion.
@@ -570,7 +574,7 @@ _MatExpansionPanel.ɵcmp = ɵɵdefineComponent({
       provide: MAT_EXPANSION_PANEL,
       useExisting: _MatExpansionPanel
     }
-  ]), ɵɵInheritDefinitionFeature, ɵɵNgOnChangesFeature],
+  ]), ɵɵInputTransformsFeature, ɵɵInheritDefinitionFeature, ɵɵNgOnChangesFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c2,
   decls: 7,
   vars: 4,
@@ -615,8 +619,6 @@ var MatExpansionPanel = _MatExpansionPanel;
       exportAs: "matExpansionPanel",
       encapsulation: ViewEncapsulation$1.None,
       changeDetection: ChangeDetectionStrategy.OnPush,
-      inputs: ["disabled", "expanded"],
-      outputs: ["opened", "closed", "expandedChange"],
       animations: [matExpansionAnimations.bodyExpansion],
       providers: [
         // Provide MatAccordion as undefined to prevent nested expansion panels from registering
@@ -636,6 +638,8 @@ var MatExpansionPanel = _MatExpansionPanel;
         "[class._mat-animation-noopable]": '_animationMode === "NoopAnimations"',
         "[class.mat-expansion-panel-spacing]": "_hasSpacing()"
       },
+      standalone: true,
+      imports: [CdkPortalOutlet],
       template: '<ng-content select="mat-expansion-panel-header"></ng-content>\n<div class="mat-expansion-panel-content"\n     role="region"\n     [@bodyExpansion]="_getExpandedState()"\n     (@bodyExpansion.done)="_bodyAnimationDone.next($event)"\n     [attr.aria-labelledby]="_headerId"\n     [id]="id"\n     #body>\n  <div class="mat-expansion-panel-body">\n    <ng-content></ng-content>\n    <ng-template [cdkPortalOutlet]="_portal"></ng-template>\n  </div>\n  <ng-content select="mat-action-row"></ng-content>\n</div>\n',
       styles: ['.mat-expansion-panel{box-sizing:content-box;display:block;margin:0;overflow:hidden;transition:margin 225ms cubic-bezier(0.4, 0, 0.2, 1),box-shadow 280ms cubic-bezier(0.4, 0, 0.2, 1);position:relative;background:var(--mat-expansion-container-background-color);color:var(--mat-expansion-container-text-color);border-radius:var(--mat-expansion-container-shape)}.mat-expansion-panel:not([class*=mat-elevation-z]){box-shadow:0px 3px 1px -2px rgba(0, 0, 0, 0.2), 0px 2px 2px 0px rgba(0, 0, 0, 0.14), 0px 1px 5px 0px rgba(0, 0, 0, 0.12)}.mat-accordion .mat-expansion-panel:not(.mat-expanded),.mat-accordion .mat-expansion-panel:not(.mat-expansion-panel-spacing){border-radius:0}.mat-accordion .mat-expansion-panel:first-of-type{border-top-right-radius:var(--mat-expansion-container-shape);border-top-left-radius:var(--mat-expansion-container-shape)}.mat-accordion .mat-expansion-panel:last-of-type{border-bottom-right-radius:var(--mat-expansion-container-shape);border-bottom-left-radius:var(--mat-expansion-container-shape)}.cdk-high-contrast-active .mat-expansion-panel{outline:solid 1px}.mat-expansion-panel.ng-animate-disabled,.ng-animate-disabled .mat-expansion-panel,.mat-expansion-panel._mat-animation-noopable{transition:none}.mat-expansion-panel-content{display:flex;flex-direction:column;overflow:visible;font-family:var(--mat-expansion-container-text-font);font-size:var(--mat-expansion-container-text-size);font-weight:var(--mat-expansion-container-text-weight);line-height:var(--mat-expansion-container-text-line-height);letter-spacing:var(--mat-expansion-container-text-tracking)}.mat-expansion-panel-content[style*="visibility: hidden"] *{visibility:hidden !important}.mat-expansion-panel-body{padding:0 24px 16px}.mat-expansion-panel-spacing{margin:16px 0}.mat-accordion>.mat-expansion-panel-spacing:first-child,.mat-accordion>*:first-child:not(.mat-expansion-panel) .mat-expansion-panel-spacing{margin-top:0}.mat-accordion>.mat-expansion-panel-spacing:last-child,.mat-accordion>*:last-child:not(.mat-expansion-panel) .mat-expansion-panel-spacing{margin-bottom:0}.mat-action-row{border-top-style:solid;border-top-width:1px;display:flex;flex-direction:row;justify-content:flex-end;padding:16px 8px 16px 24px;border-top-color:var(--mat-expansion-actions-divider-color)}.mat-action-row .mat-button-base,.mat-action-row .mat-mdc-button-base{margin-left:8px}[dir=rtl] .mat-action-row .mat-button-base,[dir=rtl] .mat-action-row .mat-mdc-button-base{margin-left:0;margin-right:8px}']
     }]
@@ -679,7 +683,10 @@ var MatExpansionPanel = _MatExpansionPanel;
     }]
   }], {
     hideToggle: [{
-      type: Input
+      type: Input,
+      args: [{
+        transform: booleanAttribute
+      }]
     }],
     togglePosition: [{
       type: Input
@@ -708,7 +715,8 @@ _MatExpansionPanelActionRow.ɵfac = function MatExpansionPanelActionRow_Factory(
 _MatExpansionPanelActionRow.ɵdir = ɵɵdefineDirective({
   type: _MatExpansionPanelActionRow,
   selectors: [["mat-action-row"]],
-  hostAttrs: [1, "mat-action-row"]
+  hostAttrs: [1, "mat-action-row"],
+  standalone: true
 });
 var MatExpansionPanelActionRow = _MatExpansionPanelActionRow;
 (() => {
@@ -718,22 +726,20 @@ var MatExpansionPanelActionRow = _MatExpansionPanelActionRow;
       selector: "mat-action-row",
       host: {
         class: "mat-action-row"
-      }
+      },
+      standalone: true
     }]
   }], null, null);
 })();
-var MatExpansionPanelHeaderBase = class {
-};
-var _MatExpansionPanelHeaderMixinBase = mixinTabIndex(MatExpansionPanelHeaderBase);
-var _MatExpansionPanelHeader = class _MatExpansionPanelHeader extends _MatExpansionPanelHeaderMixinBase {
+var _MatExpansionPanelHeader = class _MatExpansionPanelHeader {
   constructor(panel, _element, _focusMonitor, _changeDetectorRef, defaultOptions, _animationMode, tabIndex) {
-    super();
     this.panel = panel;
     this._element = _element;
     this._focusMonitor = _focusMonitor;
     this._changeDetectorRef = _changeDetectorRef;
     this._animationMode = _animationMode;
     this._parentChangeSubscription = Subscription.EMPTY;
+    this.tabIndex = 0;
     const accordionHideToggleChange = panel.accordion ? panel.accordion._stateChanges.pipe(filter((changes) => !!(changes["hideToggle"] || changes["togglePosition"]))) : EMPTY;
     this.tabIndex = parseInt(tabIndex || "") || 0;
     this._parentChangeSubscription = merge(panel.opened, panel.closed, accordionHideToggleChange, panel._inputChanges.pipe(filter((changes) => {
@@ -849,17 +855,18 @@ _MatExpansionPanelHeader.ɵcmp = ɵɵdefineComponent({
       });
     }
     if (rf & 2) {
-      ɵɵattribute("id", ctx.panel._headerId)("tabindex", ctx.tabIndex)("aria-controls", ctx._getPanelId())("aria-expanded", ctx._isExpanded())("aria-disabled", ctx.panel.disabled);
+      ɵɵattribute("id", ctx.panel._headerId)("tabindex", ctx.disabled ? -1 : ctx.tabIndex)("aria-controls", ctx._getPanelId())("aria-expanded", ctx._isExpanded())("aria-disabled", ctx.panel.disabled);
       ɵɵstyleProp("height", ctx._getHeaderHeight());
       ɵɵclassProp("mat-expanded", ctx._isExpanded())("mat-expansion-toggle-indicator-after", ctx._getTogglePosition() === "after")("mat-expansion-toggle-indicator-before", ctx._getTogglePosition() === "before")("_mat-animation-noopable", ctx._animationMode === "NoopAnimations");
     }
   },
   inputs: {
-    tabIndex: "tabIndex",
     expandedHeight: "expandedHeight",
-    collapsedHeight: "collapsedHeight"
+    collapsedHeight: "collapsedHeight",
+    tabIndex: ["tabIndex", "tabIndex", (value) => value == null ? 0 : numberAttribute(value)]
   },
-  features: [ɵɵInheritDefinitionFeature],
+  standalone: true,
+  features: [ɵɵInputTransformsFeature, ɵɵStandaloneFeature],
   ngContentSelectors: _c4,
   decls: 5,
   vars: 3,
@@ -895,13 +902,12 @@ var MatExpansionPanelHeader = _MatExpansionPanelHeader;
       selector: "mat-expansion-panel-header",
       encapsulation: ViewEncapsulation$1.None,
       changeDetection: ChangeDetectionStrategy.OnPush,
-      inputs: ["tabIndex"],
       animations: [matExpansionAnimations.indicatorRotate],
       host: {
         "class": "mat-expansion-panel-header mat-focus-indicator",
         "role": "button",
         "[attr.id]": "panel._headerId",
-        "[attr.tabindex]": "tabIndex",
+        "[attr.tabindex]": "disabled ? -1 : tabIndex",
         "[attr.aria-controls]": "_getPanelId()",
         "[attr.aria-expanded]": "_isExpanded()",
         "[attr.aria-disabled]": "panel.disabled",
@@ -913,6 +919,7 @@ var MatExpansionPanelHeader = _MatExpansionPanelHeader;
         "(click)": "_toggle()",
         "(keydown)": "_keydown($event)"
       },
+      standalone: true,
       template: '<span class="mat-content" [class.mat-content-hide-toggle]="!_showToggle()">\n  <ng-content select="mat-panel-title"></ng-content>\n  <ng-content select="mat-panel-description"></ng-content>\n  <ng-content></ng-content>\n</span>\n\n@if (_showToggle()) {\n  <span [@indicatorRotate]="_getExpandedState()" class="mat-expansion-indicator"></span>\n}\n',
       styles: ['.mat-expansion-panel-header{display:flex;flex-direction:row;align-items:center;padding:0 24px;border-radius:inherit;transition:height 225ms cubic-bezier(0.4, 0, 0.2, 1);height:var(--mat-expansion-header-collapsed-state-height);font-family:var(--mat-expansion-header-text-font);font-size:var(--mat-expansion-header-text-size);font-weight:var(--mat-expansion-header-text-weight);line-height:var(--mat-expansion-header-text-line-height);letter-spacing:var(--mat-expansion-header-text-tracking)}.mat-expansion-panel-header.mat-expanded{height:var(--mat-expansion-header-expanded-state-height)}.mat-expansion-panel-header[aria-disabled=true]{color:var(--mat-expansion-header-disabled-state-text-color)}.mat-expansion-panel-header:not([aria-disabled=true]){cursor:pointer}.mat-expansion-panel:not(.mat-expanded) .mat-expansion-panel-header:not([aria-disabled=true]):hover{background:var(--mat-expansion-header-hover-state-layer-color)}@media(hover: none){.mat-expansion-panel:not(.mat-expanded) .mat-expansion-panel-header:not([aria-disabled=true]):hover{background:var(--mat-expansion-container-background-color)}}.mat-expansion-panel .mat-expansion-panel-header:not([aria-disabled=true]).cdk-keyboard-focused,.mat-expansion-panel .mat-expansion-panel-header:not([aria-disabled=true]).cdk-program-focused{background:var(--mat-expansion-header-focus-state-layer-color)}.mat-expansion-panel-header._mat-animation-noopable{transition:none}.mat-expansion-panel-header:focus,.mat-expansion-panel-header:hover{outline:none}.mat-expansion-panel-header.mat-expanded:focus,.mat-expansion-panel-header.mat-expanded:hover{background:inherit}.mat-expansion-panel-header.mat-expansion-toggle-indicator-before{flex-direction:row-reverse}.mat-expansion-panel-header.mat-expansion-toggle-indicator-before .mat-expansion-indicator{margin:0 16px 0 0}[dir=rtl] .mat-expansion-panel-header.mat-expansion-toggle-indicator-before .mat-expansion-indicator{margin:0 0 0 16px}.mat-content{display:flex;flex:1;flex-direction:row;overflow:hidden}.mat-content.mat-content-hide-toggle{margin-right:8px}[dir=rtl] .mat-content.mat-content-hide-toggle{margin-right:0;margin-left:8px}.mat-expansion-toggle-indicator-before .mat-content.mat-content-hide-toggle{margin-left:24px;margin-right:0}[dir=rtl] .mat-expansion-toggle-indicator-before .mat-content.mat-content-hide-toggle{margin-right:24px;margin-left:0}.mat-expansion-panel-header-title{color:var(--mat-expansion-header-text-color)}.mat-expansion-panel-header-title,.mat-expansion-panel-header-description{display:flex;flex-grow:1;flex-basis:0;margin-right:16px;align-items:center}[dir=rtl] .mat-expansion-panel-header-title,[dir=rtl] .mat-expansion-panel-header-description{margin-right:0;margin-left:16px}.mat-expansion-panel-header[aria-disabled=true] .mat-expansion-panel-header-title,.mat-expansion-panel-header[aria-disabled=true] .mat-expansion-panel-header-description{color:inherit}.mat-expansion-panel-header-description{flex-grow:2;color:var(--mat-expansion-header-description-color)}.mat-expansion-indicator::after{border-style:solid;border-width:0 2px 2px 0;content:"";display:inline-block;padding:3px;transform:rotate(45deg);vertical-align:middle;color:var(--mat-expansion-header-indicator-color)}.cdk-high-contrast-active .mat-expansion-panel-content{border-top:1px solid;border-top-left-radius:0;border-top-right-radius:0}']
     }]
@@ -955,6 +962,12 @@ var MatExpansionPanelHeader = _MatExpansionPanelHeader;
     }],
     collapsedHeight: [{
       type: Input
+    }],
+    tabIndex: [{
+      type: Input,
+      args: [{
+        transform: (value) => value == null ? 0 : numberAttribute(value)
+      }]
     }]
   });
 })();
@@ -966,7 +979,8 @@ _MatExpansionPanelDescription.ɵfac = function MatExpansionPanelDescription_Fact
 _MatExpansionPanelDescription.ɵdir = ɵɵdefineDirective({
   type: _MatExpansionPanelDescription,
   selectors: [["mat-panel-description"]],
-  hostAttrs: [1, "mat-expansion-panel-header-description"]
+  hostAttrs: [1, "mat-expansion-panel-header-description"],
+  standalone: true
 });
 var MatExpansionPanelDescription = _MatExpansionPanelDescription;
 (() => {
@@ -976,7 +990,8 @@ var MatExpansionPanelDescription = _MatExpansionPanelDescription;
       selector: "mat-panel-description",
       host: {
         class: "mat-expansion-panel-header-description"
-      }
+      },
+      standalone: true
     }]
   }], null, null);
 })();
@@ -988,7 +1003,8 @@ _MatExpansionPanelTitle.ɵfac = function MatExpansionPanelTitle_Factory(t) {
 _MatExpansionPanelTitle.ɵdir = ɵɵdefineDirective({
   type: _MatExpansionPanelTitle,
   selectors: [["mat-panel-title"]],
-  hostAttrs: [1, "mat-expansion-panel-header-title"]
+  hostAttrs: [1, "mat-expansion-panel-header-title"],
+  standalone: true
 });
 var MatExpansionPanelTitle = _MatExpansionPanelTitle;
 (() => {
@@ -998,7 +1014,8 @@ var MatExpansionPanelTitle = _MatExpansionPanelTitle;
       selector: "mat-panel-title",
       host: {
         class: "mat-expansion-panel-header-title"
-      }
+      },
+      standalone: true
     }]
   }], null, null);
 })();
@@ -1006,16 +1023,9 @@ var _MatAccordion = class _MatAccordion extends CdkAccordion {
   constructor() {
     super(...arguments);
     this._ownHeaders = new QueryList();
-    this._hideToggle = false;
+    this.hideToggle = false;
     this.displayMode = "default";
     this.togglePosition = "after";
-  }
-  /** Whether the expansion indicator should be hidden. */
-  get hideToggle() {
-    return this._hideToggle;
-  }
-  set hideToggle(show) {
-    this._hideToggle = coerceBooleanProperty(show);
   }
   ngAfterContentInit() {
     this._headers.changes.pipe(startWith(this._headers)).subscribe((headers) => {
@@ -1063,16 +1073,16 @@ _MatAccordion.ɵdir = ɵɵdefineDirective({
     }
   },
   inputs: {
-    multi: "multi",
-    hideToggle: "hideToggle",
+    hideToggle: ["hideToggle", "hideToggle", booleanAttribute],
     displayMode: "displayMode",
     togglePosition: "togglePosition"
   },
   exportAs: ["matAccordion"],
+  standalone: true,
   features: [ɵɵProvidersFeature([{
     provide: MAT_ACCORDION,
     useExisting: _MatAccordion
-  }]), ɵɵInheritDefinitionFeature]
+  }]), ɵɵInputTransformsFeature, ɵɵInheritDefinitionFeature]
 });
 var MatAccordion = _MatAccordion;
 (() => {
@@ -1081,7 +1091,6 @@ var MatAccordion = _MatAccordion;
     args: [{
       selector: "mat-accordion",
       exportAs: "matAccordion",
-      inputs: ["multi"],
       providers: [{
         provide: MAT_ACCORDION,
         useExisting: MatAccordion
@@ -1091,7 +1100,8 @@ var MatAccordion = _MatAccordion;
         // Class binding which is only used by the test harness as there is no other
         // way for the harness to detect if multiple panel support is enabled.
         "[class.mat-accordion-multi]": "this.multi"
-      }
+      },
+      standalone: true
     }]
   }], null, {
     _headers: [{
@@ -1101,7 +1111,10 @@ var MatAccordion = _MatAccordion;
       }]
     }],
     hideToggle: [{
-      type: Input
+      type: Input,
+      args: [{
+        transform: booleanAttribute
+      }]
     }],
     displayMode: [{
       type: Input
@@ -1118,8 +1131,7 @@ _MatExpansionModule.ɵfac = function MatExpansionModule_Factory(t) {
 };
 _MatExpansionModule.ɵmod = ɵɵdefineNgModule({
   type: _MatExpansionModule,
-  declarations: [MatAccordion, MatExpansionPanel, MatExpansionPanelActionRow, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatExpansionPanelContent],
-  imports: [MatCommonModule, CdkAccordionModule, PortalModule],
+  imports: [MatCommonModule, CdkAccordionModule, PortalModule, MatAccordion, MatExpansionPanel, MatExpansionPanelActionRow, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatExpansionPanelContent],
   exports: [MatAccordion, MatExpansionPanel, MatExpansionPanelActionRow, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatExpansionPanelContent]
 });
 _MatExpansionModule.ɵinj = ɵɵdefineInjector({
@@ -1130,9 +1142,8 @@ var MatExpansionModule = _MatExpansionModule;
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatExpansionModule, [{
     type: NgModule,
     args: [{
-      imports: [MatCommonModule, CdkAccordionModule, PortalModule],
-      exports: [MatAccordion, MatExpansionPanel, MatExpansionPanelActionRow, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatExpansionPanelContent],
-      declarations: [MatAccordion, MatExpansionPanel, MatExpansionPanelActionRow, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatExpansionPanelContent]
+      imports: [MatCommonModule, CdkAccordionModule, PortalModule, MatAccordion, MatExpansionPanel, MatExpansionPanelActionRow, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatExpansionPanelContent],
+      exports: [MatAccordion, MatExpansionPanel, MatExpansionPanelActionRow, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatExpansionPanelContent]
     }]
   }], null, null);
 })();

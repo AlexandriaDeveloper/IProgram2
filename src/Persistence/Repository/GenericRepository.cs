@@ -22,7 +22,7 @@ namespace Persistence.Repository
 
         public async Task<T> GetById(int id)
         {
-            return await this._context.Set<T>().FirstOrDefaultAsync(x => x.Id == id && x.IsActive == true);
+            return await this._context.Set<T>().FirstOrDefaultAsync(x => x.Id == id);
         }
 
         public async Task Delete(int id)
@@ -120,9 +120,9 @@ namespace Persistence.Repository
         {
             return await ApplyInactiveSpecification(spec).ToListAsync();
         }
-        public IQueryable<T> GetQueryable()
+        public IQueryable<T> GetQueryable(bool isActive = true)
         {
-            return _context.Set<T>();
+            return _context.Set<T>().Where(t => t.IsActive == isActive);
         }
     }
 }

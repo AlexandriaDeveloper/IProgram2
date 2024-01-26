@@ -5,11 +5,14 @@ import {
   DateAdapter,
   MAT_DATE_FORMATS,
   MAT_DATE_LOCALE
-} from "./chunk-3CDZT44J.js";
-import "./chunk-EWUG7RS4.js";
+} from "./chunk-YVDEENZC.js";
+import "./chunk-XK4UVUN2.js";
+import "./chunk-3MUY5ZR6.js";
 import "./chunk-4F74E6RB.js";
-import "./chunk-5SBMSZOM.js";
-import "./chunk-SFCFP7Z3.js";
+import "./chunk-J6QNFSAM.js";
+import "./chunk-O5NFCFBL.js";
+import "./chunk-MSQSFN32.js";
+import "./chunk-DMLWJ7GQ.js";
 import "./chunk-U346D2SR.js";
 import "./chunk-YZEMK44K.js";
 import {
@@ -275,35 +278,44 @@ _MatMomentDateModule.ɵfac = function MatMomentDateModule_Factory(t) {
   return new (t || _MatMomentDateModule)();
 };
 _MatMomentDateModule.ɵmod = ɵɵdefineNgModule({
-  type: _MatMomentDateModule,
-  imports: [MomentDateModule]
+  type: _MatMomentDateModule
 });
 _MatMomentDateModule.ɵinj = ɵɵdefineInjector({
-  providers: [{
-    provide: MAT_DATE_FORMATS,
-    useValue: MAT_MOMENT_DATE_FORMATS
-  }],
-  imports: [MomentDateModule]
+  providers: [provideMomentDateAdapter()]
 });
 var MatMomentDateModule = _MatMomentDateModule;
 (() => {
   (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(MatMomentDateModule, [{
     type: NgModule,
     args: [{
-      imports: [MomentDateModule],
-      providers: [{
-        provide: MAT_DATE_FORMATS,
-        useValue: MAT_MOMENT_DATE_FORMATS
-      }]
+      providers: [provideMomentDateAdapter()]
     }]
   }], null, null);
 })();
+function provideMomentDateAdapter(formats = MAT_MOMENT_DATE_FORMATS, options) {
+  const providers = [{
+    provide: DateAdapter,
+    useClass: MomentDateAdapter,
+    deps: [MAT_DATE_LOCALE, MAT_MOMENT_DATE_ADAPTER_OPTIONS]
+  }, {
+    provide: MAT_DATE_FORMATS,
+    useValue: formats
+  }];
+  if (options) {
+    providers.push({
+      provide: MAT_MOMENT_DATE_ADAPTER_OPTIONS,
+      useValue: options
+    });
+  }
+  return providers;
+}
 export {
   MAT_MOMENT_DATE_ADAPTER_OPTIONS,
   MAT_MOMENT_DATE_ADAPTER_OPTIONS_FACTORY,
   MAT_MOMENT_DATE_FORMATS,
   MatMomentDateModule,
   MomentDateAdapter,
-  MomentDateModule
+  MomentDateModule,
+  provideMomentDateAdapter
 };
 //# sourceMappingURL=@angular_material-moment-adapter.js.map

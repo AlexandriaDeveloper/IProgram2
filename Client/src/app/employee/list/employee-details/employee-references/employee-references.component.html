@@ -1,0 +1,27 @@
+@if(images?.length>0)
+{
+
+<gallery thumbs id="myGallery" [items]="images"  thumbWidth="200" thumbHeight="200" style="background-color: transparent !important;"  >
+  <ng-container *galleryImageDef="let item; let index=index let active = active" >
+    <div  class="control-buttons">
+      <button mat-icon-button color="primary" style="position: relative;top:-10px;right:0px" (click)="saveImage(item?.src)">
+      <mat-icon  >print</mat-icon>
+      </button>
+
+      <button mat-icon-button color="warn" style="position: relative;top:-10px;right:0px" (click)="deleteImage(item)">
+        <mat-icon >delete</mat-icon>
+        </button>
+      <!-- <mat-icon color="default" style="display: inline;font-size:32px !important; cursor: pointer; " (click)="saveImage(item?.src)">print</mat-icon> -->
+
+    </div>
+
+  </ng-container>
+</gallery>
+}
+@else{
+<div style="display: flex; justify-content: center; align-items: center; height: 300px;">
+  لا توجد مستندات لهذا الموظف
+</div>
+}
+
+
