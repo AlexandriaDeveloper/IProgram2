@@ -90,14 +90,23 @@ namespace Application.Features
                 Email = employee.Email,
                 Section = employee.Section,
                 HasReferences = await _employeeRepository.HasEmployeeReferences(employee.Id),
-                BankInfo = new EmployeeBankDto
+
+            };
+            if (await _employeeRepository.HasBank(employee.Id))
+            {
+                employeeToReturn.BankInfo = new EmployeeBankDto()
                 {
                     BankName = employee.EmployeeBank != null ? employee.EmployeeBank.BankName : "",
                     BranchName = employee.EmployeeBank != null ? employee.EmployeeBank.BranchName : "",
                     AccountNumber = employee.EmployeeBank != null ? employee.EmployeeBank.AccountNumber : ""
-                }
+                };
 
-            };
+
+            }
+            else
+            {
+                employeeToReturn.BankInfo = null;
+            }
 
             return Result.Success(employeeToReturn);
         }

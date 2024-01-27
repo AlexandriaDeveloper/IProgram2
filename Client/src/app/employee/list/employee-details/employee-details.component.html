@@ -20,9 +20,12 @@
       <app-employee-report [employee] ="employee" ></app-employee-report>
     </ng-template>
   </mat-tab>
+  @if(employee?.bankInfo !== null)
+  {
   <mat-tab label="حساب البنك ">
     <app-bank-info [employee] ="employee"></app-bank-info>
   </mat-tab>
+  }
 @if(employee?.hasReferences){
   <mat-tab label=" مستندات ">
 

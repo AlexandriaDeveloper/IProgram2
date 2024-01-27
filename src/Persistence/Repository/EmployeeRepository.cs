@@ -34,6 +34,11 @@ namespace Persistence.Repository
             return emp;
         }
 
+        public Task<bool> HasBank(int id)
+        {
+            return _context.Set<EmployeeBank>().AnyAsync(x => x.EmployeeId == id && x.IsActive);
+        }
+
         public Task<bool> HasEmployeeReferences(int EmployeeId)
         {
             return _context.Set<EmployeeRefernce>().AnyAsync(x => x.EmployeeId == EmployeeId && x.IsActive);
