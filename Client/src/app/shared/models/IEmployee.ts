@@ -12,6 +12,7 @@ export interface IEmployee {
   email ?: string
   section ?: string
   employeeRefernces?:any[]
+  hasReferences?:boolean
   bankInfo?:IEmployeeBanKInfo |null
 }
 export interface IEmployeeBanKInfo{

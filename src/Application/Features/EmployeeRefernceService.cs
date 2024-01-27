@@ -6,23 +6,32 @@ using Application.Shared;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Persistence.Extensions;
 
 namespace Application.Features
 {
     public class EmployeeRefernceService
     {
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IEmployeeRefernceRepository _employeeRefernceRepository;
         private readonly IConfiguration _config;
         private readonly IUniteOfWork _uow;
         private readonly IWebHostEnvironment _hostEnvironment;
 
-        public EmployeeRefernceService(IEmployeeRefernceRepository employeeRefernceRepository, IUniteOfWork uow, IConfiguration config, IWebHostEnvironment hostEnvironment)
+        public EmployeeRefernceService(
+            IHttpContextAccessor httpContextAccessor,
+            IEmployeeRefernceRepository employeeRefernceRepository,
+            IUniteOfWork uow,
+             IConfiguration config,
+             IWebHostEnvironment hostEnvironment)
         {
             this._hostEnvironment = hostEnvironment;
             this._uow = uow;
             this._config = config;
+            this._httpContextAccessor = httpContextAccessor;
             this._employeeRefernceRepository = employeeRefernceRepository;
 
         }
@@ -48,6 +57,8 @@ namespace Application.Features
                 return Result.Failure(new Error("404", "Not Found"));
             }
             employeeRefernce.IsActive = false;
+            employeeRefernce.DeactivatedAt = DateTime.Now;
+            employeeRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
             _employeeRefernceRepository.Update(employeeRefernce);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)

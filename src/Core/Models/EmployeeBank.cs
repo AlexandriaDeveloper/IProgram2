@@ -7,6 +7,10 @@ namespace Core.Models
 {
     public class EmployeeBank : Entity
     {
+        [NotMapped]
+        override public int Id { get; set; }
+        [NotMapped]
+        override public string Name { get; set; }
         [Key, ForeignKey("Employee")]
         public int EmployeeId { get; set; }
         public string BankName { get; set; }

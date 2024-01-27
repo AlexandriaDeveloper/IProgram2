@@ -7,8 +7,10 @@ using Application.Dtos.Requests;
 using Application.Helpers;
 using Core.Interfaces;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Persistence.Extensions;
 
 namespace Application.Features
 {
@@ -18,9 +20,11 @@ namespace Application.Features
         private readonly IUniteOfWork _uow;
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _hostEnvironment;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUniteOfWork uow, IConfiguration config, IWebHostEnvironment hostEnvironment)
+        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUniteOfWork uow, IHttpContextAccessor httpContextAccessor, IConfiguration config, IWebHostEnvironment hostEnvironment)
         {
+            this._httpContextAccessor = httpContextAccessor;
             this._hostEnvironment = hostEnvironment;
             this._config = config;
             this._formReferencesRepository = formReferencesRepository;
@@ -51,6 +55,8 @@ namespace Application.Features
                 return Result.Failure(new Error("404", "Not Found"));
             }
             formRefernce.IsActive = false;
+            formRefernce.DeactivatedAt = DateTime.Now;
+            formRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
             _formReferencesRepository.Update(formRefernce);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)

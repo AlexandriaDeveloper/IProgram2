@@ -33,6 +33,11 @@ namespace Persistence.Repository
             var emp = await _context.Employees.FirstOrDefaultAsync(x => x.NationalId == nationalId);
             return emp;
         }
+
+        public Task<bool> HasEmployeeReferences(int EmployeeId)
+        {
+            return _context.Set<EmployeeRefernce>().AnyAsync(x => x.EmployeeId == EmployeeId && x.IsActive);
+        }
     }
 
 }

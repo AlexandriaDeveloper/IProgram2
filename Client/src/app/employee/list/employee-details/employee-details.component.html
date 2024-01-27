@@ -23,13 +23,14 @@
   <mat-tab label="حساب البنك ">
     <app-bank-info [employee] ="employee"></app-bank-info>
   </mat-tab>
-
+@if(employee?.hasReferences){
   <mat-tab label=" مستندات ">
 
-    <ng-template matTabContent>
+    <ng-template matTabContent >
       <app-employee-references [employeeId]="employee?.id"></app-employee-references>
     </ng-template>
 
     </mat-tab>
+  }
 </mat-tab-group>
 

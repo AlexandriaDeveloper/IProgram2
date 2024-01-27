@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
 namespace Application.Features
@@ -21,11 +22,14 @@ namespace Application.Features
         private readonly IUniteOfWork _uow;
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IConfiguration _config;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
         public EmployeeService(IEmployeeRepository employeeRepository, IFormDetailsRepository formDetailsRepository
 
-        , IUniteOfWork uow, IConfiguration config)
+        , IUniteOfWork uow, IConfiguration config, IHttpContextAccessor httpContextAccessor)
         {
             this._config = config;
+            this._httpContextAccessor = httpContextAccessor;
             this._formDetailsRepository = formDetailsRepository;
             this._uow = uow;
             this._employeeRepository = employeeRepository;
@@ -85,20 +89,13 @@ namespace Application.Features
                 TegaraCode = employee.TegaraCode,
                 Email = employee.Email,
                 Section = employee.Section,
+                HasReferences = await _employeeRepository.HasEmployeeReferences(employee.Id),
                 BankInfo = new EmployeeBankDto
                 {
                     BankName = employee.EmployeeBank != null ? employee.EmployeeBank.BankName : "",
                     BranchName = employee.EmployeeBank != null ? employee.EmployeeBank.BranchName : "",
                     AccountNumber = employee.EmployeeBank != null ? employee.EmployeeBank.AccountNumber : ""
                 }
-                ,
-                // EmployeeRefernces = employee.EmployeeRefernces.Select(x => new EmployeeRefernceDto
-                // {
-                //     // EmployeeId = x.EmployeeId,
-                //     Id = x.Id,
-                //     ReferencePath = _config["ApiContent"] + x.ReferencePath,
-
-                // }).ToList()
 
             };
 
@@ -272,9 +269,12 @@ namespace Application.Features
                     {
                         empExist.Email = row.ItemArray[6].ToString();
                     }
-                    if (empExist.EmployeeBank == null && row.ItemArray[8].ToString() != null)
+                    if (empExist.EmployeeBank == null && !string.IsNullOrEmpty(row.ItemArray[9].ToString()))
                     {
                         empExist.EmployeeBank = new EmployeeBank();
+                        empExist.EmployeeBank.CreatedAt = DateTime.Now;
+                        empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+                        empExist.EmployeeBank.IsActive = true;
                     }
 
                     if (!string.IsNullOrEmpty(row.ItemArray[9].ToString()) && row.ItemArray[9].ToString() != empExist.EmployeeBank.BankName)

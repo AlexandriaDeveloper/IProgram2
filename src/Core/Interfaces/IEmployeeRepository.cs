@@ -11,5 +11,6 @@ namespace Core.Interfaces
 
         Task<bool> CheckEmployeeByNationalId(string nationalId);
         Task<Employee> GetEmployeeByNationalId(string nationalId);
+        Task<bool> HasEmployeeReferences(int EmployeeId);
     }
 }

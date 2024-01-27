@@ -21,6 +21,7 @@ namespace Application.Dtos
         public string Email { get; set; }
         public int? DepartmentId { get; set; }
         public string DepartmentName { get; set; }
+        public bool HasReferences { get; set; }
         public EmployeeBankDto BankInfo { get; set; } = new EmployeeBankDto();
 
         public ICollection<EmployeeRefernceDto> EmployeeRefernces { get; set; }
