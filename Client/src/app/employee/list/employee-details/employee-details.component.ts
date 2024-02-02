@@ -8,6 +8,7 @@ import { Gallery, GalleryItem, GalleryRef, IframeItem, ImageItem } from 'ng-gall
 import { environment } from '../../../environment';
 import { UploadEmployeeReferncesDialogComponent } from './employee-references/upload-employee-refernces-dialog/upload-employee-refernces-dialog.component';
 import { ThemePalette } from '@angular/material/core';
+import { AddBankDialogComponent } from './bank-info/add-bank-dialog/add-bank-dialog.component';
 
 
 @Component({
@@ -57,7 +58,7 @@ ngOnInit(): void {
 }
 
 
-openDialog(){
+openUploadDialog(){
   const dialogRef = this._dialog.open(UploadEmployeeReferncesDialogComponent, {
     // data: {name: this.name, animal: this.animal},
 
@@ -74,6 +75,20 @@ openDialog(){
     // this.animal = result;
    });
   }
+  openBankDialog(){
+    const dialogRef = this._dialog.open(AddBankDialogComponent, {
+      width: '400px',
+      disableClose: true,
+       data:  { employeeId :this.employeeId },
+      panelClass: ['dialog-container'],
 
+
+     });
+
+     dialogRef.afterClosed().subscribe(result => {
+       this.ngOnInit();
+      // this.animal = result;
+     });
+    }
 
 }

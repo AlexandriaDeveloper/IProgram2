@@ -98,7 +98,9 @@ namespace Application.Features
                 {
                     BankName = employee.EmployeeBank != null ? employee.EmployeeBank.BankName : "",
                     BranchName = employee.EmployeeBank != null ? employee.EmployeeBank.BranchName : "",
-                    AccountNumber = employee.EmployeeBank != null ? employee.EmployeeBank.AccountNumber : ""
+                    AccountNumber = employee.EmployeeBank != null ? employee.EmployeeBank.AccountNumber : "",
+                    EmployeeId = employee.Id,
+
                 };
 
 
@@ -254,7 +256,7 @@ namespace Application.Features
             // {
             //     return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             // }
-            DataTable dt = npoi.ReadSheetData("Sheet1");
+            DataTable dt = npoi.ReadSheeBySheetName("Sheet1");
             foreach (DataRow row in dt.Rows)
             {
 
@@ -339,7 +341,7 @@ namespace Application.Features
             {
                 return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
-            DataTable dt = npoi.ReadSheetData("Sheet1");
+            DataTable dt = npoi.ReadSheeBySheetName("Sheet1");
             foreach (DataRow row in dt.Rows)
             {
 

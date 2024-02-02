@@ -19,6 +19,8 @@ export interface IEmployeeBanKInfo{
   bankName?:string
   accountNumber?:string
   branchName? :string
+  employeeId?:number
+
 }
 
 export interface IUploadEmployee {

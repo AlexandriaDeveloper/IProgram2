@@ -35,7 +35,7 @@ namespace Application.Features
                 Id = x.Id,
                 DailyId = x.DailyId,
                 Count = x.FormDetails.Count,
-                TotalAmount = x.FormDetails.Sum(x => x.Amount)
+                TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
             }).ToList();
             var pagedResult = PaginatedResult<FormArchivedDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormArchivedDto>>(pagedResult);

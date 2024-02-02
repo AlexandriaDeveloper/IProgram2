@@ -5,7 +5,9 @@
     <input matInput autocomplete="off" #input
     [type]="type"
     (input)="onChange($event.target.value)"
-    (blur)="onTouched()" required="" />
+    (blur)="onTouched()" required=""
+    [style.color]="color"
+    />
     <mat-icon matSuffix>{{matSuffix}}</mat-icon>
 
 

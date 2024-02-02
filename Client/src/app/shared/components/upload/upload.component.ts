@@ -29,6 +29,7 @@ export class UploadComponent implements OnInit,AfterViewInit, ControlValueAccess
   toaster = inject(ToasterService);
   @ViewChild("fileInput", { static: true }) fileInput: ElementRef;
   @Input('fileType') fileType='excel'
+  @Input('multiple') multiple = false
   @Output() upload = new EventEmitter<any>();
   @Output('changeFile') changeFile = new EventEmitter<any>();
   files: any[] = [];

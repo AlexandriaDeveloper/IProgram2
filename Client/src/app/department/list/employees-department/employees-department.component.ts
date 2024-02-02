@@ -161,7 +161,7 @@ constructor( private cdref: ChangeDetectorRef ) {}
 
   }
   downloadFile(){
-    this.departmentService.downloadEmployeeDepartmentFile().subscribe({
+    this.departmentService.downloadEmployeeDepartmentFile('employees-department').subscribe({
       next:(x)=>{
         console.log(x);
 

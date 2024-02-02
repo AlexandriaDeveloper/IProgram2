@@ -1,10 +1,10 @@
 <button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >    <mat-icon>more_vert</mat-icon></button>
 <mat-menu #menu="matMenu">
-  <button mat-menu-item >
+  <button mat-menu-item  (click)="openBankDialog()" *ngIf="employee?.bankInfo === null" >
     <mat-icon >picture_as_pdf</mat-icon>
       اضافة حساب بنكى
   </button>
-  <button mat-menu-item  (click)="openDialog()">
+  <button mat-menu-item  (click)="openUploadDialog()">
     <mat-icon>voicemail</mat-icon>
     اضافة مستند</button>
 </mat-menu>

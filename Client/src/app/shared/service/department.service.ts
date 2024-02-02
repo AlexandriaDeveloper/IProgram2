@@ -45,8 +45,10 @@ export class DepartmentService {
       return this.http.put(this.apiUrl+'department/removeEmployees',ids)
     }
 
-    downloadEmployeeDepartmentFile(){
-      return this.http.get( this.apiUrl+'download/employees-department', { observe: 'response', responseType: 'blob' }).pipe(
+    downloadEmployeeDepartmentFile(fileName){
+      let params = new HttpParams();
+      params = params.append('fileName',fileName);
+      return this.http.get( this.apiUrl+'download/downloadFile', {  observe: 'response', responseType: 'blob',params }).pipe(
         map((x: HttpResponse<any>) => {
           let blob = new Blob([x.body], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
           const url = window.URL.createObjectURL(blob);

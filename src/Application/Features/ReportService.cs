@@ -56,13 +56,13 @@ namespace Application.Features
                 }).ToList(),
                 Count = request.FormDetails.Count(),
                 DailyId = request.DailyId,
-                TotalAmount = request.FormDetails.Sum(x => x.Amount)
+                TotalAmount = Math.Round(request.FormDetails.Sum(x => x.Amount), 2)
             };
             return await PrintPdf(formToReturn);
         }
         public async Task<byte[]> PrintPdf(FormDto formModel)
         {
-            var totalText = NumericToLiteral.Convert(formModel.FormDetails.Sum(x => x.Amount), false, "جنيه", "جنيهات");
+            var totalText = NumericToLiteral.Convert(formModel.TotalAmount, false, "جنيه", "جنيهات");
             totalText = totalText.Replace("(", "");
             totalText = totalText.Replace(")", "");
             totalText = totalText.Replace("،", "");
@@ -181,7 +181,7 @@ namespace Application.Features
                                          t.Span(" اجمالى المبلغ : " + totalText + "فقط لا غير").Bold().FontSize(9).FontFamily("Cairo");
                                      });
                                   t.Cell().Row((row + 1)).Column(6).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
-                                  (formModel.FormDetails.Sum(x => x.Amount).ToString()).Bold().FontFamily("Cairo");
+                                  (formModel.TotalAmount.ToString()).Bold().FontFamily("Cairo");
                               });
 
                               if (!string.IsNullOrEmpty(formModel.Description))
@@ -251,7 +251,7 @@ namespace Application.Features
             var tegaraCode = new string(tegaraCodeChars);
 
 
-            var totalText = NumericToLiteral.Convert(formModel.GrandTotal, false, "جنيه", "جنيهات");
+            var totalText = NumericToLiteral.Convert(Math.Round(formModel.GrandTotal, 2), false, "جنيه", "جنيهات");
             totalText = totalText.Replace("(", "");
             totalText = totalText.Replace(")", "");
             totalText = totalText.Replace("،", "");

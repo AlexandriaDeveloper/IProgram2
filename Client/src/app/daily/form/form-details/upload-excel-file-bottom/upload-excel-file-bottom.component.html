@@ -1,0 +1,39 @@
+<div  >
+  <div style="display: flex ;justify-content: center; padding: 0px; cursor: pointer;">
+    <mat-progress-bar   color="accent" mode="indeterminate"  *ngIf="onProgress"  [value]="progress()"></mat-progress-bar>
+    <mat-icon style="font-size: 4px !important; display: inline;opacity: 0;" >cloud_upload</mat-icon>
+
+  </div>
+
+  <div style="display: flex ;justify-content: center; padding: 20px; cursor: pointer;" (click)="fileInput.click()">
+
+    <div style="display: inline;font-size: 34px !important;">
+      <mat-icon style="font-size: 64px !important; display: inline;" >cloud_upload</mat-icon>
+    </div>
+
+
+
+
+  </div>
+
+
+
+    <input id="fileInput" hidden multiple="false" type="file" #fileInput (change)="onFileSelected($event)" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  />
+
+     <button mat-raised-button color="accent" (click)="fileInput.click()">ارفع الملف....</button>
+
+     <label class="file-label" >{{fileName}}</label>
+
+     <div class="action-buttons">
+       <button class="bottomSheet-button"  mat-raised-button color="primary" (click)="onUpload(fileInput)" [disabled]="fileInput.files.length == 0">تحميل</button>
+
+     </div>
+
+
+
+
+</div>
+
+
+
+

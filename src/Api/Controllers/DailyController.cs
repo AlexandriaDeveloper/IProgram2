@@ -87,5 +87,17 @@ namespace Api.Controllers
             memory.Position = 0;
             return File(memory, "application/pdf", "test.pdf");
         }
+
+
+        [HttpGet("download-daily/{dailyId}")]
+        [AllowAnonymous]
+        public async Task<FileResult> DownloadFile(int dailyId)
+        {
+            var ms = await _dailyService.CreateExcelFile(dailyId);
+
+            return File(ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "daily.xlsx");
+
+
+        }
     }
 }

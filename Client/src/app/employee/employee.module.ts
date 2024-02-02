@@ -15,12 +15,26 @@ import { EmployeeReferencesComponent } from './list/employee-details/employee-re
 import { BankInfoComponent } from './list/employee-details/bank-info/bank-info.component';
 import { UploadEmployeeReferncesDialogComponent } from './list/employee-details/employee-references/upload-employee-refernces-dialog/upload-employee-refernces-dialog.component';
 import { UploadEmployeeTegaraComponent } from './upload-employee-tegara/upload-employee-tegara.component';
+import { AddBankDialogComponent } from './list/employee-details/bank-info/add-bank-dialog/add-bank-dialog.component';
 
 
 
 @NgModule({
-  declarations: [AddEmployeeComponent,UploadEmployeeComponent,UploadEmployeeTegaraComponent,ListComponent,EmployeeInfoComponent,
-      EmployeeDetailsComponent, EmployeeDetailsComponent,EmployeeReportComponent,EmployeeReferencesComponent,BankInfoComponent,UploadEmployeeReferncesDialogComponent],
+  declarations: [
+    AddEmployeeComponent,
+    UploadEmployeeComponent,
+    UploadEmployeeTegaraComponent,
+    ListComponent,
+    EmployeeInfoComponent,
+    EmployeeDetailsComponent,
+    EmployeeDetailsComponent,
+    EmployeeReportComponent,
+    EmployeeReferencesComponent,
+    BankInfoComponent,
+    UploadEmployeeReferncesDialogComponent,
+    AddBankDialogComponent
+  ],
+
   imports: [
     SharedModule,
     CommonModule,

@@ -9,6 +9,4 @@ namespace Application.Dtos.Requests
         //   public int OrderNum { get; set; }
 
     }
-
-
 }

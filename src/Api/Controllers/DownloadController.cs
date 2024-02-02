@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Application.Helpers;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers
@@ -14,10 +15,40 @@ namespace Api.Controllers
 
         }
 
-        [HttpGet("employees-department")]
-        public async Task<FileResult> DownloadEmployeesDepartment()
+        // [HttpGet("employees-department")]
+        // public async Task<FileResult> DownloadEmployeesDepartment()
+        // {
+        //     string fileName = "EmployeesDepartment.xlsx";
+        //     //string filePath = Path.Combine(_hostEnvironment.ContentRootPath, "Content\\" + fileName);
+        //     string filePath = Path.Combine(Directory.GetCurrentDirectory(), "Content\\" + fileName);
+        //     if (!System.IO.File.Exists(filePath))
+        //         throw new Exception("File not found");
+
+
+        //     var memory = new MemoryStream();
+        //     await using (var stream = new FileStream(filePath, FileMode.Open))
+        //     {
+        //         await stream.CopyToAsync(memory);
+        //     }
+        //     memory.Position = 0;
+        //     return File(memory, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        // }
+        [AllowAnonymous]
+        [HttpGet("downloadFile")]
+        public async Task<FileResult> DownlodFile([FromQuery] string fileName)
         {
-            string fileName = "EmployeesDepartment.xlsx";
+
+            switch (fileName)
+            {
+                case "employees-department":
+                    fileName = "EmployeesDepartment.xlsx";
+                    break;
+                case "form-file":
+                    fileName = "FormFile.xlsx";
+                    break;
+
+            }
+            // string fileName = "EmployeesDepartment.xlsx";
             //string filePath = Path.Combine(_hostEnvironment.ContentRootPath, "Content\\" + fileName);
             string filePath = Path.Combine(Directory.GetCurrentDirectory(), "Content\\" + fileName);
             if (!System.IO.File.Exists(filePath))

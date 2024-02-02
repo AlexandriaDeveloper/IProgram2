@@ -13,9 +13,9 @@
    استخراج تقرير
 
   </button>
-  <button mat-menu-item >
-    <mat-icon>upload</mat-icon>
-    رفع صور الموافقات</button>
+  <button mat-menu-item  (click)="downloadExcel()">
+    <mat-icon>insert_drive_file</mat-icon>
+    تنزيل ملف اكسيل</button>
 </mat-menu>
 <div class="mat-elevation-z8">
   <table  mat-table class="full-width-table" matSort aria-label="Elements">

@@ -15,6 +15,8 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
 
    return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
+      console.log(error);
+
     if (error.status === 401) {
       // auto logout if 401 response returned from api
        //location.reload();
@@ -44,7 +46,7 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
        //location.reload();
       // router.navigateByUrl('/account/login');
       toaster.openErrorToaster(
-        "عفوا خطأ من النظام  ","error"
+       error.message,"error"
       );
     }
 

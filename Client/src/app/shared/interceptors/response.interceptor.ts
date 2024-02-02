@@ -12,6 +12,7 @@ export function ResponseInterceptor(req: HttpRequest<unknown>, next: HttpHandler
  let router = inject(Router);
  console.log('intercept started');
 
+console.log(req);
 
  if(req.url.includes('upload')){
   req = req.clone({
@@ -22,6 +23,7 @@ export function ResponseInterceptor(req: HttpRequest<unknown>, next: HttpHandler
 loadingService.isLoading();
 
    return next(req).pipe(map((event:HttpEvent<any>) => {
+
     if (event instanceof HttpResponse
       && event.status === 200) {
         if(event.body?.isSuccess===false && event.body?.error){
@@ -34,7 +36,7 @@ loadingService.isLoading();
         if(event.body?.isSuccess===false && event.body?.errors){
 
           toaster.openErrorToaster(
-            event.body?.error?.message
+            event.body?.errors[0]?.message
           )
           event = event.clone({ body:  null})
         }

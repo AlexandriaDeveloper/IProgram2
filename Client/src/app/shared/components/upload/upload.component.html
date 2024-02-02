@@ -7,7 +7,7 @@
 
 
 
-        <input id="fileInput" hidden multiple="true" type="file" #fileInput (change)="onFileSelected($event)"  />
+        <input id="fileInput" hidden multiple="true" type="file" #fileInput (change)="onFileSelected($event)"  [multiple]="multiple" />
         <!-- <button mat-raised-button color="primary" (click)="fileInput.click()">ارفع الملف....</button> -->
 
 

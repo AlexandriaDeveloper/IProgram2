@@ -73,4 +73,29 @@ exportFormsInsidDaily(dailyId){
    catchError(()=>of(null)));
   }
 
+  downloadExcelForm(form){
+    return this.http.post(this.apiUrl+'form/download-form',{...form},{ observe: 'response', responseType: 'blob' }).pipe(
+     map((x: HttpResponse<any>) => {
+       let blob = new Blob([x.body], {
+         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url);
+       }))
+  }
+  uploadEmployeesExcelFile (file) {
+    console.log(file);
+
+    const formData  = new FormData();
+
+      formData.append("file", file.file as Blob,file.file.name);
+      formData.append("formId",file.formId);
+
+  return this.http.post(this.apiUrl+'form/upload-excel-form',formData,{
+  responseType: "blob",
+  reportProgress: true,
+  observe: "events"
+  })
+}
+
 }

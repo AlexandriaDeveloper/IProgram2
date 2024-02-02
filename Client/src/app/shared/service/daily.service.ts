@@ -1,7 +1,8 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environment';
 import { IDaily, DailyParam } from '../models/IDaily';
+import { map } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -39,6 +40,17 @@ export class DailyService {
   }
   deleteDaily(id : number){
      return this.http.delete(this.apiUrl+'daily/softdelete/'+id)
+  }
+
+  downloadExcelDaily(dailyId){
+    return this.http.get(this.apiUrl+'daily/download-daily/'+dailyId,{ observe: 'response', responseType: 'blob' }).pipe(
+     map((x: HttpResponse<any>) => {
+       let blob = new Blob([x.body], {
+         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url);
+       }))
   }
 
 }

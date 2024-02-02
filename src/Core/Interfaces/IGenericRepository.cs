@@ -23,6 +23,7 @@ namespace Core.Interfaces
         Task Insert(TValue entity);
         void Update(TValue entity);
         Task Delete(int id);
+        void DeleteRange(IEnumerable<TValue> entities);
         Task InActive(int id);
         Task DeActive(int id);
         IQueryable<TValue> GetQueryable(bool isActive = true);

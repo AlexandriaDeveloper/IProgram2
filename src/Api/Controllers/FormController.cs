@@ -4,10 +4,12 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
 using Application.Helpers;
-using Application.Shared;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Persistence.Helpers;
+
+
 
 namespace Api.Controllers
 {
@@ -97,6 +99,29 @@ namespace Api.Controllers
         {
             var result = await _formService.SoftDelete(id);
             return result;
+        }
+
+        [HttpPost("download-form")]
+
+        public async Task<FileResult> DownloadFile([FromBody] DownloadFormRequest formRequest)
+        {
+            var ms = await _formService.CreateExcelFile(formRequest.FormId, formRequest.FormTitle);
+
+            return File(ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", formRequest.FormTitle + ".xlsx");
+
+
+        }
+
+
+
+        [HttpPost("upload-excel-form")]
+        public async Task<Result> UploadDepartment(UploadEmployeesToFormRequest model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
+            }
+            return await _formService.UploadExcelEmployeesToForm(model);
         }
 
     }

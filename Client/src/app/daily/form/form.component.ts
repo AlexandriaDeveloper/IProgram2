@@ -1,3 +1,4 @@
+
 import { Param } from './../../shared/models/Param';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -30,6 +31,7 @@ export class FormComponent implements OnInit,AfterViewInit {
   dialog =inject(MatDialog)
   displayedColumns = ['action','name','count','total'];
   formService = inject(FormService);
+  dailyService = inject(DailyService);
   dailyId = inject(ActivatedRoute).snapshot.params['id'];
   public param :   FormParam=new FormParam();
   dataSource;
@@ -146,6 +148,11 @@ fb =inject(FormBuilder);
         this.loadData();
       }
 
+  }
+  downloadExcel(){
+    this.dailyService.downloadExcelDaily(this.dailyId).subscribe({
+
+    })
   }
 
 

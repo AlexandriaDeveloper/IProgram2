@@ -30,6 +30,11 @@ namespace Persistence.Repository
             var entity = await GetById(id);
             this._context.Set<T>().Remove(entity);
         }
+        public void DeleteRange(IEnumerable<T> entities)
+        {
+            this._context.Set<T>().RemoveRange(entities);
+        }
+
 
         public async Task InActive(int id)
         {

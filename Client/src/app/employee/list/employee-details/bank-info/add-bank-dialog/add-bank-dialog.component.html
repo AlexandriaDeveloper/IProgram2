@@ -1,0 +1,28 @@
+<mat-card    class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+  <mat-card-header>
+    <mat-card-title >
+        <div class="close" (click)="onNoClick()">
+          <mat-icon >close</mat-icon>
+        </div>
+        <span>تسجيل حساب بنكى</span>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" class="form-dialg"  (ngSubmit)="onSubmit()">
+
+      <app-input-text formControlName="bankName" label="اسم البنك" [matSuffix]="'account_balance'"></app-input-text>
+      <app-input-text formControlName="branchName" label="اسم الفرع" [matSuffix]="'account_tree'" ></app-input-text>
+      <app-input-text formControlName="accountNumber" label="رقم الحساب" [matSuffix]="'credit_card'"></app-input-text>
+
+      <div class="action-buttons">
+          <button   mat-raised-button color="primary"  [disabled]="form.invalid">
+              حفظ
+          </button>
+          <button mat-raised-button color="warn">
+            الغاء
+        </button>
+      </div>
+      </form>
+  </mat-card-content>
+</mat-card>
+

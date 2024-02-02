@@ -33,6 +33,8 @@ namespace Application.Dtos
         public string BankName { get; set; }
         public string BranchName { get; set; }
         public string AccountNumber { get; set; }
+        public int? EmployeeId { get; set; }
+
 
     }
 

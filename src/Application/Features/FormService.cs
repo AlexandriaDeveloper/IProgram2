@@ -1,13 +1,21 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Helpers;
+using Application.Services;
 using Application.Shared;
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using NPOI.Util;
 using Persistence.Helpers;
 using Persistence.Specifications;
 
@@ -17,12 +25,18 @@ namespace Application.Features
     {
 
         private readonly IFormRepository _formRepository;
+        private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IUniteOfWork _unitOfWork;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IEmployeeRepository _employeeRepository;
 
-        public FormService(IFormRepository formRepository, IUniteOfWork unitOfWork)
+        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
         {
+            this._employeeRepository = employeeRepository;
             this._unitOfWork = unitOfWork;
+            this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
+            this._formDetailsRepository = formDetailsRepository;
         }
 
         public async Task<Result<PaginatedResult<FormDto>>> GetForms(int id, FormParam param)
@@ -37,7 +51,7 @@ namespace Application.Features
                 Id = x.Id,
                 DailyId = x.DailyId,
                 Count = x.FormDetails.Count,
-                TotalAmount = x.FormDetails.Sum(x => x.Amount)
+                TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2)
             }).ToList();
             var pagedResult = PaginatedResult<FormDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormDto>>(pagedResult);
@@ -120,6 +134,166 @@ namespace Application.Features
                 return Result.Success("تم الحذف بنجاح");
             return Result.Failure(new Error("500", "Internal Server Error"));
         }
+
+
+        public async Task<MemoryStream> CreateExcelFile(int formId, string title)
+        {
+
+            //Get Form Details By FormId Included Data
+
+            var formDetails = _formDetailsRepository.GetQueryable()
+            .Include(x => x.Employee)
+            .ThenInclude(d => d.Department)
+            .Where(x => x.FormId == formId && x.IsActive)
+            .OrderBy(x => x.OrderNum)
+            .ToList();
+
+            //Convert To DataTable And Add To Excel File
+            DataTable dt = new DataTable();
+            dt.Columns.Add("م", typeof(int));
+            dt.Columns.Add("الرقم القومى", typeof(string));
+            dt.Columns.Add("كود طب", typeof(string));
+            dt.Columns.Add("كود تجارة", typeof(string));
+            dt.Columns.Add("القسم", typeof(string));
+            dt.Columns.Add("الاسم", typeof(string));
+            dt.Columns.Add("المبلغ", typeof(double));
+            int counter = 1;
+            foreach (var item in formDetails)
+            {
+                DataRow dr = dt.NewRow();
+                dr.SetField("م", counter++);
+                dr["الرقم القومى"] = item.Employee.NationalId;
+                dr["كود طب"] = item.Employee.TabCode;
+                dr["كود تجارة"] = item.Employee.TegaraCode;
+                dr["القسم"] = item.Employee.Department == null ? "" : item.Employee.Department.Name;
+                dr["الاسم"] = item.Employee.Name;
+                dr.SetField("المبلغ", (double)item.Amount);
+                dt.Rows.Add(dr);
+            }
+
+
+
+            var npoi = new NpoiServiceProvider();
+            var workbook = npoi.CreateExcelFile("Sheet1", title, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt);
+
+
+            string tempPath = Path.GetTempPath();
+            string filePath = Path.Combine(tempPath, "Form.xlsx");
+            var memory = new MemoryStream();
+
+            FileStream fs;
+            using (var ms = new MemoryStream())
+            {
+                fs = new FileStream(filePath, System.IO.FileMode.Create);
+                workbook.Write(fs);
+            }
+
+            await using (var stream = new FileStream(filePath, FileMode.Open))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+
+            return memory;
+        }
+        public async Task<Result> UploadExcelEmployeesToForm(UploadEmployeesToFormRequest request)
+        {
+
+            if (request.File == null)
+            {
+                return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
+            }
+            UploadFile upload = new UploadFile(request.File);
+            var path = await upload.UploadFileToTempPath();
+            NpoiServiceProvider npoi = new NpoiServiceProvider(path);
+
+            //Check Header Row
+
+            // Read Excel Sheet and convert it to DataTable
+            DataTable dt = npoi.ReadSheeByIndex(0, 1);
+
+            DataTable dt2 = new DataTable();
+            dt2.Columns.Add("م", typeof(int));
+            dt2.Columns.Add("الرقم القومى", typeof(string));
+            dt2.Columns.Add("كود طب", typeof(string));
+            dt2.Columns.Add("كود تجارة", typeof(string));
+            dt2.Columns.Add("القسم", typeof(string));
+            dt2.Columns.Add("الاسم", typeof(string));
+            dt2.Columns.Add("المبلغ", typeof(double));
+            dt2.Columns.Add("كود الموظف", typeof(int));
+            int counter = 1;
+
+
+            foreach (DataRow row in dt.Rows)
+            {
+                Employee empExist = null;
+                if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()))
+                {
+                    empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.NationalId == row.ItemArray[1].ToString());
+                }
+                else if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()))
+                {
+                    var result = int.TryParse(row.ItemArray[2].ToString(), out int id);
+                    if (result)
+                    {
+                        empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.TabCode == id);
+                    }
+                }
+                else if (!string.IsNullOrEmpty(row.ItemArray[3].ToString()))
+                {
+                    var result = int.TryParse(row.ItemArray[3].ToString(), out int id);
+                    if (result)
+                    {
+                        empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.TegaraCode == id);
+                    }
+                }
+                if (empExist == null)
+                {
+                    return Result.Failure(new Error("500", "الملف غير متاح للرفع"));
+                }
+
+
+                DataRow dr = dt2.NewRow();
+                dr.SetField("م", counter++);
+                dr["الرقم القومى"] = empExist.NationalId;
+                dr["كود طب"] = empExist.TabCode;
+                dr["كود تجارة"] = empExist.TegaraCode;
+                dr["القسم"] = empExist.Department == null ? "" : empExist.Department.Name;
+                dr["الاسم"] = empExist.Name;
+                dr.SetField("المبلغ", double.Parse(row.ItemArray[6].ToString()));
+                dr.SetField("كود الموظف", empExist.Id);
+                dt2.Rows.Add(dr);
+
+
+
+            }
+
+            var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
+            _formDetailsRepository.DeleteRange(deleteEntity);
+            await _unitOfWork.SaveChangesAsync();
+
+            foreach (DataRow row in dt2.Rows)
+            {
+
+                var empDetails = new FormDetails();
+                empDetails.OrderNum = int.Parse(row.ItemArray[0].ToString());
+                empDetails.Amount = double.Parse(row.ItemArray[6].ToString());
+                empDetails.EmployeeId = int.Parse(row.ItemArray[7].ToString());
+                empDetails.FormId = request.FormId;
+                await _formDetailsRepository.Insert(empDetails);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            return Result.Success("تم الرفع بنجاح");
+
+        }
+
+
+
+
+
+
+
 
     }
 }

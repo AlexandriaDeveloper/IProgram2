@@ -14,6 +14,9 @@ import { FormService } from '../../../shared/service/form.service';
 import { ToasterService } from '../../../shared/components/toaster/toaster.service';
 import { ReferencesDialogComponent } from './references-dialog/references-dialog.component';
 import { UploadReferencesDialogComponent } from './upload-references-dialog/upload-references-dialog.component';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
+import { UploadExcelFileBottomComponent } from './upload-excel-file-bottom/upload-excel-file-bottom.component';
+
 
 
 @Component({
@@ -23,6 +26,7 @@ import { UploadReferencesDialogComponent } from './upload-references-dialog/uplo
   styleUrl: './form-details.component.scss'
 })
 export class FormDetailsComponent implements OnInit  ,AfterViewInit{
+
   dialog =inject(MatDialog)
   formDetailsService= inject(FormDetailsService);
   formService= inject(FormService);
@@ -30,6 +34,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   id = inject(ActivatedRoute).snapshot.params['formid']
   dailyId = inject(ActivatedRoute).snapshot.params['id']
    toasterService = inject(ToasterService);
+   bottomSheet =inject(MatBottomSheet)
   data :any;
   dataSource;
   filteredData :IEmployee[]=[]
@@ -152,6 +157,27 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
       // this.animal = result;
      });
   }
+
+
+  openUploadExcelBottomSheet() {
+    this.bottomSheet.open(UploadExcelFileBottomComponent, {
+      panelClass: ['bottomSheet'],
+      hasBackdrop:true,
+      data: {
+        formId :this.id
+      //  departmentId:this.param.departmentId
+      }
+
+
+    });
+
+    this.bottomSheet._openedBottomSheetRef.afterDismissed().subscribe(result => {
+      if(result){
+      this.loadData();
+     // this.toaster.openSuccessToaster('تم رفع الملف  بنجاح','check_circle');
+      }
+    })
+    }
   addEmployeeFormDialog(model){
     const dialogRef = this.dialog.open(AddEmployeeDialogComponent,{
       width: '50%',
@@ -219,6 +245,10 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
        this.toasterService.openSuccessToaster('تم نسخ النموذج بنجاح')
       }
     })
+  }
+  downloadExcel(){
+
+    this.formService.downloadExcelForm({formId: this.id,formTitle : this.data.name}).subscribe()
   }
 
 

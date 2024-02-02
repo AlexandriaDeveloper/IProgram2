@@ -40,6 +40,7 @@ export class InputTextComponent implements OnInit, ControlValueAccessor {
   @ViewChild('input', { static: true }) input: any;
    @Input() label: string;
    @Input() type: string = 'text';
+   @Input() color: 'white' |'black' = 'white';
   // @Input() name: string;
   // @Input() placeholder: string;
   // @Input() required: boolean;

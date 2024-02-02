@@ -97,7 +97,7 @@ namespace Application.Features
             //Check Header Row
 
 
-            DataTable dt = npoi.ReadSheetData("Sheet1");
+            DataTable dt = npoi.ReadSheeBySheetName("Sheet1");
             foreach (DataRow row in dt.Rows)
             {
                 Employee empExist = null;

@@ -16,6 +16,8 @@ import { MoveToDailyDialogComponent } from './archived-forms/move-to-daily-dialo
 import { ReferencesDialogComponent } from './form/form-details/references-dialog/references-dialog.component';
 import { UploadReferencesDialogComponent } from './form/form-details/upload-references-dialog/upload-references-dialog.component';
 import { UploadComponent } from '../shared/components/upload/upload.component';
+import { UploadExcelFileBottomComponent } from './form/form-details/upload-excel-file-bottom/upload-excel-file-bottom.component';
+
 
 
 
@@ -31,7 +33,9 @@ import { UploadComponent } from '../shared/components/upload/upload.component';
      FormDetailsComponent,
      ReferencesDialogComponent,
      MoveToDailyDialogComponent,
-     UploadReferencesDialogComponent
+     UploadReferencesDialogComponent,
+     UploadExcelFileBottomComponent
+
 ],
   imports: [
     MatDatepickerModule ,
