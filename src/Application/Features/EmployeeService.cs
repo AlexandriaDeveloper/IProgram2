@@ -163,6 +163,12 @@ namespace Application.Features
             if (!employeeFromDb.NationalId.Equals(employee.NationalId))
                 employeeFromDb.NationalId = employee.NationalId;
 
+            if (!string.IsNullOrEmpty(employee.Email) && employeeFromDb.Email != employee.Email)
+                employeeFromDb.Email = employee.Email;
+
+            if (!employeeFromDb.Section.Equals(employee.Section))
+                employeeFromDb.Section = employee.Section;
+
             _employeeRepository.Update(employeeFromDb);
 
             var result = await _uow.SaveChangesAsync() > 0;

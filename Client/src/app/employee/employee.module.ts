@@ -16,6 +16,7 @@ import { BankInfoComponent } from './list/employee-details/bank-info/bank-info.c
 import { UploadEmployeeReferncesDialogComponent } from './list/employee-details/employee-references/upload-employee-refernces-dialog/upload-employee-refernces-dialog.component';
 import { UploadEmployeeTegaraComponent } from './upload-employee-tegara/upload-employee-tegara.component';
 import { AddBankDialogComponent } from './list/employee-details/bank-info/add-bank-dialog/add-bank-dialog.component';
+import { EditEmployeeDialogComponent } from './list/employee-details/edit-employee-dialog/edit-employee-dialog.component';
 
 
 
@@ -32,7 +33,7 @@ import { AddBankDialogComponent } from './list/employee-details/bank-info/add-ba
     EmployeeReferencesComponent,
     BankInfoComponent,
     UploadEmployeeReferncesDialogComponent,
-    AddBankDialogComponent
+    AddBankDialogComponent,EditEmployeeDialogComponent
   ],
 
   imports: [

@@ -28,6 +28,11 @@ namespace Api.Controllers
         {
             return HandleResult<PaginatedResult<DepartmentDto>>(await _departmentService.getDepartments(departmentParam));
         }
+        [HttpGet("GetAllDepartments")]
+        public async Task<IActionResult> GetAllDepartments()
+        {
+            return HandleResult<List<DepartmentDto>>(await _departmentService.getAllDepartments());
+        }
 
         [HttpGet("{id}")]
         public async Task<Result<DepartmentDto>> GetDepartment(int id)

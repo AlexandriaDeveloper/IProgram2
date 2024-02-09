@@ -12,6 +12,8 @@ namespace Application.Dtos
         public int? TegaraCode { get; set; }
         public int? TabCode { get; set; }
         public string Name { get; set; }
+        [MaxLength(14)]
+        [MinLength(14)]
         public string NationalId { get; set; }
         public string Collage { get; set; }
         [MaxLength(25)]

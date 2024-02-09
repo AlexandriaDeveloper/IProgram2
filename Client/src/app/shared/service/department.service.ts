@@ -25,6 +25,10 @@ export class DepartmentService {
     return this.http.get(this.apiUrl+'department',{params:params})
 
    }
+   getAllDepartments(){
+
+    return this.http.get(this.apiUrl+'department/getAllDepartments')
+   }
 
     addDepartment( department :IDepartment){
       return this.http.post(this.apiUrl+'department',department)

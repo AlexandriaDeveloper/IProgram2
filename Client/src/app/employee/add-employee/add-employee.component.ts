@@ -3,6 +3,8 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { IEmployee } from '../../shared/models/IEmployee';
 import { EmployeeService } from '../../shared/service/employee.service';
 import { ToasterService } from '../../shared/components/toaster/toaster.service';
+import { DepartmentService } from '../../shared/service/department.service';
+
 
 @Component({
   selector: 'app-add-employee',
@@ -14,7 +16,10 @@ import { ToasterService } from '../../shared/components/toaster/toaster.service'
 export class AddEmployeeComponent implements OnInit {
   fb = inject(FormBuilder)
   employeeService = inject(EmployeeService)
+  departmentService =inject(DepartmentService)
+
   toaster = inject(ToasterService)
+
   employee : IEmployee = {
     name: 'محمد على شريف',
     tabCode :null,
@@ -24,10 +29,23 @@ export class AddEmployeeComponent implements OnInit {
     departmentId : null
   };
   form : FormGroup;
-  departments : any[]=[ {id:1,name:'department1'},{id:2,name:'department2'}];
+  departments : any[]=[];
 
   ngOnInit(): void {
+    this.loadDepartrments();
   this.form=this.initForm();
+
+  }
+  loadDepartrments(){
+
+    this.departmentService.getAllDepartments().subscribe({
+      next:(res:any)=>{
+        console.log(res);
+
+        this.departments=res;
+      },
+      error:(err)=> console.log(err)
+    })
   }
 
   initForm (){

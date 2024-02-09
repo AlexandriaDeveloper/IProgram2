@@ -9,6 +9,7 @@ import { environment } from '../../../environment';
 import { UploadEmployeeReferncesDialogComponent } from './employee-references/upload-employee-refernces-dialog/upload-employee-refernces-dialog.component';
 import { ThemePalette } from '@angular/material/core';
 import { AddBankDialogComponent } from './bank-info/add-bank-dialog/add-bank-dialog.component';
+import { EditEmployeeDialogComponent } from './edit-employee-dialog/edit-employee-dialog.component';
 
 
 @Component({
@@ -90,5 +91,20 @@ openUploadDialog(){
       // this.animal = result;
      });
     }
+    openEmployeeEditDialog(){
+      const dialogRef = this._dialog.open(EditEmployeeDialogComponent, {
+        width: '600px',
+        disableClose: true,
+         data:  { employeeId :this.employeeId },
+        panelClass: ['dialog-container'],
+
+
+       });
+
+       dialogRef.afterClosed().subscribe(result => {
+         this.ngOnInit();
+        // this.animal = result;
+       });
+      }
 
 }

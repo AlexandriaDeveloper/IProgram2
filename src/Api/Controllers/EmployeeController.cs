@@ -48,20 +48,15 @@ namespace Api.Controllers
         }
 
         [HttpPut()]
-        public async Task<ActionResult<Result<EmployeeDto>>> PutEmployee(EmployeeDto employee)
+        public async Task<IActionResult> PutEmployee(EmployeeDto employee)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState.FirstOrDefault().Value);
+                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            try
-            {
-                return await _employeeService.UpdateEmployee(employee);
-            }
-            catch (Exception ex)
-            {
-                return Result.Failure<EmployeeDto>(new Error("500", ex.Message));
-            }
+
+            return HandleResult<EmployeeDto>(await _employeeService.UpdateEmployee(employee));
+
 
 
 

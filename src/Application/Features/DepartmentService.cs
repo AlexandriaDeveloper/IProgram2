@@ -223,5 +223,10 @@ namespace Application.Features
             }
             return Result.Success("تم الحذف بنجاح");
         }
+
+        public async Task<Result<List<DepartmentDto>>> getAllDepartments()
+        {
+            return Result.Success(await _departmentRepository.GetQueryable().Where(x => x.IsActive).Select(x => new DepartmentDto { Id = x.Id, Name = x.Name }).ToListAsync());
+        }
     }
 }
