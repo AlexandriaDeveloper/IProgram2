@@ -56,7 +56,6 @@ namespace Api.Controllers
         }
 
         [HttpGet("PrintEmployeeReportDetailsPdf")]
-        [AllowAnonymous]
         public async Task<ActionResult> PrintEmployeeReportPdf([FromQuery] EmployeeReportRequest request)
         {
 

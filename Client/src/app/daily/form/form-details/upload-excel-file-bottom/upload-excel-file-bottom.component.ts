@@ -26,7 +26,7 @@ export class UploadExcelFileBottomComponent implements OnInit {
    constructor(private _bottomSheetRef: MatBottomSheetRef<UploadEmployeesBottomSheetComponent>,@Inject(MAT_BOTTOM_SHEET_DATA) public data) { }
   ngOnInit(): void {
    // throw new Error('Method not implemented.');
-   console.log(this.data);
+   // console.log(this.data);
 
   }
    onFileSelected(ev){
@@ -34,28 +34,28 @@ export class UploadExcelFileBottomComponent implements OnInit {
 
    }
    onDrop(ev){
-     console.log(ev);
+     // console.log(ev);
 
    }
    onUpload(ev :Event){
      this.onProgress=true;
-     console.log(this.fileInput.nativeElement.files);
+     // console.log(this.fileInput.nativeElement.files);
 
      this.formService.uploadEmployeesExcelFile({formId : this.data.formId ,file :  this.fileInput.nativeElement.files[0]}).subscribe({
        next:(event)=>{
-console.log(event);
+// console.log(event);
 
 
          switch (event?.type) {
            case HttpEventType.Sent:
-             console.log('Request has been made!');
+             // console.log('Request has been made!');
              break;
            case HttpEventType.UploadProgress:
              this.progress.update(val =>  Math.round(event.loaded / event.total * 100));
-             console.log(`Uploaded! ${this.progress()}%`);
+             // console.log(`Uploaded! ${this.progress()}%`);
              break;
            case HttpEventType.Response:
-             console.log('User successfully created!', event.body);
+             // console.log('User successfully created!', event.body);
              setTimeout(() => {
                this.progress.update(val => val*0);
                this.onProgress=false;
@@ -67,7 +67,7 @@ console.log(event);
 
        },
        error:(err)=>{
-         console.log(err);
+         // console.log(err);
          this.onProgress=false;
          this.toaster.openErrorToaster('لم يتم رفع الملف بنجاح','error');
        //  this._bottomSheetRef.dismiss(false);

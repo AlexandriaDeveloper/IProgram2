@@ -8,7 +8,7 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Helpers;
 using Application.Services;
-using Application.Shared;
+
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;

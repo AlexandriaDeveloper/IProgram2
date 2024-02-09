@@ -27,29 +27,38 @@ namespace Api.Controllers
 
         [HttpPost()]
 
-        public async Task<Result<FormDto>> AddForm([FromBody] FormDto form)
+        public async Task<IActionResult> AddForm([FromBody] FormDto form)
         {
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<FormDto>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
             var result = await _formService.AddForm(form);
-            return result;
+            return HandleResult(result);
         }
         [HttpPut("{id}")]
-        public async Task<Result> UpdateForm(int id, [FromBody] FormDto form)
+        public async Task<IActionResult> UpdateForm(int id, [FromBody] FormDto form)
         {
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<FormDto>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
             var result = await _formService.UpdateForm(id, form);
-            return result;
+            return HandleResult(result);
         }
         [HttpPut("MoveFormDailyArchives")]
-        public async Task<Result> MoveFormDailyToArchives([FromBody] MoveFormRequest request)
+        public async Task<IActionResult
+        > MoveFormDailyToArchives([FromBody] MoveFormRequest request)
         {
-            return await _formService.MoveFormDailyToArchive(request);
+            return HandleResult(await _formService.MoveFormDailyToArchive(request));// await _formService.MoveFormDailyToArchive(request);
         }
 
         [HttpGet("{dailyId}")]
 
-        public async Task<Result<PaginatedResult<FormDto>>> GetForms(int dailyId, [FromQuery] FormParam param)
+        public async Task<IActionResult> GetForms(int dailyId, [FromQuery] FormParam param)
         {
             var result = await _formService.GetForms(dailyId, param);
-            return result;
+            return HandleResult<PaginatedResult<FormDto>>(result);// result;
         }
         // [HttpGet("getArchivedForms")]
 
@@ -62,26 +71,31 @@ namespace Api.Controllers
 
         [HttpGet("formDetails/{id}")]
 
-        public async Task<Result<FormDto>> GetFormByIdWithDetails(int id)
+        public async Task<IActionResult> GetFormByIdWithDetails(int id)
         {
             var result = await _formDetailsService.GetFormDetails(id);
-            return result;
+            return HandleResult<FormDto>(result);// result;
         }
 
 
         [HttpGet("CopyFormToArchive/{id}")]
 
-        public async Task<Result> CopyFormToArchive(int id)
+        public async Task<IActionResult> CopyFormToArchive(int id)
         {
             var result = await _formDetailsService.CopyFormToArchive(id);
-            return result;
+            return HandleResult(result);// result;
         }
 
 
 
         [HttpPut("UpdateDescription/{id}")]
-        public async Task<Result> UpdateDescription(int id, [FromBody] UpdateFormDescriptonRequest request)
+        public async Task<IActionResult> UpdateDescription(int id, [FromBody] UpdateFormDescriptonRequest request)
         {
+
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<UpdateFormDescriptonRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
 
             string decodedString = HttpUtility.HtmlDecode(request.Description);
             // Clean HTML
@@ -92,13 +106,13 @@ namespace Api.Controllers
             request.Description = decodedString;
 
             var result = await _formService.UpdateDescription(id, request);
-            return result;
+            return HandleResult(result);
         }
         [HttpDelete("{id}")]
-        public async Task<Result> SoftDelete(int id)
+        public async Task<IActionResult> SoftDelete(int id)
         {
             var result = await _formService.SoftDelete(id);
-            return result;
+            return HandleResult(result);// result;
         }
 
         [HttpPost("download-form")]
@@ -115,13 +129,15 @@ namespace Api.Controllers
 
 
         [HttpPost("upload-excel-form")]
-        public async Task<Result> UploadDepartment(UploadEmployeesToFormRequest model)
+        public async Task<IActionResult> UploadDepartment(UploadEmployeesToFormRequest model)
         {
-            if (!ModelState.IsValid)
-            {
-                return Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
-            }
-            return await _formService.UploadExcelEmployeesToForm(model);
+            Result result = null;
+            // if (!ModelState.IsValid)
+            // {
+            //     result = Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
+            // }
+            result = await _formService.UploadExcelEmployeesToForm(model);
+            return HandleResult(result);
         }
 
     }

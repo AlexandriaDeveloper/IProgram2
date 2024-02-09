@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+
 using Application.Dtos;
 using Application.Features;
 using Application.Helpers;
@@ -20,70 +17,52 @@ namespace Api.Controllers
         }
 
         [HttpDelete("{id}")]
-        public async Task<Result> DeleteEmployeeBank(int id)
+        public async Task<IActionResult> DeleteEmployeeBank(int id)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure(new Error("400", "Bad request"));
+                return HandleResult(Result.ValidationErrors<EmployeeBankDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            try
-            {
-                return await this._employeeBankService.DeleteEmployeeBank(id);
-            }
-            catch (Exception ex)
-            {
-                return Result.Failure(new Error("400", ex.Message));
-            }
+
+            return HandleResult(await this._employeeBankService.DeleteEmployeeBank(id));
+
+
         }
         [HttpPost]
-        public async Task<Result> AddEmployeeBank(EmployeeBankDto employeeBank)
+        public async Task<IActionResult> AddEmployeeBank(EmployeeBankDto employeeBank)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure(new Error("400", "Bad request"));
+                return HandleResult(Result.ValidationErrors<EmployeeBankDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            try
-            {
-                return await this._employeeBankService.AddEmployeeBank(employeeBank);
-            }
-            catch (Exception ex)
-            {
-                return Result.Failure(new Error("400", ex.Message));
-            }
+
+
+            return HandleResult(await this._employeeBankService.AddEmployeeBank(employeeBank));
+
         }
 
         [HttpGet("{id}")]
-        public async Task<Result> GetEmployeeBankById(int id)
+        public async Task<IActionResult> GetEmployeeBankById(int id)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure(new Error("400", "Bad request"));
+                return HandleResult(Result.ValidationErrors<EmployeeBankDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            try
-            {
-                return await this._employeeBankService.GetByEmployeeId(id);
-            }
-            catch (Exception ex)
-            {
-                return Result.Failure(new Error("400", ex.Message));
-            }
+
+            return HandleResult(await this._employeeBankService.GetByEmployeeId(id));
+
         }
 
         [HttpGet("ByEmployeeId/{id}")]
-        public async Task<Result> GetEmployeeBankByEmployeeId(int id)
+        public async Task<IActionResult> GetEmployeeBankByEmployeeId(int id)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure(new Error("400", "Bad request"));
+                return HandleResult(Result.ValidationErrors<EmployeeBankDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            try
-            {
-                return await this._employeeBankService.GetByEmployeeId(id);
-            }
-            catch (Exception ex)
-            {
-                return Result.Failure(new Error("400", ex.Message));
-            }
+
+            return HandleResult(await this._employeeBankService.GetByEmployeeId(id));
+
         }
 
 

@@ -2,18 +2,19 @@ import { Component, ElementRef, Inject, ViewChild, inject, signal } from '@angul
 import { MAT_BOTTOM_SHEET_DATA, MatBottomSheetRef } from '@angular/material/bottom-sheet';
 import { DepartmentService } from '../../../../shared/service/department.service';
 import { HttpEventType } from '@angular/common/http';
+import { ToasterService } from '../../../../shared/components/toaster/toaster.service';
+import { map } from 'rxjs';
 
 @Component({
   selector: 'app-upload-employees-bottom-sheet',
   standalone: false,
-
-
   templateUrl: './upload-employees-bottom-sheet.component.html',
   styleUrl: './upload-employees-bottom-sheet.component.scss'
 })
 export class UploadEmployeesBottomSheetComponent {
   @ViewChild('fileInput') fileInput : ElementRef
  departmentService = inject(DepartmentService)
+ toaster = inject(ToasterService)
   fileName : string;
 
   progress = signal(0);
@@ -25,37 +26,40 @@ export class UploadEmployeesBottomSheetComponent {
 
   }
   onDrop(ev){
-    console.log(ev);
+    // console.log(ev);
 
   }
   onUpload(ev :Event){
     this.onProgress=true;
-    this.departmentService.uploadEmployeesDepartmentFile({departmentId : this.data.departmentId ,file :  this.fileInput.nativeElement.files[0]}).subscribe({
+    this.departmentService.uploadEmployeesDepartmentFile({departmentId : this.data.departmentId ,file :  this.fileInput.nativeElement.files[0]})
+    .pipe(map(event=>{
+
+      switch (event?.type) {
+        case HttpEventType.Sent:
+          // console.log('Request has been made!');
+          break;
+        case HttpEventType.UploadProgress:
+          this.progress.update(val =>  Math.round(event.loaded / event.total * 100));
+          // console.log(`Uploaded! ${this.progress()}%`);
+          break;
+        case HttpEventType.Response:
+          // console.log('User successfully created!', event.body);
+          setTimeout(() => {
+            this.progress.update(val => val*0);
+            this.onProgress=false;
+          }, 1500);
+          this._bottomSheetRef.dismiss(true);
+          break;
+        }
+        return event;
+    }))
+    .subscribe({
       next:(event)=>{
-
-        switch (event?.type) {
-          case HttpEventType.Sent:
-            console.log('Request has been made!');
-            break;
-          case HttpEventType.UploadProgress:
-            this.progress.update(val =>  Math.round(event.loaded / event.total * 100));
-            console.log(`Uploaded! ${this.progress}%`);
-            break;
-          case HttpEventType.Response:
-            console.log('User successfully created!', event.body);
-            setTimeout(() => {
-              this.progress.update(val => val*0);
-              this.onProgress=false;
-            }, 1500);
-            this._bottomSheetRef.dismiss(true);
-            break;
-
-          }
+         // console.log(  event)
 
       },
-      error:(err)=>{
-        console.log(err);
-
+      error:(err :any)=>{
+        this.onProgress=false;
       },
     })
 

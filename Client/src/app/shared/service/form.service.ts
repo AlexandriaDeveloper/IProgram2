@@ -14,7 +14,7 @@ export class FormService {
   http =inject(HttpClient);
   constructor() { }
   GetForms(id,param : FormParam){
-    console.log(param);
+    // console.log(param);
 
     let params = new HttpParams();
     param.pageSize!==null? params= params.append('pageSize',param.pageSize):params = params.append('pageSize',30);
@@ -84,7 +84,7 @@ exportFormsInsidDaily(dailyId){
        }))
   }
   uploadEmployeesExcelFile (file) {
-    console.log(file);
+    // console.log(file);
 
     const formData  = new FormData();
 

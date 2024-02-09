@@ -3,7 +3,6 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
 using Application.Helpers;
-using Application.Shared;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Persistence.Helpers;
@@ -20,34 +19,29 @@ namespace Api.Controllers
         }
         [HttpGet("GetEmployees")]
 
-        public async Task<Result<PaginatedResult<EmployeeDto>>> GetEmployees([FromQuery] EmployeeParam employeeParam)
+        public async Task<IActionResult> GetEmployees([FromQuery] EmployeeParam employeeParam)
         {
-            return await _employeeService.getEmployees(employeeParam);
+            return HandleResult(await _employeeService.getEmployees(employeeParam));
 
         }
         [HttpGet("GetEmployee")]
 
-        public async Task<Result> GetEmployeeBySpec([FromQuery] EmployeeParam employeeParam)
+        public async Task<IActionResult> GetEmployeeBySpec([FromQuery] EmployeeParam employeeParam)
         {
-            return await _employeeService.getEmployee(employeeParam); ;
+            return HandleResult<EmployeeDto>(await _employeeService.getEmployee(employeeParam));
 
         }
 
         [HttpPost("Add")]
-        public async Task<ActionResult<Result<EmployeeDto>>> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
+        public async Task<IActionResult> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState.FirstOrDefault().Value);
+                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            try
-            {
-                return await _employeeService.AddEmployee(employee, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                return Result.Failure<EmployeeDto>(new Error("500", ex.Message));
-            }
+
+            return HandleResult<EmployeeDto>(await _employeeService.AddEmployee(employee, cancellationToken));
+
 
 
 
@@ -78,24 +72,22 @@ namespace Api.Controllers
         [HttpPost("Upload")]
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
 
-        public async Task<ActionResult<Result>> UploadEmployees(EmployeeFileUploadRequest model)
+        public async Task<IActionResult> UploadEmployees(EmployeeFileUploadRequest model)
         {
 
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState.FirstOrDefault().Value);
+                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
             try
             {
-                // foreach (var file in model.Files)
-                // {
-                await _employeeService.UploadTabFile(model.File);
-                // }
-                return Result.Success("تم الرفع بنجاح");
+                var result = await _employeeService.UploadTabFile(model.File);
+
+                return HandleResult(result);
             }
             catch (Exception ex)
             {
-                return Result.Failure<EmployeeDto>(new Error("500", ex.Message));
+                return HandleResult(Result.Failure<EmployeeDto>(new Error("500", ex.Message)));
             }
 
         }
@@ -103,44 +95,32 @@ namespace Api.Controllers
         [HttpPost("UploadTegaraFile")]
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
 
-        public async Task<ActionResult<Result>> UploadTegaraFile(EmployeeFileUploadRequest model)
+        public async Task<IActionResult> UploadTegaraFile(EmployeeFileUploadRequest model)
         {
 
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState.FirstOrDefault().Value);
+                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
             try
             {
-                // foreach (var file in model.Files)
-                // {
-                await _employeeService.UploadTegaraFile(model);
-                // }
+                var result = await _employeeService.UploadTegaraFile(model);
 
-                return Result.Success("تم الرفع بنجاح");
+                return HandleResult(result);
             }
             catch (Exception ex)
             {
-                return Result.Failure<EmployeeDto>(new Error("500", ex.Message));
+                return HandleResult(Result.Failure<EmployeeDto>(new Error("500", ex.Message)));
             }
 
         }
 
 
-        [HttpGet("Test")]
-        [AllowAnonymous]
-        public async Task<Result<string>> ConvetNumToStrin(double num)
-        {
-
-            return await _employeeService.ConvertNumber(num);
-
-        }
-        [AllowAnonymous]
 
         [HttpPost("EmployeeReport")]
-        public async Task<Result<EmployeeReportDto>> EmployeeReport([FromBody] EmployeeReportRequest request)
+        public async Task<IActionResult> EmployeeReport([FromBody] EmployeeReportRequest request)
         {
-            return await _employeeService.EmployeeReport(request);
+            return HandleResult<EmployeeReportDto>(await _employeeService.EmployeeReport(request));
             // return null;
         }
 

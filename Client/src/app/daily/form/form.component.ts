@@ -75,7 +75,7 @@ fb =inject(FormBuilder);
 
   }
   loadData(){
-    console.log(this.dailyId);
+    // console.log(this.dailyId);
 
     this.formService.GetForms(this.dailyId,this.param).subscribe({
       next:(x:any)=>{
@@ -122,7 +122,7 @@ fb =inject(FormBuilder);
   exportPdf(){
     this.formService.exportFormsInsidDaily(this.dailyId).subscribe({
       next:(x:any)=>{
-        console.log(x);
+        // console.log(x);
       }
     })
   }

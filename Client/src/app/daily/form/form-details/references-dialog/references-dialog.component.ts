@@ -26,7 +26,7 @@ export class ReferencesDialogComponent {
 
 
   ngOnInit(): void {
-    console.log(this.data);
+    // console.log(this.data);
     if(this.images==null)
     {
       this.loadRefernces();
@@ -37,7 +37,7 @@ export class ReferencesDialogComponent {
   loadRefernces(){
     this.formReferencesService.getFormReferences(this.data.formId).subscribe({
       next:(res:any)=>{
-        console.log(res);
+        // console.log(res);
 
           this.images = res.map(x=>new ImageItem({ src: x.referencePath, thumb: x.referencePath ,args:{id:x.id}}));
       //this.galleryRef.load(this.images);
@@ -53,7 +53,7 @@ export class ReferencesDialogComponent {
 if(confirm('هل تريد حذف هذا المستند؟')){
   this.formReferencesService.deleteFormReference(imageItem?.args?.id).subscribe({
     next:(res)=>{
-      console.log(res);
+      // console.log(res);
       this.loadRefernces();
     }
   })

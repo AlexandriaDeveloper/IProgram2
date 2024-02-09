@@ -20,6 +20,7 @@ public static class IdentityExtension
                 .AllowAnyHeader()
                 .AllowCredentials()
                 .WithExposedHeaders("WWW-Authenticate")
+                .WithExposedHeaders("Access-Control-Allow-Origin")
                 .WithOrigins("http://localhost:4200");
             });
         });

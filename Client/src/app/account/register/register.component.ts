@@ -39,7 +39,7 @@ export class RegisterComponent implements OnInit {
       next:(res:any)=>{
         this.roles=res;
       },
-      error:(err)=>console.log(err)
+      error:(err)=> console.log(err)
     });
   }
 
@@ -60,9 +60,9 @@ initForm(){
 
     this.auth.signup(this.form.value).subscribe({
       next:(res:any)=>{
-        console.log(res)
+        // console.log(res)
       },
-      error:(err)=>console.log(err)
+      error:(err)=> console.log(err)
     })
 
   }

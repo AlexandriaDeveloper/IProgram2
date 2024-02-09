@@ -8,9 +8,9 @@ export class LoadingService {
   constructor() { }
 
   isLoading(){
-    console.log('loading service');
+    // console.log('loading service');
   }
   loaded(){
-    console.log('loaded service');
+    // console.log('loaded service');
   }
 }

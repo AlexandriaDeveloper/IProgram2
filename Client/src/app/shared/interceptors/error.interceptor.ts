@@ -9,13 +9,12 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
   let  toaster = inject(ToasterService);
   let loadingService =inject(LoadingService);
  let router = inject(Router);
- console.log('intercept started');
-
-
-
+ // console.log('intercept started');
    return next(req).pipe(
-    catchError((error: HttpErrorResponse) => {
-      console.log(error);
+    catchError((error: any) => {
+      toaster.openErrorToaster(
+       error.detail,"error"
+      )
 
     if (error.status === 401) {
       // auto logout if 401 response returned from api
@@ -24,6 +23,7 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       toaster.openErrorToaster(
         "عفوا يجب عليك دخول الحساب اولا ","error"
       );
+      router.navigateByUrl('/account/login');
     }
     if (error.status === 403) {
       // auto logout if 401 response returned from api
@@ -32,6 +32,7 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       toaster.openErrorToaster(
         "عفوا ليس لديك صلاحيه ","error"
       );
+      router.navigateByUrl('/');
     }
     if (error.status === 404) {
       // auto logout if 401 response returned from api
@@ -45,13 +46,16 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       // auto logout if 401 response returned from api
        //location.reload();
       // router.navigateByUrl('/account/login');
+      // console.log(error);
+
       toaster.openErrorToaster(
-       error.message,"error"
+      error.error.detail,"error"
       );
     }
 
    //router.navigateByUrl('/account/login');
-     return throwError(() => error);
+     return throwError(() =>  console.log(error)
+     ) ;
 
    }));
 

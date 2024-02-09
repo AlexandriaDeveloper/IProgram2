@@ -3,7 +3,7 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
 using Application.Helpers;
-using Application.Shared;
+
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -52,15 +52,12 @@ namespace Api.Controllers
         }
         [AllowAnonymous]
         [HttpPost("login")]
-        public async Task<ActionResult<Result<UserDto>>> Login(LoginDto loginDto)
+        public async Task<IActionResult> Login(LoginDto loginDto)
         {
 
             var user = await _accountService.Login(loginDto.Username, loginDto.Password);
-            if (user == null)
-            {
-                return Unauthorized();
-            }
-            return user;
+
+            return HandleResult(user); // return user;
 
         }
 

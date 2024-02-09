@@ -12,7 +12,7 @@ export class FormArchivedService {
   apiUrl=environment.apiUrl;
   constructor() { }
   GetArchivedForms(param : FormArchiveParam){
-    console.log(param);
+    // console.log(param);
 
     let params = new HttpParams();
     param.pageSize!==null? params= params.append('pageSize',param.pageSize):params = params.append('pageSize',30);

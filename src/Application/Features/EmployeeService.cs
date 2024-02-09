@@ -3,8 +3,6 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Helpers;
 using Application.Services;
-using Application.Shared;
-using Application.Shared.ErrorResult;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Hosting;
@@ -67,7 +65,7 @@ namespace Application.Features
             return Result.Success<string>(result + " فقط  لا غير ");
         }
 
-        public async Task<Result> getEmployee(EmployeeParam param)
+        public async Task<Result<EmployeeDto>> getEmployee(EmployeeParam param)
         {
             var spec = new EmployeeSpecification(param);
             spec.PaginationEnabled = false;
@@ -75,7 +73,7 @@ namespace Application.Features
             var employee = await _employeeRepository.GetBySpec(spec);
             if (employee == null)
             {
-                return Result.Failure(new Error("404", "عفوا الموظف غير موجود"));
+                return Result.Failure<EmployeeDto>(new Error("404", "عفوا الموظف غير موجود"));
             }
             var employeeToReturn = new EmployeeDto
             {
@@ -110,7 +108,7 @@ namespace Application.Features
                 employeeToReturn.BankInfo = null;
             }
 
-            return Result.Success(employeeToReturn);
+            return Result.Success<EmployeeDto>(employeeToReturn);
         }
         public async Task<Result<EmployeeDto>> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
         {
@@ -251,15 +249,15 @@ namespace Application.Features
             NpoiServiceProvider npoi = new NpoiServiceProvider(path);
 
             //Check Header Row
-            var header = npoi.GetHeaders("Sheet1");
-            // if (!CheckHeaderRow(header))
-            // {
-            //     return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
-            // }
-            DataTable dt = npoi.ReadSheeBySheetName("Sheet1");
+            var header = npoi.GetHeadersByIndex(0);
+            if (!CheckTegaraHeaderRow(header))
+            {
+                return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
+            }
+            DataTable dt = npoi.ReadSheeByIndex(0);
             foreach (DataRow row in dt.Rows)
             {
-
+                bool hasUpdat = false;
                 var empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[3].ToString());
 
                 if (empExist == null)
@@ -268,17 +266,20 @@ namespace Application.Features
                 }
                 try
                 {
-                    if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()) && !row.ItemArray[1].ToString().Equals(empExist.TegaraCode))
+                    if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()) && !row.ItemArray[1].ToString().Equals(empExist.TegaraCode.ToString()))
                     {
                         empExist.TegaraCode = int.Parse(row.ItemArray[1].ToString());
+                        hasUpdat = true;
                     }
                     if (!string.IsNullOrEmpty(row.ItemArray[4].ToString()) && !row.ItemArray[4].ToString().Equals(empExist.Section))
                     {
                         empExist.Section = row.ItemArray[4].ToString();
+                        hasUpdat = true;
                     }
                     if (!string.IsNullOrEmpty(row.ItemArray[6].ToString()) && row.ItemArray[6].ToString() != empExist.Email)
                     {
                         empExist.Email = row.ItemArray[6].ToString();
+                        hasUpdat = true;
                     }
                     if (empExist.EmployeeBank == null && !string.IsNullOrEmpty(row.ItemArray[9].ToString()))
                     {
@@ -286,21 +287,26 @@ namespace Application.Features
                         empExist.EmployeeBank.CreatedAt = DateTime.Now;
                         empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
                         empExist.EmployeeBank.IsActive = true;
+                        hasUpdat = true;
                     }
 
                     if (!string.IsNullOrEmpty(row.ItemArray[9].ToString()) && row.ItemArray[9].ToString() != empExist.EmployeeBank.BankName)
                     {
                         empExist.EmployeeBank.BankName = row.ItemArray[9].ToString();
+                        hasUpdat = true;
                     }
                     if (!string.IsNullOrEmpty(row.ItemArray[10].ToString()) && row.ItemArray[10].ToString() != empExist.EmployeeBank.BranchName)
                     {
                         empExist.EmployeeBank.BranchName = row.ItemArray[10].ToString();
+                        hasUpdat = true;
                     }
                     if (!string.IsNullOrEmpty(row.ItemArray[11].ToString()) && row.ItemArray[11].ToString() != empExist.EmployeeBank.AccountNumber)
                     {
                         empExist.EmployeeBank.AccountNumber = row.ItemArray[11].ToString();
+                        hasUpdat = true;
                     }
-                    _employeeRepository.Update(empExist);
+                    if (hasUpdat)
+                        _employeeRepository.Update(empExist);
                 }
                 catch (Exception ex)
                 {
@@ -336,12 +342,12 @@ namespace Application.Features
             NpoiServiceProvider npoi = new NpoiServiceProvider(path);
 
             //Check Header Row
-            var header = npoi.GetHeaders("Sheet1");
-            if (!CheckHeaderRow(header))
+            var header = npoi.GetHeadersByIndex(0);
+            if (!CheckTabHeaderRow(header))
             {
                 return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
-            DataTable dt = npoi.ReadSheeBySheetName("Sheet1");
+            DataTable dt = npoi.ReadSheeByIndex(0);
             foreach (DataRow row in dt.Rows)
             {
 
@@ -362,13 +368,35 @@ namespace Application.Features
                 }
                 else
                 {
-                    empExist.Collage = row.ItemArray[2].ToString();
-                    empExist.DepartmentId = null;
-                    empExist.IsActive = true;
-                    empExist.Name = row.ItemArray[5].ToString();
-                    empExist.NationalId = row.ItemArray[0].ToString();
-                    empExist.TabCode = Convert.ToInt32(row.ItemArray[4]);
-                    _employeeRepository.Update(empExist);
+                    bool hasUpdate = false;
+                    if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()) && row.ItemArray[2].ToString() != empExist.Collage)
+                    {
+                        empExist.Collage = row.ItemArray[2].ToString();
+                        hasUpdate = true;
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[5].ToString()) && row.ItemArray[5].ToString() != empExist.Name)
+                    {
+                        empExist.Name = row.ItemArray[5].ToString();
+                        hasUpdate = true;
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[3].ToString()) && row.ItemArray[3].ToString() != empExist.Section)
+                    {
+                        empExist.Section = row.ItemArray[3].ToString();
+                        hasUpdate = true;
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[0].ToString()) && row.ItemArray[0].ToString() != empExist.NationalId)
+                    {
+                        empExist.NationalId = row.ItemArray[0].ToString();
+                        hasUpdate = true;
+                    }
+                    if (!string.IsNullOrEmpty(row.ItemArray[4].ToString()) && row.ItemArray[4].ToString() != empExist.TabCode.ToString())
+                    {
+                        empExist.TabCode = Convert.ToInt32(row.ItemArray[4]);
+                        hasUpdate = true;
+                    }
+
+                    if (hasUpdate)
+                        _employeeRepository.Update(empExist);
                 }
             }
             await _uow.SaveChangesAsync();
@@ -378,13 +406,25 @@ namespace Application.Features
 
 
 
-        private bool CheckHeaderRow(List<string> header)
+        private bool CheckTabHeaderRow(List<string> header)
         {
-            if (header.Contains("الرقم القومى") && header.Contains("القطاع") && header.Contains("الإدارة") && header.Contains("رقم الموظف بجهته الأصلية") && header.Contains("الاسم"))
+            var fileAccepted = false;
+            if (header[0] == "الرقم القومى" && header[4] == "رقم الموظف بجهته الأصلية" && header[2] == "القطاع" && header[5] == "الاسم" && header[3] == "الإدارة")
             {
-                return true;
+                fileAccepted = true;
             }
-            return false;
+            return fileAccepted;
+        }
+
+        private bool CheckTegaraHeaderRow(List<string> header)
+        {
+
+            var fileAccepted = false;
+            if (header[1] == "كود تجارة" && header[0] == "رقم الموظف بجهته الأصلية" && header[2] == "الاسم" && header[4] == "الإدارة" && header[6] == "الايميل" && header[9] == "البنك" && header[10] == "الفرع" && header[11] == "رقم الحساب")
+            {
+                fileAccepted = true;
+            }
+            return fileAccepted;
         }
 
 

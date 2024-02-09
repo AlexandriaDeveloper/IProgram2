@@ -42,7 +42,7 @@ export class AddEmployeeDialogComponent implements OnInit {
 
     }
   ngOnInit(): void {
-    console.log(this.data?.employeeDetails?.amount);
+    // console.log(this.data?.employeeDetails?.amount);
 
     if(this.data.employeeDetails !== null){
    // this.employeeDetails=new AddEmployeeDetails();
@@ -98,7 +98,7 @@ export class AddEmployeeDialogComponent implements OnInit {
       this.form=  this.initEmployeeForm();
 
       },
-      error:(err)=>console.log(err),
+      error:(err)=> console.log(err),
 
 
     });
@@ -112,7 +112,7 @@ export class AddEmployeeDialogComponent implements OnInit {
     })
   }
   onSubmit(){
-console.log(this.form.value);
+// console.log(this.form.value);
 if(this.form.value.id ===0){
   this.formDetailsService.addEmployeeToFormDetails(this.form.value).subscribe(x =>{
     this.dialogRef.close();

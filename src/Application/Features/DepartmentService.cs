@@ -6,9 +6,10 @@ using System.Threading.Tasks;
 using Application.Dtos;
 using Application.Helpers;
 using Application.Services;
-using Application.Shared;
+
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.EntityFrameworkCore;
 using Persistence.Helpers;
 using Persistence.Specifications;
 
@@ -85,10 +86,9 @@ namespace Application.Features
         }
         public async Task<Result> UploadEmployeesDepartment(EmployeesDepartmentFileUploadRequest request)
         {
-            await Task.Delay(5000);
             if (request.File == null)
             {
-                return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
+                return Result.Failure<DepartmentDto>(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
             }
             UploadFile upload = new UploadFile(request.File);
             var path = await upload.UploadFileToTempPath();
@@ -101,9 +101,11 @@ namespace Application.Features
             foreach (DataRow row in dt.Rows)
             {
                 Employee empExist = null;
+                var errorCode = "لا يوجد كود";
                 if (!string.IsNullOrEmpty(row.ItemArray[0].ToString()))
                 {
                     empExist = await _employeeRepository.GetEmployeeByNationalId(row.ItemArray[0].ToString());
+                    errorCode = row.ItemArray[0].ToString();
                 }
                 else if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()))
                 {
@@ -111,7 +113,9 @@ namespace Application.Features
                     if (result)
                     {
                         empExist = _employeeRepository.GetQueryable().FirstOrDefault(x => x.TabCode == id);
+
                     }
+                    errorCode = row.ItemArray[1].ToString();
                 }
                 else if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()))
                 {
@@ -120,10 +124,12 @@ namespace Application.Features
                     {
                         empExist = _employeeRepository.GetQueryable().FirstOrDefault(x => x.TegaraCode == id);
                     }
+                    errorCode = row.ItemArray[2].ToString();
                 }
-                else if (empExist == null)
+                if (empExist == null)
                 {
-                    return Result.Failure(new Error("500", "الملف غير متاح للرفع"));
+
+                    return Result.Failure<DepartmentDto>(new Error("500", " خطأ بالكود رقم " + errorCode + " لا يوجد موظف بهذا الكود"));
                 }
 
                 empExist.DepartmentId = request.DepartmentId;
@@ -156,7 +162,7 @@ namespace Application.Features
                 var department = await _departmentRepository.GetById(id.Value);
                 if (department == null)
                 {
-                    return Result.Failure(new Error("404", "Not Found"));
+                    return Result.Failure<DepartmentDto>(new Error("404", "Not Found"));
                 }
             }
             foreach (var employee in employees)
@@ -164,7 +170,7 @@ namespace Application.Features
                 var emp = await _employeeRepository.GetById(employee);
                 if (emp == null)
                 {
-                    return Result.Failure(new Error("404", "Not Found"));
+                    return Result.Failure<DepartmentDto>(new Error("404", "Not Found"));
                 }
                 emp.DepartmentId = id;
                 _employeeRepository.Update(emp);
@@ -173,23 +179,47 @@ namespace Application.Features
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (!result)
             {
-                return Result.Failure(new Error("500", "Internal Server Error"));
+                return Result.Failure<DepartmentDto>(new Error("500", "Internal Server Error"));
             }
             return Result.Success("تم الحفظ بنجاح");
         }
+
+        public async Task<Result> UpdateEmployeesByDepartment(int departmentId)
+        {
+
+            var department = await _departmentRepository.GetQueryable().Include(x => x.Employees).FirstOrDefaultAsync(x => x.Id == departmentId);
+            if (department == null)
+            {
+                return Result.Failure<DepartmentDto>(new Error("404", "Not Found"));
+            }
+
+            foreach (var employee in department.Employees)
+            {
+                employee.DepartmentId = null;
+                _employeeRepository.Update(employee);
+            }
+
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure<DepartmentDto>(new Error("500", "Internal Server Error"));
+            }
+            return Result.Success("تم الحفظ بنجاح");
+        }
+
 
         public async Task<Result> DeleteDepartment(int id)
         {
             var department = await _departmentRepository.GetById(id);
             if (department == null)
             {
-                return Result.Failure(new Error("404", "Not Found"));
+                return Result.Failure<DepartmentDto>(new Error("404", "Not Found"));
             }
             await _departmentRepository.DeActive(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (!result)
             {
-                return Result.Failure(new Error("500", "Internal Server Error"));
+                return Result.Failure<DepartmentDto>(new Error("500", "Internal Server Error"));
             }
             return Result.Success("تم الحذف بنجاح");
         }

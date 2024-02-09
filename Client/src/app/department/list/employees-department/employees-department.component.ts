@@ -29,6 +29,7 @@ export class EmployeesDepartmentComponent implements AfterViewInit,OnInit {
   dialog =inject(MatDialog)
   bottomSheet =inject(MatBottomSheet)
   title :'';
+  mainCheck=false;
   public param :   EmployeeParam=new EmployeeParam();
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
@@ -82,14 +83,40 @@ constructor( private cdref: ChangeDetectorRef ) {}
         this.loadData();
     })
   }
+  onCheckMain(){
+    this.mainCheck=!this.mainCheck;
 
+
+    this.dataSource.forEach(x=>x.checked = this.mainCheck);
+    this.table.renderRows();
+  }
   onCheck(row){
 
     row.checked=  !row.checked;
   }
+  getChecked(){
+
+    return this.dataSource.filter(x=>x?.checked).map(x=>x.id)??[];
+
+  }
   removeEmployees(){
     const ids= this.dataSource.filter(x=>x.checked).map(x=>x.id);
+    if (confirm(`انت على وشك حذف عدد ${ids.length} موظف هل انت متأكد ؟!`)) {
     this.departmentService.deleteEmployeeFromDepartment(ids).subscribe({
+      next:(x)=>{
+        this.loadData();
+        this.toaster.openSuccessToaster('تم الحذف بنجاح','check_circle');
+
+      }
+    })
+  }
+}
+
+  removeAll(){
+    // console.log(this.dataSource);
+
+    if (confirm(`انت على وشك حذف عدد ${ this.paginator.length} موظف هل انت متأكد ؟!`))
+    this.departmentService.deleteEmployeesByDepartmentId(this.param.departmentId).subscribe({
       next:(x)=>{
         this.loadData();
         this.toaster.openSuccessToaster('تم الحذف بنجاح','check_circle');
@@ -103,6 +130,7 @@ constructor( private cdref: ChangeDetectorRef ) {}
 
 
   loadData(): void {
+    this.mainCheck=false;
   this.employeeService.GetEmployees(this.param).subscribe((x:any) =>{
     this.dataSource=x.data
     this.paginator.length=x.count;
@@ -163,7 +191,7 @@ constructor( private cdref: ChangeDetectorRef ) {}
   downloadFile(){
     this.departmentService.downloadEmployeeDepartmentFile('employees-department').subscribe({
       next:(x)=>{
-        console.log(x);
+        // console.log(x);
 
       }
     })

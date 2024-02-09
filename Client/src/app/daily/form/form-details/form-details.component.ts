@@ -95,7 +95,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
 
     this.formDetailsService.GetFormDetails(this.id).subscribe(x=>
       {
-        console.log(x);
+        // console.log(x);
 
         this.data=x;
        // this.paginator.length=x.formDetails.length;
@@ -196,10 +196,10 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
    // this.formDetailsService.deleteFormDetails(rowId).subscribe(x=>this.loadData())
   }
   exportPdf(){
-    this.formDetailsService.exportForms(this.id).subscribe(x=>console.log(x))
+    this.formDetailsService.exportForms(this.id).subscribe()
   }
   drop(event){
-    console.log(this.dataSource);
+    // console.log(this.dataSource);
 
   const previousIndex = this.dataSource.findIndex(row => row === event.item.data);
   moveItemInArray(this.dataSource,previousIndex, event.currentIndex);
@@ -209,7 +209,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   }
   reOrderRows(){
     var ids =this.dataSource.map(x=>x.id)
-    this.formDetailsService.reOrderRows(this.id,ids).subscribe(x=>console.log(x))
+    this.formDetailsService.reOrderRows(this.id,ids).subscribe()
   }
   clear(input){
     if(input=='tabCode'){

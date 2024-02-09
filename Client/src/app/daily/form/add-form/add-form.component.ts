@@ -33,7 +33,7 @@ export class AddFormComponent  implements OnInit{
 
     ngOnInit(): void {
 
-console.log(this.data);
+// console.log(this.data);
 
 
     if(this.data.form){
@@ -57,7 +57,7 @@ console.log(this.data);
 
           this.dialogRef.close(this.form.value);
         },
-        error:(err)=>console.log(err)
+        error:(err)=> console.log(err)
       })
     }
       else{
@@ -67,7 +67,7 @@ console.log(this.data);
 
        this.dialogRef.close(this.form.value);
           },
-          error:(err)=>console.log(err)
+          error:(err)=> console.log(err)
         })
       }
 

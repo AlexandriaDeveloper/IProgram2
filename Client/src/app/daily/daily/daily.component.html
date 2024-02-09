@@ -73,6 +73,10 @@
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
     <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
   </table>
+  <div class="no-data" *ngIf="dataSource?.length===0">
+    لا يوجد بيانات للعرض
+    </div>
+
 
   <mat-paginator
       #paginator
@@ -85,5 +89,4 @@
       aria-label="Select page">
   </mat-paginator>
 </div>
-
 

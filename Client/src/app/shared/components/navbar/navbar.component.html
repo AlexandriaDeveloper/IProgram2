@@ -175,8 +175,6 @@ document.createElement('video');
 
 </mat-expansion-panel-header>
 <mat-nav-list class="list" >
-<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/orders']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الموظفين  </a>
-
 <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/department']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الاقسام   </a>
 </mat-nav-list>
 </mat-expansion-panel>

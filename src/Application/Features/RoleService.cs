@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Application.Dtos;
 using Application.Helpers;
-using Application.Shared;
+
 using Core.Interfaces;
 using Microsoft.AspNetCore.Identity;
 

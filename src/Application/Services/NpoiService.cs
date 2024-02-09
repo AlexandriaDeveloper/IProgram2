@@ -50,11 +50,25 @@ namespace Application.Services
         }
 
         //read sheet headers
-        public List<string> GetHeaders(string sheetName, int rowIndex = 0)
+        public List<string> GetHeadersBySheerName(string sheetName, int rowIndex = 0)
         {
             headerIndex = rowIndex;
             List<string> headers = new List<string>();
             ISheet sheet = workbook.GetSheet(sheetName);
+            IRow headerRow = sheet.GetRow(rowIndex);
+            for (int i = 0; i < headerRow.LastCellNum; i++)
+            {
+                ICell cell = headerRow.GetCell(i);
+                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
+                headers.Add(cell.ToString());
+            }
+            return headers;
+        }
+        public List<string> GetHeadersByIndex(int sheetIndex, int rowIndex = 0)
+        {
+            headerIndex = rowIndex;
+            List<string> headers = new List<string>();
+            ISheet sheet = workbook.GetSheetAt(sheetIndex);
             IRow headerRow = sheet.GetRow(rowIndex);
             for (int i = 0; i < headerRow.LastCellNum; i++)
             {

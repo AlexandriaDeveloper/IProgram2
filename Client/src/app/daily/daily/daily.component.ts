@@ -47,7 +47,7 @@ constructor(private cdref: ChangeDetectorRef) {
 
     fromEvent(element?.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
     map((event: any) => {
-      console.log(event.target.value);
+      // console.log(event.target.value);
 
     return event.target.value;
     })

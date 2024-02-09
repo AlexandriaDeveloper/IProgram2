@@ -45,14 +45,14 @@ ngOnInit(): void {
 
     },
     error:(err)=>{
-      console.log(err);
+      // console.log(err);
 
       if(err.status==404){
        this.router.navigate(['/employee'])
       }
     },
     complete  : ()=>{
-    console.log('ended');
+    // console.log('ended');
     }
   })
 }

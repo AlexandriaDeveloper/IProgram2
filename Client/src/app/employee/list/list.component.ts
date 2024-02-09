@@ -33,7 +33,7 @@ export class ListComponent implements AfterViewInit,OnInit {
 
 constructor( private cdref: ChangeDetectorRef ) {}
   ngOnInit(): void {
-    console.log('onInit');
+    // console.log('onInit');
 
     if(this.router.snapshot.queryParams['departmentId']){
 
@@ -110,10 +110,10 @@ constructor( private cdref: ChangeDetectorRef ) {}
 
   }
   editEmployee(id:number){
-    console.log(id);
+    // console.log(id);
   }
   deleteEmployee(id:number){
-    console.log(id);
+    // console.log(id);
   }
   clear(input:any){
 

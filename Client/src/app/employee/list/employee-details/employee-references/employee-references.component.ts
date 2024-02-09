@@ -19,7 +19,7 @@ export class EmployeeReferencesComponent implements OnInit {
 
 
   ngOnInit(): void {
-    console.log('tab is hits ');
+    // console.log('tab is hits ');
     if(this.images==null)
     {
       this.loadRefernces();
@@ -30,7 +30,7 @@ export class EmployeeReferencesComponent implements OnInit {
   loadRefernces(){
     this.employeeReferenceServices.getEmployeeReferences(this.employeeId).subscribe({
       next:(res:any)=>{
-        console.log(res);
+        // console.log(res);
 
           this.images = res.map(x=>new ImageItem({ src: x.referencePath, thumb: x.referencePath ,args:{id:x.id}}));
       //this.galleryRef.load(this.images);
@@ -46,7 +46,7 @@ export class EmployeeReferencesComponent implements OnInit {
 if(confirm('هل تريد حذف هذا المستند؟')){
   this.employeeReferenceServices.deleteEmployeeReference(imageItem?.args?.id).subscribe({
     next:(res)=>{
-      console.log(res);
+      // console.log(res);
       this.loadRefernces();
     }
   })

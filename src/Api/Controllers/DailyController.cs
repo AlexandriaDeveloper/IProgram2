@@ -1,8 +1,7 @@
 
 using Application.Features;
 using Application.Helpers;
-using Application.Shared;
-using Application.Shared.ErrorResult;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Persistence.Helpers;
@@ -21,55 +20,52 @@ namespace Api.Controllers
 
         [HttpPost]
 
-        public async Task<Result<DailyDto>> AddDaily(DailyDto form, CancellationToken cancellationToken)
+        public async Task<IActionResult> AddDaily(DailyDto form, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure<DailyDto>(new Error("400", ModelState.Values.SelectMany(x => x.Errors).Select(x => x.ErrorMessage).FirstOrDefault()));
+                return HandleResult<DailyDto>(Result.ValidationErrors<DailyDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
             var result = await _dailyService.AddDaily(form, cancellationToken);
 
-            return result;
+            return HandleResult<DailyDto>(result);// result;
         }
         [HttpPut]
 
-        public async Task<Result<DailyDto>> EditDaily(DailyDto form, CancellationToken cancellationToken)
+        public async Task<IActionResult> EditDaily(DailyDto form, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure<DailyDto>(new Error("400", ModelState.Values.SelectMany(x => x.Errors).Select(x => x.ErrorMessage).FirstOrDefault()));
+                return HandleResult<DailyDto>(Result.ValidationErrors<DailyDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
             var result = await _dailyService.EditDaily(form, cancellationToken);
 
-            return result;
+            return HandleResult<DailyDto>(result); ;
         }
 
         [HttpGet()]
 
-        public async Task<Result<PaginatedResult<DailyDto>>> GetDailies([FromQuery] DailyParam form, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetDailies([FromQuery] DailyParam form, CancellationToken cancellationToken)
         {
-            if (!ModelState.IsValid)
-            {
-                return Result.Failure<PaginatedResult<DailyDto>>(new Error("400", ModelState.Values.SelectMany(x => x.Errors).Select(x => x.ErrorMessage).FirstOrDefault()));
-            }
+
             var result = await _dailyService.GetDailies(form, cancellationToken);
 
             //  return result;
 
-            return result;
+            return HandleResult<PaginatedResult<DailyDto>>(result);// result;
         }
 
         [HttpDelete("softdelete/{id}")]
-        public async Task<Result> SoftDelete(int id, CancellationToken cancellationToken)
+        public async Task<IActionResult> SoftDelete(int id, CancellationToken cancellationToken)
         {
             var result = await _dailyService.SoftDeleteDaily(id, cancellationToken);
-            return result;
+            return HandleResult(result);// result;
         }
 
         [HttpGet("exportPdf/{dailyId}")]
 
 
-        public async Task<ActionResult> GetDailyById(int dailyId)
+        public async Task<IActionResult> GetDailyById(int dailyId)
         {
             // return await _dailyService.ExportPdf(dailyId);
 
@@ -90,7 +86,6 @@ namespace Api.Controllers
 
 
         [HttpGet("download-daily/{dailyId}")]
-        [AllowAnonymous]
         public async Task<FileResult> DownloadFile(int dailyId)
         {
             var ms = await _dailyService.CreateExcelFile(dailyId);

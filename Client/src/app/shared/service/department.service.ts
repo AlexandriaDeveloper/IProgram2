@@ -44,7 +44,10 @@ export class DepartmentService {
     deleteEmployeeFromDepartment( ids){
       return this.http.put(this.apiUrl+'department/removeEmployees',ids)
     }
-
+//removeEmployeesByDepartment
+    deleteEmployeesByDepartmentId( departmentId){
+      return this.http.put(this.apiUrl+'department/removeEmployeesByDepartment/'+departmentId,{})
+    }
     downloadEmployeeDepartmentFile(fileName){
       let params = new HttpParams();
       params = params.append('fileName',fileName);
@@ -58,7 +61,7 @@ export class DepartmentService {
     }
 
     uploadEmployeesDepartmentFile (file) {
-      console.log(file);
+      // console.log(file);
 
       const formData  = new FormData();
 
@@ -66,8 +69,8 @@ export class DepartmentService {
         formData.append("departmentId",file.departmentId);
 
     return this.http.post(this.apiUrl+'department/upload-employees-department',formData,{
-    responseType: "blob",
-    reportProgress: true,
+    // responseType: "blob",
+    // reportProgress: true,
     observe: "events"
     })
   }

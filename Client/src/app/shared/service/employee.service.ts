@@ -24,13 +24,13 @@ export class EmployeeService {
   }
 
   uploadEmployeeFile (file) {
-    console.log(file);
+    // console.log(file);
     const formData  = new FormData();
     formData.append("file", file as Blob,file.name);
   return this.http.post(this.apiUrl+'employee/upload',formData
  , {
-  responseType: "blob",
-  reportProgress: true,
+  // responseType: "blob",
+  // reportProgress: true,
   observe: "events"
 }
 
@@ -39,13 +39,13 @@ export class EmployeeService {
   }
 //UploadTegaraFile
 uploadEmployeeTegaraFile (file) {
-  console.log(file);
+  // console.log(file);
   const formData  = new FormData();
   formData.append("file", file as Blob,file.name);
 return this.http.post(this.apiUrl+'employee/uploadTegaraFile',formData
 , {
-responseType: "blob",
-reportProgress: true,
+// responseType: "blob",
+// reportProgress: true,
 observe: "events"
 }
 

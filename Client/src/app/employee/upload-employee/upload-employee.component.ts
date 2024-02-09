@@ -45,11 +45,11 @@ export class UploadEmployeeComponent implements OnInit {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
   }
   onFileSelected(ev){
-console.log(ev.target.files);
+// console.log(ev.target.files);
 
 
 
-console.log(this.uploadForm.value);
+// console.log(this.uploadForm.value);
 
   }
 
@@ -57,11 +57,11 @@ console.log(this.uploadForm.value);
 
   uploadFiles(){
     var files =  this.fileDropEl.files;
-   // console.log(this.uploadForm.value);
+   // // console.log(this.uploadForm.value);
 
-console.log(this.fileDropEl.files);
+// console.log(this.fileDropEl.files);
 let req : Observable<any>[]=[]
-console.log(this.fileDropEl.files);
+// console.log(this.fileDropEl.files);
 
 for (let index = 0; index < this.fileDropEl.files.length; index++) {
 req.push(  this.employeeService.uploadEmployeeFile(this.fileDropEl.files[index] ).pipe(
@@ -69,15 +69,15 @@ req.push(  this.employeeService.uploadEmployeeFile(this.fileDropEl.files[index] 
     this.fileDropEl.onProgress[index]=true;
     switch (event?.type) {
       case HttpEventType.Sent:
-        console.log('Request has been made!');
+        // console.log('Request has been made!');
         break;
       case HttpEventType.UploadProgress:
         this.progress[index] = Math.round(event.loaded / event.total * 100);
-        console.log(`Uploaded! ${this.progress[index]}%`);
+        // console.log(`Uploaded! ${this.progress[index]}%`);
 
         break;
       case HttpEventType.Response:
-        console.log('User successfully created!', event.body);
+        // console.log('User successfully created!', event.body);
         this.progress[index] = 0;
         this.fileDropEl.onProgress[index]=false;
 
@@ -87,7 +87,7 @@ req.push(  this.employeeService.uploadEmployeeFile(this.fileDropEl.files[index] 
 
         break;
       default:
-        console.log(event);
+        // console.log(event);
         break;
     }
   })
@@ -96,10 +96,10 @@ req.push(  this.employeeService.uploadEmployeeFile(this.fileDropEl.files[index] 
 return from(req).pipe(
 mergeMap((x,i)=> req[i]),
 finalize(()=>{
-  console.log('finalize');
+  // console.log('finalize');
 
   this.fileDropEl.files=[];
-  console.log(this.fileDropEl.files);
+  // console.log(this.fileDropEl.files);
 })
 ).subscribe({
 
@@ -111,15 +111,15 @@ finalize(()=>{
     //    // this.fileDropEl.onProgress=true;
     //     switch (event?.type) {
     //       case HttpEventType.Sent:
-    //         console.log('Request has been made!');
+    //         // console.log('Request has been made!');
     //         break;
     //       case HttpEventType.UploadProgress:
     //         this.progress = Math.round(event.loaded / event.total * 100);
     //         this.fileDropEl.progress.update(val => this.progress);
-    //         console.log(`Uploaded! ${this.progress}%`);
+    //         // console.log(`Uploaded! ${this.progress}%`);
     //         break;
     //       case HttpEventType.Response:
-    //         console.log('User successfully created!', event.body);
+    //         // console.log('User successfully created!', event.body);
     //         setTimeout(() => {
     //       //    this.fileDropEl.progress.update(val => val*0);
     //         //  this.fileDropEl.onProgress=false;

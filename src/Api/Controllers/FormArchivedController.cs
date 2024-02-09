@@ -3,7 +3,6 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
 using Application.Helpers;
-using Application.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Persistence.Helpers;
 
@@ -19,30 +18,34 @@ namespace Api.Controllers
         }
 
         [HttpPut("MoveFormArchiveToDaily")]
-        public async Task<Result> MoveFormDailyToArchives([FromBody] MoveFromArchiveToDaily request)
+        public async Task<IActionResult> MoveFormDailyToArchives([FromBody] MoveFromArchiveToDaily request)
         {
-            return await _formArchivedService.MoveFormArchiveToDaily(request);
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<FormArchivedDto>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            return HandleResult(await _formArchivedService.MoveFormArchiveToDaily(request));
         }
         [HttpGet("getArchivedForms")]
 
-        public async Task<Result<PaginatedResult<FormArchivedDto>>> getArchivedForms([FromQuery] FormArchivedParam param)
+        public async Task<IActionResult> getArchivedForms([FromQuery] FormArchivedParam param)
         {
             var result = await _formArchivedService.GetArchivedForms(param);
-            return result;
+            return HandleResult<PaginatedResult<FormArchivedDto>>(result);// result;
         }
 
         [HttpDelete("{id}")]
-        public async Task<Result> SoftDelete(int id)
+        public async Task<IActionResult> SoftDelete(int id)
         {
             var result = await _formArchivedService.SoftDelete(id);
-            return result;
+            return HandleResult(result);// result;
         }
 
         [HttpPost("deleteMultiForms")]
-        public async Task<Result> SoftDeleteMultiForms([FromBody] int[] ids)
+        public async Task<IActionResult> SoftDeleteMultiForms([FromBody] int[] ids)
         {
             var result = await _formArchivedService.SoftDeleteMultiForms(ids);
-            return result;
+            return HandleResult(result);// result;
         }
     }
 }

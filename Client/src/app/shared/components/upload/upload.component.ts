@@ -89,9 +89,9 @@ export class UploadComponent implements OnInit,AfterViewInit, ControlValueAccess
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
   }
   onFileSelected(ev){
-    console.log(ev);
+    // console.log(ev);
 
-    console.log('selected');
+    // console.log('selected');
 
     for (let index = 0; index < ev.target.files.length; index++) {
       this.checkFile(ev.target.files[index])

@@ -30,10 +30,10 @@ export class AddDepartmentDialogComponent {
 
     }
   ngOnInit(): void {
-      console.log(this.data);
+      // console.log(this.data);
 
     if(this.data?.daily !== null){
-      console.log(this.data.daily);
+      // console.log(this.data.daily);
 
       this.daily=Object.assign({...this.daily},this.data.daily);
     }
@@ -43,7 +43,7 @@ export class AddDepartmentDialogComponent {
     initForm(){
       return this.fb.group({
         id:[this.daily?.id,[]],
-        name : [this.daily?.name,[Validators.required]],
+        name : [this.daily?.name,],
 
 
       })
@@ -55,7 +55,7 @@ export class AddDepartmentDialogComponent {
 
           this.dialogRef.close(this.form.value);
         },
-        error:(err)=>console.log(err)
+        error:(err)=> console.log(err)
       })
       else{
 
@@ -64,7 +64,7 @@ export class AddDepartmentDialogComponent {
 
        this.dialogRef.close(this.form.value);
           },
-          error:(err)=>console.log(err)
+          error:(err)=> console.log(err)
         })
       }
 

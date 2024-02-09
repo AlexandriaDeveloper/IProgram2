@@ -17,9 +17,9 @@ namespace Api.Controllers
 
         }
         [HttpGet("GetRoles")]
-        public async Task<ActionResult<Result<List<RoleDto>>>> GetRoles()
+        public async Task<IActionResult> GetRoles()
         {
-            return await _roleService.GetRoles();
+            return HandleResult<List<RoleDto>>(await _roleService.GetRoles());
 
         }
 

@@ -21,23 +21,22 @@ namespace Api.Controllers
         }
 
         [HttpGet("GetFormReferences/{formId}")] // GetFormReferences
-        public async Task<Result<List<FormReferenceDto>>> GetFormReferences(int formId)
+        public async Task<IActionResult> GetFormReferences(int formId)
         {
-            return await _formReferenceService.GetFormReferences(formId);
+            return HandleResult<List<FormReferenceDto>>(await _formReferenceService.GetFormReferences(formId));
         }
 
 
         [HttpDelete("DeleteFormReference/{id}")]
-        public async Task<Application.Helpers.Result> DeleteFormReference(int id)
+        public async Task<IActionResult> DeleteFormReference(int id)
         {
-            return await _formReferenceService.DeleteFormReference(id);
+
+            return HandleResult(await _formReferenceService.DeleteFormReference(id));
         }
         [HttpPost("UploadFormRefernce")]
-        public async Task<Application.Helpers.Result> UploadRefernce(FormRefernceFileUploadRequest request)
+        public async Task<IActionResult> UploadRefernce(FormRefernceFileUploadRequest request)
         {
-            var random = Random.Shared.Next(1000, 5000);
-            Task.Delay(random).Wait();
-            return await _formReferenceService.UploadRefernce(request);
+            return HandleResult(await _formReferenceService.UploadRefernce(request));
         }
     }
 }

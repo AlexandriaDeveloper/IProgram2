@@ -2,8 +2,6 @@ using System.Data;
 using Application.Dtos;
 using Application.Helpers;
 using Application.Services;
-using Application.Shared;
-
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.EntityFrameworkCore;

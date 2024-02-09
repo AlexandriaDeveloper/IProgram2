@@ -14,7 +14,7 @@ export class ToasterInfoComponent {
   dialog = inject(MatSnackBarRef);
   data =inject(MAT_SNACK_BAR_DATA)
   close(){
-    console.log('close');
+    // console.log('close');
 
     this.dialog.dismiss();
   }

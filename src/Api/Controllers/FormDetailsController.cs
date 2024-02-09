@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
 using Application.Helpers;
@@ -20,25 +15,37 @@ namespace Api.Controllers
         }
 
         [HttpPost("AddEmployeeToFormDetails")]
-        public async Task<Result> AddEmployeeToFormDetails(FormDetailsRequest form)
+        public async Task<IActionResult> AddEmployeeToFormDetails(FormDetailsRequest form)
         {
-            return await _formDetailsService.AddEmployeeToFormDetails(form);
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<FormDetailsRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            return HandleResult(await _formDetailsService.AddEmployeeToFormDetails(form));
         }
         [HttpPut("EditEmployeeToFormDetails")]
-        public async Task<Result> EditEmployeeToFormDetails(FormDetailsRequest form)
+        public async Task<IActionResult> EditEmployeeToFormDetails(FormDetailsRequest form)
         {
-            return await _formDetailsService.EditEmployeeToFormDetails(form);
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<FormDetailsRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            return HandleResult(await _formDetailsService.EditEmployeeToFormDetails(form));
         }
 
         [HttpPut("reOrderRows/{id}")]
-        public async Task<Result> ReOrderRows(int id, [FromBody] int[] rows)
+        public async Task<IActionResult> ReOrderRows(int id, [FromBody] int[] rows)
         {
-            return await _formDetailsService.ReOrderRows(id, rows);
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<FormDetailsRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            return HandleResult(await _formDetailsService.ReOrderRows(id, rows));
         }
         [HttpDelete("{id}")]
-        public async Task<Result> DeleteEmployeeFromFormDetails(int id)
+        public async Task<IActionResult> DeleteEmployeeFromFormDetails(int id)
         {
-            return await _formDetailsService.DeleteEmployeeFromFormDetails(id);
+            return HandleResult(await _formDetailsService.DeleteEmployeeFromFormDetails(id));// await _formDetailsService.DeleteEmployeeFromFormDetails(id);
         }
 
 

@@ -5,10 +5,12 @@ using System.Threading.Tasks;
 using Application.Dtos;
 using Application.Features;
 using Application.Helpers;
-using Application.Shared;
+
+//using FluentResults;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Persistence.Helpers;
+
 
 namespace Api.Controllers
 {
@@ -22,9 +24,9 @@ namespace Api.Controllers
         }
 
         [HttpGet()]
-        public async Task<Result<PaginatedResult<DepartmentDto>>> GetDepartments([FromQuery] DepartmentParam departmentParam)
+        public async Task<IActionResult> GetDepartments([FromQuery] DepartmentParam departmentParam)
         {
-            return await _departmentService.getDepartments(departmentParam);
+            return HandleResult<PaginatedResult<DepartmentDto>>(await _departmentService.getDepartments(departmentParam));
         }
 
         [HttpGet("{id}")]
@@ -33,48 +35,56 @@ namespace Api.Controllers
             return await _departmentService.getDepartment(id);
         }
         [HttpPost]
-        public async Task<Result<DepartmentDto>> AddDepartment(DepartmentDto departmentDto)
+        public async Task<IActionResult> AddDepartment(DepartmentDto departmentDto)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
+                return HandleResult<DepartmentDto>(Result.ValidationErrors<DepartmentDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            return await _departmentService.AddDepartment(departmentDto);
+            return HandleResult<DepartmentDto>(await _departmentService.AddDepartment(departmentDto));// await _departmentService.AddDepartment(departmentDto);
         }
 
         [HttpPost("upload-employees-department")]
-        public async Task<Result> UploadDepartment(EmployeesDepartmentFileUploadRequest departmentDto)
+        public async Task<IActionResult> UploadDepartment(EmployeesDepartmentFileUploadRequest departmentDto)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
+                return HandleResult(Result.ValidationErrors<DepartmentDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            return await _departmentService.UploadEmployeesDepartment(departmentDto);
+            var result = await _departmentService.UploadEmployeesDepartment(departmentDto);
+            return HandleResult(result);
         }
         [HttpPut]
-        public async Task<Result<DepartmentDto>> EditDepartment(DepartmentDto departmentDto)
+        public async Task<IActionResult> EditDepartment(DepartmentDto departmentDto)
         {
             if (!ModelState.IsValid)
             {
-                return Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
+                return HandleResult(Result.ValidationErrors<DepartmentDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            return await _departmentService.EditDepartment(departmentDto);
+            return HandleResult(await _departmentService.EditDepartment(departmentDto));// await _departmentService.EditDepartment(departmentDto);
         }
         [HttpPut("{id}/employees")]
-        public async Task<Result> AddEmployees(int id, [FromBody] int[] employeeIds)
+        public async Task<IActionResult> AddEmployees(int id, [FromBody] int[] employeeIds)
         {
-            return await _departmentService.UpdateEmployeesDepartment(id, employeeIds);
+            return HandleResult(await _departmentService.UpdateEmployeesDepartment(id, employeeIds));// await _departmentService.UpdateEmployeesDepartment(id, employeeIds);
         }
         [HttpPut("removeEmployees")]
-        public async Task<Result> RemoveEmployees([FromBody] int[] employeeIds)
+        public async Task<IActionResult> RemoveEmployees([FromBody] int[] employeeIds)
         {
-            return await _departmentService.UpdateEmployeesDepartment(null, employeeIds);
+            return HandleResult(await _departmentService.UpdateEmployeesDepartment(null, employeeIds));//  await  _departmentService.UpdateEmployeesDepartment(null, employeeIds);
+        }
+        [HttpPut("removeEmployeesByDepartment/{departmentId}")]
+        public async Task<IActionResult> RemoveEmployees(int departmentId)
+        {
+            return HandleResult(await _departmentService.UpdateEmployeesByDepartment(departmentId));//  await  _departmentService.UpdateEmployeesDepartment(null, employeeIds);
         }
         [HttpDelete("{id}")]
-        public async Task<Result> DeleteDepartment(int id)
+        public async Task<IActionResult> DeleteDepartment(int id)
         {
-            return await _departmentService.DeleteDepartment(id);
+            return HandleResult(await _departmentService.DeleteDepartment(id));// await _departmentService.DeleteDepartment(id);
         }
+
+
 
     }
 }

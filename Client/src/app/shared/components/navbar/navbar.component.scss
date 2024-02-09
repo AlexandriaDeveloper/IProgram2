@@ -149,12 +149,14 @@ mat-sidenav{
 }
 
 #video-bg {
-  position: relative;
+ position: relative;
  width: auto;
   min-width: 60%;
+  min-height: 100vh;
  height: auto;
  // background: transparent url(./../../../../assets/images/bg/Network.webm) no-repeat;
   background-size: cover;
+
 }
 video {
  display: block;

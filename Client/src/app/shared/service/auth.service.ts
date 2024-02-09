@@ -28,7 +28,7 @@ export class AuthService {
       next:(res:any)=>{
        // debugger
 
-console.log(res);
+// console.log(res);
 
         localStorage.setItem('token',res.token);
 
@@ -38,7 +38,7 @@ console.log(res);
 
         this.router.navigateByUrl('/');
       },
-      error:(err)=>console.log(err)
+      error:(err)=> console.log(err)
     });
   }
   signup(model){
@@ -55,7 +55,7 @@ console.log(res);
         location.reload();
 
       },
-      error:(err)=>console.log(err)
+      error:(err)=> console.log(err)
     });
   }
   currentUser(){

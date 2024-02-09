@@ -21,7 +21,7 @@ export class DescriptionDialogComponent implements OnInit {
 constructor(private dialogRef: MatDialogRef<DescriptionDialogComponent>,
   @Inject(MAT_DIALOG_DATA) public data: any) {
 
-    console.log(this.data);
+    // console.log(this.data);
 }
   form:FormGroup;
   fb = inject(FormBuilder);
@@ -38,7 +38,7 @@ constructor(private dialogRef: MatDialogRef<DescriptionDialogComponent>,
   onNoClick(){
     this.dialogRef.close();
   }
-  onSubmit(){console.log('clicked');
+  onSubmit(){// console.log('clicked');
 
     this.formService.updateDescription(this.data?.form?.id,this.form.value).subscribe(x =>{
       this.dialogRef.close();

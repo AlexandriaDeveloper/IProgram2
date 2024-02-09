@@ -10,14 +10,31 @@ namespace Application.Helpers
             : base(isSuccess, error) =>
             _value = value;
 
+
+        protected internal Result(TValue value, bool isSuccess, List<Error> errors)
+            : base(isSuccess, errors) =>
+            _value = value;
+
         // protected internal Result(TValue value, bool isSuccess, ProblemDetails error)
         //     : base(isSuccess, error) =>
         //     _value = value;
 
         public TValue Value => IsSuccess
             ? _value!
-        : throw new InvalidOperationException("The value of a failure result can not be accessed.");
+        : default(TValue)!;
 
         public static implicit operator Result<TValue>(TValue value) => Create(value);
+
+
+
+
+
+        public static Result<TValue> Create<TValue>(TValue value) =>
+                      value is not null ? Success(value) : Failure<TValue>(Error.NullValue);
+
+
+
+
+
     }
 }

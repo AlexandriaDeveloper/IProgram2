@@ -12,7 +12,7 @@ export class DailyService {
   http =inject(HttpClient);
   constructor() { }
   GetDailies(param : DailyParam){
-    console.log(param);
+    // console.log(param);
 
     let params = new HttpParams();
     param.pageSize!==null? params= params.append('pageSize',param.pageSize):params = params.append('pageSize',30);

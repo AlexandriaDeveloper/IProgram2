@@ -48,7 +48,7 @@ fb =inject(FormBuilder);
 
   }
   ngOnInit(): void {
-//console.log(this.dailyId);
+//// console.log(this.dailyId);
 
    this.form=this.initilizeForm();
    this.loadData();
@@ -69,7 +69,7 @@ fb =inject(FormBuilder);
 
   }
   loadData(){
-  //  console.log(this.dailyId);
+  //  // console.log(this.dailyId);
 
     this.formArchiveService.GetArchivedForms(this.param).subscribe({
       next:(x:any)=>{
@@ -86,7 +86,7 @@ fb =inject(FormBuilder);
     this.loadData();
   }
   onArchive(row){
-    console.log(row);
+    // console.log(row);
     row.checked=  !row.checked;
 
   }
@@ -114,7 +114,7 @@ fb =inject(FormBuilder);
   }
   deleteCheckedRows(){
    const ids= this.dataSource.filter(x=>x.checked).map(x=>x.id);
-   console.log(ids);
+   // console.log(ids);
    this.formArchiveService.deleteMultiForms(ids).subscribe(x=>{
   this.toaster.openSuccessToaster('تم حذف الملفات بنجاح','check')
     this.loadData()
@@ -137,7 +137,7 @@ fb =inject(FormBuilder);
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      console.log(result);
+      // console.log(result);
 
 this.formArchiveService.moveFormArchiveToDaily({ dailyId :result ,formIds:this.dataSource.filter(x=>x.checked).map(x=>x.id)}).subscribe({
   next:(x:any)=>{

@@ -44,7 +44,7 @@ export class AddEmployeeComponent implements OnInit {
   onSubmit(){
 
    this.employee={...this.employee,...this.form.value};
-console.log(this.employee);
+// console.log(this.employee);
 
     this.employeeService.addEmployee(this.employee).subscribe({
       next:(res)=>{this.toaster.openSuccessToaster('تم اضافة الموظف بنجاح','check')},

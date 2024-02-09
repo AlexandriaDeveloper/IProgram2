@@ -46,10 +46,10 @@ export class AddDailyComponent implements OnInit {
 
     }
   ngOnInit(): void {
-      console.log(this.data);
+      // console.log(this.data);
 
     if(this.data?.daily !== null){
-      console.log(this.data.daily);
+      // console.log(this.data.daily);
 
       this.daily=Object.assign({...this.daily},this.data.daily);
     }
@@ -71,7 +71,7 @@ export class AddDailyComponent implements OnInit {
 
           this.dialogRef.close(this.form.value);
         },
-        error:(err)=>console.log(err)
+        error:(err)=> console.log(err)
       })
       else{
 
@@ -80,7 +80,7 @@ export class AddDailyComponent implements OnInit {
 
        this.dialogRef.close(this.form.value);
           },
-          error:(err)=>console.log(err)
+          error:(err)=> console.log(err)
         })
       }
 
@@ -90,8 +90,6 @@ export class AddDailyComponent implements OnInit {
       this.dialogRef.close();
     }
     setDate(ev){
-      console.log(ev.value);
-
 
       this.daily.dailyDate=ev.value;
 

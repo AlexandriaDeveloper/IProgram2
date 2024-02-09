@@ -32,20 +32,20 @@ export class EmployeeReportComponent implements OnInit ,AfterViewInit{
 
 
    this.reportService.employeePdfReport(this.request).subscribe((x:any)=>{
-    // console.log(x.text);
+    // // console.log(x.text);
 
    //window.open(x.text,'_blank')
 
    })
    }
    onStartChange(event){
-    console.log(event );
+    // console.log(event );
 
     this.request.startDate=moment( event.value).toISOString();
 
   }
    onEndChange(event){
-     console.log(event);
+     // console.log(event);
 
      this.request.endDate=moment( event.value).toISOString();
 
@@ -53,13 +53,13 @@ export class EmployeeReportComponent implements OnInit ,AfterViewInit{
    load(){
 
     this.employeeService.employeeReport(this.request).subscribe(x=>{
-       console.log(x);
+       // console.log(x);
        this.employeeDailies=x;
 
     })
    }
    search(){
-    console.log(this.request);
+    // console.log(this.request);
 
      this.load();
    }
