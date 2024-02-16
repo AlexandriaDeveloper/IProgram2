@@ -119,6 +119,13 @@ namespace Api.Controllers
             // return null;
         }
 
+        [HttpDelete("SoftDelete/{id}")]
+        public async Task<IActionResult> SoftDelete(int id)
+        {
+            var result = await _employeeService.SoftDelete(id);
+            return HandleResult(result);// result;
+        }
+
     }
 
 }

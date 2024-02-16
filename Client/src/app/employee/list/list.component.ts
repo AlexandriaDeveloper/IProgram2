@@ -112,8 +112,11 @@ constructor( private cdref: ChangeDetectorRef ) {}
   editEmployee(id:number){
     // console.log(id);
   }
-  deleteEmployee(id:number){
-    // console.log(id);
+  deleteEmployee(row:IEmployee){
+    if( confirm( `هل تريد حذف الموظف ${row.name}؟`)){
+      this.employeeService.softDelete(row.id).subscribe();
+      this.loadData();
+    }
   }
   clear(input:any){
 

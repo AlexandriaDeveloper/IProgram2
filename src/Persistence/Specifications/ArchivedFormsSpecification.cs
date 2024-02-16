@@ -11,6 +11,10 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
             }
+            if (!string.IsNullOrEmpty(param.CreatedBy))
+            {
+                AddCriteries(x => x.CreatedBy.Equals(param.CreatedBy));
+            }
 
             AddOrderByDescending(x => x.Id);
 
@@ -28,6 +32,10 @@ namespace Persistence.Specifications
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
+            }
+            if (!string.IsNullOrEmpty(param.CreatedBy))
+            {
+                AddCriteries(x => x.CreatedBy.Equals(param.CreatedBy));
             }
 
             this.PaginationEnabled = false;

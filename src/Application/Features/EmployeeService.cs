@@ -57,13 +57,7 @@ namespace Application.Features
             //return Result.Success<PA<EmployeeDto>>(employeeToReturn);
 
         }
-        public async Task<Result<string>> ConvertNumber(double num)
-        {
-            var result = NumericToLiteral.Convert(num, false, "جنيه", "جنيهات");
 
-
-            return Result.Success<string>(result + " فقط  لا غير ");
-        }
 
         public async Task<Result<EmployeeDto>> getEmployee(EmployeeParam param)
         {
@@ -433,6 +427,23 @@ namespace Application.Features
             return fileAccepted;
         }
 
-
+        public async Task<Result> SoftDelete(int id)
+        {
+            var employee = await _employeeRepository.GetById(id);
+            if (employee == null)
+            {
+                return Result.Failure(new Error("404", "الموظف غير موجود"));
+            }
+            employee.IsActive = false;
+            employee.DeactivatedAt = DateTime.Now;
+            employee.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+            _employeeRepository.Update(employee);
+            var result = await _uow.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
+            }
+            return Result.Success("تم حذف الموظف بنجاح");
+        }
     }
 }

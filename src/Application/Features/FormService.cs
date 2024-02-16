@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using NPOI.Util;
+using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
 
@@ -41,10 +42,24 @@ namespace Application.Features
 
         public async Task<Result<PaginatedResult<FormDto>>> GetForms(int id, FormParam param)
         {
+
+            var user = _httpContextAccessor.HttpContext.User.IsInRole("Admin") ? null :
+            ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
             var spec = new FormSpecification(id, param);
+            var specCount = new FormCountSpecification(id, param);
+            if (user != null)
+            {
+                spec.Criterias.Add(x => x.CreatedBy == user);
+                specCount.Criterias.Add(x => x.CreatedBy == user);
+            }
             spec.Includes.Add(x => x.FormDetails);
+
+
+
             var result = await _formRepository.ListAllAsync(spec);
-            var count = await _formRepository.CountAsync(new FormCountSpecification(id, param));
+            var count = await _formRepository.CountAsync(specCount);
+
+
             var resultToReturn = result.Select(x => new FormDto
             {
                 Name = x.Name,

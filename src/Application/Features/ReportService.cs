@@ -124,7 +124,7 @@ namespace Application.Features
                                           t.EmptyLine();
                                       });
                                   });
-                              x.Item().Border(1).Table(async t =>
+                              x.Item().Border(1).Table(t =>
                               {
                                   t.ColumnsDefinition(h =>
                                   {
@@ -317,7 +317,7 @@ namespace Application.Features
 
 
 
-                              x.Item().Border(1).Table(async t =>
+                              x.Item().Border(1).Table(t =>
                               {
                                   t.ColumnsDefinition(h =>
                                   {

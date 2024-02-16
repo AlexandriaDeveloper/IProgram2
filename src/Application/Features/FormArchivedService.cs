@@ -3,6 +3,8 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Helpers;
 using Core.Interfaces;
+using Microsoft.AspNetCore.Http;
+using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
 
@@ -13,15 +15,27 @@ namespace Application.Features
 
         private readonly IFormRepository _formRepository;
         private readonly IUniteOfWork _unitOfWork;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public FormArchivedService(IFormRepository formRepository, IUniteOfWork unitOfWork)
+        public FormArchivedService(IFormRepository formRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
         {
             this._unitOfWork = unitOfWork;
+            this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
         }
         public async Task<Result<PaginatedResult<FormArchivedDto>>> GetArchivedForms(FormArchivedParam param)
         {
+
+            var user = _httpContextAccessor.HttpContext.User.IsInRole("Admin") ? null :
+           ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
             var spec = new ArchivedFormsSpecification(param);
+            var specCount = new ArchivedFormsCountSpecification(param);
+            if (user != null)
+            {
+                spec.Criterias.Add(x => x.CreatedBy == user);
+                specCount.Criterias.Add(x => x.CreatedBy == user);
+            }
+
             spec.Includes.Add(x => x.FormDetails);
             var result = await _formRepository.ListAllAsync(spec);
             var count = await _formRepository.CountAsync(new ArchivedFormsCountSpecification(param));

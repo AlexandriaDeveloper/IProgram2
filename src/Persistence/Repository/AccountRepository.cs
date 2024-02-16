@@ -63,15 +63,20 @@ namespace Persistence.Repository
 
         }
 
-        public async Task<IdentityResult> RegisterUser(ApplicationUser user, string Password)
+        public async Task<IdentityResult> RegisterUser(ApplicationUser user, string Password, List<string> roles)
         {
+            var user2 = await _userManager.CreateAsync(user, Password);
+            await _userManager.AddToRolesAsync(user, roles);
 
-            return await _userManager.CreateAsync(user, Password);
+            return user2;
         }
 
         public async Task<bool> CheckUsernameExists(string username)
         {
+
             var user = await _userManager.FindByNameAsync(username);
+
+
             return user != null;
         }
 

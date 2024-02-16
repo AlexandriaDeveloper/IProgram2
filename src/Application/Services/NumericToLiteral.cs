@@ -399,7 +399,7 @@ namespace Application.Services
 
         public static string Convert(double a, bool Female = false, string SingleName = "", string PluralName = "")
         {
-            if ((int)(a) > long.MaxValue)
+            if ((long)(a) > long.MaxValue)
             {
                 return "هذا العدد أكبر من القيمة العظمى التي يمكن تحويلها";
             }

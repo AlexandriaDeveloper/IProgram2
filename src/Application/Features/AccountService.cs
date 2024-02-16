@@ -4,6 +4,7 @@ using Application.Dtos.Requests;
 using Application.Helpers;
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Application.Features
 {
@@ -39,42 +40,45 @@ namespace Application.Features
         }
 
 
-        public async Task<UserDto> RegisterUser(RegisterRequest registerDto, string Password)
+        public async Task<Result<UserDto>> RegisterUser(RegisterRequest registerDto, string Password)
         {
 
 
             if (await CheckEmailExistsAsync(registerDto.Email))
             {
-                return null;
+                return Result.Failure<UserDto>(new Error("500", "Email already exists."));
             }
 
             if (await CheckUsernameExistsAsync(registerDto.Username))
             {
-                return null;
+                return Result.Failure<UserDto>(new Error("500", "UserName already exists."));
             }
 
             var user = new ApplicationUser
             {
+                Id = Guid.NewGuid().ToString(),
                 DisplayName = registerDto.DisplayName,
                 Email = registerDto.Email,
                 UserName = registerDto.Username,
                 DisplayImage = "default.jpg"
             };
 
-            var result = await _accountRepository.RegisterUser(user, registerDto.Password);
 
-            if (!result.Succeeded) return null;
 
-            foreach (var role in registerDto.Roles)
-            {
-                var existedRole = await _roleRepository.GetRoleByNameAsync(role);
-                if (existedRole == null)
-                {
-                    continue;
-                }
-                await AssignUserToRole(user, existedRole.Name);
+            var result = await _accountRepository.RegisterUser(user, registerDto.Password, registerDto.Roles.ToList());
 
-            }
+            if (!result.Succeeded) return Result.Failure<UserDto>(new Error("500", "Error while saving User")); ;
+
+            // foreach (var role in registerDto.Roles)
+            // {
+            //     var existedRole = await _roleRepository.GetRoleByNameAsync(role);
+            //     if (existedRole == null)
+            //     {
+            //         continue;
+            //     }
+            //     await AssignUserToRole(user, existedRole.Name);
+
+            // }
 
 
             return new UserDto
@@ -96,14 +100,15 @@ namespace Application.Features
             return await _accountRepository.CheckUsernameExists(username);
         }
 
-        public async Task<UserDto> GetCurrentUserByNameAsync(string username)
+        public async Task<Result<UserDto>> GetCurrentUserByNameAsync(string username)
         {
+
             var user = await _accountRepository.GetUserByUsername(username);
             if (user == null)
             {
-                return null;
+                return Result.Failure<UserDto>(new Error("404", "User Not Found"));
             }
-            return new UserDto
+            var userToReturn = new UserDto
             {
                 DisplayImage = user.DisplayImage,
                 Email = user.Email,
@@ -111,6 +116,8 @@ namespace Application.Features
                 Token = await _tokenService.CreateToken(user)
 
             };
+            Console.WriteLine(userToReturn.Token);
+            return Result.Success(userToReturn);
         }
 
         public async Task<bool> UserExists(string username)

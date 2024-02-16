@@ -98,6 +98,10 @@ observe: "events"
     return this.http.post(this.apiUrl+`employee/EmployeeReport/`,model)
    // return this.http.get(this.apiUrl+'reportPdf/PrintEmployeeReportDetailsPdf',{params})
   }
+
+  softDelete(id:number){
+    return this.http.delete(this.apiUrl+'employee/softDelete/'+id)
+  }
 }
 
 

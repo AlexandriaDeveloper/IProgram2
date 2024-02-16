@@ -41,9 +41,9 @@ namespace Api.Controllers
 
 
         [HttpGet]
-        public async Task<ActionResult<UserDto>> GetCurrentUser()
+        public async Task<IActionResult> GetCurrentUser()
         {
-            return await _accountService.GetCurrentUserByNameAsync(User.Identity.Name);
+            return HandleResult<UserDto>(await _accountService.GetCurrentUserByNameAsync(User.Identity.Name));
         }
         [HttpGet("emailexists")]
         public async Task<ActionResult<bool>> CheckEmailExistsAsync([FromQuery] string email)
@@ -86,7 +86,8 @@ namespace Api.Controllers
 
 
         [HttpPost("register")]
-        public async Task<ActionResult<Result<UserDto>>> Register(RegisterRequest registerDto)
+
+        public async Task<IActionResult> Register(RegisterRequest registerDto)
         {
             if (ModelState.IsValid == false)
             {
@@ -94,7 +95,7 @@ namespace Api.Controllers
             }
             var user = await _accountService.RegisterUser(registerDto, registerDto.Password);
 
-            return user == null ? Result.Failure<UserDto>(new Error("404", "الموظف مسجل من قبل")) : Result.Success<UserDto>(user);
+            return HandleResult<UserDto>(user);
         }
 
         [HttpPut("ChangePassword")]

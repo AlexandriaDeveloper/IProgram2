@@ -28,7 +28,8 @@ export class AuthService {
       next:(res:any)=>{
        // debugger
 
-// console.log(res);
+
+
 
         localStorage.setItem('token',res.token);
 
@@ -62,6 +63,8 @@ export class AuthService {
     if(localStorage.getItem("user")){
       this.currentUserSig.set(JSON.parse(localStorage.getItem("user")));
       this.userRoles.set(this.getUserRoles( localStorage.getItem('token')));
+      console.log(localStorage.getItem('token'));
+
     }
     return this.currentUserSig;
   }
@@ -73,8 +76,8 @@ export class AuthService {
 
   isUserAdmin(){
 
-
-   return this.userRoles().includes('Admin')!==null;
+    console.log(this.userRoles());
+   return this.userRoles().includes('Admin')!==null||this.userRoles().includes('Admin')!==undefined;
   }
 
   isAuthenticated(){
