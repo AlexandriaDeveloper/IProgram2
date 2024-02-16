@@ -57,7 +57,7 @@ namespace Application.Features
             }
             employeeRefernce.IsActive = false;
             employeeRefernce.DeactivatedAt = DateTime.Now;
-            employeeRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+            employeeRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
             _employeeRefernceRepository.Update(employeeRefernce);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)

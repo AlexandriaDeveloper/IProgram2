@@ -29,7 +29,7 @@ export class FormComponent implements OnInit,AfterViewInit {
 
   //dailyId;
   dialog =inject(MatDialog)
-  displayedColumns = ['action','name','count','total'];
+  displayedColumns = ['action','name','createdBy','count','total'];
   formService = inject(FormService);
   dailyService = inject(DailyService);
   dailyId = inject(ActivatedRoute).snapshot.params['id'];
@@ -39,6 +39,7 @@ export class FormComponent implements OnInit,AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatTable) table!: MatTable<IEmployee>;
   @ViewChild("nameInput") nameInput :ElementRef;
+  @ViewChild("createdByInput") createdByInput :ElementRef;
   @ViewChild("countInput") countInput :ElementRef;
   @ViewChild("totalInput") totalInput :ElementRef;
   //@ViewChild("dateInput") dateInput ;
@@ -138,6 +139,17 @@ fb =inject(FormBuilder);
           this.loadData()
     })
 
+    fromEvent(this.createdByInput.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+    map((event: any) => {
+    return event.target.value;
+    })
+    ).subscribe(x=>{
+
+          this.param.createdBy=x
+          this.loadData()
+    })
+
+
     }
 
 
@@ -145,6 +157,11 @@ fb =inject(FormBuilder);
       if(input==='name'){
         this.nameInput.nativeElement.value=''
         this.param.name=''
+        this.loadData();
+      }
+      if(input==='createdBy'){
+        this.createdByInput.nativeElement.value=''
+        this.param.createdBy=''
         this.loadData();
       }
 

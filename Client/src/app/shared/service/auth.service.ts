@@ -26,13 +26,7 @@ export class AuthService {
      this.http.post(environment.apiUrl+'account/login',model).
     subscribe({
       next:(res:any)=>{
-       // debugger
-
-
-
-
         localStorage.setItem('token',res.token);
-
         localStorage.setItem('user',JSON.stringify(res));
         this.currentUserSig.set(res);
         this.userRoles.set(this.getUserRoles(res.token));
@@ -63,7 +57,6 @@ export class AuthService {
     if(localStorage.getItem("user")){
       this.currentUserSig.set(JSON.parse(localStorage.getItem("user")));
       this.userRoles.set(this.getUserRoles( localStorage.getItem('token')));
-      console.log(localStorage.getItem('token'));
 
     }
     return this.currentUserSig;
@@ -76,7 +69,6 @@ export class AuthService {
 
   isUserAdmin(){
 
-    console.log(this.userRoles());
    return this.userRoles().includes('Admin')!==null||this.userRoles().includes('Admin')!==undefined;
   }
 

@@ -27,8 +27,8 @@ export class RegisterComponent implements OnInit {
     username:'seagaull',
     displayName:'محمد على شريف',
     email:'seaagull@hotmail.com',
-    password:'Fr33tim3#',
-    roles:[]
+    password:'Pass123$',
+    roles:null
   }
 
 
@@ -55,12 +55,13 @@ initForm(){
   })
 }
   onSubmit(){
-  //this. auth.register(this.form.value)
-    this.toast.openSuccessToaster('hello');
+
 
     this.auth.signup(this.form.value).subscribe({
       next:(res:any)=>{
         // console.log(res)
+        this.form.reset();
+        this.toast.openSuccessToaster('تم التسجيل بنجاح','check');
       },
       error:(err)=> console.log(err)
     })

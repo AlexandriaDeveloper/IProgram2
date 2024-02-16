@@ -9,6 +9,7 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<Employee> Employees { get; set; }
     public DbSet<Department> Departments { get; set; }
+
     public ApplicationContext(DbContextOptions<ApplicationContext> options) : base(options) { }
 
 
@@ -26,6 +27,12 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey<EmployeeBank>(e => e.EmployeeId);
 
 
+        });
+
+
+        builder.Entity<Form>(entity =>
+        {
+            entity.HasOne(x => x.User).WithMany().HasForeignKey(k => k.CreatedBy);
         });
         base.OnModelCreating(builder);
     }

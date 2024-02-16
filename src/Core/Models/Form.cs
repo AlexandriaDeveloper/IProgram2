@@ -13,5 +13,6 @@ namespace Core.Models
         public Daily Daily { get; set; }
         public ICollection<FormDetails> FormDetails { get; set; } = new List<FormDetails>();
         public ICollection<FormRefernce> FormRefernces { get; set; }
+        public ApplicationUser User { get; set; }
     }
 }

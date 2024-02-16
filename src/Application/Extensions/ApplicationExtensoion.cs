@@ -16,15 +16,7 @@ namespace Application.Extensions
             QuestPDF.Settings.EnableDebugging = true;
 
 
-            // services.AddScoped<AccountService>();
-            // services.AddScoped<RoleService>();
-            // services.AddScoped<EmployeeService>();
-            // services.AddScoped<ReportService>();
-            // services.AddScoped<DailyService>();
-            // services.AddScoped<FormService>();
-            // services.AddScoped<FormDetailsService>();
 
-            //get all classes from assembly end with service
             var assembly = Assembly.GetAssembly(typeof(AccountService));
             var types = assembly.GetTypes().Where(t => t.Name.EndsWith("Service")).ToList();
             foreach (var type in types)
@@ -33,5 +25,8 @@ namespace Application.Extensions
             }
             return services;
         }
+
+
+
     }
 }

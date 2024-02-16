@@ -108,7 +108,7 @@ namespace Application.Features
                     IsActive = x.IsActive,
                     OrderNum = x.OrderNum,
                     CreatedAt = DateTime.Now,
-                    CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User), //_httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value
+                    CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User), //_httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value
                 }).ToList()
 
             };

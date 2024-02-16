@@ -56,7 +56,7 @@ namespace Application.Features
             }
             formRefernce.IsActive = false;
             formRefernce.DeactivatedAt = DateTime.Now;
-            formRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+            formRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
             _formReferencesRepository.Update(formRefernce);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)

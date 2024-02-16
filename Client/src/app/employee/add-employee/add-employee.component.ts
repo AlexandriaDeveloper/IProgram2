@@ -65,7 +65,7 @@ export class AddEmployeeComponent implements OnInit {
 // console.log(this.employee);
 
     this.employeeService.addEmployee(this.employee).subscribe({
-      next:(res)=>{this.toaster.openSuccessToaster('تم اضافة الموظف بنجاح','check')},
+      next:(res)=>{this.toaster.openSuccessToaster('تم اضافة الموظف بنجاح','check');this.form.reset();},
       error:(err)=>{this.toaster.openErrorToaster('عفوا حدث خطأ اثناء الحفظ ')}
     })
   }

@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormGroup, FormBuilder } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { MatPaginator } from '@angular/material/paginator';
@@ -14,6 +14,7 @@ import { AddFormComponent } from '../form/add-form/add-form.component';
 import { FormArchivedService } from '../../shared/service/form-archived.service';
 import { ToasterService } from '../../shared/components/toaster/toaster.service';
 import { MoveToDailyDialogComponent } from './move-to-daily-dialog/move-to-daily-dialog.component';
+import { fromEvent, debounceTime, distinctUntilChanged, map } from 'rxjs';
 
 @Component({
   selector: 'app-archived-forms',
@@ -22,10 +23,10 @@ import { MoveToDailyDialogComponent } from './move-to-daily-dialog/move-to-daily
   templateUrl: './archived-forms.component.html',
   styleUrl: './archived-forms.component.scss'
 })
-export class ArchivedFormsComponent implements OnInit {
+export class ArchivedFormsComponent implements OnInit,AfterViewInit {
   //dailyId;
   dialog =inject(MatDialog)
-  displayedColumns = ['action','name','count','total'];
+  displayedColumns = ['action','name','createdBy','count','total'];
  // formService = inject(FormService);
   formArchiveService = inject(FormArchivedService);
   toaster = inject(ToasterService);
@@ -36,6 +37,7 @@ export class ArchivedFormsComponent implements OnInit {
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatTable) table!: MatTable<IEmployee>;
   @ViewChild("nameInput") nameInput :ElementRef;
+  @ViewChild("createdByInput") createdByInput :ElementRef;
   @ViewChild("countInput") countInput :ElementRef;
   @ViewChild("totalInput") totalInput :ElementRef;
   //@ViewChild("dateInput") dateInput ;
@@ -46,6 +48,9 @@ form :FormGroup
 fb =inject(FormBuilder);
   constructor(private cdref: ChangeDetectorRef) {
 
+  }
+  ngAfterViewInit(): void {
+    this.onSearch();
   }
   ngOnInit(): void {
 //// console.log(this.dailyId);
@@ -156,11 +161,41 @@ this.formArchiveService.moveFormArchiveToDaily({ dailyId :result ,formIds:this.d
  error(){
   this.toaster.openErrorToaster('تم حذف الملفات بنجاح','check')
 }
-clear(name){
-  if(name==='name'){
-    this.nameInput.nativeElement.value=''
-    this.param.name=''
-    this.loadData();
+
+onSearch(){
+  fromEvent(this.nameInput.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+  map((event: any) => {
+  return event.target.value;
+  })
+  ).subscribe(x=>{
+
+        this.param.name=x
+        this.loadData()
+  })
+
+  fromEvent(this.createdByInput.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+  map((event: any) => {
+  return event.target.value;
+  })
+  ).subscribe(x=>{
+
+        this.param.createdBy=x
+        this.loadData()
+  })
+
+
   }
+  clear(input){
+    if(input==='name'){
+      this.nameInput.nativeElement.value=''
+      this.param.name=''
+      this.loadData();
+    }
+    if(input==='createdBy'){
+      this.createdByInput.nativeElement.value=''
+      this.param.createdBy=''
+      this.loadData();
+    }
+
 }
 }

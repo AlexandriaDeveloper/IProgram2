@@ -285,7 +285,7 @@ namespace Application.Features
                     {
                         empExist.EmployeeBank = new EmployeeBank();
                         empExist.EmployeeBank.CreatedAt = DateTime.Now;
-                        empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+                        empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
                         empExist.EmployeeBank.IsActive = true;
                         hasUpdat = true;
                     }
@@ -436,7 +436,7 @@ namespace Application.Features
             }
             employee.IsActive = false;
             employee.DeactivatedAt = DateTime.Now;
-            employee.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+            employee.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
             _employeeRepository.Update(employee);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)

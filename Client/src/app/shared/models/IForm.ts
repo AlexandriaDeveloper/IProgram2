@@ -9,6 +9,7 @@ export interface IForm {
 export class FormParam extends Param{
   id ?:number;
   name : string;
+  createdBy:string;
   dailyId?:number;
 }
 

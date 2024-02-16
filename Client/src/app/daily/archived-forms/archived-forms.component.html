@@ -46,11 +46,23 @@
       <mat-form-field apperance="outline" class="search" color="primary" >
         <mat-label class="saerch-title">الاسم</mat-label>
         <input   matInput (click)="clear('name')"   #nameInput class="search-field">
-        <mat-icon style="color: #000;" *ngIf="nameInput.value" matSuffix >close</mat-icon>
+        <mat-icon style="color: #000;" *ngIf="nameInput.value" matSuffix (click)="clear('name')" >close</mat-icon>
       </mat-form-field>
       </th>
       <td mat-cell *matCellDef="let row">
         {{row.name}}
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="createdBy">
+      <th mat-header-cell *matHeaderCellDef >
+      <mat-form-field apperance="outline" class="search" color="primary" >
+        <mat-label class="saerch-title">الموظف</mat-label>
+        <input   matInput    #createdByInput  class="search-field">
+        <mat-icon style="color: #000;" *ngIf="createdByInput.value" matSuffix (click)="clear('createdBy')">close</mat-icon>
+      </mat-form-field>
+      </th>
+      <td mat-cell *matCellDef="let row">
+        {{row.createdBy}}
       </td>
     </ng-container>
 

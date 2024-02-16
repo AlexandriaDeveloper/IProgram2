@@ -9,6 +9,7 @@ namespace Application.Dtos
 
         public double TotalAmount { get; set; }
         public int Count { get; set; }
+        public string CreatedBy { get; set; }
         public List<FormDetailsDto> FormDetails { get; set; }
 
         public FormArchivedDto()

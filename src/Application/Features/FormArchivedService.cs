@@ -3,7 +3,9 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Helpers;
 using Core.Interfaces;
+using Core.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
@@ -16,9 +18,11 @@ namespace Application.Features
         private readonly IFormRepository _formRepository;
         private readonly IUniteOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly UserManager<ApplicationUser> _usermanager;
 
-        public FormArchivedService(IFormRepository formRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
+        public FormArchivedService(IFormRepository formRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> usermanager)
         {
+            this._usermanager = usermanager;
             this._unitOfWork = unitOfWork;
             this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
@@ -27,7 +31,7 @@ namespace Application.Features
         {
 
             var user = _httpContextAccessor.HttpContext.User.IsInRole("Admin") ? null :
-           ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+           ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
             var spec = new ArchivedFormsSpecification(param);
             var specCount = new ArchivedFormsCountSpecification(param);
             if (user != null)
@@ -36,7 +40,6 @@ namespace Application.Features
                 specCount.Criterias.Add(x => x.CreatedBy == user);
             }
 
-            spec.Includes.Add(x => x.FormDetails);
             var result = await _formRepository.ListAllAsync(spec);
             var count = await _formRepository.CountAsync(new ArchivedFormsCountSpecification(param));
             var resultToReturn = result.Select(x => new FormArchivedDto
@@ -46,6 +49,7 @@ namespace Application.Features
                 DailyId = x.DailyId,
                 Count = x.FormDetails.Count,
                 TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
+                CreatedBy = _usermanager.FindByIdAsync(x.CreatedBy).Result.DisplayName,
             }).ToList();
             var pagedResult = PaginatedResult<FormArchivedDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormArchivedDto>>(pagedResult);

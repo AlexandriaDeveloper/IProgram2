@@ -12,6 +12,7 @@ using Application.Services;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -30,9 +31,11 @@ namespace Application.Features
         private readonly IUniteOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IEmployeeRepository _employeeRepository;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor)
+        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager)
         {
+            this._userManager = userManager;
             this._employeeRepository = employeeRepository;
             this._unitOfWork = unitOfWork;
             this._httpContextAccessor = httpContextAccessor;
@@ -43,8 +46,9 @@ namespace Application.Features
         public async Task<Result<PaginatedResult<FormDto>>> GetForms(int id, FormParam param)
         {
 
+
             var user = _httpContextAccessor.HttpContext.User.IsInRole("Admin") ? null :
-            ClaimPrincipalExtensions.RetriveAuthUserFromPrincipal(_httpContextAccessor.HttpContext.User);
+            ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
             var spec = new FormSpecification(id, param);
             var specCount = new FormCountSpecification(id, param);
             if (user != null)
@@ -52,8 +56,6 @@ namespace Application.Features
                 spec.Criterias.Add(x => x.CreatedBy == user);
                 specCount.Criterias.Add(x => x.CreatedBy == user);
             }
-            spec.Includes.Add(x => x.FormDetails);
-
 
 
             var result = await _formRepository.ListAllAsync(spec);
@@ -66,7 +68,8 @@ namespace Application.Features
                 Id = x.Id,
                 DailyId = x.DailyId,
                 Count = x.FormDetails.Count,
-                TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2)
+                TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
+                CreatedBy = _userManager.FindByIdAsync(x.CreatedBy).Result.DisplayName,
             }).ToList();
             var pagedResult = PaginatedResult<FormDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormDto>>(pagedResult);

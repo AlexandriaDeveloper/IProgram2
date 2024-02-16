@@ -13,7 +13,8 @@ namespace Persistence.Specifications
             }
             if (!string.IsNullOrEmpty(param.CreatedBy))
             {
-                AddCriteries(x => x.CreatedBy.Equals(param.CreatedBy));
+                AddInclude(x => x.User);
+                AddCriteries(x => x.User.DisplayName.Contains(param.CreatedBy));
             }
 
             AddOrderByDescending(x => x.Id);
@@ -35,7 +36,8 @@ namespace Persistence.Specifications
             }
             if (!string.IsNullOrEmpty(param.CreatedBy))
             {
-                AddCriteries(x => x.CreatedBy.Equals(param.CreatedBy));
+                AddInclude(x => x.User);
+                AddCriteries(x => x.User.DisplayName.Contains(param.CreatedBy));
             }
 
             this.PaginationEnabled = false;

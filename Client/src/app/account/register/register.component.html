@@ -7,36 +7,19 @@
 
       </div>
 
-    <div style="width: 100% !important;">
 
-      <mat-form-field class="example-full-width   " style="width: 100% !important;" appearance="outline" >
-        <mat-label>اسم المستخدم</mat-label>
-        <input matInput  formControlName="username" >
-        <mat-icon matSuffix>account_circle</mat-icon>
-      </mat-form-field>
-      </div>
-      <div>
 
-        <mat-form-field class="example-full-width" appearance="outline">
-          <mat-label>اسم  التعريف</mat-label>
-          <input matInput  formControlName="displayName" >
-          <mat-icon matSuffix>face</mat-icon>
-        </mat-form-field>
-      </div>
-      <div>
+      <app-input-text  formControlName="username" [label]="'اسم المستخدم'" style="width: 100%;"  [matSuffix]="'account_circle'"  ></app-input-text>
+      <app-input-text  formControlName="displayName" [label]="'اسم تعريفى'" style="width: 100%;"  [matSuffix]="'face'" ></app-input-text>
+      <app-input-text  formControlName="email" [label]="' البريد الالكترونى'" style="width: 100%;" [matSuffix]="'email'"  ></app-input-text>
 
-        <mat-form-field class="example-full-width" appearance="outline">
-          <mat-label>ايميل</mat-label>
-          <input matInput type="email"  formControlName="email"  >
-          <mat-icon matSuffix>email</mat-icon>
-        </mat-form-field>
-      </div>
+
 
       <div>
 
         <mat-form-field class="example-full-width" appearance="outline" >
           <mat-label>صلاحيات المستخدم</mat-label>
-        <mat-select multiple formControlName="roles" [value]="roles">
+        <mat-select multiple formControlName="roles" [value]="request.roles">
           @for (role of roles; track role) {
             <mat-option [value]="role.name">{{role.name}}</mat-option>
           }
@@ -44,16 +27,10 @@
           <mat-icon matSuffix>star_border</mat-icon>
         </mat-form-field>
       </div>
+      <app-input-text [type]="'password'"  formControlName="password" [label]="'اسم تعريفى'" style="width: 100%;" [matSuffix]="'key'"  ></app-input-text>
 
-      <div>
-        <mat-form-field class="example-full-width" appearance="outline">
-          <mat-label>كلمه المرور</mat-label>
-          <input matInput type="password"  formControlName="password" >
-          <mat-icon matSuffix>vpn_key</mat-icon>
-        </mat-form-field>
-      </div>
       <div >
-        <button  mat-raised-button color="primary" type="submit">دخول</button>
+        <button  mat-raised-button color="primary" type="submit" [disabled]="form.invalid">دخول</button>
         <button mat-raised-button color="warn">الغاء</button>
 
 
@@ -64,4 +41,3 @@
 
 
 </div>
-
