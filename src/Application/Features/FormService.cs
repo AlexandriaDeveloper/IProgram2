@@ -244,10 +244,13 @@ namespace Application.Features
 
             foreach (DataRow row in dt.Rows)
             {
+                var message = "";
+
                 Employee empExist = null;
                 if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()))
                 {
                     empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.NationalId == row.ItemArray[1].ToString());
+                    message = "الرقم القومى" + row.ItemArray[1].ToString();
                 }
                 else if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()))
                 {
@@ -255,6 +258,7 @@ namespace Application.Features
                     if (result)
                     {
                         empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.TabCode == id);
+                        message = "كود طب رقم  " + row.ItemArray[2].ToString();
                     }
                 }
                 else if (!string.IsNullOrEmpty(row.ItemArray[3].ToString()))
@@ -263,11 +267,14 @@ namespace Application.Features
                     if (result)
                     {
                         empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.TegaraCode == id);
+                        message = "كود تجارة رقم  " + row.ItemArray[3].ToString();
                     }
                 }
                 if (empExist == null)
                 {
-                    return Result.Failure(new Error("500", "الملف غير متاح للرفع"));
+
+
+                    return Result.Failure(new Error("500", "يوجد مشكلة  " + message));
                 }
 
 

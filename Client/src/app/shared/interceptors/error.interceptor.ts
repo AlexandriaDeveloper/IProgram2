@@ -43,13 +43,17 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       );
     }
     if (error.status === 500) {
-      // auto logout if 401 response returned from api
-       //location.reload();
-      // router.navigateByUrl('/account/login');
-      // console.log(error);
+      console.log(error);
 
       toaster.openErrorToaster(
       error.error.detail,"error"
+      );
+    }
+    if (error.error.code === "500") {
+      console.log(error);
+
+      toaster.openErrorToaster(
+      error.error.message,"error"
       );
     }
 

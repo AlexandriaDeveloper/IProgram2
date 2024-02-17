@@ -94,8 +94,8 @@ exportFormsInsidDaily(dailyId){
       formData.append("formId",file.formId);
 
   return this.http.post(this.apiUrl+'form/upload-excel-form',formData,{
-  responseType: "blob",
-  reportProgress: true,
+  // responseType: "blob",
+  // reportProgress: true,
   observe: "events"
   })
 }
