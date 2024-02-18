@@ -1,11 +1,14 @@
 
 import { HttpEventType } from '@angular/common/http';
 import { Component, ElementRef, Inject, OnInit, ViewChild, inject, signal } from '@angular/core';
-import { MatBottomSheetRef, MAT_BOTTOM_SHEET_DATA } from '@angular/material/bottom-sheet';
+import { MatBottomSheetRef, MAT_BOTTOM_SHEET_DATA, MatBottomSheet } from '@angular/material/bottom-sheet';
 import { UploadEmployeesBottomSheetComponent } from '../../../../department/list/employees-department/upload-employees-bottom-sheet/upload-employees-bottom-sheet.component';
 import { DepartmentService } from '../../../../shared/service/department.service';
 import { FormService } from '../../../../shared/service/form.service';
 import { ToasterService } from '../../../../shared/components/toaster/toaster.service';
+
+import { UploadReportDialogComponent } from './upload-report-dialog/upload-report-dialog.component';
+import { MatDialog } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-upload-excel-file-bottom',
@@ -16,9 +19,10 @@ import { ToasterService } from '../../../../shared/components/toaster/toaster.se
 })
 export class UploadExcelFileBottomComponent implements OnInit {
   @ViewChild('fileInput') fileInput : ElementRef
-  formService = inject(FormService)
-  toaster = Inject(ToasterService)
+   formService = inject(FormService)
+   toaster = inject(ToasterService)
    fileName : string;
+   dialog =inject(MatDialog)
 
    progress = signal(0);
    onProgress=false;
@@ -69,14 +73,27 @@ export class UploadExcelFileBottomComponent implements OnInit {
        error:(err)=>{
          // console.log(err);
          this.onProgress=false;
-         this.toaster.openErrorToaster('لم يتم رفع الملف بنجاح','error');
-       //  this._bottomSheetRef.dismiss(false);
+         console.log(err.error.error.code);
 
-
+         if(err.error.error.code==='1500')
+          this.toaster.openErrorToaster("لم يتم تحميل الملف ","error",10000);
+          this.openReport(err.error.error.message);
        },
      })
     }
+    openReport(msg){
 
 
+      const dialogRef = this.dialog.open(UploadReportDialogComponent, {
+        data: {messges:JSON.parse(msg)},
+        minWidth: '30%',
 
+       disableClose: true,
+       panelClass:['dialog-container'],
+      });
+
+      dialogRef.afterClosed().subscribe(result => {
+       // this.loadData();
+      });
+    }
 }

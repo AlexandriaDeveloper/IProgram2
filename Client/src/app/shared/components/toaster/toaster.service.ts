@@ -12,9 +12,9 @@ export class ToasterService {
   _snackBar=inject(MatSnackBar)
   constructor() { }
 
-  openSuccessToaster(message: string,icon ?:string) {
+  openSuccessToaster(message: string,icon ?:string,duration : number=5000) {
     this._snackBar.openFromComponent(ToasterSuccessComponent, {
-      duration: 300000,
+      duration: duration,
       verticalPosition: 'top',
       horizontalPosition: 'right',
       panelClass: ['toaster-success'],
@@ -27,9 +27,9 @@ export class ToasterService {
     })
 
   }
-  openErrorToaster(message: string,icon ?:string) {
+  openErrorToaster(message: string,icon ?:string,duration : number=5000) {
     this._snackBar.openFromComponent(ToasterFailComponent, {
-      duration: 3000,
+      duration: duration,
       verticalPosition: 'top',
       horizontalPosition: 'right',
       panelClass: ['toaster-error'],
@@ -42,9 +42,9 @@ export class ToasterService {
     })
   }
 
-  openInfoToaster(message: string,icon ?:string) {
+  openInfoToaster(message: string,icon ?:string,duration : number=5000) {
     this._snackBar.openFromComponent(ToasterInfoComponent, {
-      duration: 300000,
+      duration: duration,
       verticalPosition: 'top',
       horizontalPosition: 'right',
       panelClass: ['toaster-info'],

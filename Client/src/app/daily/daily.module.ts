@@ -17,6 +17,7 @@ import { ReferencesDialogComponent } from './form/form-details/references-dialog
 import { UploadReferencesDialogComponent } from './form/form-details/upload-references-dialog/upload-references-dialog.component';
 import { UploadComponent } from '../shared/components/upload/upload.component';
 import { UploadExcelFileBottomComponent } from './form/form-details/upload-excel-file-bottom/upload-excel-file-bottom.component';
+import { UploadReportDialogComponent } from './form/form-details/upload-excel-file-bottom/upload-report-dialog/upload-report-dialog.component';
 
 
 
@@ -34,7 +35,8 @@ import { UploadExcelFileBottomComponent } from './form/form-details/upload-excel
      ReferencesDialogComponent,
      MoveToDailyDialogComponent,
      UploadReferencesDialogComponent,
-     UploadExcelFileBottomComponent
+     UploadExcelFileBottomComponent,
+     UploadReportDialogComponent
 
 ],
   imports: [

@@ -49,16 +49,16 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       error.error.detail,"error"
       );
     }
-    if (error.error.code === "500") {
-      console.log(error);
+    // if (error.error.code === "500") {
+    //   console.log(error);
 
-      toaster.openErrorToaster(
-      error.error.message,"error"
-      );
-    }
+    //   toaster.openErrorToaster(
+    //   error.error.message,"error"
+    //   );
+    // }
 
    //router.navigateByUrl('/account/login');
-     return throwError(() =>  console.log(error)
+     return throwError(() =>  error
      ) ;
 
    }));

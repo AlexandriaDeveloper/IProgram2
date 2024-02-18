@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Application.Dtos;
 using Application.Dtos.Requests;
@@ -14,6 +15,7 @@ using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using NPOI.Util;
@@ -224,12 +226,8 @@ namespace Application.Features
             UploadFile upload = new UploadFile(request.File);
             var path = await upload.UploadFileToTempPath();
             NpoiServiceProvider npoi = new NpoiServiceProvider(path);
-
-            //Check Header Row
-
             // Read Excel Sheet and convert it to DataTable
             DataTable dt = npoi.ReadSheeByIndex(0, 1);
-
             DataTable dt2 = new DataTable();
             dt2.Columns.Add("م", typeof(int));
             dt2.Columns.Add("الرقم القومى", typeof(string));
@@ -240,8 +238,7 @@ namespace Application.Features
             dt2.Columns.Add("المبلغ", typeof(double));
             dt2.Columns.Add("كود الموظف", typeof(int));
             int counter = 1;
-
-
+            List<string> messages = new List<string>();
             foreach (DataRow row in dt.Rows)
             {
                 var message = "";
@@ -272,12 +269,9 @@ namespace Application.Features
                 }
                 if (empExist == null)
                 {
-
-
-                    return Result.Failure(new Error("500", "يوجد مشكلة  " + message));
+                    messages.Add(@"يوجد مشكلة بالبيانات الاتيه   بالسطر رقم " + counter++ + " " + message);
+                    continue;
                 }
-
-
                 DataRow dr = dt2.NewRow();
                 dr.SetField("م", counter++);
                 dr["الرقم القومى"] = empExist.NationalId;
@@ -288,18 +282,19 @@ namespace Application.Features
                 dr.SetField("المبلغ", double.Parse(row.ItemArray[6].ToString()));
                 dr.SetField("كود الموظف", empExist.Id);
                 dt2.Rows.Add(dr);
+            }
 
-
-
+            if (messages.Count > 0)
+            {
+                //   return Result.Failure(new Error("1500", " يوجد مشكلة بالبيانات الاتيه  " + string.Join(" |||", messages)));
+                return Result.Failure(new Error("1500", JsonSerializer.Serialize(messages)));
             }
 
             var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
             _formDetailsRepository.DeleteRange(deleteEntity);
             await _unitOfWork.SaveChangesAsync();
-
             foreach (DataRow row in dt2.Rows)
             {
-
                 var empDetails = new FormDetails();
                 empDetails.OrderNum = int.Parse(row.ItemArray[0].ToString());
                 empDetails.Amount = double.Parse(row.ItemArray[6].ToString());
@@ -307,7 +302,6 @@ namespace Application.Features
                 empDetails.FormId = request.FormId;
                 await _formDetailsRepository.Insert(empDetails);
             }
-
             await _unitOfWork.SaveChangesAsync();
             return Result.Success("تم الرفع بنجاح");
 

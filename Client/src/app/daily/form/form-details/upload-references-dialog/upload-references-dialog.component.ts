@@ -58,17 +58,12 @@ initForm(){
           case HttpEventType.UploadProgress:
             this.progress[index] = Math.round(event.loaded / event.total * 100);
             // console.log(`Uploaded! ${this.progress[index]}%`);
-
             break;
           case HttpEventType.Response:
             // console.log('User successfully created!', event.body);
             this.progress[index] = 0;
             this.fileDropEl.onProgress[index]=false;
-
             this.fileDropEl.files[index]=null;
-
-
-
             break;
           default:
             // console.log(event);
@@ -81,7 +76,6 @@ initForm(){
     mergeMap((x,i)=> req[i]),
     finalize(()=>{
       // console.log('finalize');
-
       this.fileDropEl.files=[];
       // console.log(this.fileDropEl.files);
     })
