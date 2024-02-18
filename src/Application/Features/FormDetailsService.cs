@@ -39,7 +39,7 @@ namespace Application.Features
             {
                 return Result.Failure<FormDto>(new Error("404", "Not Found"));
             }
-            result.FormDetails = await _formDetailsRepository.GetQueryable().Include(X => X.Employee).Where(x => x.FormId == id).ToListAsync();
+            result.FormDetails = await _formDetailsRepository.GetQueryable().Include(X => X.Employee).ThenInclude(x => x.Department).Where(x => x.FormId == id).ToListAsync();
 
             var resultToReturn = new FormDto()
             {
@@ -56,7 +56,9 @@ namespace Application.Features
                     TegaraCode = x.Employee.TegaraCode,
                     NationalId = x.Employee.NationalId,
                     Amount = x.Amount,
-                    EmployeeId = x.EmployeeId
+                    EmployeeId = x.EmployeeId,
+                    Department = x.Employee?.Department == null ? null : x.Employee?.Department.Name
+
 
 
                 }).ToList()

@@ -8,7 +8,7 @@ namespace Application.Dtos
         public virtual int FormId { get; set; }
         public int EmployeeId { get; set; }
         public double Amount { get; set; }
-
+        public string Department { get; set; }
         public int? TabCode { get; set; }
         public int? TegaraCode { get; set; }
         public string NationalId { get; set; }

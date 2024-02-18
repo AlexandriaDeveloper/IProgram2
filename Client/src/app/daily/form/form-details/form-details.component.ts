@@ -9,7 +9,7 @@ import { MatTable } from '@angular/material/table';
 import { IEmployee } from '../../../shared/models/IEmployee';
 import { AddEmployeeDialogComponent } from './add-employee-dialog/add-employee-dialog.component';
 import { moveItemInArray } from '@angular/cdk/drag-drop';
-import { fromEvent, debounceTime, distinctUntilChanged, map } from 'rxjs';
+import { fromEvent, debounceTime, distinctUntilChanged, map, Subscription } from 'rxjs';
 import { FormService } from '../../../shared/service/form.service';
 import { ToasterService } from '../../../shared/components/toaster/toaster.service';
 import { ReferencesDialogComponent } from './references-dialog/references-dialog.component';
@@ -38,7 +38,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   data :any;
   dataSource;
   filteredData :IEmployee[]=[]
-  displayedColumns = ['action','tabCode','tegaraCode','name','nationalId','amount']
+  displayedColumns = ['action','tabCode','tegaraCode','name','department','nationalId','amount']
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatTable) table!: MatTable<IEmployee>;
@@ -46,8 +46,13 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   @ViewChild("tabCodeInput") tabCodeInput :ElementRef;
   @ViewChild("tegaraCodeInput") tegaraCodeInput :ElementRef;
   @ViewChild("nameInput") nameInput :ElementRef;
+  @ViewChild("departmentInput") departmentInput :ElementRef;
   @ViewChild("nationalIdInput") nationalIdInput :ElementRef;
   @ViewChild("amountInput") amountInput :ElementRef;
+
+
+ tabSub :Subscription;
+
   ngOnInit(): void {
   this.loadData();
   }
@@ -60,12 +65,16 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
     this.initElement(this.nameInput,'name');
     this.initElement(this.nationalIdInput,'nationalId');
     this.initElement(this.amountInput,'amount');
+    this.initElement(this.departmentInput,'department');
+
   }
   initElement(element :ElementRef,param ){
 
 
-    fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+  return  fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
     map((event: any) => {
+      console.log(this.dataSource);
+
       this.dataSource=this.data.formDetails;
 
       if(event.target.value==''){
@@ -73,7 +82,10 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
       }
 
       this.dataSource=this.data.formDetails.filter(x=>{
-        if(param === 'name'||param === 'nationalId'){
+        console.log(param);
+
+        if(param === 'name'||param === 'nationalId'||param === 'department'){
+          if(x[param]!== null)
           return x[param].includes(event.target.value);
         }
         else{
@@ -221,6 +233,9 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
     if(input=='name'){
       this.nameInput.nativeElement.value=''
     }
+    if(input=='department'){
+      this.departmentInput.nativeElement.value=''
+    }
     if(input=='nationalId'){
       this.nationalIdInput.nativeElement.value=''
     }
@@ -250,7 +265,6 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
 
     this.formService.downloadExcelForm({formId: this.id,formTitle : this.data.name}).subscribe()
   }
-
 
 
 
