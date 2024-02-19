@@ -44,6 +44,7 @@ namespace Application.Features
                 Collage = x.Collage,
                 DepartmentId = x.DepartmentId,
                 Id = x.Id,
+                DepartmentName = x.Department != null ? x.Department.Name : "",
 
                 Name = x.Name,
                 NationalId = x.NationalId,

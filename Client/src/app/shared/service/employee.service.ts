@@ -66,6 +66,7 @@ observe: "events"
     if(param.collage) params = params.append('collage',param.collage);
     if(param.name) params = params.append('name',param.name);
     if(param.nationalId) params = params.append('nationalId',param.nationalId);
+    if(param.departmentName) params = params.append('departmentName',param.departmentName);
     if(param.tabCode) params = params.append('tabCode',param.tabCode);
 
 
@@ -86,6 +87,7 @@ observe: "events"
     if(param.nationalId) params = params.append('nationalId',param.nationalId);
     if(param.tabCode) params = params.append('tabCode',param.tabCode);
     if(param.collage) params = params.append('collage',param.collage);
+    if(param.departmentName) params = params.append('departmentName',param.departmentName);
     if(param.name) params = params.append('name',param.name);
 
     return this.http.get<IEmployee>(this.apiUrl+'employee/getEmployee',{params:params})

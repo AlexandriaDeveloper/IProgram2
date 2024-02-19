@@ -1,3 +1,11 @@
+<div>
+
+  <mat-checkbox color="accent"    #departmentCheck ><span style="color:  #fff !important">القسم</span> </mat-checkbox>
+
+  <mat-checkbox [checked]="true" color="accent"  #tabCodeCheck> <span style="color:  #fff !important" >كود طب</span>  </mat-checkbox>
+  <mat-checkbox [checked]="true" color="accent"  #tegaraCodeCheck > <span style="color:  #fff !important">كود تجارة</span> </mat-checkbox>
+  <mat-checkbox color="accent"  #nationalIdCheck ><span style="color:  #fff !important">الرقم القومى</span>  </mat-checkbox>
+</div>
 <div class="mat-elevation-z8">
   <table [dataSource]="dataSource" mat-table class="full-width-table" matSort aria-label="Elements">
         <!-- action Column -->
@@ -19,7 +27,7 @@
         </ng-container>
     <!-- tabCode Column -->
     <ng-container matColumnDef="tabCode" >
-      <th mat-header-cell *matHeaderCellDef >
+      <th mat-header-cell *matHeaderCellDef  [hidden]="!tabCodeCheck.checked" >
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"  >
           <mat-label class="saerch-title" >كود طب</mat-label>
           <input  matInput   #tabCodeInput (search)="clear('tabCode')" >
@@ -31,14 +39,14 @@
 
         </mat-form-field>
       </th>
-      <td mat-cell *matCellDef="let row">
+      <td mat-cell *matCellDef="let row"  [hidden]="!tabCodeCheck.checked">
 
       {{row.tabCode}}
       </td>
     </ng-container>
      <!-- tegaraCode Column -->
     <ng-container matColumnDef="tegaraCode">
-      <th mat-header-cell *matHeaderCellDef >
+      <th mat-header-cell *matHeaderCellDef  [hidden]="!tegaraCodeCheck.checked" >
         <mat-form-field apperance="outline" class="search" color="primary"  style="width: 15vh !important;" >
         <mat-label class="saerch-title">كود تجارة</mat-label>
         <input  matInput   #tegaraCodeInput (search)="clear('tegaraCode')" >
@@ -48,7 +56,7 @@
           </button>
         }
       </mat-form-field></th>
-      <td mat-cell *matCellDef="let row">{{row.tegaraCode}}</td>
+      <td mat-cell *matCellDef="let row"  [hidden]="!tegaraCodeCheck.checked">{{row.tegaraCode}}</td>
     </ng-container>
 
 
@@ -78,7 +86,7 @@
 
     <!-- nationalId Column -->
     <ng-container matColumnDef="nationalId">
-      <th mat-header-cell *matHeaderCellDef >
+      <th mat-header-cell *matHeaderCellDef  [hidden]="!nationalIdCheck.checked" >
           <mat-form-field apperance="outline" class="search" color="primary"  style="width: 20vh !important;">
         <mat-label class="saerch-title">الرقم القومى</mat-label>
         <input  matInput   #nationalIdInput (search)="clear('nationalId')" >
@@ -89,8 +97,26 @@
         }
       </mat-form-field>
     </th>
-      <td mat-cell *matCellDef="let row">{{row.nationalId}}</td>
+      <td mat-cell *matCellDef="let row" [hidden]="!nationalIdCheck.checked">{{row.nationalId}}</td>
     </ng-container>
+        <!-- department Column -->
+
+        <ng-container matColumnDef="department" >
+          <th mat-header-cell *matHeaderCellDef [hidden]="!departmentCheck.checked" >
+              <mat-form-field apperance="outline" class="search" color="primary"  style="width: 20vh !important;">
+            <mat-label class="saerch-title">الرقم القومى</mat-label>
+            <input  matInput   #departmentInput (search)="clear('department')" >
+            @if (departmentInput?.value) {
+              <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('department')" >
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+          </mat-form-field>
+        </th>
+          <td mat-cell *matCellDef="let row" [hidden]="!departmentCheck.checked"  >{{row.departmentName}}</td>
+
+
+        </ng-container>
   <!-- collage Column -->
     <ng-container matColumnDef="collage">
       <th mat-header-cell *matHeaderCellDef >

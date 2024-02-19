@@ -35,9 +35,9 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.TegaraCode.Equals(param.TegaraCode));
             }
-            if (param.DepartmentId.HasValue)
+            if (!string.IsNullOrEmpty(param.DepartmentName))
             {
-                AddCriteries(x => x.DepartmentId.Equals(param.DepartmentId));
+                AddCriteries(x => x.Department.Name.Contains(param.DepartmentName));
             }
             if (!string.IsNullOrEmpty(param.Collage))
             {

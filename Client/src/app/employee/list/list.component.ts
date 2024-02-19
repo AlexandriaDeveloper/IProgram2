@@ -28,7 +28,7 @@ export class ListComponent implements AfterViewInit,OnInit {
   @ViewChild("nameInput") nameInput :ElementRef;
   @ViewChild("nationalIdInput") nationalIdInput :ElementRef;
   @ViewChild("collageInput") collageInput :ElementRef;
-
+  @ViewChild("departmentInput") departmentInput :ElementRef;
   dataSource ;
 
 constructor( private cdref: ChangeDetectorRef ) {}
@@ -56,6 +56,7 @@ constructor( private cdref: ChangeDetectorRef ) {}
     this.initElement(this.nameInput,'name');
     this.initElement(this.nationalIdInput,'nationalId');
     this.initElement(this.collageInput,'collage');
+    this.initElement(this.departmentInput,'department');
   }
   initElement(element :ElementRef,param ){
 
@@ -76,6 +77,8 @@ constructor( private cdref: ChangeDetectorRef ) {}
           this.param.nationalId=x; break;
           case 'collage':
           this.param.collage=x; break;
+          case 'department':
+            this.param.departmentName=x; break;
         }
         this.loadData();
     })
@@ -84,7 +87,7 @@ constructor( private cdref: ChangeDetectorRef ) {}
 
 
   /** Columns displayed in the table. Columns IDs can be added, removed, or reordered. */
-  displayedColumns = ['action','tabCode','tegaraCode', 'name','nationalId','collage'];
+  displayedColumns = ['action','tabCode','tegaraCode', 'name','nationalId','department','collage'];
 
 
 
@@ -140,6 +143,10 @@ constructor( private cdref: ChangeDetectorRef ) {}
     if(input==='collage'){
       this.collageInput.nativeElement.value = '';
       this.param.collage=null;
+    }
+    if(input==='department'){
+      this.departmentInput.nativeElement.value = '';
+      this.param.departmentName=null;
     }
       this.loadData();
 
