@@ -76,7 +76,7 @@ namespace Api.Controllers
             }
             try
             {
-                var result = await _employeeService.UploadTabFile(model.File);
+                var result = await _employeeService.UploadTegaraFile(model);
 
                 return HandleResult(result);
             }

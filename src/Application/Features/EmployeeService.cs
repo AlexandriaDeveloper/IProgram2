@@ -5,7 +5,6 @@ using Application.Helpers;
 using Application.Services;
 using Core.Interfaces;
 using Core.Models;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -54,9 +53,6 @@ namespace Application.Features
             var count = await _employeeRepository.CountAsync(new EmployeeCountSpecification(param));
             var result = PaginatedResult<EmployeeDto>.Create(employeeToReturn.ToList(), param.PageIndex, param.PageSize, count);
             return Result.Success(result);
-
-            //return Result.Success<PA<EmployeeDto>>(employeeToReturn);
-
         }
 
 
@@ -251,69 +247,44 @@ namespace Application.Features
 
             //Check Header Row
             var header = npoi.GetHeadersByIndex(0);
-            if (!CheckTegaraHeaderRow(header))
+            if (!CheckHeaderRow(header))
             {
                 return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
             DataTable dt = npoi.ReadSheeByIndex(0);
+            int colIndex = 0;
+
+            if (dt.Columns.Contains("الرقم القومى"))
+            {
+                colIndex = dt.Columns.IndexOf("الرقم القومى");
+            }
+            else if (dt.Columns.Contains("الرقم القومي"))
+            {
+                colIndex = dt.Columns.IndexOf("الرقم القومي");
+            }
+            if (colIndex == 0)
+            {
+                return Result.Failure(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
+            }
+
             foreach (DataRow row in dt.Rows)
             {
-                bool hasUpdat = false;
-                var empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[3].ToString());
+
+                var empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[colIndex].ToString());
 
                 if (empExist == null)
                 {
-                    continue;
+                    // continue;
+                    await _employeeRepository.Insert(AddEmployee(dt.Columns, row));
                 }
-                try
+                else
                 {
-                    if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()) && !row.ItemArray[1].ToString().Equals(empExist.TegaraCode.ToString()))
-                    {
-                        empExist.TegaraCode = int.Parse(row.ItemArray[1].ToString());
-                        hasUpdat = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[4].ToString()) && !row.ItemArray[4].ToString().Equals(empExist.Section))
-                    {
-                        empExist.Section = row.ItemArray[4].ToString();
-                        hasUpdat = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[6].ToString()) && row.ItemArray[6].ToString() != empExist.Email)
-                    {
-                        empExist.Email = row.ItemArray[6].ToString();
-                        hasUpdat = true;
-                    }
-                    if (empExist.EmployeeBank == null && !string.IsNullOrEmpty(row.ItemArray[9].ToString()))
-                    {
-                        empExist.EmployeeBank = new EmployeeBank();
-                        empExist.EmployeeBank.CreatedAt = DateTime.Now;
-                        empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
-                        empExist.EmployeeBank.IsActive = true;
-                        hasUpdat = true;
-                    }
-
-                    if (!string.IsNullOrEmpty(row.ItemArray[9].ToString()) && row.ItemArray[9].ToString() != empExist.EmployeeBank.BankName)
-                    {
-                        empExist.EmployeeBank.BankName = row.ItemArray[9].ToString();
-                        hasUpdat = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[10].ToString()) && row.ItemArray[10].ToString() != empExist.EmployeeBank.BranchName)
-                    {
-                        empExist.EmployeeBank.BranchName = row.ItemArray[10].ToString();
-                        hasUpdat = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[11].ToString()) && row.ItemArray[11].ToString() != empExist.EmployeeBank.AccountNumber)
-                    {
-                        empExist.EmployeeBank.AccountNumber = row.ItemArray[11].ToString();
-                        hasUpdat = true;
-                    }
+                    bool hasUpdat = false;
+                    UpdateEmployee(dt.Columns, row, empExist, out hasUpdat);
                     if (hasUpdat)
                         _employeeRepository.Update(empExist);
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.Message);
 
-                }
 
             }
             try
@@ -331,99 +302,176 @@ namespace Application.Features
 
 
 
-        public async Task<Result> UploadTabFile(IFormFile file)
+
+
+        private Employee AddEmployee(DataColumnCollection columns, DataRow row)
         {
+            var employee = new Employee();
 
-            if (file == null)
+            if (columns.Contains("الرقم القومى") && row["الرقم القومى"] != null)
             {
-                return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
+                employee.NationalId = row["الرقم القومى"].ToString();
             }
-            UploadFile upload = new UploadFile(file);
-            var path = await upload.UploadFileToTempPath();
-            NpoiServiceProvider npoi = new NpoiServiceProvider(path);
-
-            //Check Header Row
-            var header = npoi.GetHeadersByIndex(0);
-            if (!CheckTabHeaderRow(header))
+            if (columns.Contains("الرقم القومي") && row["الرقم القومي"] != null)
             {
-                return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
+                employee.NationalId = row["الرقم القومي"].ToString();
             }
-            DataTable dt = npoi.ReadSheeByIndex(0);
-            foreach (DataRow row in dt.Rows)
-            {
 
-                var empExist = await _employeeRepository.GetEmployeeByNationalId(row.ItemArray[0].ToString());
-                if (empExist == null)
+            if (columns.Contains("الاسم") && row["الاسم"] != null)
+            {
+                employee.Name = row["الاسم"].ToString();
+            }
+            if (columns.Contains("الايميل") && row["الايميل"] != null)
+            {
+                employee.Email = row["الايميل"].ToString();
+            }
+            if (columns.Contains("كود تجارة") && row["كود تجارة"] != null)
+            {
+                employee.TegaraCode = int.TryParse(row["كود تجارة"].ToString(), out int code) ? code : null;
+            }
+
+            if (columns.Contains("رقم الموظف بجهته الأصلية") && row["رقم الموظف بجهته الأصلية"] != null)
+            {
+                employee.TabCode = int.TryParse(row["رقم الموظف بجهته الأصلية"].ToString(), out int code) ? code : null;
+            }
+            if (columns.Contains("القطاع") && row["القطاع"] != null)
+            {
+                employee.Collage = row["القطاع"].ToString();
+            }
+            if (columns.Contains("الإدارة") && row["الإدارة"] != null)
+            {
+                employee.Section = row["الإدارة"].ToString();
+            }
+            if (columns.Contains("البنك") && row["البنك"] != null)
+            {
+                if (employee.EmployeeBank == null)
+                    employee.EmployeeBank = new EmployeeBank();
+
+                employee.EmployeeBank.BankName = row["البنك"].ToString();
+                employee.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+                employee.EmployeeBank.CreatedAt = DateTime.Now;
+            }
+            if (columns.Contains("الفرع") && row["الفرع"] != null)
+            {
+                if (employee.EmployeeBank == null)
+                    employee.EmployeeBank = new EmployeeBank();
+
+                employee.EmployeeBank.BranchName = row["الفرع"].ToString();
+            }
+            if (columns.Contains("رقم الحساب") && row["رقم الحساب"] != null)
+            {
+                if (employee.EmployeeBank == null)
+                    employee.EmployeeBank = new EmployeeBank();
+
+                employee.EmployeeBank.AccountNumber = row["رقم الحساب"].ToString();
+
+            }
+
+            return employee;
+
+        }
+        private Employee UpdateEmployee(DataColumnCollection columns, DataRow row, Employee empExist, out bool hasUpdat)
+        {
+            hasUpdat = false;
+            if (columns.Contains("القطاع") && row["القطاع"] != null)
+            {
+                if (row["القطاع"].ToString() != empExist.Collage)
                 {
-                    var employee = new Employee()
-                    {
-                        Collage = row.ItemArray[2].ToString(),
-                        DepartmentId = null,
-                        IsActive = true,
-                        Name = row.ItemArray[5].ToString(),
-                        NationalId = row.ItemArray[0].ToString(),
-                        TabCode = Convert.ToInt32(row.ItemArray[4]),
-
-                    };
-                    await _employeeRepository.Insert(employee);
-                }
-                else
-                {
-                    bool hasUpdate = false;
-                    if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()) && row.ItemArray[2].ToString() != empExist.Collage)
-                    {
-                        empExist.Collage = row.ItemArray[2].ToString();
-                        hasUpdate = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[5].ToString()) && row.ItemArray[5].ToString() != empExist.Name)
-                    {
-                        empExist.Name = row.ItemArray[5].ToString();
-                        hasUpdate = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[3].ToString()) && row.ItemArray[3].ToString() != empExist.Section)
-                    {
-                        empExist.Section = row.ItemArray[3].ToString();
-                        hasUpdate = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[0].ToString()) && row.ItemArray[0].ToString() != empExist.NationalId)
-                    {
-                        empExist.NationalId = row.ItemArray[0].ToString();
-                        hasUpdate = true;
-                    }
-                    if (!string.IsNullOrEmpty(row.ItemArray[4].ToString()) && row.ItemArray[4].ToString() != empExist.TabCode.ToString())
-                    {
-                        empExist.TabCode = Convert.ToInt32(row.ItemArray[4]);
-                        hasUpdate = true;
-                    }
-
-                    if (hasUpdate)
-                        _employeeRepository.Update(empExist);
+                    empExist.Collage = row["القطاع"].ToString();
+                    hasUpdat = true;
                 }
             }
-            await _uow.SaveChangesAsync();
-            return Result.Success("تم الرفع بنجاح");
+            if (columns.Contains("كود تجارة") && row["كود تجارة"] != null)
+            {
+                if (row["كود تجارة"].ToString() != empExist.TegaraCode.ToString())
+                {
+                    empExist.TegaraCode = int.TryParse(row["كود تجارة"].ToString(), out int code) ? code : null;
+                    hasUpdat = true;
+                }
+            }
+
+            if (columns.Contains("الإدارة") && row["الإدارة"] != null)
+            {
+                if (row["الإدارة"].ToString() != empExist.Section)
+                {
+                    empExist.Section = row["الإدارة"].ToString();
+                    hasUpdat = true;
+                }
+            }
+
+            if (columns.Contains("الايميل") && row["الايميل"] != null)
+            {
+                if (row["الايميل"].ToString() != empExist.Email)
+                {
+                    empExist.Email = row["الايميل"].ToString();
+                    hasUpdat = true;
+                }
+            }
+            if (columns.Contains("البنك") && row["البنك"] != null)
+
+                if (empExist.EmployeeBank == null && !string.IsNullOrEmpty(row["البنك"].ToString()))
+                {
+                    empExist.EmployeeBank = new EmployeeBank();
+                    empExist.EmployeeBank.CreatedAt = DateTime.Now;
+                    empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+                    empExist.EmployeeBank.IsActive = true;
+                    empExist.EmployeeBank.BankName = row["البنك"].ToString();
+                    if (!string.IsNullOrEmpty(row["الفرع"].ToString()))
+                    {
+                        empExist.EmployeeBank.BranchName = row["الفرع"].ToString();
+                        hasUpdat = true;
+                    }
+                    if (!string.IsNullOrEmpty(row["رقم الحساب"].ToString()))
+                    {
+                        empExist.EmployeeBank.AccountNumber = row["رقم الحساب"].ToString();
+                        hasUpdat = true;
+                    }
+
+
+                    hasUpdat = true;
+                }
+                else if (empExist.EmployeeBank != null)
+                {
+                    if (!string.IsNullOrEmpty(row["البنك"].ToString()) && row["البنك"].ToString() != empExist.EmployeeBank.BankName)
+                    {
+                        empExist.EmployeeBank.BankName = row["البنك"].ToString();
+                        hasUpdat = true;
+                    }
+                    if (!string.IsNullOrEmpty(row["الفرع"].ToString()) && row["الفرع"].ToString() != empExist.EmployeeBank.BranchName)
+                    {
+                        empExist.EmployeeBank.BranchName = row["الفرع"].ToString();
+                        hasUpdat = true;
+                    }
+                    if (!string.IsNullOrEmpty(row["رقم الحساب"].ToString()) && row["رقم الحساب"].ToString() != empExist.EmployeeBank.AccountNumber)
+                    {
+                        empExist.EmployeeBank.AccountNumber = row["رقم الحساب"].ToString();
+                        hasUpdat = true;
+                    }
+                }
+
+
+            return empExist;
+
+
 
         }
 
 
 
-        private bool CheckTabHeaderRow(List<string> header)
-        {
-            var fileAccepted = false;
-            if (header[0] == "الرقم القومى" && header[4] == "رقم الموظف بجهته الأصلية" && header[2] == "القطاع" && header[5] == "الاسم" && header[3] == "الإدارة")
-            {
-                fileAccepted = true;
-            }
-            return fileAccepted;
-        }
 
-        private bool CheckTegaraHeaderRow(List<string> header)
+        private bool CheckHeaderRow(List<string> header)
         {
+            string[] allowerColumns = ["رقم الموظف بجهته الأصلية", "كود تجارة","الاسم","المرتب","نوع المدفوعه","الرقم القومي","بطاقات","بنكية","تاريخ التعديل",
+            "الرقم القومى","الإدارة","القطاع","الايميل","البنك","الفرع","رقم الحساب"];
 
-            var fileAccepted = false;
-            if (header[1] == "كود تجارة" && header[0] == "رقم الموظف بجهته الأصلية" && header[2] == "الاسم" && header[4] == "الإدارة" && header[6] == "الايميل" && header[9] == "البنك" && header[10] == "الفرع" && header[11] == "رقم الحساب")
+
+            var fileAccepted = true;
+            foreach (string col in header)
             {
-                fileAccepted = true;
+                if (!allowerColumns.Contains(col))
+                {
+                    fileAccepted = false;
+                }
             }
             return fileAccepted;
         }

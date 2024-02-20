@@ -145,8 +145,8 @@ document.createElement('video');
       </mat-expansion-panel-header>
       <mat-nav-list class="list" >
       <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/add']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon> تكوين موظف   </a>
-      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a>
-      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload-tegara']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف تجارة   </a>
+      <!-- <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a> -->
+      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload-tegara']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a>
       <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"   > <mat-icon >people</mat-icon>  الموظفين  </a>
       </mat-nav-list>
 
