@@ -15,25 +15,7 @@ namespace Api.Controllers
 
         }
 
-        // [HttpGet("employees-department")]
-        // public async Task<FileResult> DownloadEmployeesDepartment()
-        // {
-        //     string fileName = "EmployeesDepartment.xlsx";
-        //     //string filePath = Path.Combine(_hostEnvironment.ContentRootPath, "Content\\" + fileName);
-        //     string filePath = Path.Combine(Directory.GetCurrentDirectory(), "Content\\" + fileName);
-        //     if (!System.IO.File.Exists(filePath))
-        //         throw new Exception("File not found");
 
-
-        //     var memory = new MemoryStream();
-        //     await using (var stream = new FileStream(filePath, FileMode.Open))
-        //     {
-        //         await stream.CopyToAsync(memory);
-        //     }
-        //     memory.Position = 0;
-        //     return File(memory, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
-        // }
-        [AllowAnonymous]
         [HttpGet("downloadFile")]
         public async Task<FileResult> DownlodFile([FromQuery] string fileName)
         {
@@ -46,10 +28,10 @@ namespace Api.Controllers
                 case "form-file":
                     fileName = "FormFile.xlsx";
                     break;
-
+                case "add-employees":
+                    fileName = "AddEmployees.xlsx";
+                    break;
             }
-            // string fileName = "EmployeesDepartment.xlsx";
-            //string filePath = Path.Combine(_hostEnvironment.ContentRootPath, "Content\\" + fileName);
             string filePath = Path.Combine(Directory.GetCurrentDirectory(), "Content\\" + fileName);
             if (!System.IO.File.Exists(filePath))
                 throw new Exception("File not found");

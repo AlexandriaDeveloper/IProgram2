@@ -228,13 +228,141 @@ namespace Application.Features
             //pdf.show
             return await Task.FromResult(pdf);
         }
-        /*
+
+        public async Task<byte[]> PrintIndexPdf(DailyDto formModel)
         {
-  "id": 1460115,
-  "startDate": "2020-01-13T20:04:58.347Z",
-  "endDate": "2024-01-13T20:04:58.347Z"
-}
-        */
+            var totalText = NumericToLiteral.Convert(formModel.Forms.Sum(x => x.TotalAmount), false, "جنيه", "جنيهات");
+            totalText = totalText.Replace("(", "");
+            totalText = totalText.Replace(")", "");
+            totalText = totalText.Replace("،", "");
+
+            var pdf = QuestPDF.Fluent.Document.Create(c =>
+             {
+                 c.Page(p =>
+                  {
+                      p.Foreground().PaddingTop(10).PaddingBottom(10).PaddingRight(10).PaddingLeft(10).Border(3).BorderColor("#444444");
+                      p.ContentFromRightToLeft();
+                      p.DefaultTextStyle(TextStyle.Default.FontFamily("Arial"));
+                      p.Size(PageSizes.A4);
+                      p.Header().DefaultTextStyle(TextStyle.Default.FontFamily("Cairo"));
+                      p.Header().PaddingTop(0, Unit.Centimetre);
+                      p.Header().ScaleHorizontal(1.5f).ScaleVertical(.8f).AlignCenter().Column(c =>
+                      {
+                          c.Item().Row(r =>
+                          {
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image("../Api/Content/images.png");
+                          });
+                          //   if (!string.IsNullOrEmpty(formModel.Description))
+                          //       c.Item().Column(c =>
+                          //       {
+                          //           c.Item().ShowOnce().LineHorizontal(1).LineColor(Colors.Black);
+                          //       });
+                      });
+                      p.Margin(15, QuestPDF.Infrastructure.Unit.Millimetre);
+                      p.PageColor(Colors.White);
+                      p.Content()
+                          .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Millimetre)
+                          .ContentFromRightToLeft()
+                          .Column(x =>
+                          {
+                              x.Item().Row(r2 =>
+                              {
+                                  r2.RelativeItem().AlignCenter().Text(t =>
+                                 {
+                                     t.Span(formModel.Name).Bold().FontSize(14);
+                                     t.EmptyLine();
+                                 });
+                              });
+
+                              x.Item().Border(1).Table(t =>
+                              {
+                                  t.ColumnsDefinition(h =>
+                                  {
+                                      h.ConstantColumn(35);
+                                      h.ConstantColumn(50);
+                                      h.RelativeColumn();
+                                      h.ConstantColumn(100);
+
+                                  });
+                                  t.Header(h =>
+                                  {
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(
+                                         t =>
+                                         {
+                                             t.Span("م").Bold().FontFamily("Cairo").FontSize(10);
+                                         });
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(
+                                            t =>
+                                         {
+                                             t.Span("الرقم").Bold().FontFamily("Cairo").FontSize(10);
+                                         });
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(t =>
+                                         {
+                                             t.Span("البيان").Bold().FontFamily("Cairo").FontSize(10);
+                                         });
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(t =>
+                                         {
+                                             t.Span("المبلغ").Bold().FontFamily("Cairo").FontSize(10);
+                                         });
+
+                                  });
+                                  uint row = 0;
+                                  foreach (var form in formModel.Forms)
+                                  {
+                                      t.Cell().Row((uint)row + 1).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((row + 1).ToString());
+                                      t.Cell().Row((uint)row + 1).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Index.ToString());
+                                      t.Cell().Row((uint)row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Name.ToString());
+                                      t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.TotalAmount.ToString());
+                                      row++;
+                                  }
+                                  t.Cell().Row((row + 1)).ColumnSpan(3).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(
+                                     t =>
+                                     {
+                                         t.Span(" اجمالى المبلغ : " + totalText + "فقط لا غير").Bold().FontSize(9).FontFamily("Cairo");
+                                     });
+                                  t.Cell().Row((row + 1)).Column(4).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
+                                  (formModel.Forms.Sum(x => x.TotalAmount).ToString()).Bold().FontFamily("Cairo");
+                              });
+
+
+                          });
+                      p.Background()
+                      .AlignBottom()
+                      .Image("../Api/Content/logo3.png");
+                      p.Footer()
+                             .Table(t =>
+                             {
+                                 t.ColumnsDefinition(c =>
+                                 {
+                                     c.RelativeColumn();
+                                     c.RelativeColumn();
+                                     c.RelativeColumn();
+                                 });
+                                 t.Cell().Row(1).Column(1).AlignRight().Text("الموظف المختص").Bold();
+                                 t.Cell().Row(1).Column(2).AlignCenter().Text("رئيس القسم").Bold();
+                                 t.Cell().Row(1).Column(3).AlignLeft().Text("رئيس المصلحة").Bold();
+                                 t.Cell().Row(2).Column(2).AlignCenter().Text(x =>
+                                 {
+                                     x.EmptyLine();
+                                     x.EmptyLine();
+                                     x.Span("-").FontSize(12).FontColor("#484848");
+                                     x.CurrentPageNumber().FontSize(12).FontColor("#484848");
+                                     x.Span("-").FontSize(12).FontColor("#484848");
+                                 });
+                             });
+                  });
+             }).WithMetadata(new DocumentMetadata()
+             {
+                 Title = "Report",
+                 Author = "mohamed",
+                 Subject = "hello",
+                 Keywords = "Test"
+             })
+            .GeneratePdf();
+            //pdf.show
+            return await Task.FromResult(pdf);
+        }
+
 
         public async Task<byte[]> PrintEmployeeReportDetailsPdf(EmployeeReportDto formModel)
         {

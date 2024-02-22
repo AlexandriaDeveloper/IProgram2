@@ -1,3 +1,6 @@
+<button mat-icon-button color="accent" (click)="downloadFile()">
+<mat-icon>download</mat-icon>
+</button>
 <form [formGroup]="uploadForm">
 
   <app-upload #fileDropRef (upload)="uploadFiles()" (change)="onFileSelected($event)" formControlName="file"></app-upload>

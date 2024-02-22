@@ -6,7 +6,9 @@
   </button>
   <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Sunt harum fugit odio ducimus, suscipit repellendus sint iure quae laborum veniam perferendis non officiis, voluptas dolore mollitia voluptatibus provident. Cum, accusamus!</p>
 </div> -->
-<button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >    <mat-icon>more_vert</mat-icon></button>
+
+<button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >
+  <mat-icon>more_vert</mat-icon></button>
 <mat-menu #menu="matMenu">
   <button mat-menu-item  (click)="exportPdf()">
     <mat-icon >picture_as_pdf</mat-icon>
@@ -16,7 +18,15 @@
   <button mat-menu-item  (click)="downloadExcel()">
     <mat-icon>insert_drive_file</mat-icon>
     تنزيل ملف اكسيل</button>
+
+    <button mat-menu-item  (click)="closeDaily()" [disabled]="daily?.closed">
+      <mat-icon>close</mat-icon>
+       اغلاق اليوميه </button>
+       <button mat-menu-item  (click)="exportIndexPdf()" [disabled]="!daily?.closed">
+        <mat-icon>123</mat-icon>
+         فهرسه اليوميه </button>
 </mat-menu>
+
 <div class="mat-elevation-z8">
   <table  mat-table class="full-width-table" matSort aria-label="Elements">
         <!-- action Column -->
@@ -24,7 +34,7 @@
           <th mat-header-cell *matHeaderCellDef>
 
             <div class="table-spacer"  style="width: 10vh !important;" >
-              <button mat-icon-button (click)="openDialog(null)" color="primary" class="add-button">
+              <button mat-icon-button (click)="openDialog(null)" color="primary" class="add-button" *ngIf="!daily?.closed">
                 <mat-icon style="color:#fff">add</mat-icon>
               </button>
             </div>
@@ -34,10 +44,10 @@
             <button mat-icon-button [routerLink]="['./',row.id]" color="primary" class="info-button">
               <mat-icon>info</mat-icon>
             </button>
-            <button mat-icon-button (click)="openDialog(row)" color="accent"  class="edit-button">
+            <button mat-icon-button (click)="openDialog(row)" color="accent"  class="edit-button" *ngIf="!daily?.closed">
               <mat-icon>edit</mat-icon>
             </button>
-            <button mat-icon-button (click)="onDelete(row)" color="warn" class="delete-button">
+            <button mat-icon-button (click)="onDelete(row)" color="warn" class="delete-button" *ngIf="!daily?.closed">
               <mat-icon>delete</mat-icon>
             </button>
           </td>

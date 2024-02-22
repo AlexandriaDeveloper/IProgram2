@@ -22,6 +22,7 @@ namespace Application.Features
             IFormRepository formRepository,
             IFormReferencesRepository formReferencesRepository,
          IFormDetailsRepository formDetailsRepository,
+         IDailyRepository dailyRepository,
          IUniteOfWork unitOfWork,
           IHttpContextAccessor httpContextAccessor)
         {
@@ -171,6 +172,12 @@ namespace Application.Features
 
         public async Task<Result> ReOrderRows(int formId, int[] formOrderDetailsIds)
         {
+            // var form = _formRepository.GetQueryable().Include(x => x.Daily).FirstOrDefault(x => x.Id == formId);
+            // if (form.Daily.Closed)
+            // {
+            //     return Result.Failure(new Error("500", "اليوميه مغلقه"));
+            // }
+
             var orderDetails = _formDetailsRepository.GetQueryable().Where(x => x.FormId == formId).ToList();
             for (int i = 0; i < formOrderDetailsIds.Length; i++)
             {

@@ -30,6 +30,10 @@ export class DailyService {
     return this.http.get<IDaily[]>(this.apiUrl+'daily',{params:params})
   }
 
+  getDaily(id){
+    return this.http.get<IDaily>(this.apiUrl+'daily/'+id)
+  }
+
   addDaily(model : IDaily){
 
     return this.http.post(this.apiUrl+'daily',model)
@@ -38,9 +42,13 @@ export class DailyService {
 
     return this.http.put(this.apiUrl+'daily',model)
   }
-  deleteDaily(id : number){
+  softDeleteDaily(id : number){
      return this.http.delete(this.apiUrl+'daily/softdelete/'+id)
   }
+  deleteDaily(id : number){
+    return this.http.delete(this.apiUrl+'daily/'+id)
+ }
+
 
   downloadExcelDaily(dailyId){
     return this.http.get(this.apiUrl+'daily/download-daily/'+dailyId,{ observe: 'response', responseType: 'blob' }).pipe(
@@ -51,6 +59,10 @@ export class DailyService {
         const url = window.URL.createObjectURL(blob);
         window.open(url);
        }))
+  }
+
+  closeDaily(dailyId: any) {
+    return this.http.put(this.apiUrl+'daily/CloseDaily/'+dailyId,{})
   }
 
 }

@@ -43,6 +43,20 @@ namespace Api.Controllers
             return HandleResult<DailyDto>(result); ;
         }
 
+        [HttpPut("CloseDaily/{dailyId}")]
+
+        public async Task<IActionResult> CloseDaily(int dailyId, CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<DailyDto>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            var result = await _dailyService.CloseDaily(dailyId, cancellationToken);
+
+            return HandleResult(result); ;
+        }
+
+
         [HttpGet()]
 
         public async Task<IActionResult> GetDailies([FromQuery] DailyParam form, CancellationToken cancellationToken)
@@ -55,10 +69,31 @@ namespace Api.Controllers
             return HandleResult<PaginatedResult<DailyDto>>(result);// result;
         }
 
+
+        [HttpGet("{dailyId}")]
+
+        public async Task<IActionResult> GetDailys(int dailyId, CancellationToken cancellationToken)
+        {
+
+            var result = await _dailyService.GetDaily(dailyId, cancellationToken);
+
+            //  return result;
+
+            return HandleResult<DailyDto>(result);// result;
+        }
+
         [HttpDelete("softdelete/{id}")]
         public async Task<IActionResult> SoftDelete(int id, CancellationToken cancellationToken)
         {
             var result = await _dailyService.SoftDeleteDaily(id, cancellationToken);
+            return HandleResult(result);// result;
+        }
+
+        [HttpDelete("delete/{id}")]
+        public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+        {
+            var result = await _dailyService.DeleteDaily(id, cancellationToken);
+
             return HandleResult(result);// result;
         }
 
@@ -71,6 +106,28 @@ namespace Api.Controllers
 
 
             var pdf = await _dailyService.ExportPdf(dailyId);//.PrintFormWithDetailsPdf(formId);
+
+            var path = Path.GetTempPath() + "test.pdf";
+
+
+            var memory = new MemoryStream(pdf);
+            await using (var stream = new FileStream(path, FileMode.Create))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+            return File(memory, "application/pdf", "test.pdf");
+        }
+
+        [HttpGet("exportIndexPdf/{dailyId}")]
+
+
+        public async Task<IActionResult> ExportIndex(int dailyId)
+        {
+            // return await _dailyService.ExportPdf(dailyId);
+
+
+            var pdf = await _dailyService.ExportIndexPdf(dailyId);//.PrintFormWithDetailsPdf(formId);
 
             var path = Path.GetTempPath() + "test.pdf";
 

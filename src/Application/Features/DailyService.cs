@@ -64,14 +64,62 @@ namespace Application.Features
             return Result.Success<DailyDto>(dailyDto);
 
         }
+        public async Task<Result> CloseDaily(int dailyId, CancellationToken cancellationToken)
+        {
 
+            var daily = await _dailyRepository.GetQueryable().Include(x => x.Forms).FirstOrDefaultAsync(x => x.Id == dailyId);
+            if (daily == null)
+                return Result.Failure(new Error("404", "Not Found"));
+            var lastDaily = await _formRepository.GetQueryable().MaxAsync(x => x.Index);
+
+            int maxIndex = 0;
+            if (lastDaily != null)
+                maxIndex = lastDaily.HasValue ? lastDaily.Value + 1 : 0;
+
+            foreach (var form in daily.Forms)
+            {
+                if (form.IsActive)
+                    form.Index = maxIndex;
+            }
+
+            daily.Closed = true;
+
+            _dailyRepository.Update(daily);
+
+            var result = await _unitOfWork.SaveChangesAsync(cancellationToken) > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "Internal Server Error"));
+            }
+            return Result.Success();
+
+        }
         public async Task<Result> SoftDeleteDaily(int id, CancellationToken cancellationToken)
         {
             var daily = await _dailyRepository.GetById(id);
             if (daily == null)
                 return Result.Failure(new Error("404", "Not Found"));
             //daily.IsActive = false;
+            if (daily.Closed)
+            {
+                return Result.Failure(new Error("500", "اليوميه مغلقه"));
+            }
             await _dailyRepository.DeActive(daily.Id);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result.Success("Deleted Successfully");
+        }
+        public async Task<Result> DeleteDaily(int id, CancellationToken cancellationToken)
+        {
+            var daily = await _dailyRepository.GetById(id);
+            if (daily == null)
+                return Result.Failure(new Error("404", "Not Found"));
+            if (daily.Closed)
+            {
+                return Result.Failure(new Error("500", "اليوميه مغلقه"));
+            }
+            //daily.IsActive = false;
+            await _dailyRepository.Delete(daily.Id);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result.Success("Deleted Successfully");
@@ -86,7 +134,8 @@ namespace Application.Features
             {
                 Name = x.Name,
                 Id = x.Id,
-                DailyDate = x.DailyDate
+                DailyDate = x.DailyDate,
+                Closed = x.Closed
             }).ToList();
 
             var pagedResult = PaginatedResult<DailyDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
@@ -114,7 +163,7 @@ namespace Application.Features
                 TabCode = g.FirstOrDefault().Employee.TabCode,
                 TegaraCode = g.FirstOrDefault().Employee.TegaraCode,
                 NationalId = g.FirstOrDefault().Employee.NationalId,
-                Amount = g.Sum(x => x.Amount)
+                Amount = Math.Round(g.Sum(x => x.Amount), 2)
             });
             var daily = await _dailyRepository.GetById(dailyId);
 
@@ -124,7 +173,7 @@ namespace Application.Features
                 FormDetails = result.ToList(),
                 Name = "تقرير اليومية",
                 Count = result.Count(),
-                TotalAmount = result.Sum(x => x.Amount),
+                TotalAmount = Math.Round(result.Sum(x => x.Amount), 2)
 
             };
 
@@ -133,7 +182,38 @@ namespace Application.Features
 
             return await _reportService.PrintPdf(form);
         }
+        public async Task<byte[]> ExportIndexPdf(int dailyId)
+        {
+            var formsInDaily = await _dailyRepository
+            .GetQueryable()
+            .Include(t => t.Forms.Where(x => x.IsActive))
+            .ThenInclude(t => t.FormDetails)
+            .FirstOrDefaultAsync(x => x.Id == dailyId)
+            ;
 
+            DailyDto daily = new DailyDto()
+            {
+                Name = formsInDaily.Name,
+                DailyDate = formsInDaily.DailyDate,
+                Id = formsInDaily.Id,
+
+                Forms = formsInDaily.Forms.Select(x => new FormDto()
+                {
+                    Index = x.Index,
+                    Name = x.Name,
+                    TotalAmount = Math.Round(x.FormDetails.Sum(y => y.Amount), 2),
+
+
+
+                }).ToList()
+            };
+
+
+
+
+
+            return await _reportService.PrintIndexPdf(daily);
+        }
 
         public async Task<MemoryStream> CreateExcelFile(int dailyId)
         {
@@ -144,7 +224,7 @@ namespace Application.Features
             .ThenInclude(e => e.Employee)
             .ThenInclude(e => e.Department)
             .Where(x => x.Id == dailyId && x.IsActive)
-            .SelectMany(x => x.Forms)
+            .SelectMany(x => x.Forms).Where(x => x.IsActive)
             .ToList();
 
             var npoi = new NpoiServiceProvider();
@@ -164,8 +244,6 @@ namespace Application.Features
 
                 foreach (var item in form.FormDetails)
                 {
-
-
                     DataRow dr = dt.NewRow();
                     dr.SetField("م", counter++);
                     dr["الرقم القومى"] = item.Employee.NationalId;
@@ -175,10 +253,8 @@ namespace Application.Features
                     dr["الاسم"] = item.Employee.Name;
                     dr.SetField("المبلغ", (double)item.Amount);
                     dt.Rows.Add(dr);
-
-
                 }
-                workbook = npoi.CreateExcelFile(title.Length > 31 ? title.Substring(0, 31) : title, title, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt);
+                workbook = npoi.CreateExcelFile(title.Length > 31 ? title.Substring(0, 31) : title, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
 
             }
 
@@ -226,7 +302,7 @@ namespace Application.Features
 
             }
 
-            workbook = npoi.CreateExcelFile(title2.Length > 31 ? title2.Substring(0, 31) : title2, title2, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt2);
+            workbook = npoi.CreateExcelFile(title2.Length > 31 ? title2.Substring(0, 31) : title2, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt2, title2);
 
 
 
@@ -254,7 +330,24 @@ namespace Application.Features
             return memory;
         }
 
+        public async Task<Result<DailyDto>> GetDaily(int dailyId, CancellationToken cancellationToken)
+        {
+            Daily daily = await _dailyRepository.GetById(dailyId);
+            if (daily == null)
+            {
+                return Result.Failure<DailyDto>(new Error("500", "اليوميه غير موجودة"));
+            }
+            else
+            {
+                return Result.Success(new DailyDto
+                {
+                    Id = daily.Id,
+                    Name = daily.Name,
+                    DailyDate = daily.DailyDate,
+                    Closed = daily.Closed
+                });
+            }
 
-
+        }
     }
 }

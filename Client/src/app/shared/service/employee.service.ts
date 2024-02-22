@@ -101,6 +101,18 @@ observe: "events"
    // return this.http.get(this.apiUrl+'reportPdf/PrintEmployeeReportDetailsPdf',{params})
   }
 
+  downloadEmployeesFile(){
+    let params = new HttpParams();
+    params = params.append('fileName',"add-employees");
+    return this.http.get( this.apiUrl+'download/downloadFile', {  observe: 'response', responseType: 'blob',params }).pipe(
+      map((x: HttpResponse<any>) => {
+        let blob = new Blob([x.body], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url);
+      })
+    );
+  }
+
   softDelete(id:number){
     return this.http.delete(this.apiUrl+'employee/softDelete/'+id)
   }

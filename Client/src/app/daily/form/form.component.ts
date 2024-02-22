@@ -8,7 +8,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
 import { MatTable } from '@angular/material/table';
-import { DailyParam } from '../../shared/models/IDaily';
+import { DailyParam, IDaily } from '../../shared/models/IDaily';
 import { IEmployee } from '../../shared/models/IEmployee';
 import { DailyService } from '../../shared/service/daily.service';
 import { FormService } from '../../shared/service/form.service';
@@ -33,6 +33,7 @@ export class FormComponent implements OnInit,AfterViewInit {
   formService = inject(FormService);
   dailyService = inject(DailyService);
   dailyId = inject(ActivatedRoute).snapshot.params['id'];
+  daily : IDaily;
   public param :   FormParam=new FormParam();
   dataSource;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
@@ -76,7 +77,13 @@ fb =inject(FormBuilder);
 
   }
   loadData(){
-    // console.log(this.dailyId);
+
+    this.dailyService.getDaily(this.dailyId).subscribe({
+      next:(x:IDaily)=>{
+        this.daily=x
+
+      }
+    })
 
     this.formService.GetForms(this.dailyId,this.param).subscribe({
       next:(x:any)=>{
@@ -127,6 +134,13 @@ fb =inject(FormBuilder);
       }
     })
   }
+  exportIndexPdf(){
+    this.formService.exportDailyIndex(this.dailyId).subscribe({
+      next:(x:any)=>{
+        // console.log(x);
+      }
+    })
+  }
 
   onSearch(){
     fromEvent(this.nameInput.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
@@ -171,7 +185,14 @@ fb =inject(FormBuilder);
 
     })
   }
+closeDaily(){
 
+  this.dailyService.closeDaily(this.dailyId).subscribe({
+    next:(x:any)=>{
+      this.loadData();
+    }
+  })
+}
 
 }
 

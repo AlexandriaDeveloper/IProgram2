@@ -34,9 +34,11 @@ namespace Application.Features
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IEmployeeRepository _employeeRepository;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IDailyRepository _dailyRepository;
 
-        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager)
+        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IDailyRepository dailyRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager)
         {
+            this._dailyRepository = dailyRepository;
             this._userManager = userManager;
             this._employeeRepository = employeeRepository;
             this._unitOfWork = unitOfWork;
@@ -81,6 +83,11 @@ namespace Application.Features
 
         public async Task<Result<FormDto>> AddForm(FormDto form)
         {
+            if (_dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+            }
+
             var formToDb = new Form
             {
                 Name = form.Name,
@@ -99,6 +106,11 @@ namespace Application.Features
 
         public async Task<Result> UpdateForm(int id, FormDto request)
         {
+            if (_dailyRepository.IsClosed(request.DailyId.Value))
+            {
+                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+            }
+
             var form = await _formRepository.GetById(id);
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
@@ -114,7 +126,12 @@ namespace Application.Features
 
         public async Task<Result> UpdateDescription(int id, UpdateFormDescriptonRequest request)
         {
+
             var form = await _formRepository.GetById(id);
+            if (_dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+            }
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
             form.Description = request.Description;
@@ -129,6 +146,10 @@ namespace Application.Features
         {
 
             var formFromDb = await _formRepository.GetById(request.FormId);
+            if (_dailyRepository.IsClosed(formFromDb.DailyId.Value))
+            {
+                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+            }
             if (formFromDb == null)
                 return Result.Failure(new Error("404", "Not Found"));
             formFromDb.DailyId = request.DailyId;
@@ -145,6 +166,10 @@ namespace Application.Features
         public async Task<Result> SoftDelete(int id)
         {
             var form = await _formRepository.GetById(id);
+            if (_dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+            }
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
 
@@ -154,6 +179,24 @@ namespace Application.Features
                 return Result.Success("تم الحذف بنجاح");
             return Result.Failure(new Error("500", "Internal Server Error"));
         }
+
+        public async Task<Result> Delete(int id)
+        {
+            var form = await _formRepository.GetById(id);
+            if (_dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+            }
+            if (form == null)
+                return Result.Failure(new Error("404", "Not Found"));
+
+            await _formRepository.Delete(id);
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (result)
+                return Result.Success("تم الحذف بنجاح");
+            return Result.Failure(new Error("500", "Internal Server Error"));
+        }
+
 
 
         public async Task<MemoryStream> CreateExcelFile(int formId, string title)
@@ -171,6 +214,7 @@ namespace Application.Features
             //Convert To DataTable And Add To Excel File
             DataTable dt = new DataTable();
             dt.Columns.Add("م", typeof(int));
+
             dt.Columns.Add("الرقم القومى", typeof(string));
             dt.Columns.Add("كود طب", typeof(string));
             dt.Columns.Add("كود تجارة", typeof(string));
@@ -194,7 +238,7 @@ namespace Application.Features
 
 
             var npoi = new NpoiServiceProvider();
-            var workbook = npoi.CreateExcelFile("Sheet1", title, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt);
+            var workbook = npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
 
 
             string tempPath = Path.GetTempPath();

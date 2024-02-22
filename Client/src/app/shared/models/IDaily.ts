@@ -5,6 +5,7 @@ export interface IDaily{
   id ?:number;
   name : string;
   dailyDate:Date;
+  closed?: boolean;
 }
 export class DailyParam extends Param{
   id ?:number;

@@ -20,7 +20,7 @@ import moment from 'moment';
 })
 export class DailyComponent implements OnInit {
   dialog =inject(MatDialog)
-  displayedColumns = ['action','name','dailyDate'];
+  displayedColumns = ['action','name','dailyDate','closed'];
   dailyService = inject(DailyService);
   public param :   DailyParam=new DailyParam();
   dataSource;

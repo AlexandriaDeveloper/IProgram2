@@ -16,6 +16,8 @@ import { ReferencesDialogComponent } from './references-dialog/references-dialog
 import { UploadReferencesDialogComponent } from './upload-references-dialog/upload-references-dialog.component';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { UploadExcelFileBottomComponent } from './upload-excel-file-bottom/upload-excel-file-bottom.component';
+import { IDaily } from '../../../shared/models/IDaily';
+import { DailyService } from '../../../shared/service/daily.service';
 
 
 
@@ -30,15 +32,19 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   dialog =inject(MatDialog)
   formDetailsService= inject(FormDetailsService);
   formService= inject(FormService);
+  dailyService= inject(DailyService);
   router =inject(Router)
   id = inject(ActivatedRoute).snapshot.params['formid']
   dailyId = inject(ActivatedRoute).snapshot.params['id']
+  daily : IDaily;
    toasterService = inject(ToasterService);
    bottomSheet =inject(MatBottomSheet)
   data :any;
   dataSource;
   filteredData :IEmployee[]=[]
   displayedColumns = ['action','tabCode','tegaraCode','name','department','nationalId','amount']
+  isLoading =false;
+
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatTable) table!: MatTable<IEmployee>;
@@ -54,7 +60,15 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
  tabSub :Subscription;
 
   ngOnInit(): void {
+    this.loadDaily();
   this.loadData();
+  }
+  loadDaily() {
+    this.dailyService.getDaily(this.dailyId).subscribe(x => {
+      console.log(x);
+
+      this.daily = x
+    })
   }
   ngAfterViewInit(): void {
     this.search();
@@ -211,6 +225,9 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
     this.formDetailsService.exportForms(this.id).subscribe()
   }
   drop(event){
+    if(this.daily.closed){
+      return;
+    }
     // console.log(this.dataSource);
 
   const previousIndex = this.dataSource.findIndex(row => row === event.item.data);
@@ -262,8 +279,15 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
     })
   }
   downloadExcel(){
+    this.isLoading=true
+    this.formService.downloadExcelForm({formId: this.id,formTitle : this.data.name}).subscribe(
+      {
+        complete: () => {
+          this.isLoading=false
+        }
+      }
 
-    this.formService.downloadExcelForm({formId: this.id,formTitle : this.data.name}).subscribe()
+    )
   }
 
 

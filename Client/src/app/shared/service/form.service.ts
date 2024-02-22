@@ -62,7 +62,7 @@ deleteForm(id){
 }
 
 exportFormsInsidDaily(dailyId){
-
+//exportIndexPdf
   return this.http.get(this.apiUrl+`daily/exportPdf/${dailyId}`,{ observe: 'response', responseType: 'blob' }).pipe(
    map((x: HttpResponse<any>) => {
      let blob = new Blob([x.body], {
@@ -74,6 +74,20 @@ exportFormsInsidDaily(dailyId){
    }),
    catchError(()=>of(null)));
   }
+  //exportIndexPdf
+  exportDailyIndex(dailyId){
+    //exportIndexPdf
+      return this.http.get(this.apiUrl+`daily/exportIndexPdf/${dailyId}`,{ observe: 'response', responseType: 'blob' }).pipe(
+       map((x: HttpResponse<any>) => {
+         let blob = new Blob([x.body], {
+           type: 'application/pdf'
+          });
+         const url = window.URL.createObjectURL(blob);
+         window.open(url);
+
+       }),
+       catchError(()=>of(null)));
+      }
 
   downloadExcelForm(form){
     return this.http.post(this.apiUrl+'form/download-form',{...form},{ observe: 'response', responseType: 'blob' }).pipe(

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using NPOI.HSSF.UserModel;
 using NPOI.HSSF.Util;
+using NPOI.SS.Formula.Functions;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 
@@ -120,20 +121,25 @@ namespace Application.Services
             return dt;
         }
 
-        public IWorkbook CreateExcelFile(string sheetName, string Title, string[] ColumnsNames, DataTable data)
+        public IWorkbook CreateExcelFile(string sheetName, string[] ColumnsNames, DataTable data, string Title = null)
         {
-            headerIndex = 1;
+
+            headerIndex = 0;
+            if (Title != null)
+                headerIndex = 1;
 
             ISheet sheet = workbook.CreateSheet(sheetName);
             sheet.SetMargin(MarginType.LeftMargin, 0.2);
             sheet.SetMargin(MarginType.RightMargin, 0.2);
             sheet.IsRightToLeft = true;
-            IRow titleRow = sheet.CreateRow(0);
-            titleRow.Height = 900;
-            titleRow.CreateCell(0).SetCellValue(Title);
-            titleRow.Cells[0].CellStyle = TitleStyle(workbook as XSSFWorkbook);
-            sheet.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(0, 0, 0, ColumnsNames.Length - 1));
-
+            if (Title != null)
+            {
+                IRow titleRow = sheet.CreateRow(0);
+                titleRow.Height = 900;
+                titleRow.CreateCell(0).SetCellValue(Title);
+                titleRow.Cells[0].CellStyle = TitleStyle(workbook as XSSFWorkbook);
+                sheet.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(0, 0, 0, ColumnsNames.Length - 1));
+            }
             IRow headerRow = sheet.CreateRow(headerIndex);
             headerRow.Height = 600;
 
@@ -146,7 +152,7 @@ namespace Application.Services
             }
 
 
-            for (int i = 0; i < 7; i++)
+            for (int i = 0; i < ColumnsNames.Length; i++)
             {
                 headerRow.Cells[i].CellStyle.SetFont(HeaderFont(workbook as XSSFWorkbook));
                 headerRow.Cells[i].CellStyle = headerStyle;
@@ -158,34 +164,59 @@ namespace Application.Services
                 IRow row = sheet.CreateRow(i + headerIndex + 1);
                 row.Height = 600;
 
+                CreateRow(i + headerIndex + 1, data.Rows[i], row);
 
 
-                for (int j = 0; j < data.Columns.Count; j++)
-                {
-                    var cellType = data.Rows[i][j].GetType();
-                    //check type of data
-                    if (data.Rows[i][j].GetType() == typeof(double))
-                    {
-                        row.CreateCell(j).SetCellValue(double.Parse(data.Rows[i][j].ToString()));
-                        row.Cells[j].SetCellType(CellType.Numeric);
-                    }
-                    else if (data.Rows[i][j].GetType() == typeof(int))
-                    {
-                        row.CreateCell(j).SetCellValue(int.Parse(data.Rows[i][j].ToString()));
-                        row.Cells[j].SetCellType(CellType.Numeric);
-                    }
-
-                    else
-                        row.CreateCell(j).SetCellValue(data.Rows[i][j].ToString());
-
-                    sheet.AutoSizeColumn(j);
-                    row.Cells[j].CellStyle = rowStyle(workbook as XSSFWorkbook);
-                    row.Cells[j].CellStyle.WrapText = true;
-                }
             }
+            for (int i = 0; i < ColumnsNames.Length; i++)
+            {
+                sheet.AutoSizeColumn(i);
 
+            }
             return workbook;
         }
+
+        private void CreateRow(int rowIndex, DataRow row, IRow rowElement)
+        {
+            List<ICell> cells = rowElement.Cells;
+            for (int i = 0; i < row.ItemArray.Length; i++)
+            {
+                cells.Add(rowElement.CreateCell(i));
+
+            }
+            rowElement.Cells.AddRange(cells);
+
+            rowElement.CreateCell(0).SetCellValue(double.Parse(row.ItemArray[0].ToString()));
+            rowElement.Cells[0].CellStyle = rowStyle(workbook as XSSFWorkbook);
+            rowElement.Cells[0].CellStyle.WrapText = true;
+
+
+            rowElement.CreateCell(1).SetCellValue(row[1].ToString());
+            rowElement.Cells[1].CellStyle = rowStyle(workbook as XSSFWorkbook);
+            rowElement.Cells[1].CellStyle.WrapText = true;
+
+            rowElement.CreateCell(2).SetCellValue(double.Parse(row.ItemArray[2].ToString()));
+            rowElement.Cells[2].CellStyle = rowStyle(workbook as XSSFWorkbook);
+            rowElement.Cells[2].CellStyle.WrapText = true;
+
+            rowElement.CreateCell(3).SetCellValue(double.Parse(row.ItemArray[3].ToString()));
+            rowElement.Cells[3].CellStyle = rowStyle(workbook as XSSFWorkbook);
+            rowElement.Cells[3].CellStyle.WrapText = true;
+
+            rowElement.CreateCell(4).SetCellValue(row.ItemArray[4].ToString());
+            rowElement.Cells[4].CellStyle = rowStyle(workbook as XSSFWorkbook);
+            rowElement.Cells[4].CellStyle.WrapText = true;
+
+            rowElement.CreateCell(5).SetCellValue(row.ItemArray[5].ToString());
+            rowElement.Cells[5].CellStyle = rowStyle(workbook as XSSFWorkbook);
+
+            rowElement.CreateCell(6).SetCellValue(double.Parse(row.ItemArray[6].ToString()));
+            rowElement.Cells[6].CellStyle = rowStyle(workbook as XSSFWorkbook);
+            rowElement.Cells[6].CellStyle.WrapText = true;
+
+
+        }
+
         private IFont HeaderFont(XSSFWorkbook workbook)
         {
             var font = workbook.CreateFont();

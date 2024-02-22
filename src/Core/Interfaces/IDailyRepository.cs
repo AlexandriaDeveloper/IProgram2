@@ -4,5 +4,6 @@ namespace Core.Interfaces
 {
     public interface IDailyRepository : IGenericRepository<Daily>
     {
+        bool IsClosed(int id);
     }
 }

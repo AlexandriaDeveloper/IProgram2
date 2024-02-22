@@ -108,10 +108,16 @@ namespace Api.Controllers
             var result = await _formService.UpdateDescription(id, request);
             return HandleResult(result);
         }
-        [HttpDelete("{id}")]
+        [HttpDelete("SoftDelete/{id}")]
         public async Task<IActionResult> SoftDelete(int id)
         {
             var result = await _formService.SoftDelete(id);
+            return HandleResult(result);// result;
+        }
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var result = await _formService.Delete(id);
             return HandleResult(result);// result;
         }
 

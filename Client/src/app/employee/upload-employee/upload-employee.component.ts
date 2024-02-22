@@ -136,4 +136,8 @@ finalize(()=>{
     //   }
     // })
   }
+
+  downloadFile(){
+    this.employeeService.downloadEmployeesFile().subscribe();
+  }
 }

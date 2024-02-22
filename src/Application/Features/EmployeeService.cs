@@ -106,7 +106,7 @@ namespace Application.Features
             var empExist = await _employeeRepository.CheckEmployeeByNationalId(employee.NationalId);
             if (empExist)
             {
-                return Result.Failure<EmployeeDto>(new Error("500", "الموظف موجود بالفعل في النظام"));
+                return Result.Failure<EmployeeDto>(new Error("500", "عفوا الرقم القومى مسجل من قبل"));
             }
             var employeeToDb = new Employee()
             {
@@ -329,6 +329,10 @@ namespace Application.Features
             {
                 employee.TegaraCode = int.TryParse(row["كود تجارة"].ToString(), out int code) ? code : null;
             }
+            if (columns.Contains("كود القسم") && row["كود القسم"] != null)
+            {
+                employee.DepartmentId = int.TryParse(row["كود القسم"].ToString(), out int code) ? code : null;
+            }
 
             if (columns.Contains("رقم الموظف بجهته الأصلية") && row["رقم الموظف بجهته الأصلية"] != null)
             {
@@ -386,6 +390,14 @@ namespace Application.Features
                 if (row["كود تجارة"].ToString() != empExist.TegaraCode.ToString())
                 {
                     empExist.TegaraCode = int.TryParse(row["كود تجارة"].ToString(), out int code) ? code : null;
+                    hasUpdat = true;
+                }
+            }
+            if (columns.Contains("كود القسم") && row["كود القسم"] != null)
+            {
+                if (row["كود القسم"].ToString() != empExist.DepartmentId.ToString())
+                {
+                    empExist.DepartmentId = int.TryParse(row["كود القسم"].ToString(), out int code) ? code : null;
                     hasUpdat = true;
                 }
             }
@@ -462,7 +474,7 @@ namespace Application.Features
         private bool CheckHeaderRow(List<string> header)
         {
             string[] allowerColumns = ["رقم الموظف بجهته الأصلية", "كود تجارة","الاسم","المرتب","نوع المدفوعه","الرقم القومي","بطاقات","بنكية","تاريخ التعديل",
-            "الرقم القومى","الإدارة","القطاع","الايميل","البنك","الفرع","رقم الحساب"];
+            "الرقم القومى","الإدارة","القطاع","الايميل","البنك","الفرع","رقم الحساب","كود القسم"];
 
 
             var fileAccepted = true;
