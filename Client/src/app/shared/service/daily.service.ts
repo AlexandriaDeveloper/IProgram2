@@ -25,7 +25,8 @@ export class DailyService {
     if(param.name) params = params.append('name',param.name);
     if(param.startDate) params = params.append('startDate',param.startDate.toString());
     if(param.endDate) params = params.append('endDate',param.endDate.toString());
-    if(param.closed !== null ||param.closed!==undefined) params = params.append('closed',false);
+    debugger
+    if(param.closed !== null ) params = params.append('closed',param.closed);
 
     return this.http.get<IDaily[]>(this.apiUrl+'daily',{params:params})
   }

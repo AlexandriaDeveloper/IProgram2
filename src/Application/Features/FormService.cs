@@ -83,7 +83,7 @@ namespace Application.Features
 
         public async Task<Result<FormDto>> AddForm(FormDto form)
         {
-            if (_dailyRepository.IsClosed(form.DailyId.Value))
+            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
             {
                 return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
             }
@@ -91,7 +91,7 @@ namespace Application.Features
             var formToDb = new Form
             {
                 Name = form.Name,
-                DailyId = form.DailyId
+                DailyId = form.DailyId.HasValue ? form.DailyId.Value : null
 
             };
             await _formRepository.Insert(formToDb);
