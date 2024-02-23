@@ -43,9 +43,9 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.Collage.Contains(param.Collage));
             }
-            if (!string.IsNullOrEmpty(param.DepartmentName))
+            if (param.DepartmentId.HasValue)
             {
-                AddCriteries(x => x.Department.Name.Contains(param.DepartmentName));
+                AddCriteries(x => x.DepartmentId.Equals(param.DepartmentId));
             }
             if (PaginationEnabled)
             {
@@ -63,7 +63,12 @@ namespace Persistence.Specifications
         public EmployeeCountSpecification(EmployeeParam param)
         {
             AddInclude(x => x.Department);
-
+            AddInclude(x => x.EmployeeBank);
+            //  AddInclude(x => x.EmployeeRefernces);
+            if (param.Id.HasValue)
+            {
+                AddCriteries(x => x.Id == param.Id);
+            }
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
@@ -74,19 +79,23 @@ namespace Persistence.Specifications
             }
             if (param.TabCode.HasValue)
             {
-                AddCriteries(x => x.TabCode.Equals(param.TabCode.Value.ToString()));
+                AddCriteries(x => x.TabCode.Equals(param.TabCode));
             }
             if (param.TegaraCode.HasValue)
             {
-                AddCriteries(x => x.TegaraCode.Equals(param.TegaraCode.Value.ToString()));
+                AddCriteries(x => x.TegaraCode.Equals(param.TegaraCode));
             }
-            if (param.DepartmentId.HasValue)
+            if (!string.IsNullOrEmpty(param.DepartmentName))
             {
-                AddCriteries(x => x.DepartmentId.Equals(param.DepartmentId));
+                AddCriteries(x => x.Department.Name.Contains(param.DepartmentName));
             }
             if (!string.IsNullOrEmpty(param.Collage))
             {
                 AddCriteries(x => x.Collage.Contains(param.Collage));
+            }
+            if (param.DepartmentId.HasValue)
+            {
+                AddCriteries(x => x.DepartmentId.Equals(param.DepartmentId));
             }
 
             this.PaginationEnabled = false;

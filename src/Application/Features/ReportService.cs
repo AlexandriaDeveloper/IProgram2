@@ -231,7 +231,7 @@ namespace Application.Features
 
         public async Task<byte[]> PrintIndexPdf(DailyDto formModel)
         {
-            var totalText = NumericToLiteral.Convert(formModel.Forms.Sum(x => x.TotalAmount), false, "جنيه", "جنيهات");
+            var totalText = NumericToLiteral.Convert(Math.Round(formModel.Forms.Sum(x => x.TotalAmount), 2), false, "جنيه", "جنيهات");
             totalText = totalText.Replace("(", "");
             totalText = totalText.Replace(")", "");
             totalText = totalText.Replace("،", "");
@@ -321,7 +321,7 @@ namespace Application.Features
                                          t.Span(" اجمالى المبلغ : " + totalText + "فقط لا غير").Bold().FontSize(9).FontFamily("Cairo");
                                      });
                                   t.Cell().Row((row + 1)).Column(4).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
-                                  (formModel.Forms.Sum(x => x.TotalAmount).ToString()).Bold().FontFamily("Cairo");
+                                  (Math.Round(formModel.Forms.Sum(x => x.TotalAmount), 2).ToString()).Bold().FontFamily("Cairo");
                               });
 
 

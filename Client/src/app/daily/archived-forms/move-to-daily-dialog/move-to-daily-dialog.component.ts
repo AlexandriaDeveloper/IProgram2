@@ -31,7 +31,6 @@ this.loadData();
     this.param.closed=false;
     this.param.pageIndex=0;
     this.param.pageSize=100;
-    debugger  ;
     this.dailyService.GetDailies(this.param).subscribe({
       next:(x:any)=>{
         this.dalies=x.data
