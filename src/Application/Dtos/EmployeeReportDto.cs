@@ -9,7 +9,7 @@ namespace Application.Dtos
         public string NationalId { get; set; }
         public string Name { get; set; }
         public List<EmployeeDailyDto> Dailies { get; set; } = new List<EmployeeDailyDto>();
-        public double GrandTotal => Dailies.Sum(x => x.TotalAmount);
+        public double GrandTotal => Math.Round(Dailies.Sum(x => x.TotalAmount), 2);
     }
     public class EmployeeFormDto
     {
