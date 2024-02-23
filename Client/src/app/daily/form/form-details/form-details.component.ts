@@ -64,11 +64,22 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   this.loadData();
   }
   loadDaily() {
-    this.dailyService.getDaily(this.dailyId).subscribe(x => {
-      console.log(x);
+    if(this.dailyId!==undefined){
+      this.dailyService.getDaily(this.dailyId).subscribe(x => {
+        console.log(x);
 
-      this.daily = x
-    })
+        this.daily = x
+      })
+    }
+    else{
+      this.daily={
+        id:null,
+        dailyDate:new Date(),
+        name:'ارشيف',
+
+      }
+    }
+
   }
   ngAfterViewInit(): void {
     this.search();

@@ -146,10 +146,10 @@ namespace Application.Features
         {
 
             var formFromDb = await _formRepository.GetById(request.FormId);
-            if (_dailyRepository.IsClosed(formFromDb.DailyId.Value))
-            {
-                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
-            }
+            // if (_dailyRepository.IsClosed(formFromDb.DailyId.Value))
+            // {
+            //     return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+            // }
             if (formFromDb == null)
                 return Result.Failure(new Error("404", "Not Found"));
             formFromDb.DailyId = request.DailyId;
@@ -231,7 +231,7 @@ namespace Application.Features
                 dr["كود تجارة"] = item.Employee.TegaraCode;
                 dr["القسم"] = item.Employee.Department == null ? "" : item.Employee.Department.Name;
                 dr["الاسم"] = item.Employee.Name;
-                dr.SetField("المبلغ", (double)item.Amount);
+                dr.SetField("المبلغ", Math.Round((double)item.Amount, 2));
                 dt.Rows.Add(dr);
             }
 
@@ -323,7 +323,7 @@ namespace Application.Features
                 dr["كود تجارة"] = empExist.TegaraCode;
                 dr["القسم"] = empExist.Department == null ? "" : empExist.Department.Name;
                 dr["الاسم"] = empExist.Name;
-                dr.SetField("المبلغ", double.Parse(row.ItemArray[6].ToString()));
+                dr.SetField("المبلغ", Math.Round(double.Parse(row.ItemArray[6].ToString()), 2));
                 dr.SetField("كود الموظف", empExist.Id);
                 dt2.Rows.Add(dr);
             }
@@ -341,7 +341,7 @@ namespace Application.Features
             {
                 var empDetails = new FormDetails();
                 empDetails.OrderNum = int.Parse(row.ItemArray[0].ToString());
-                empDetails.Amount = double.Parse(row.ItemArray[6].ToString());
+                empDetails.Amount = Math.Round(double.Parse(row.ItemArray[6].ToString()), 2);
                 empDetails.EmployeeId = int.Parse(row.ItemArray[7].ToString());
                 empDetails.FormId = request.FormId;
                 await _formDetailsRepository.Insert(empDetails);
@@ -360,3 +360,10 @@ namespace Application.Features
 
     }
 }
+/*
+
+messages
+
+
+messages
+*/

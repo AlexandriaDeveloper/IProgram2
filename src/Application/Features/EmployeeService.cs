@@ -8,6 +8,7 @@ using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using NPOI.SS.Formula.Functions;
 using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
@@ -220,10 +221,11 @@ namespace Application.Features
                 DailyDate = x.Key.DailyDate,
                 DailyId = x.Key.Id,
                 DailyName = x.Key.Name,
+
                 State = x.Key.Closed ? "مغلق" : "مفتوح",
                 Forms = x.Select(x2 => new EmployeeFormDto()
                 {
-                    Amount = x2.Amount,
+                    Amount = Math.Round(x2.Amount, 2),
                     FormId = x2.Form.Id,
                     FormName = x2.Form.Name
 

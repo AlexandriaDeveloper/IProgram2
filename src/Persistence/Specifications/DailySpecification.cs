@@ -20,7 +20,7 @@ namespace Persistence.Specifications
             if (param.Closed.HasValue)
             {
 
-                AddCriteries(x => x.Closed == param.Closed);
+                AddCriteries(x => x.Closed == param.Closed.Value);
             }
             AddOrderByDescending(x => x.Id);
 

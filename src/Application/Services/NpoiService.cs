@@ -124,11 +124,16 @@ namespace Application.Services
         public IWorkbook CreateExcelFile(string sheetName, string[] ColumnsNames, DataTable data, string Title = null)
         {
 
+
+            //check if sheet name dublicated
+
+
             headerIndex = 0;
             if (Title != null)
                 headerIndex = 1;
 
-            ISheet sheet = workbook.CreateSheet(sheetName);
+            ISheet sheet = workbook.CreateSheet(sheetName.Length > 31 ? sheetName.Substring(0, 31) : sheetName);
+
             sheet.SetMargin(MarginType.LeftMargin, 0.2);
             sheet.SetMargin(MarginType.RightMargin, 0.2);
             sheet.IsRightToLeft = true;
@@ -149,23 +154,15 @@ namespace Application.Services
             for (int i = 0; i < ColumnsNames.Length; i++)
             {
                 headerRow.CreateCell(i).SetCellValue(ColumnsNames[i]);
-            }
-
-
-            for (int i = 0; i < ColumnsNames.Length; i++)
-            {
                 headerRow.Cells[i].CellStyle.SetFont(HeaderFont(workbook as XSSFWorkbook));
                 headerRow.Cells[i].CellStyle = headerStyle;
-            };
-
+            }
 
             for (int i = 0; i < data.Rows.Count; i++)
             {
                 IRow row = sheet.CreateRow(i + headerIndex + 1);
                 row.Height = 600;
-
                 CreateRow(i + headerIndex + 1, data.Rows[i], row);
-
 
             }
             for (int i = 0; i < ColumnsNames.Length; i++)
@@ -176,43 +173,41 @@ namespace Application.Services
             return workbook;
         }
 
-        private void CreateRow(int rowIndex, DataRow row, IRow rowElement)
+        private async void CreateRow(int rowIndex, DataRow row, IRow rowElement)
         {
-            List<ICell> cells = rowElement.Cells;
             for (int i = 0; i < row.ItemArray.Length; i++)
             {
-                cells.Add(rowElement.CreateCell(i));
+                rowElement.CreateCell(i);
 
             }
-            rowElement.Cells.AddRange(cells);
-
-            rowElement.CreateCell(0).SetCellValue(double.Parse(row.ItemArray[0].ToString()));
-            rowElement.Cells[0].CellStyle = rowStyle(workbook as XSSFWorkbook);
-            rowElement.Cells[0].CellStyle.WrapText = true;
 
 
-            rowElement.CreateCell(1).SetCellValue(row[1].ToString());
-            rowElement.Cells[1].CellStyle = rowStyle(workbook as XSSFWorkbook);
-            rowElement.Cells[1].CellStyle.WrapText = true;
+            rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
+            rowElement.Cells[0].CellStyle = await rowStyle(workbook as XSSFWorkbook);
 
-            rowElement.CreateCell(2).SetCellValue(double.Parse(row.ItemArray[2].ToString()));
-            rowElement.Cells[2].CellStyle = rowStyle(workbook as XSSFWorkbook);
-            rowElement.Cells[2].CellStyle.WrapText = true;
 
-            rowElement.CreateCell(3).SetCellValue(double.Parse(row.ItemArray[3].ToString()));
-            rowElement.Cells[3].CellStyle = rowStyle(workbook as XSSFWorkbook);
-            rowElement.Cells[3].CellStyle.WrapText = true;
 
-            rowElement.CreateCell(4).SetCellValue(row.ItemArray[4].ToString());
-            rowElement.Cells[4].CellStyle = rowStyle(workbook as XSSFWorkbook);
-            rowElement.Cells[4].CellStyle.WrapText = true;
+            rowElement.GetCell(1).SetCellValue(row[1].ToString());
+            rowElement.Cells[1].CellStyle = await rowStyle(workbook as XSSFWorkbook);
 
-            rowElement.CreateCell(5).SetCellValue(row.ItemArray[5].ToString());
-            rowElement.Cells[5].CellStyle = rowStyle(workbook as XSSFWorkbook);
 
-            rowElement.CreateCell(6).SetCellValue(double.Parse(row.ItemArray[6].ToString()));
-            rowElement.Cells[6].CellStyle = rowStyle(workbook as XSSFWorkbook);
-            rowElement.Cells[6].CellStyle.WrapText = true;
+            rowElement.GetCell(2).SetCellValue(double.TryParse(row.ItemArray[2].ToString(), out double result4) ? result4 : 0);
+            rowElement.Cells[2].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+
+
+            rowElement.GetCell(3).SetCellValue(double.TryParse(row.ItemArray[3].ToString(), out double result2) ? result2 : 0);
+            rowElement.Cells[3].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+
+
+            rowElement.GetCell(4).SetCellValue(row.ItemArray[4].ToString());
+            rowElement.Cells[4].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+
+            rowElement.GetCell(5).SetCellValue(row.ItemArray[5].ToString());
+            rowElement.Cells[5].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+
+            rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
+            rowElement.Cells[6].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+
 
 
         }
@@ -268,7 +263,7 @@ namespace Application.Services
 
             return headerCellStyle;
         }
-        private XSSFCellStyle rowStyle(XSSFWorkbook Workbook)
+        private async Task<XSSFCellStyle> rowStyle(XSSFWorkbook Workbook)
         {
             var headerCellStyle = (XSSFCellStyle)workbook.CreateCellStyle();
 
@@ -283,7 +278,7 @@ namespace Application.Services
             headerCellStyle.BorderDiagonalLineStyle = BorderStyle.Thin;
             headerCellStyle.SetFont(RowFont(Workbook as XSSFWorkbook));
 
-            return headerCellStyle;
+            return await Task.FromResult(headerCellStyle);
         }
         private XSSFCellStyle TitleStyle(XSSFWorkbook Workbook)
         {

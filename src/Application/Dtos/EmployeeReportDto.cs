@@ -25,6 +25,6 @@ namespace Application.Dtos
         public string DailyName { get; set; }
         public string State { get; set; }
         public DateTime DailyDate { get; set; }
-        public double TotalAmount => Forms.Sum(x => x.Amount);
+        public double TotalAmount => Math.Round(Forms.Sum(x => x.Amount), 2); // Forms.Sum(x => x.Amount);
     }
 }

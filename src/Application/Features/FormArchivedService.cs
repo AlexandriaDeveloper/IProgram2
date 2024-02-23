@@ -33,6 +33,7 @@ namespace Application.Features
             var user = _httpContextAccessor.HttpContext.User.IsInRole("Admin") ? null :
            ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
             var spec = new ArchivedFormsSpecification(param);
+            spec.Includes.Add(x => x.FormDetails);
             var specCount = new ArchivedFormsCountSpecification(param);
             if (user != null)
             {

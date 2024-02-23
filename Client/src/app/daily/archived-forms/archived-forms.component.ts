@@ -143,11 +143,11 @@ fb =inject(FormBuilder);
 
     dialogRef.afterClosed().subscribe(result => {
       // console.log(result);
-
-this.formArchiveService.moveFormArchiveToDaily({ dailyId :result ,formIds:this.dataSource.filter(x=>x.checked).map(x=>x.id)}).subscribe({
-  next:(x:any)=>{
-    this.loadData();
-  }
+if(result)
+  this.formArchiveService.moveFormArchiveToDaily({ dailyId :result ,formIds:this.dataSource.filter(x=>x.checked).map(x=>x.id)}).subscribe({
+    next:(x:any)=>{
+      this.loadData();
+    }
 })
 
     });

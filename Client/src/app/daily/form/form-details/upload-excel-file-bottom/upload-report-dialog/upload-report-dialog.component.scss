@@ -1,13 +1,13 @@
+@import './../../../../../../assets/themes/varibale.scss';
 .error-messages-container{
-overflow: scroll;
+//overflow: scroll;
 .errors{
 //  list-style: none;
   padding: 0;
   margin: 0;
   .error{
-    text-align: center;
-    color: #fff;
-    padding: 10px;
+    color: $white-color;
+    padding: 15px;
     margin: 0;
   }
 }

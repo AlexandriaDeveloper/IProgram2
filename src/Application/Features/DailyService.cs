@@ -72,14 +72,15 @@ namespace Application.Features
                 return Result.Failure(new Error("404", "Not Found"));
             var lastDaily = await _formRepository.GetQueryable().MaxAsync(x => x.Index);
 
-            int maxIndex = 0;
-            if (lastDaily != null)
-                maxIndex = lastDaily.HasValue ? lastDaily.Value + 1 : 0;
+            int maxIndex = lastDaily.HasValue ? lastDaily.Value + 1 : 1;
+
+
 
             foreach (var form in daily.Forms)
             {
                 if (form.IsActive)
-                    form.Index = maxIndex;
+                    form.Index = maxIndex++;
+
             }
 
             daily.Closed = true;
@@ -229,9 +230,12 @@ namespace Application.Features
 
             var npoi = new NpoiServiceProvider();
             IWorkbook workbook = null;
+            int i = 1;
             foreach (var form in daily)
             {
                 var title = form.Name;
+                var sheerName = i.ToString() + "-" + form.Name;
+                i++;
                 DataTable dt = new DataTable();
                 dt.Columns.Add("م", typeof(int));
                 dt.Columns.Add("الرقم القومى", typeof(string));
@@ -254,7 +258,7 @@ namespace Application.Features
                     dr.SetField("المبلغ", (double)item.Amount);
                     dt.Rows.Add(dr);
                 }
-                workbook = npoi.CreateExcelFile(title.Length > 31 ? title.Substring(0, 31) : title, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
+                workbook = npoi.CreateExcelFile(sheerName, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
 
             }
 

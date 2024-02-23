@@ -86,7 +86,8 @@ export class UploadExcelFileBottomComponent implements OnInit {
 
       const dialogRef = this.dialog.open(UploadReportDialogComponent, {
         data: {messges:JSON.parse(msg)},
-        minWidth: '30%',
+        minWidth: '50%',
+        maxHeight: '100vh',
 
        disableClose: true,
        panelClass:['dialog-container'],
