@@ -30,11 +30,11 @@
     <div class="col">
       <mat-form-field appearance="outline">
         <mat-label> الاقسام  </mat-label>
-        <mat-select   formControlName="departmentId" [(value)]="employee.departmentId" >
+        <mat-select   formControlName="departmentId" [value]="employee.departmentId" >
           <mat-option  >اختار القسم ...</mat-option>
         @for (department of departments; track $index) {
 
-          <mat-option [(value)]="department.id" >{{department.name}}</mat-option>
+          <mat-option [value]="department.id" >{{department.name}}</mat-option>
           }
         </mat-select>
         <mat-icon matSuffix style="color: #fff !important;">account_balance</mat-icon>

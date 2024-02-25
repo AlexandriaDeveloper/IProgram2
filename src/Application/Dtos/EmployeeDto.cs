@@ -19,7 +19,8 @@ namespace Application.Dtos
         [MaxLength(25)]
         public string Section { get; set; }
         [MaxLength(250)]
-        [EmailAddress]
+        [EmailAddress()]
+
         public string Email { get; set; }
         public int? DepartmentId { get; set; }
         public string DepartmentName { get; set; }

@@ -8,7 +8,6 @@ using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using NPOI.SS.Formula.Functions;
 using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
@@ -160,6 +159,8 @@ namespace Application.Features
 
             if (!employeeFromDb.Section.Equals(employee.Section))
                 employeeFromDb.Section = employee.Section;
+
+
 
             _employeeRepository.Update(employeeFromDb);
 

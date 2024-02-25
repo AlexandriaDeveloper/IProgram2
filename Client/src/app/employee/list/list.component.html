@@ -17,7 +17,7 @@
             <button mat-icon-button [routerLink]="['../details',row.id]" color="primary" class="info-button">
               <mat-icon>info</mat-icon>
             </button>
-            <button mat-icon-button (click)="editEmployee(row.id)" color="accent"  class="edit-button">
+            <button mat-icon-button (click)="openEmployeeEditDialog(row)" color="accent"  class="edit-button">
               <mat-icon>edit</mat-icon>
             </button>
             <button mat-icon-button (click)="deleteEmployee(row)" color="warn" class="delete-button">

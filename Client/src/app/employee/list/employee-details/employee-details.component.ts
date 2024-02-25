@@ -1,5 +1,5 @@
 import { MatDialog } from '@angular/material/dialog';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { EmployeeService } from '../../../shared/service/employee.service';
@@ -10,6 +10,9 @@ import { UploadEmployeeReferncesDialogComponent } from './employee-references/up
 import { ThemePalette } from '@angular/material/core';
 import { AddBankDialogComponent } from './bank-info/add-bank-dialog/add-bank-dialog.component';
 import { EditEmployeeDialogComponent } from './edit-employee-dialog/edit-employee-dialog.component';
+import { MatMenu } from '@angular/material/menu';
+import { MatTab } from '@angular/material/tabs';
+import { fromEvent } from 'rxjs';
 
 
 @Component({
@@ -33,11 +36,18 @@ employeeId =inject(ActivatedRoute).snapshot.params['id'];
 
 employeeService =inject(EmployeeService);
 param  :EmployeeParam =new EmployeeParam();
+@ViewChild('mattab') matTab:MatTab;
 
 employee ?:IEmployee;
 ngOnInit(): void {
-  this.galleryRef = this.gallery.ref('myGallery');
+
   this.param.id=this.employeeId
+  this.loadEmployee();
+
+}
+
+loadEmployee(){
+  this.galleryRef = this.gallery.ref('myGallery');
   this.employeeService.GetEmployee(this.param).subscribe({
     next:(x)=>{
       this.employee=x
@@ -63,17 +73,16 @@ openUploadDialog(){
   const dialogRef = this._dialog.open(UploadEmployeeReferncesDialogComponent, {
     // data: {name: this.name, animal: this.animal},
 
-
     disableClose: true,
      data:  { employeeId :this.employeeId },
     panelClass: ['dialog-container'],
-
-
    });
 
    dialogRef.afterClosed().subscribe(result => {
-     this.ngOnInit();
-    // this.animal = result;
+
+
+    window.location.reload();
+
    });
   }
   openBankDialog(){
@@ -82,13 +91,11 @@ openUploadDialog(){
       disableClose: true,
        data:  { employeeId :this.employeeId },
       panelClass: ['dialog-container'],
-
-
      });
 
      dialogRef.afterClosed().subscribe(result => {
-       this.ngOnInit();
-      // this.animal = result;
+      this.loadEmployee();
+
      });
     }
     openEmployeeEditDialog(){
@@ -97,14 +104,17 @@ openUploadDialog(){
         disableClose: true,
          data:  { employeeId :this.employeeId },
         panelClass: ['dialog-container'],
-
-
        });
 
        dialogRef.afterClosed().subscribe(result => {
          this.ngOnInit();
-        // this.animal = result;
        });
+      }
+
+      onTabChange(ev){
+        console.log(ev);
+
+
       }
 
 }

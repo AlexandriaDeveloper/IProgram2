@@ -1,5 +1,5 @@
 import { EmployeeParam } from '../../shared/models/IEmployee';
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, OnInit, ViewChild, inject } from '@angular/core';
 import { MatTableModule, MatTable } from '@angular/material/table';
 import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatSortModule, MatSort } from '@angular/material/sort';
@@ -8,6 +8,9 @@ import { EmployeeService } from '../../shared/service/employee.service';
 import { IEmployee } from '../../shared/models/IEmployee';
 import { debounceTime, distinctUntilChanged, fromEvent, map, of } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
+import { MatDialogRef, MAT_DIALOG_DATA, MatDialog } from '@angular/material/dialog';
+import { AddBankDialogComponent } from './employee-details/bank-info/add-bank-dialog/add-bank-dialog.component';
+import { EditEmployeeDialogComponent } from './employee-details/edit-employee-dialog/edit-employee-dialog.component';
 
 @Component({
   selector: 'app-list',
@@ -30,8 +33,9 @@ export class ListComponent implements AfterViewInit,OnInit {
   @ViewChild("collageInput") collageInput :ElementRef;
   @ViewChild("departmentInput") departmentInput :ElementRef;
   dataSource ;
+  _dialog =inject(MatDialog)
 
-constructor( private cdref: ChangeDetectorRef ) {}
+constructor( private cdref: ChangeDetectorRef) {}
   ngOnInit(): void {
     // console.log('onInit');
 
@@ -151,4 +155,19 @@ constructor( private cdref: ChangeDetectorRef ) {}
       this.loadData();
 
   }
+  openEmployeeEditDialog(row){
+    const dialogRef = this._dialog.open(EditEmployeeDialogComponent, {
+      width: '600px',
+      disableClose: true,
+       data:  { employeeId :row.id },
+      panelClass: ['dialog-container'],
+
+
+     });
+
+     dialogRef.afterClosed().subscribe(result => {
+       this.ngOnInit();
+      // this.animal = result;
+     });
+    }
 }

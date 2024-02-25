@@ -52,6 +52,7 @@ msbuild.wrn
 /bazel-out
 Client/node_modules
 Client/src/assets/images/bg
+wwwroot
 
 
 # Node

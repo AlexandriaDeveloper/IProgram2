@@ -100,6 +100,10 @@ console.log(this.form.value);
 
     this.form.value.tabCode=null
   }
+  if(this.form.value.email ===''){
+
+    this.form.value.email=null
+  }
     this.employeeService.updateEmployee(this.form.value).subscribe(res=>{
       this.dialogRef.close();
     })
