@@ -437,6 +437,8 @@ namespace Application.Features
         private Employee UpdateEmployee(DataColumnCollection columns, DataRow row, Employee empExist, out bool hasUpdat)
         {
             hasUpdat = false;
+
+
             if (columns.Contains("القطاع") && row["القطاع"] != null && !string.IsNullOrEmpty(row["القطاع"].ToString()))
             {
                 if (row["القطاع"].ToString() != empExist.Collage)
@@ -447,7 +449,7 @@ namespace Application.Features
             }
 
 
-            if (row["كود تجارة"].ToString() != empExist.TegaraCode.ToString() && !string.IsNullOrEmpty(row["كود تجارة"].ToString()))
+            if (columns.Contains("كود تجارة") && row["كود تجارة"].ToString() != empExist.TegaraCode.ToString() && !string.IsNullOrEmpty(row["كود تجارة"].ToString()))
             {
                 empExist.TegaraCode = int.TryParse(row["كود تجارة"].ToString(), out int code) ? code : null;
                 hasUpdat = true;
