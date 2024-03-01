@@ -36,7 +36,7 @@ namespace Api.Controllers
                         response = NotFound(result);// Result.Failure(new Error("404", "Not found"));
                         break;
                     case "400":
-                        response = BadRequest(result);// Result.Failure(new Error("400", "Bad request"));
+                        response = BadRequest(result.Error.Message);// Result.Failure(new Error("400", "Bad request"));
                         break;
                     case "401":
                         response = Unauthorized(result);// Result.Failure(new Error("401", "Unauthorized"));
@@ -78,7 +78,7 @@ namespace Api.Controllers
                         response = NotFound(result);
                         break;
                     case "400":
-                        response = BadRequest(result);
+                        response = BadRequest(result.Error.Message);
                         break;
                     case "401":
                         response = Unauthorized(result);

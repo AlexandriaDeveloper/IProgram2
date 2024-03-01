@@ -10,6 +10,9 @@
     <button mat-menu-item  (click)="openEmployeeEditDialog()">
       <mat-icon>edit</mat-icon>
        تعديل بيانات</button>
+       <button mat-menu-item  (click)="stopEmployee()">
+        <mat-icon>pause</mat-icon>
+         ايقاف الموظف </button>
 </mat-menu>
 <mat-tab-group #mattab color="accent" (selectedIndexChange)="onTabChange($event)">
   <mat-tab label="بيانات الموظف" >

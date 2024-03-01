@@ -26,7 +26,7 @@ namespace Core.Interfaces
         void DeleteRange(IEnumerable<TValue> entities);
         Task InActive(int id);
         Task DeActive(int id);
-        IQueryable<TValue> GetQueryable(bool isActive = true);
+        IQueryable<TValue> GetQueryable(bool? isActive = true);
         Task<int> CountAsync(ISpecification<TValue> spec);
 
 

@@ -125,9 +125,12 @@ namespace Persistence.Repository
         {
             return await ApplyInactiveSpecification(spec).ToListAsync();
         }
-        public IQueryable<T> GetQueryable(bool isActive = true)
+        public IQueryable<T> GetQueryable(bool? isActive = true)
         {
-            return _context.Set<T>().Where(t => t.IsActive == isActive);
+            if (isActive == null)
+                return _context.Set<T>().AsQueryable();
+            else
+                return _context.Set<T>().Where(t => t.IsActive == isActive);
         }
     }
 }

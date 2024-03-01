@@ -294,14 +294,15 @@ namespace Application.Features
                 }
                 Employee empExist = null;
                 if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
-                    empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[colIndex].ToString());
-
+                {
+                    empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[colIndex].ToString());
+                }
                 if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()) && tegaraIndex > -1)
                 {
                     bool success = int.TryParse(row.ItemArray[tegaraIndex].ToString(), out int result);
                     if (success)
                     {
-                        empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.TegaraCode == result);
+                        empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.TegaraCode == result);
                     }
                 }
                 if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tabIndex].ToString()) && tabIndex > -1)
@@ -309,10 +310,13 @@ namespace Application.Features
                     bool success = int.TryParse(row.ItemArray[tabIndex].ToString(), out int result);
                     if (success)
                     {
-                        empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.TabCode == result);
+                        empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.TabCode == result);
                     }
                 }
-
+                if (empExist != null && empExist.IsActive == false)
+                {
+                    return Result.Failure(new Error("400", "هذا الموظف مسجل و  موقوف من قبل"));
+                }
 
                 if (empExist == null)
                 {
@@ -600,6 +604,23 @@ namespace Application.Features
             employee.DeactivatedAt = DateTime.Now;
             employee.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
             _employeeRepository.Update(employee);
+            var result = await _uow.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
+            }
+            return Result.Success("تم حذف الموظف بنجاح");
+        }
+
+        public async Task<Result> Delete(int id)
+        {
+            var employee = await _employeeRepository.GetById(id);
+            if (employee == null)
+            {
+                return Result.Failure(new Error("404", "الموظف غير موجود"));
+            }
+
+            await _employeeRepository.Delete(id);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)
             {

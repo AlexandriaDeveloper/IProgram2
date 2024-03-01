@@ -121,8 +121,10 @@ constructor( private cdref: ChangeDetectorRef) {}
   }
   deleteEmployee(row:IEmployee){
     if( confirm( `هل تريد حذف الموظف ${row.name}؟`)){
-      this.employeeService.softDelete(row.id).subscribe();
+      this.employeeService.Delete(row.id).subscribe();
+      this.param
       this.loadData();
+
     }
   }
   clear(input:any){
@@ -169,5 +171,19 @@ constructor( private cdref: ChangeDetectorRef) {}
        this.ngOnInit();
       // this.animal = result;
      });
+    }
+
+    resetParam(){
+      this.param.pageIndex=0;
+      this.param.pageSize= this.paginator.pageSize;
+      this.param.name=null;
+      this.param.tegaraCode=null;
+      this.param.tabCode=null;
+      this.param.nationalId=null;
+      this.param.collage=null;
+      this.param.departmentName=null;
+
+      this.loadData();
+
     }
 }

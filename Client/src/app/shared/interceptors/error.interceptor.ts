@@ -15,6 +15,14 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       toaster.openErrorToaster(
        error.detail,"error"
       )
+      if (error.status === 400) {
+        // auto logout if 401 response returned from api
+         //location.reload();
+        // router.navigateByUrl('/account/login');
+        toaster.openErrorToaster(
+          error.error,"error"
+          );
+      }
 
     if (error.status === 401) {
       // auto logout if 401 response returned from api

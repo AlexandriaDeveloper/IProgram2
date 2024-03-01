@@ -116,6 +116,9 @@ observe: "events"
   softDelete(id:number){
     return this.http.delete(this.apiUrl+'employee/softDelete/'+id)
   }
+  Delete(id:number){
+    return this.http.delete(this.apiUrl+'employee/'+id)
+  }
 }
 
 

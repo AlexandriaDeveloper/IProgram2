@@ -1,3 +1,4 @@
+import { ToasterService } from './../../../shared/components/toaster/toaster.service';
 import { MatDialog } from '@angular/material/dialog';
 import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -30,6 +31,7 @@ export class EmployeeDetailsComponent implements OnInit{
 
 router = inject(Router);
 gallery =inject(Gallery);
+toaster = inject(ToasterService);
 _dialog =inject(MatDialog)
 galleryRef: GalleryRef;
 employeeId =inject(ActivatedRoute).snapshot.params['id'];
@@ -116,5 +118,11 @@ openUploadDialog(){
 
 
       }
+stopEmployee(){
+  if(confirm("انت على وشك ايقاف الموظف من المنظومه هل انت متأكد ؟!!"))
+      this.employeeService.softDelete(this.employeeId).subscribe((res)=>{
+        this.toaster.openSuccessToaster('تم ايقاف الموظف بنجاح','check');
 
+    });
+}
 }
