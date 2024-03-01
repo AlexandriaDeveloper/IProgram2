@@ -238,7 +238,7 @@ namespace Application.Features
 
 
             var npoi = new NpoiServiceProvider();
-            var workbook = npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
+            var workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
 
 
             string tempPath = Path.GetTempPath();

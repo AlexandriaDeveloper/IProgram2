@@ -1,4 +1,5 @@
 
+using Api.Filters;
 using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
@@ -18,7 +19,6 @@ namespace Api.Controllers
 
         }
         [HttpGet("GetEmployees")]
-
         public async Task<IActionResult> GetEmployees([FromQuery] EmployeeParam employeeParam)
         {
             return HandleResult(await _employeeService.getEmployees(employeeParam));

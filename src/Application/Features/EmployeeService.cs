@@ -15,21 +15,25 @@ namespace Application.Features
 {
     public class EmployeeService
     {
+        private readonly IDepartmentRepository _departmentRepository;
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IUniteOfWork _uow;
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IConfiguration _config;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public EmployeeService(IEmployeeRepository employeeRepository, IFormDetailsRepository formDetailsRepository
-
-        , IUniteOfWork uow, IConfiguration config, IHttpContextAccessor httpContextAccessor)
+        public EmployeeService(IEmployeeRepository employeeRepository,
+         IFormDetailsRepository formDetailsRepository
+        , IDepartmentRepository departmentRepository
+        , IUniteOfWork uow, IConfiguration config,
+        IHttpContextAccessor httpContextAccessor)
         {
             this._config = config;
             this._httpContextAccessor = httpContextAccessor;
             this._formDetailsRepository = formDetailsRepository;
             this._uow = uow;
             this._employeeRepository = employeeRepository;
+            this._departmentRepository = departmentRepository;
 
         }
         public async Task<Result<PaginatedResult<EmployeeDto>>> getEmployees(EmployeeParam param)
@@ -255,17 +259,28 @@ namespace Application.Features
                 return Result.Failure<EmployeeDto>(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
             DataTable dt = npoi.ReadSheeByIndex(0);
-            int colIndex = 0;
+            int colIndex = -1;
+            int tegaraIndex = -1;
+            int tabIndex = -1;
 
             if (dt.Columns.Contains("الرقم القومى"))
             {
                 colIndex = dt.Columns.IndexOf("الرقم القومى");
             }
-            else if (dt.Columns.Contains("الرقم القومي"))
+
+            if (dt.Columns.Contains("الرقم القومي"))
             {
                 colIndex = dt.Columns.IndexOf("الرقم القومي");
             }
-            if (colIndex == 0)
+            if (dt.Columns.Contains("كود تجارة"))
+            {
+                tegaraIndex = dt.Columns.IndexOf("كود تجارة");
+            }
+            if (dt.Columns.Contains("رقم الموظف بجهته الأصلية"))
+            {
+                tabIndex = dt.Columns.IndexOf("رقم الموظف بجهته الأصلية");
+            }
+            if (colIndex == -1 && tegaraIndex == -1 && tabIndex == -1)
             {
                 return Result.Failure(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
@@ -273,7 +288,31 @@ namespace Application.Features
             foreach (DataRow row in dt.Rows)
             {
 
-                var empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[colIndex].ToString());
+                if (CheckNullRow(row))
+                {
+                    continue;
+                }
+                Employee empExist = null;
+                if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
+                    empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[colIndex].ToString());
+
+                if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()) && tegaraIndex > -1)
+                {
+                    bool success = int.TryParse(row.ItemArray[tegaraIndex].ToString(), out int result);
+                    if (success)
+                    {
+                        empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.TegaraCode == result);
+                    }
+                }
+                if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tabIndex].ToString()) && tabIndex > -1)
+                {
+                    bool success = int.TryParse(row.ItemArray[tabIndex].ToString(), out int result);
+                    if (success)
+                    {
+                        empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.TabCode == result);
+                    }
+                }
+
 
                 if (empExist == null)
                 {
@@ -337,6 +376,24 @@ namespace Application.Features
                 employee.DepartmentId = int.TryParse(row["كود القسم"].ToString(), out int code) ? code : null;
             }
 
+            if (columns.Contains("أسم القسم") && row["أسم القسم"] != null)
+            {
+                var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["أسم القسم"].ToString().Trim());
+                if (department != null)
+                {
+                    employee.DepartmentId = department.Id;
+                }
+
+            }
+            if (columns.Contains("اسم القسم") && row["اسم القسم"] != null)
+            {
+                var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["اسم القسم"].ToString().Trim());
+                if (department != null)
+                {
+                    employee.DepartmentId = department.Id;
+                }
+            }
+
             if (columns.Contains("رقم الموظف بجهته الأصلية") && row["رقم الموظف بجهته الأصلية"] != null)
             {
                 employee.TabCode = int.TryParse(row["رقم الموظف بجهته الأصلية"].ToString(), out int code) ? code : null;
@@ -380,7 +437,7 @@ namespace Application.Features
         private Employee UpdateEmployee(DataColumnCollection columns, DataRow row, Employee empExist, out bool hasUpdat)
         {
             hasUpdat = false;
-            if (columns.Contains("القطاع") && row["القطاع"] != null)
+            if (columns.Contains("القطاع") && row["القطاع"] != null && !string.IsNullOrEmpty(row["القطاع"].ToString()))
             {
                 if (row["القطاع"].ToString() != empExist.Collage)
                 {
@@ -388,15 +445,15 @@ namespace Application.Features
                     hasUpdat = true;
                 }
             }
-            if (columns.Contains("كود تجارة") && row["كود تجارة"] != null)
+
+
+            if (row["كود تجارة"].ToString() != empExist.TegaraCode.ToString() && !string.IsNullOrEmpty(row["كود تجارة"].ToString()))
             {
-                if (row["كود تجارة"].ToString() != empExist.TegaraCode.ToString())
-                {
-                    empExist.TegaraCode = int.TryParse(row["كود تجارة"].ToString(), out int code) ? code : null;
-                    hasUpdat = true;
-                }
+                empExist.TegaraCode = int.TryParse(row["كود تجارة"].ToString(), out int code) ? code : null;
+                hasUpdat = true;
             }
-            if (columns.Contains("كود القسم") && row["كود القسم"] != null)
+
+            if (columns.Contains("كود القسم") && row["كود القسم"] != null && !string.IsNullOrEmpty(row["كود القسم"].ToString()))
             {
                 if (row["كود القسم"].ToString() != empExist.DepartmentId.ToString())
                 {
@@ -405,7 +462,32 @@ namespace Application.Features
                 }
             }
 
-            if (columns.Contains("الإدارة") && row["الإدارة"] != null)
+            if (columns.Contains("أسم القسم") && row["أسم القسم"] != null && !string.IsNullOrEmpty(row["أسم القسم"].ToString()))
+            {
+                var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["أسم القسم"].ToString().Trim());
+                if (department != null)
+                {
+
+                    empExist.DepartmentId = department.Id;
+                    hasUpdat = true;
+
+                }
+
+            }
+            if (columns.Contains("اسم القسم") && row["اسم القسم"] != null && !string.IsNullOrEmpty(row["اسم القسم"].ToString()))
+            {
+                var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["اسم القسم"].ToString().Trim());
+                if (department != null)
+                {
+
+
+                    empExist.DepartmentId = department.Id;
+                    hasUpdat = true;
+
+                }
+            }
+
+            if (columns.Contains("الإدارة") && row["الإدارة"] != null && !string.IsNullOrEmpty(row["الإدارة"].ToString()))
             {
                 if (row["الإدارة"].ToString() != empExist.Section)
                 {
@@ -414,7 +496,7 @@ namespace Application.Features
                 }
             }
 
-            if (columns.Contains("الايميل") && row["الايميل"] != null)
+            if (columns.Contains("الايميل") && row["الايميل"] != null && !string.IsNullOrEmpty(row["الايميل"].ToString()))
             {
                 if (row["الايميل"].ToString() != empExist.Email)
                 {
@@ -472,12 +554,26 @@ namespace Application.Features
         }
 
 
+        private bool CheckNullRow(DataRow row)
+        {
+
+            foreach (var cell in row.ItemArray)
+            {
+                if (!string.IsNullOrEmpty(cell.ToString()))
+                {
+                    return false;
+                }
+
+            }
+            return true;
+        }
+
 
 
         private bool CheckHeaderRow(List<string> header)
         {
             string[] allowerColumns = ["رقم الموظف بجهته الأصلية", "كود تجارة","الاسم","المرتب","نوع المدفوعه","الرقم القومي","بطاقات","بنكية","تاريخ التعديل",
-            "الرقم القومى","الإدارة","القطاع","الايميل","البنك","الفرع","رقم الحساب","كود القسم"];
+            "الرقم القومى","الإدارة","القطاع","الايميل","البنك","الفرع","رقم الحساب","كود القسم","اسم القسم","أسم القسم"];
 
 
             var fileAccepted = true;

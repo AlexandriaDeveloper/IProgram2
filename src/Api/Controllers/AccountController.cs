@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Api.Filters;
 using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
@@ -87,6 +88,7 @@ namespace Api.Controllers
 
         [HttpPost("register")]
 
+        [IncludeRolesFilter("Admin")]
         public async Task<IActionResult> Register(RegisterRequest registerDto)
         {
             if (ModelState.IsValid == false)

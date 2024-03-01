@@ -17,6 +17,10 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
     {
         builder.Entity<Employee>()
         .HasIndex(e => e.NationalId).IsUnique();
+        builder.Entity<Employee>()
+        .HasIndex(e => e.TegaraCode).IsUnique();
+        builder.Entity<Employee>()
+        .HasIndex(e => e.TabCode).IsUnique();
 
 
         builder.Entity<EmployeeBank>(entity =>

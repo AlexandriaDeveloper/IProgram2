@@ -121,7 +121,7 @@ namespace Application.Services
             return dt;
         }
 
-        public IWorkbook CreateExcelFile(string sheetName, string[] ColumnsNames, DataTable data, string Title = null)
+        public async Task<IWorkbook> CreateExcelFile(string sheetName, string[] ColumnsNames, DataTable data, string Title = null)
         {
 
 
@@ -162,7 +162,7 @@ namespace Application.Services
             {
                 IRow row = sheet.CreateRow(i + headerIndex + 1);
                 row.Height = 600;
-                CreateRow(i + headerIndex + 1, data.Rows[i], row);
+                await CreateRow(i + headerIndex + 1, data.Rows[i], row);
 
             }
             for (int i = 0; i < ColumnsNames.Length; i++)
@@ -173,41 +173,61 @@ namespace Application.Services
             return workbook;
         }
 
-        private async void CreateRow(int rowIndex, DataRow row, IRow rowElement)
+        public async Task<IWorkbook> OpenAndWriteSheetByName(string sheetName, DataTable data, int rowIndex = 0)
+        {
+            ISheet sheet = workbook.GetSheet(sheetName);
+
+            sheet.IsRightToLeft = true;
+            foreach (DataRow row in data.Rows)
+            {
+                await CreateRow(rowIndex, row, sheet.CreateRow(rowIndex++));
+            }
+            return workbook;
+        }
+
+        private async Task CreateRow(int rowIndex, DataRow row, IRow rowElement)
         {
             for (int i = 0; i < row.ItemArray.Length; i++)
             {
                 rowElement.CreateCell(i);
-
             }
 
+            if (row.ItemArray.Length >= 1 && !string.IsNullOrWhiteSpace(row.ItemArray[0].ToString()) && row.ItemArray[0] != null)
+            {
+                rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
+                rowElement.Cells[0].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+            }
+            if (row.ItemArray.Length >= 2 && !string.IsNullOrWhiteSpace(row.ItemArray[1].ToString()) && row.ItemArray[1] != null)
+            {
+                rowElement.GetCell(1).SetCellValue(row[1].ToString());
+                rowElement.Cells[1].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+            }
 
-            rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
-            rowElement.Cells[0].CellStyle = await rowStyle(workbook as XSSFWorkbook);
-
-
-
-            rowElement.GetCell(1).SetCellValue(row[1].ToString());
-            rowElement.Cells[1].CellStyle = await rowStyle(workbook as XSSFWorkbook);
-
-
-            rowElement.GetCell(2).SetCellValue(double.TryParse(row.ItemArray[2].ToString(), out double result4) ? result4 : 0);
-            rowElement.Cells[2].CellStyle = await rowStyle(workbook as XSSFWorkbook);
-
-
-            rowElement.GetCell(3).SetCellValue(double.TryParse(row.ItemArray[3].ToString(), out double result2) ? result2 : 0);
-            rowElement.Cells[3].CellStyle = await rowStyle(workbook as XSSFWorkbook);
-
-
-            rowElement.GetCell(4).SetCellValue(row.ItemArray[4].ToString());
-            rowElement.Cells[4].CellStyle = await rowStyle(workbook as XSSFWorkbook);
-
-            rowElement.GetCell(5).SetCellValue(row.ItemArray[5].ToString());
-            rowElement.Cells[5].CellStyle = await rowStyle(workbook as XSSFWorkbook);
-
-            rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
-            rowElement.Cells[6].CellStyle = await rowStyle(workbook as XSSFWorkbook);
-
+            if (row.ItemArray.Length >= 3 && !string.IsNullOrWhiteSpace(row.ItemArray[2].ToString()) && row.ItemArray[2] != null)
+            {
+                rowElement.GetCell(2).SetCellValue(double.TryParse(row.ItemArray[2].ToString(), out double result4) ? result4 : 0);
+                rowElement.Cells[2].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+            }
+            if (row.ItemArray.Length >= 4 && !string.IsNullOrWhiteSpace(row.ItemArray[3].ToString()) && row.ItemArray[3] != null)
+            {
+                rowElement.GetCell(3).SetCellValue(double.TryParse(row.ItemArray[3].ToString(), out double result2) ? result2 : 0);
+                rowElement.Cells[3].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+            }
+            if (row.ItemArray.Length >= 5 && !string.IsNullOrWhiteSpace(row.ItemArray[4].ToString()) && row.ItemArray[4] != null)
+            {
+                rowElement.GetCell(4).SetCellValue(row.ItemArray[4].ToString());
+                rowElement.Cells[4].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+            }
+            if (row.ItemArray.Length >= 6 && !string.IsNullOrWhiteSpace(row.ItemArray[5].ToString()) && row.ItemArray[5] != null)
+            {
+                rowElement.GetCell(5).SetCellValue(row.ItemArray[5].ToString());
+                rowElement.Cells[5].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+            }
+            if (row.ItemArray.Length >= 7 && !string.IsNullOrWhiteSpace(row.ItemArray[6].ToString()) && row.ItemArray[6] != null)
+            {
+                rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
+                rowElement.Cells[6].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+            }
 
 
         }

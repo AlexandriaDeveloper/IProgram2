@@ -258,7 +258,7 @@ namespace Application.Features
                     dr.SetField("المبلغ", (double)item.Amount);
                     dt.Rows.Add(dr);
                 }
-                workbook = npoi.CreateExcelFile(sheerName, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
+                workbook = await npoi.CreateExcelFile(sheerName, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
 
             }
 
@@ -306,7 +306,7 @@ namespace Application.Features
 
             }
 
-            workbook = npoi.CreateExcelFile(title2.Length > 31 ? title2.Substring(0, 31) : title2, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt2, title2);
+            workbook = await npoi.CreateExcelFile(title2.Length > 31 ? title2.Substring(0, 31) : title2, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt2, title2);
 
 
 
