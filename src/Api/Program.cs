@@ -96,7 +96,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseRouting();
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
@@ -105,7 +105,10 @@ app.UseStaticFiles(new StaticFileOptions
         Path.Combine(Directory.GetCurrentDirectory(), @"Content")),
     RequestPath = "/content"
 });
+
 app.UseCors("CorsPolicy");
+
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.Use(async (context, next) =>
@@ -116,8 +119,12 @@ app.Use(async (context, next) =>
     }
     await next(context);
 });
-app.MapControllers();
-
+//app.MapControllers();
+app.UseEndpoints(endpoints =>
+         {
+             endpoints.MapControllers();
+             endpoints.MapFallbackToController("Index", "Fallback");
+         });
 
 
 

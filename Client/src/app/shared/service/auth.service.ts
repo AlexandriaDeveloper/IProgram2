@@ -48,7 +48,6 @@ export class AuthService {
         this.userRoles.set([]);
         this.router.navigateByUrl('/');
         location.reload();
-
       },
       error:(err)=> console.log(err)
     });
@@ -57,13 +56,10 @@ export class AuthService {
     if(localStorage.getItem("user")){
       this.currentUserSig.set(JSON.parse(localStorage.getItem("user")));
       this.userRoles.set(this.getUserRoles( localStorage.getItem('token')));
-
     }
     return this.currentUserSig;
   }
   getUserRoles(token){
-
-
     return this.jwtHelper.decodeToken(token).role;
   }
 

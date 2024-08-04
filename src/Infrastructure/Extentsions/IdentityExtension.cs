@@ -14,6 +14,10 @@ public static class IdentityExtension
     {
         services.AddCors(opt =>
         {
+
+            // opt.AddPolicy("CorsPolicy", policy =>
+
+
             opt.AddPolicy("CorsPolicy", policy =>
             {
                 policy.AllowAnyMethod()
@@ -21,9 +25,20 @@ public static class IdentityExtension
                 .AllowCredentials()
                 .WithExposedHeaders("WWW-Authenticate")
                 .WithExposedHeaders("Access-Control-Allow-Origin")
-                .WithOrigins("http://localhost:4200");
+                .WithOrigins("http://localhost", "https://localhost", "http://localhost:5001", "https://localhost:5001", "http://localhost:4200", "https://localhost:4200");
             });
+
+            //     opt.AddPolicy("CorsPolicyRelease", policy =>
+            //    {
+            //        policy.AllowAnyMethod()
+            //        .AllowAnyHeader()
+            //        .AllowCredentials()
+            //        .WithExposedHeaders("WWW-Authenticate")
+            //        .WithExposedHeaders("Access-Control-Allow-Origin")
+            //        .WithOrigins("http://localhost");
+            //    });
         });
+
 
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(opt =>

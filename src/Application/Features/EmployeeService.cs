@@ -140,7 +140,8 @@ namespace Application.Features
                 return Result.Failure<EmployeeDto>(new Error("500", "الموظف غير موجود"));
             }
 
-            if (!employeeFromDb.Collage.Equals(employee.Collage))
+
+            if (!string.IsNullOrEmpty(employee.Collage) && employeeFromDb.Collage != employee.Collage)
                 employeeFromDb.Collage = employee.Collage;
 
             if (!employeeFromDb.DepartmentId.Equals(employee.DepartmentId))
@@ -152,7 +153,7 @@ namespace Application.Features
             if (!employeeFromDb.TegaraCode.Equals(employee.TegaraCode))
                 employeeFromDb.TegaraCode = employee.TegaraCode;
 
-            if (!employeeFromDb.Name.Equals(employee.Name))
+            if (!string.IsNullOrEmpty(employee.Name) && employeeFromDb.Name != employee.Name)
                 employeeFromDb.Name = employee.Name;
 
             if (!employeeFromDb.NationalId.Equals(employee.NationalId))
@@ -161,7 +162,7 @@ namespace Application.Features
             if (!string.IsNullOrEmpty(employee.Email) && employeeFromDb.Email != employee.Email)
                 employeeFromDb.Email = employee.Email;
 
-            if (!employeeFromDb.Section.Equals(employee.Section))
+            if (!string.IsNullOrEmpty(employee.Section) && employeeFromDb.Section != employee.Section)
                 employeeFromDb.Section = employee.Section;
 
 

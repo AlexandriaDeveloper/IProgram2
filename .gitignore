@@ -50,6 +50,7 @@ msbuild.wrn
 /tmp
 /out-tsc
 /bazel-out
+/publish
 Client/node_modules
 Client/src/assets/images/bg
 wwwroot

@@ -1,5 +1,5 @@
 export const environment = {
-  apiUrl: 'https://localhost:5001/api/',
+  apiUrl: 'http://localhost:5001/api/',
 
-  apiContent: 'https://localhost:5001/'
+  apiContent: 'http://localhost:5001/'
 }
