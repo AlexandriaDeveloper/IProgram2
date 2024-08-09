@@ -5,6 +5,7 @@ using Application.Dtos.Requests;
 using Application.Services;
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.Extensions.Configuration;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -18,9 +19,11 @@ namespace Application.Features
         private readonly IFormDetailsRepository formDetailsRepository;
         private readonly IUniteOfWork unitOfWork;
         private readonly IEmployeeRepository _employeeRepository;
+        private readonly IConfiguration _config;
 
-        public ReportService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork)
+        public ReportService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IConfiguration config)
         {
+            this._config = config;
             this._employeeRepository = employeeRepository;
             this.formRepository = formRepository;
             this.formDetailsRepository = formDetailsRepository;
@@ -66,6 +69,7 @@ namespace Application.Features
             totalText = totalText.Replace("(", "");
             totalText = totalText.Replace(")", "");
             totalText = totalText.Replace("،", "");
+            QuestPDF.Drawing.FontManager.RegisterFont(File.OpenRead(_config["ApiContent"] + "Fonts/Cairo-Regular.ttf"));
 
             var pdf = QuestPDF.Fluent.Document.Create(c =>
              {
@@ -75,13 +79,13 @@ namespace Application.Features
                       p.ContentFromRightToLeft();
                       p.DefaultTextStyle(TextStyle.Default.FontFamily("Arial"));
                       p.Size(PageSizes.A4);
-                      p.Header().DefaultTextStyle(TextStyle.Default.FontFamily("Cairo"));
+                      p.Header().DefaultTextStyle(TextStyle.Default.FontFamily("Cairo-Regular"));
                       p.Header().PaddingTop(0, Unit.Centimetre);
                       p.Header().ScaleHorizontal(1.5f).ScaleVertical(.8f).AlignCenter().Column(c =>
                       {
                           c.Item().Row(r =>
                           {
-                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image("../Api/Content/images.png");
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiContent"] + "images.png");
                           });
                           if (!string.IsNullOrEmpty(formModel.Description))
                               c.Item().Column(c =>
@@ -194,7 +198,7 @@ namespace Application.Features
                           });
                       p.Background()
                       .AlignBottom()
-                      .Image("../Api/Content/logo3.png");
+                      .Image(_config["ApiContent"] + "logo3.png");
                       p.Footer()
                              .Table(t =>
                              {
@@ -224,7 +228,7 @@ namespace Application.Features
                  Subject = "hello",
                  Keywords = "Test"
              })
-            .GeneratePdf();
+        .GeneratePdf();
             //pdf.show
             return await Task.FromResult(pdf);
         }
@@ -250,7 +254,7 @@ namespace Application.Features
                       {
                           c.Item().Row(r =>
                           {
-                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image("../Api/Content/images.png");
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiContent"] + "images.png");
                           });
                           //   if (!string.IsNullOrEmpty(formModel.Description))
                           //       c.Item().Column(c =>
@@ -328,7 +332,7 @@ namespace Application.Features
                           });
                       p.Background()
                       .AlignBottom()
-                      .Image("../Api/Content/logo3.png");
+                      .Image(_config["ApiContent"] + "logo3.png");
                       p.Footer()
                              .Table(t =>
                              {
@@ -402,7 +406,7 @@ namespace Application.Features
                       {
                           c.Item().Row(r =>
                           {
-                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image("../Api/Content/images.png");
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiContent"] + "images.png");
                           });
 
                       });
@@ -523,7 +527,7 @@ namespace Application.Features
                           });
                       p.Background()
                       .AlignBottom()
-                      .Image("../Api/Content/logo3.png");
+                      .Image(_config["ApiContent"] + "logo3.png");
                       p.Footer()
                              .Table(t =>
                              {

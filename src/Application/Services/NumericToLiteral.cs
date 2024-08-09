@@ -268,7 +268,11 @@ namespace Application.Services
                 {
                     name[c] = OneFemale;
                 }
-                name[c] = name[c].Trim();
+                if (name[c] != null)
+                {
+                    name[c] = name[c].Trim();
+                }
+
                 if (s != "" && !((s.StartsWith(Ten2 + " ") || s.StartsWith(Ten)) && (!(name[c - 1] == Zero))))
                 {
                     if (c > 0)

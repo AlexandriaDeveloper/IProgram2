@@ -242,6 +242,14 @@ namespace Auth.Infrastructure.Migrations
                     b.HasIndex("NationalId")
                         .IsUnique();
 
+                    b.HasIndex("TabCode")
+                        .IsUnique()
+                        .HasFilter("[TabCode] IS NOT NULL");
+
+                    b.HasIndex("TegaraCode")
+                        .IsUnique()
+                        .HasFilter("[TegaraCode] IS NOT NULL");
+
                     b.ToTable("Employees");
                 });
 
@@ -339,7 +347,7 @@ namespace Auth.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int?>("DailyId")
                         .HasColumnType("int");
@@ -369,6 +377,8 @@ namespace Auth.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
 
                     b.HasIndex("DailyId");
 
@@ -634,11 +644,17 @@ namespace Auth.Infrastructure.Migrations
 
             modelBuilder.Entity("Core.Models.Form", b =>
                 {
+                    b.HasOne("Core.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy");
+
                     b.HasOne("Core.Models.Daily", "Daily")
                         .WithMany("Forms")
                         .HasForeignKey("DailyId");
 
                     b.Navigation("Daily");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Core.Models.FormDetails", b =>

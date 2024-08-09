@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Auth.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationContext))]
-    [Migration("20240122185911_employee-extended")]
-    partial class employeeextended
+    [Migration("20240805172439_inital")]
+    partial class inital
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -245,6 +245,14 @@ namespace Auth.Infrastructure.Migrations
                     b.HasIndex("NationalId")
                         .IsUnique();
 
+                    b.HasIndex("TabCode")
+                        .IsUnique()
+                        .HasFilter("[TabCode] IS NOT NULL");
+
+                    b.HasIndex("TegaraCode")
+                        .IsUnique()
+                        .HasFilter("[TegaraCode] IS NOT NULL");
+
                     b.ToTable("Employees");
                 });
 
@@ -274,14 +282,8 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<string>("DeactivatedBy")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("Id")
-                        .HasColumnType("int");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -292,6 +294,48 @@ namespace Auth.Infrastructure.Migrations
                     b.HasKey("EmployeeId");
 
                     b.ToTable("EmployeeBank");
+                });
+
+            modelBuilder.Entity("Core.Models.EmployeeRefernce", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeactivatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ReferencePath")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("EmployeeRefernce");
                 });
 
             modelBuilder.Entity("Core.Models.Form", b =>
@@ -306,7 +350,7 @@ namespace Auth.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int?>("DailyId")
                         .HasColumnType("int");
@@ -337,6 +381,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedBy");
+
                     b.HasIndex("DailyId");
 
                     b.ToTable("Form");
@@ -350,8 +396,8 @@ namespace Auth.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<double>("Amount")
+                        .HasColumnType("float");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -390,6 +436,49 @@ namespace Auth.Infrastructure.Migrations
                     b.HasIndex("FormId");
 
                     b.ToTable("FormDetails");
+                });
+
+            modelBuilder.Entity("Core.Models.FormRefernce", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeactivatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("FormId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ReferencePath")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FormId");
+
+                    b.ToTable("FormRefernce");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -545,13 +634,30 @@ namespace Auth.Infrastructure.Migrations
                     b.Navigation("Employee");
                 });
 
+            modelBuilder.Entity("Core.Models.EmployeeRefernce", b =>
+                {
+                    b.HasOne("Core.Models.Employee", "Employee")
+                        .WithMany("EmployeeRefernces")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
             modelBuilder.Entity("Core.Models.Form", b =>
                 {
+                    b.HasOne("Core.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy");
+
                     b.HasOne("Core.Models.Daily", "Daily")
                         .WithMany("Forms")
                         .HasForeignKey("DailyId");
 
                     b.Navigation("Daily");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Core.Models.FormDetails", b =>
@@ -569,6 +675,17 @@ namespace Auth.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Employee");
+
+                    b.Navigation("Form");
+                });
+
+            modelBuilder.Entity("Core.Models.FormRefernce", b =>
+                {
+                    b.HasOne("Core.Models.Form", "Form")
+                        .WithMany("FormRefernces")
+                        .HasForeignKey("FormId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Form");
                 });
@@ -638,12 +755,16 @@ namespace Auth.Infrastructure.Migrations
                 {
                     b.Navigation("EmployeeBank");
 
+                    b.Navigation("EmployeeRefernces");
+
                     b.Navigation("FormDetails");
                 });
 
             modelBuilder.Entity("Core.Models.Form", b =>
                 {
                     b.Navigation("FormDetails");
+
+                    b.Navigation("FormRefernces");
                 });
 #pragma warning restore 612, 618
         }

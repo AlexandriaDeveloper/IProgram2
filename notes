@@ -1,1 +1,14 @@
  <Content Include="Content\**" CopyToPublishDirectory="PreserveNewest" />
+
+ dotnet ef migrations add inital   -s src/API -p src/Infrastructure -c ApplicationContext   
+<!-- 
+ Note that if you are creating your initial Script-Migration then leave the migration name blank. Leaving the migration name blank will also script the entire database.
+
+So, for example, this will return a blank sql file in a project with one migration named InitialCreate:
+
+Script-Migration InitialCreate
+
+While this would return the correct sql file:
+
+Script-Migration -->
+ dotnet ef migrations script  -s src/API -p src/Infrastructure 20240805172439_inital -o ./script.sql

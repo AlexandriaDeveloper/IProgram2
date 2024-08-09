@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-  <Content Include="Content\**" CopyToPublishDirectory="PreserveNewest" />
+  <Content Include="Content\**" CopyToPublishDirectory="PreserveNewest" LinkBase="Api/Content"  />
     <ProjectReference Include="..\infrastructure\Auth.Infrastructure.csproj" />
     <ProjectReference Include="..\Persistence\Auth.Persistence.csproj" />
       <ProjectReference Include="..\Application\Auth.Application.csproj" />

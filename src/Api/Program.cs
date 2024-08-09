@@ -81,7 +81,8 @@ var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUs
 var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 try
 {
-    SeedData.EnsureSeedData(context, userMgr, roleMgr);
+    if (userMgr.Users.Count() == 0)
+        SeedData.EnsureSeedData(context, userMgr, roleMgr);
 }
 catch (Exception ex)
 {
@@ -120,12 +121,13 @@ app.Use(async (context, next) =>
     await next(context);
 });
 //app.MapControllers();
+
+
 app.UseEndpoints(endpoints =>
          {
              endpoints.MapControllers();
              endpoints.MapFallbackToController("Index", "Fallback");
          });
-
 
 
 app.Run();
