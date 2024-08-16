@@ -8,10 +8,11 @@ namespace Core.Interfaces
 {
     public interface IEmployeeRepository : IGenericRepository<Employee>
     {
+        Task<Employee> GetById(string employeeId);
 
         Task<bool> CheckEmployeeByNationalId(string nationalId);
         Task<Employee> GetEmployeeByNationalId(string nationalId);
-        Task<bool> HasBank(int id);
-        Task<bool> HasEmployeeReferences(int EmployeeId);
+        Task<bool> HasBank(string employeeId);
+        Task<bool> HasEmployeeReferences(string EmployeeId);
     }
 }

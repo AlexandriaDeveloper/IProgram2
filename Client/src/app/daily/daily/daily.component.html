@@ -1,3 +1,15 @@
+<button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >
+  <mat-icon>more_vert</mat-icon></button>
+<mat-menu #menu="matMenu">
+  <button mat-menu-item  (click)="uploadJson()">
+    <mat-icon >upload</mat-icon>
+   رفع ملف بيانات
+
+  </button>
+
+</mat-menu>
+
+
 <div class="mat-elevation-z8">
   <table  mat-table class="full-width-table" matSort aria-label="Elements">
         <!-- action Column -->

@@ -8,7 +8,7 @@ namespace Core.Interfaces
         Task<FormDetails> AddEmployeeToFormDetails(FormDetails form);
 
         int GetMaxOrderNum(int formId);
-        Task<bool> CheckEmployeeFormDetailsExist(int employeeId, int formId);
+        Task<bool> CheckEmployeeFormDetailsExist(string employeeId, int formId);
 
     }
 }

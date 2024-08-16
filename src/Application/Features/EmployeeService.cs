@@ -48,9 +48,7 @@ namespace Application.Features
                 DepartmentId = x.DepartmentId,
                 Id = x.Id,
                 DepartmentName = x.Department != null ? x.Department.Name : "",
-
                 Name = x.Name,
-                NationalId = x.NationalId,
                 TabCode = x.TabCode,
                 TegaraCode = x.TegaraCode
             }).ToList();
@@ -77,7 +75,6 @@ namespace Application.Features
                 Id = employee.Id,
                 DepartmentName = employee.Department != null ? employee.Department.Name : "",
                 Name = employee.Name,
-                NationalId = employee.NationalId,
                 TabCode = employee.TabCode,
                 TegaraCode = employee.TegaraCode,
                 Email = employee.Email,
@@ -107,7 +104,7 @@ namespace Application.Features
         }
         public async Task<Result<EmployeeDto>> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
         {
-            var empExist = await _employeeRepository.CheckEmployeeByNationalId(employee.NationalId);
+            var empExist = await _employeeRepository.CheckEmployeeByNationalId(employee.Id);
             if (empExist)
             {
                 return Result.Failure<EmployeeDto>(new Error("500", "عفوا الرقم القومى مسجل من قبل"));
@@ -118,7 +115,6 @@ namespace Application.Features
                 DepartmentId = employee.DepartmentId,
                 IsActive = true,
                 Name = employee.Name,
-                NationalId = employee.NationalId,
                 TabCode = employee.TabCode,
                 TegaraCode = employee.TegaraCode
             };
@@ -156,8 +152,8 @@ namespace Application.Features
             if (!string.IsNullOrEmpty(employee.Name) && employeeFromDb.Name != employee.Name)
                 employeeFromDb.Name = employee.Name;
 
-            if (!employeeFromDb.NationalId.Equals(employee.NationalId))
-                employeeFromDb.NationalId = employee.NationalId;
+            if (!employeeFromDb.Id.Equals(employee.Id))
+                employeeFromDb.Id = employee.Id;
 
             if (!string.IsNullOrEmpty(employee.Email) && employeeFromDb.Email != employee.Email)
                 employeeFromDb.Email = employee.Email;
@@ -184,7 +180,7 @@ namespace Application.Features
         {
 
             var employee = _formDetailsRepository.GetQueryable()
-            .Where(x => x.EmployeeId == request.Id &&
+            .Where(x => x.EmployeeId == request.EmployeeId &&
              x.Form.IsActive && x.IsActive)
             .Include(x => x.Form)
             .ThenInclude(x => x.Daily).AsQueryable();
@@ -208,14 +204,13 @@ namespace Application.Features
 
 
             var EmployeeReportDto = new EmployeeReportDto();
-            var emp = await _employeeRepository.GetById(request.Id);
+            var emp = await _employeeRepository.GetById(request.EmployeeId);
             if (emp == null)
             {
                 return Result.Failure<EmployeeReportDto>(new Error("404", "الموظف غير موجود"));
             }
             EmployeeReportDto.TabCode = emp.TabCode;
             EmployeeReportDto.TegaraCode = emp.TegaraCode;
-            EmployeeReportDto.NationalId = emp.NationalId;
             EmployeeReportDto.Name = emp.Name;
 
 
@@ -296,7 +291,7 @@ namespace Application.Features
                 Employee empExist = null;
                 if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
                 {
-                    empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.NationalId == row.ItemArray[colIndex].ToString());
+                    empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.Id == row.ItemArray[colIndex].ToString());
                 }
                 if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()) && tegaraIndex > -1)
                 {
@@ -357,11 +352,11 @@ namespace Application.Features
 
             if (columns.Contains("الرقم القومى") && row["الرقم القومى"] != null)
             {
-                employee.NationalId = row["الرقم القومى"].ToString();
+                employee.Id = row["الرقم القومى"].ToString();
             }
             if (columns.Contains("الرقم القومي") && row["الرقم القومي"] != null)
             {
-                employee.NationalId = row["الرقم القومي"].ToString();
+                employee.Id = row["الرقم القومي"].ToString();
             }
 
             if (columns.Contains("الاسم") && row["الاسم"] != null)

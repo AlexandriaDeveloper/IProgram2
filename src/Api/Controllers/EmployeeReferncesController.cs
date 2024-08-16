@@ -18,7 +18,7 @@ namespace Api.Controllers
         }
 
         [HttpGet("GetEmployeeRefernces/{employeeId}")]
-        public async Task<IActionResult> GetEmployeeRefernces(int employeeId)
+        public async Task<IActionResult> GetEmployeeRefernces(string employeeId)
         {
             return HandleResult<List<EmployeeRefernceDto>>(await _employeeRefernceService.GetEmployeeRefernces(employeeId));
         }

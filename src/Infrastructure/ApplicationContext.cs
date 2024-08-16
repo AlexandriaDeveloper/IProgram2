@@ -15,8 +15,8 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
-        builder.Entity<Employee>()
-        .HasIndex(e => e.NationalId).IsUnique();
+        // builder.Entity<Employee>()
+        // .HasIndex(e => e.NationalId).IsUnique();
         builder.Entity<Employee>()
         .HasIndex(e => e.TegaraCode).IsUnique();
         builder.Entity<Employee>()

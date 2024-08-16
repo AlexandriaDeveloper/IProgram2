@@ -10,7 +10,7 @@ namespace Core.Models
     {
         [NotMapped]
         public override string Name { get => base.Name; set => base.Name = value; }
-        public int EmployeeId { get; set; }
+        public string EmployeeId { get; set; }
         public string ReferencePath { get; set; }
 
         public Employee Employee { get; set; }

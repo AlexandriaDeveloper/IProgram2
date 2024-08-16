@@ -38,7 +38,7 @@ namespace Persistence.Repository
             return max.HasValue ? max.Value : 0;
         }
 
-        public async Task<bool> CheckEmployeeFormDetailsExist(int employeeId, int formId)
+        public async Task<bool> CheckEmployeeFormDetailsExist(string employeeId, int formId)
         {
             return await _context.Set<FormDetails>().Include(x => x.Employee)
             .AnyAsync(x => x.EmployeeId == employeeId && x.FormId == formId && x.IsActive == true)

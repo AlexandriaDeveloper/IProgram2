@@ -8,13 +8,11 @@ namespace Application.Dtos
 {
     public class EmployeeDto
     {
-        public int Id { get; set; }
+        public string Id { get; set; }
         public int? TegaraCode { get; set; }
         public int? TabCode { get; set; }
         public string Name { get; set; }
-        [MaxLength(14)]
-        [MinLength(14)]
-        public string NationalId { get; set; }
+        public string NationalId => Id;
         public string Collage { get; set; }
         [MaxLength(25)]
         public string Section { get; set; }
@@ -36,7 +34,7 @@ namespace Application.Dtos
         public string BankName { get; set; }
         public string BranchName { get; set; }
         public string AccountNumber { get; set; }
-        public int? EmployeeId { get; set; }
+        public string? EmployeeId { get; set; }
 
 
     }
@@ -44,7 +42,7 @@ namespace Application.Dtos
     public class EmployeeRefernceDto
     {
         public int? Id { get; set; }
-        public int? EmployeeId { get; set; }
+        public string EmployeeId { get; set; }
         public string ReferencePath { get; set; }
 
     }

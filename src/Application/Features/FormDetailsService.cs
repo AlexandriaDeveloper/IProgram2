@@ -55,7 +55,6 @@ namespace Application.Features
                     Name = x.Employee.Name,
                     TabCode = x.Employee.TabCode,
                     TegaraCode = x.Employee.TegaraCode,
-                    NationalId = x.Employee.NationalId,
                     Amount = x.Amount,
                     EmployeeId = x.EmployeeId,
                     Department = x.Employee?.Department == null ? null : x.Employee?.Department.Name

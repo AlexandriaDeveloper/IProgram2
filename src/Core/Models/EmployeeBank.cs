@@ -12,7 +12,7 @@ namespace Core.Models
         [NotMapped]
         override public string Name { get; set; }
         [Key, ForeignKey("Employee")]
-        public int EmployeeId { get; set; }
+        public string EmployeeId { get; set; }
         public string BankName { get; set; }
         public string BranchName { get; set; }
         public string AccountNumber { get; set; }

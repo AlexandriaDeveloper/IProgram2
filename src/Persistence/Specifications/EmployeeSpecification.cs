@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+
 using Core.Models;
 using Persistence.Helpers;
 
@@ -15,7 +12,7 @@ namespace Persistence.Specifications
             AddInclude(x => x.Department);
             AddInclude(x => x.EmployeeBank);
             //  AddInclude(x => x.EmployeeRefernces);
-            if (param.Id.HasValue)
+            if (!string.IsNullOrEmpty(param.Id))
             {
                 AddCriteries(x => x.Id == param.Id);
             }
@@ -23,10 +20,10 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
             }
-            if (!string.IsNullOrEmpty(param.NationalId))
-            {
-                AddCriteries(x => x.NationalId.Equals(param.NationalId));
-            }
+            // if (!string.IsNullOrEmpty(param.NationalId))
+            // {
+            //     AddCriteries(x => x.NationalId.Equals(param.NationalId));
+            // }
             if (param.TabCode.HasValue)
             {
                 AddCriteries(x => x.TabCode.Equals(param.TabCode));
@@ -65,7 +62,7 @@ namespace Persistence.Specifications
             AddInclude(x => x.Department);
             AddInclude(x => x.EmployeeBank);
             //  AddInclude(x => x.EmployeeRefernces);
-            if (param.Id.HasValue)
+            if (!string.IsNullOrEmpty(param.Id))
             {
                 AddCriteries(x => x.Id == param.Id);
             }
@@ -73,10 +70,10 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
             }
-            if (!string.IsNullOrEmpty(param.NationalId))
-            {
-                AddCriteries(x => x.NationalId.Equals(param.NationalId));
-            }
+            // if (!string.IsNullOrEmpty(param.NationalId))
+            // {
+            //     AddCriteries(x => x.NationalId.Equals(param.NationalId));
+            // }
             if (param.TabCode.HasValue)
             {
                 AddCriteries(x => x.TabCode.Equals(param.TabCode));

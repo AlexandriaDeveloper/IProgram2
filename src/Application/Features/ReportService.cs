@@ -53,7 +53,6 @@ namespace Application.Features
                     Name = x.Employee.Name,
                     TabCode = x.Employee.TabCode,
                     TegaraCode = x.Employee.TegaraCode,
-                    NationalId = x.Employee.NationalId,
                     Amount = x.Amount,
                     EmployeeId = x.EmployeeId
                 }).ToList(),
@@ -174,7 +173,7 @@ namespace Application.Features
                                       t.Cell().Row((uint)row + 1).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((row + 1).ToString());
                                       t.Cell().Row((uint)row + 1).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.TegaraCode.ToString());
                                       t.Cell().Row((uint)row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.TabCode.ToString());
-                                      t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.NationalId.ToString());
+                                      t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.EmployeeId.ToString());
                                       t.Cell().Row((uint)row + 1).Column(5).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Name);
                                       t.Cell().Row((uint)row + 1).Column(6).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Amount.ToString());
                                       row++;

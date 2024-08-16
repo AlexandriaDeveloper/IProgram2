@@ -185,6 +185,11 @@ fb =inject(FormBuilder);
 
     })
   }
+  downloadJSON(){
+    this.dailyService.downloadJSONDaily(this.dailyId).subscribe({
+
+    })
+  }
 closeDaily(){
 
   this.dailyService.closeDaily(this.dailyId).subscribe({

@@ -12,3 +12,5 @@ While this would return the correct sql file:
 
 Script-Migration -->
  dotnet ef migrations script  -s src/API -p src/Infrastructure 20240805172439_inital -o ./script.sql
+
+ dotnet publish -c Release -o ./publish IProgram.sln EnvironmentName=Production

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Auth.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class inital : Migration
+    public partial class Init : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -237,12 +237,10 @@ namespace Auth.Infrastructure.Migrations
                 name: "Employees",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Id = table.Column<string>(type: "nvarchar(14)", maxLength: 14, nullable: false),
                     TegaraCode = table.Column<int>(type: "int", nullable: true),
                     TabCode = table.Column<int>(type: "int", nullable: true),
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    NationalId = table.Column<string>(type: "nvarchar(14)", maxLength: 14, nullable: false),
                     Collage = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Section = table.Column<string>(type: "nvarchar(25)", maxLength: 25, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
@@ -296,7 +294,7 @@ namespace Auth.Infrastructure.Migrations
                 name: "EmployeeBank",
                 columns: table => new
                 {
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<string>(type: "nvarchar(14)", nullable: false),
                     BankName = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     BranchName = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     AccountNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -325,7 +323,7 @@ namespace Auth.Infrastructure.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<string>(type: "nvarchar(14)", nullable: true),
                     ReferencePath = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -342,8 +340,7 @@ namespace Auth.Infrastructure.Migrations
                         name: "FK_EmployeeRefernce_Employees_EmployeeId",
                         column: x => x.EmployeeId,
                         principalTable: "Employees",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -353,7 +350,7 @@ namespace Auth.Infrastructure.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     FormId = table.Column<int>(type: "int", nullable: false),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<string>(type: "nvarchar(14)", maxLength: 14, nullable: true),
                     Amount = table.Column<double>(type: "float", nullable: false),
                     OrderNum = table.Column<int>(type: "int", nullable: false),
                     CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -371,8 +368,7 @@ namespace Auth.Infrastructure.Migrations
                         name: "FK_FormDetails_Employees_EmployeeId",
                         column: x => x.EmployeeId,
                         principalTable: "Employees",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_FormDetails_Form_FormId",
                         column: x => x.FormId,
@@ -429,12 +425,6 @@ namespace Auth.Infrastructure.Migrations
                 name: "IX_Employees_DepartmentId",
                 table: "Employees",
                 column: "DepartmentId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Employees_NationalId",
-                table: "Employees",
-                column: "NationalId",
-                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Employees_TabCode",

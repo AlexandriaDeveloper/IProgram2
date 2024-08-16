@@ -20,23 +20,23 @@ namespace Persistence.Repository
             this._accessor = accessor;
         }
 
-        public async Task<T> GetById(int id)
+        public virtual async Task<T> GetById(int id)
         {
             return await this._context.Set<T>().FirstOrDefaultAsync(x => x.Id == id);
         }
 
-        public async Task Delete(int id)
+        public virtual async Task Delete(int id)
         {
             var entity = await GetById(id);
             this._context.Set<T>().Remove(entity);
         }
-        public void DeleteRange(IEnumerable<T> entities)
+        public virtual void DeleteRange(IEnumerable<T> entities)
         {
             this._context.Set<T>().RemoveRange(entities);
         }
 
 
-        public async Task InActive(int id)
+        public virtual async Task InActive(int id)
         {
             var entity = await GetById(id);
 
@@ -46,7 +46,7 @@ namespace Persistence.Repository
             _context.Set<T>().Update(entity);
 
         }
-        public async Task DeActive(int id)
+        public virtual async Task DeActive(int id)
         {
             var entity = await GetById(id);
 
@@ -59,7 +59,7 @@ namespace Persistence.Repository
 
         }
 
-        public async Task Insert(T entity)
+        public virtual async Task Insert(T entity)
         {
             entity.IsActive = true;
             entity.CreatedAt = DateTime.Now;
@@ -67,7 +67,7 @@ namespace Persistence.Repository
             await _context.Set<T>().AddAsync(entity);
         }
 
-        public void Update(T entity)
+        public virtual void Update(T entity)
         {
             entity.UpdatedAt = DateTime.Now;
             entity.UpdatedBy = _accessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;

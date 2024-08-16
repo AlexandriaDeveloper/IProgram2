@@ -1,13 +1,14 @@
 using System.Data;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Application.Dtos;
 using Application.Helpers;
 using Application.Services;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.EntityFrameworkCore;
-using NPOI.HSSF.UserModel;
+using Newtonsoft.Json;
 using NPOI.SS.UserModel;
-using NPOI.XSSF.UserModel;
 using Persistence.Helpers;
 using Persistence.Specifications;
 
@@ -163,7 +164,6 @@ namespace Application.Features
                 Name = g.FirstOrDefault().Employee.Name,
                 TabCode = g.FirstOrDefault().Employee.TabCode,
                 TegaraCode = g.FirstOrDefault().Employee.TegaraCode,
-                NationalId = g.FirstOrDefault().Employee.NationalId,
                 Amount = Math.Round(g.Sum(x => x.Amount), 2)
             });
             var daily = await _dailyRepository.GetById(dailyId);
@@ -231,36 +231,36 @@ namespace Application.Features
             var npoi = new NpoiServiceProvider();
             IWorkbook workbook = null;
             int i = 1;
-            foreach (var form in daily)
-            {
-                var title = form.Name;
-                var sheerName = i.ToString() + "-" + form.Name;
-                i++;
-                DataTable dt = new DataTable();
-                dt.Columns.Add("م", typeof(int));
-                dt.Columns.Add("الرقم القومى", typeof(string));
-                dt.Columns.Add("كود طب", typeof(string));
-                dt.Columns.Add("كود تجارة", typeof(string));
-                dt.Columns.Add("القسم", typeof(string));
-                dt.Columns.Add("الاسم", typeof(string));
-                dt.Columns.Add("المبلغ", typeof(double));
-                int counter = 1;
+            // foreach (var form in daily)
+            // {
+            //     var title = form.Name;
+            //     var sheerName = i.ToString() + "-" + form.Name;
+            //     i++;
+            //     DataTable dt = new DataTable();
+            //     dt.Columns.Add("م", typeof(int));
+            //     dt.Columns.Add("الرقم القومى", typeof(string));
+            //     dt.Columns.Add("كود طب", typeof(string));
+            //     dt.Columns.Add("كود تجارة", typeof(string));
+            //     dt.Columns.Add("القسم", typeof(string));
+            //     dt.Columns.Add("الاسم", typeof(string));
+            //     dt.Columns.Add("المبلغ", typeof(double));
+            //     int counter = 1;
 
-                foreach (var item in form.FormDetails)
-                {
-                    DataRow dr = dt.NewRow();
-                    dr.SetField("م", counter++);
-                    dr["الرقم القومى"] = item.Employee.NationalId;
-                    dr["كود طب"] = item.Employee.TabCode;
-                    dr["كود تجارة"] = item.Employee.TegaraCode;
-                    dr["القسم"] = item.Employee.Department == null ? "" : item.Employee.Department.Name;
-                    dr["الاسم"] = item.Employee.Name;
-                    dr.SetField("المبلغ", (double)item.Amount);
-                    dt.Rows.Add(dr);
-                }
-                workbook = await npoi.CreateExcelFile(sheerName, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
+            //     foreach (var item in form.FormDetails)
+            //     {
+            //         DataRow dr = dt.NewRow();
+            //         dr.SetField("م", counter++);
+            //         dr["الرقم القومى"] = item.Employee.NationalId;
+            //         dr["كود طب"] = item.Employee.TabCode;
+            //         dr["كود تجارة"] = item.Employee.TegaraCode;
+            //         dr["القسم"] = item.Employee.Department == null ? "" : item.Employee.Department.Name;
+            //         dr["الاسم"] = item.Employee.Name;
+            //         dr.SetField("المبلغ", (double)item.Amount);
+            //         dt.Rows.Add(dr);
+            //     }
+            //   workbook = await npoi.CreateExcelFile(sheerName, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
 
-            }
+            // }
 
 
             var dailyToDataTable = daily.SelectMany(x => x.FormDetails).GroupBy(x => x.EmployeeId)
@@ -270,7 +270,7 @@ namespace Application.Features
                  Name = g.FirstOrDefault().Employee.Name,
                  TabCode = g.FirstOrDefault().Employee.TabCode,
                  TegaraCode = g.FirstOrDefault().Employee.TegaraCode,
-                 NationalId = g.FirstOrDefault().Employee.NationalId,
+                 NationalId = g.FirstOrDefault().Employee.Id,
                  Department = g.FirstOrDefault().Employee.Department,
                  Amount = g.Sum(x => x.Amount)
              });
@@ -286,10 +286,6 @@ namespace Application.Features
             int counter2 = 1;
             foreach (var item in dailyToDataTable)
             {
-
-
-
-
                 DataRow dr = dt2.NewRow();
                 dr.SetField("م", counter2++);
                 dr["الرقم القومى"] = item.NationalId;
@@ -299,10 +295,6 @@ namespace Application.Features
                 dr["الاسم"] = item.Name;
                 dr.SetField("المبلغ", (double)item.Amount);
                 dt2.Rows.Add(dr);
-
-
-
-
 
             }
 
@@ -315,7 +307,7 @@ namespace Application.Features
                 return null;
             }
             string tempPath = Path.GetTempPath();
-            string filePath = Path.Combine(tempPath, "Form.xlsx");
+            string filePath = Path.Combine(tempPath, Path.GetTempFileName() + ".xlsx");
             var memory = new MemoryStream();
 
             FileStream fs;
@@ -332,6 +324,94 @@ namespace Application.Features
             memory.Position = 0;
 
             return memory;
+        }
+        public async Task<MemoryStream> CreateJSONFile(int dailyId)
+        {
+
+            var daily = _dailyRepository.GetQueryable()
+            .Include(x => x.Forms)
+            .ThenInclude(d => d.FormDetails.OrderBy(x => x.OrderNum))
+            .ThenInclude(e => e.Employee)
+            .ThenInclude(e => e.Department)
+            .Where(x => x.Id == dailyId)
+            .SelectMany(x => x.Forms).Where(x => x.IsActive)
+            .ToList();
+            // var serializer = System.Text.Json.JsonSerializer.Serialize<List<Form>>(daily, new JsonSerializerOptions()
+            // {
+            //     MaxDepth = 3,
+            //     ReferenceHandler = ReferenceHandler.IgnoreCycles
+            // });
+
+
+
+
+            //Create object of FileInfo for specified path 
+            string tempPath = Path.GetTempPath();
+            string fileName = Path.GetTempFileName();
+            string filePath = Path.Combine(tempPath, Path.GetFileNameWithoutExtension(fileName) + ".json");
+            FileInfo fi = new FileInfo(filePath);
+
+            //Open file for Read\Write
+
+            JsonDataDto jsonFile = new JsonDataDto();
+            var dailyFromDb = await _dailyRepository.GetById(daily.FirstOrDefault().DailyId.Value);
+
+            jsonFile.DailyDate = dailyFromDb.DailyDate;
+            jsonFile.Name = dailyFromDb.Name;
+
+            //Create StreamWriter object to write string to FileSream
+
+            foreach (var form in daily)
+            {
+                jsonFile.Forms.Add(new JsonDataDto.JsonForm()
+                {
+                    Name = form.Name,
+                    Description = form.Description,
+                    Index = form.Index,
+                    FormDetails = form.FormDetails.Select(x => new JsonDataDto.JsonForm.JsonFormDetails()
+                    {
+                        Amount = x.Amount,
+                        EmployeeId = x.EmployeeId,
+                        OrderNum = x.OrderNum,
+                    }).ToList()
+                });
+            }
+
+
+
+            // var obj = JsonConvert.SerializeObject(jsonFile);
+
+            var memory = new MemoryStream();
+            var sw = new StreamWriter(memory);
+
+            FileStream fs = new FileStream(filePath, System.IO.FileMode.Create);
+            await System.Text.Json.JsonSerializer.SerializeAsync(fs, jsonFile);
+            fs.Close();
+            // using (var ms = new MemoryStream())
+            // {
+            //     fs = new FileStream(filePath, System.IO.FileMode.Create);
+
+            //     await fs.WriteAsync(System.Text.Encoding.UTF8.GetBytes(obj), 0, obj.Length);
+            //     fs.Close();
+            // }
+
+            await using (var stream = new FileStream(filePath, FileMode.OpenOrCreate))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+
+            return memory;
+            // await sw.WriteAsync(obj);
+            // sw.Close();
+
+            // await using (var stream = new FileStream(filePath, FileMode.OpenOrCreate))
+            // {
+            //     await stream.CopyToAsync(memory);
+            // }
+            // memory.Position = 0;
+            // return memory;
+
         }
 
         public async Task<Result<DailyDto>> GetDaily(int dailyId, CancellationToken cancellationToken)
@@ -355,3 +435,4 @@ namespace Application.Features
         }
     }
 }
+//407-5224527-0026748

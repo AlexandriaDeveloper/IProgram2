@@ -4,7 +4,7 @@ namespace Core.Interfaces
 {
     public interface IEmployeeBankRepository : IGenericRepository<EmployeeBank>
     {
-        new Task Delete(int id);
+        new Task Delete(string employeeId);
 
     }
 }

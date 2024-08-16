@@ -4,7 +4,7 @@ namespace Application.Dtos.Requests
 {
     public class EmployeeRefernceFileUploadRequest
     {
-        public int EmployeeId { get; set; }
+        public string EmployeeId { get; set; }
         public IFormFile File { get; set; }
     }
 

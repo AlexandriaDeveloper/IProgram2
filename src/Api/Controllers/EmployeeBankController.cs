@@ -17,7 +17,7 @@ namespace Api.Controllers
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteEmployeeBank(int id)
+        public async Task<IActionResult> DeleteEmployeeBank(string id)
         {
             if (!ModelState.IsValid)
             {
@@ -42,7 +42,7 @@ namespace Api.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetEmployeeBankById(int id)
+        public async Task<IActionResult> GetEmployeeBankById(string id)
         {
             if (!ModelState.IsValid)
             {
@@ -54,7 +54,7 @@ namespace Api.Controllers
         }
 
         [HttpGet("ByEmployeeId/{id}")]
-        public async Task<IActionResult> GetEmployeeBankByEmployeeId(int id)
+        public async Task<IActionResult> GetEmployeeBankByEmployeeId(string id)
         {
             if (!ModelState.IsValid)
             {

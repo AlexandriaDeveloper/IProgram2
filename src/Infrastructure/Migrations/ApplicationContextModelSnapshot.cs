@@ -179,11 +179,9 @@ namespace Auth.Infrastructure.Migrations
 
             modelBuilder.Entity("Core.Models.Employee", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<string>("Id")
+                        .HasMaxLength(14)
+                        .HasColumnType("nvarchar(14)");
 
                     b.Property<string>("Collage")
                         .HasColumnType("nvarchar(max)");
@@ -214,11 +212,6 @@ namespace Auth.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("NationalId")
-                        .IsRequired()
-                        .HasMaxLength(14)
-                        .HasColumnType("nvarchar(14)");
-
                     b.Property<string>("Section")
                         .HasMaxLength(25)
                         .HasColumnType("nvarchar(25)");
@@ -239,9 +232,6 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("DepartmentId");
 
-                    b.HasIndex("NationalId")
-                        .IsUnique();
-
                     b.HasIndex("TabCode")
                         .IsUnique()
                         .HasFilter("[TabCode] IS NOT NULL");
@@ -255,8 +245,8 @@ namespace Auth.Infrastructure.Migrations
 
             modelBuilder.Entity("Core.Models.EmployeeBank", b =>
                 {
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
+                    b.Property<string>("EmployeeId")
+                        .HasColumnType("nvarchar(14)");
 
                     b.Property<string>("AccountNumber")
                         .HasColumnType("nvarchar(max)");
@@ -313,8 +303,8 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<string>("DeactivatedBy")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
+                    b.Property<string>("EmployeeId")
+                        .HasColumnType("nvarchar(14)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -408,8 +398,9 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<string>("DeactivatedBy")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
+                    b.Property<string>("EmployeeId")
+                        .HasMaxLength(14)
+                        .HasColumnType("nvarchar(14)");
 
                     b.Property<int>("FormId")
                         .HasColumnType("int");
@@ -635,9 +626,7 @@ namespace Auth.Infrastructure.Migrations
                 {
                     b.HasOne("Core.Models.Employee", "Employee")
                         .WithMany("EmployeeRefernces")
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("EmployeeId");
 
                     b.Navigation("Employee");
                 });
@@ -661,9 +650,7 @@ namespace Auth.Infrastructure.Migrations
                 {
                     b.HasOne("Core.Models.Employee", "Employee")
                         .WithMany("FormDetails")
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("EmployeeId");
 
                     b.HasOne("Core.Models.Form", "Form")
                         .WithMany("FormDetails")

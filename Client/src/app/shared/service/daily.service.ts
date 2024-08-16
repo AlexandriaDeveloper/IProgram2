@@ -2,7 +2,7 @@ import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environment';
 import { IDaily, DailyParam } from '../models/IDaily';
-import { map } from 'rxjs';
+import { map, tap } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -62,8 +62,43 @@ export class DailyService {
        }))
   }
 
+  //downloadJSONDaily
+  downloadJSONDaily(dailyId){
+    console.log(dailyId);
+
+    return this.http.get(this.apiUrl+'daily/download-daily-json/'+dailyId,{ observe: 'response', responseType: 'blob' }).pipe(
+      tap(x => console.log(x) ),
+     map((x: HttpResponse<any>) => {
+      console.log(x);
+
+       let blob = new Blob([x.body], {
+         type: 'application/json'
+        });
+        const url = window.URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "db-file-"+new Date().getTime()+"-"+dailyId +".json";
+        a.click();
+      //  window.open(url);
+       }))
+  }
+
   closeDaily(dailyId: any) {
     return this.http.put(this.apiUrl+'daily/CloseDaily/'+dailyId,{})
   }
+
+  uploadJsonFile (file) {
+    // console.log(file);
+
+    const formData  = new FormData();
+
+      formData.append("file", file.file as Blob,file.file.name);
+
+  return this.http.post(this.apiUrl+'form/upload-json-form',formData,{
+  // responseType: "blob",
+  // reportProgress: true,
+  observe: "events"
+  })
+}
 
 }

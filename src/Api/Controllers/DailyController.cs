@@ -4,6 +4,7 @@ using Application.Helpers;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NPOI.Util;
 using Persistence.Helpers;
 
 
@@ -82,6 +83,7 @@ namespace Api.Controllers
             return HandleResult<DailyDto>(result);// result;
         }
 
+
         [HttpDelete("softdelete/{id}")]
         public async Task<IActionResult> SoftDelete(int id, CancellationToken cancellationToken)
         {
@@ -148,6 +150,15 @@ namespace Api.Controllers
             var ms = await _dailyService.CreateExcelFile(dailyId);
 
             return File(ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "daily.xlsx");
+
+
+        }
+        [AllowAnonymous]
+        [HttpGet("download-daily-json/{dailyId}")]
+        public async Task<FileResult> DownloadJsonFile(int dailyId)
+        {
+            var ms = await _dailyService.CreateJSONFile(dailyId);
+            return File(ms, "application/json", "daily.json");
 
 
         }

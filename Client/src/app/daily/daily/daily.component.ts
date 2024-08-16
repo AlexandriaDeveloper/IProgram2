@@ -11,6 +11,9 @@ import {
   MatDialog
 } from '@angular/material/dialog';
 import moment from 'moment';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
+import { UploadJsonDialogComponent } from './upload-json-dialog/upload-json-dialog.component';
+import { ToasterService } from '../../shared/components/toaster/toaster.service';
 
 @Component({
   selector: 'app-daily',
@@ -29,6 +32,8 @@ export class DailyComponent implements OnInit {
   @ViewChild(MatTable) table!: MatTable<IEmployee>;
   @ViewChild("nameInput") nameInput :ElementRef;
   @ViewChild("dateInput") dateInput ;
+  bottomSheet =inject(MatBottomSheet)
+  toaster =inject(ToasterService);
 constructor(private cdref: ChangeDetectorRef) {
 }
   ngOnInit(): void {
@@ -143,6 +148,25 @@ deleteDaily(row){
       }
     })
   }
+}
+
+uploadJson(){
+  this.bottomSheet.open(UploadJsonDialogComponent, {
+    panelClass: ['bottomSheet'],
+    hasBackdrop:true,
+    data: {
+
+    }
+
+
+  });
+
+  this.bottomSheet._openedBottomSheetRef.afterDismissed().subscribe(result => {
+    if(result){
+    this.loadData();
+    this.toaster.openSuccessToaster('تم رفع الملف  بنجاح','check_circle');
+    }
+  })
 }
 
 

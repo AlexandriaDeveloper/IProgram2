@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Newtonsoft.Json;
 using NPOI.Util;
 using Persistence.Extensions;
 using Persistence.Helpers;
@@ -226,7 +227,7 @@ namespace Application.Features
             {
                 DataRow dr = dt.NewRow();
                 dr.SetField("م", counter++);
-                dr["الرقم القومى"] = item.Employee.NationalId;
+                dr["الرقم القومى"] = item.Employee.Id;
                 dr["كود طب"] = item.Employee.TabCode;
                 dr["كود تجارة"] = item.Employee.TegaraCode;
                 dr["القسم"] = item.Employee.Department == null ? "" : item.Employee.Department.Name;
@@ -260,6 +261,64 @@ namespace Application.Features
 
             return memory;
         }
+
+        public async Task<Result> UploadJSONForm(UploadJsonFormRequest request)
+        {
+
+            ///TODO FIX USER
+            if (request.File == null)
+            {
+                return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
+            }
+            UploadFile upload = new UploadFile(request.File);
+            var path = await upload.UploadFileToTempPath();
+            var json = File.ReadAllText(path);
+
+            var json2Obj = JsonConvert.DeserializeObject<JsonDataDto>(json);
+            Daily daily = new Daily();
+            daily.Name = json2Obj.Name;
+            daily.DailyDate = json2Obj.DailyDate;
+            daily.Forms = new List<Form>();
+            daily.CreatedBy = "a17bb0ab-1a8f-420c-bcc5-b9eee654f352";
+            daily.CreatedAt = DateTime.Now;
+
+            foreach (var form in json2Obj.Forms)
+            {
+                var formToAdd = new Form()
+                {
+                    Description = form.Description,
+                    Name = form.Name,
+                    Index = form.Index,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = "a17bb0ab-1a8f-420c-bcc5-b9eee654f352",
+                    IsActive = true,
+
+                };
+                formToAdd.FormDetails = new List<FormDetails>();
+
+                foreach (var formDetail in form.FormDetails)
+                {
+                    formToAdd.FormDetails.Add(new FormDetails()
+                    {
+                        Amount = formDetail.Amount,
+                        EmployeeId = formDetail.EmployeeId,
+                        OrderNum = formDetail.OrderNum,
+                        CreatedAt = DateTime.Now,
+                        CreatedBy = "a17bb0ab-1a8f-420c-bcc5-b9eee654f352",
+                        IsActive = true
+                    });
+                }
+                daily.Forms.Add(formToAdd);
+            }
+
+            await _dailyRepository.Insert(daily);
+
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (result)
+                return Result.Success("تم الحفظ بنجاح");
+            return Result.Failure(new Error("500", "Internal Server Error"));
+
+        }
         public async Task<Result> UploadExcelEmployeesToForm(UploadEmployeesToFormRequest request)
         {
 
@@ -280,7 +339,7 @@ namespace Application.Features
             dt2.Columns.Add("القسم", typeof(string));
             dt2.Columns.Add("الاسم", typeof(string));
             dt2.Columns.Add("المبلغ", typeof(double));
-            dt2.Columns.Add("كود الموظف", typeof(int));
+            dt2.Columns.Add("كود الموظف", typeof(string));
             int counter = 1;
             List<string> messages = new List<string>();
             foreach (DataRow row in dt.Rows)
@@ -290,7 +349,7 @@ namespace Application.Features
                 Employee empExist = null;
                 if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()))
                 {
-                    empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.NationalId == row.ItemArray[1].ToString());
+                    empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.Id == row.ItemArray[1].ToString());
                     message = "الرقم القومى" + row.ItemArray[1].ToString();
                 }
                 else if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()))
@@ -318,7 +377,7 @@ namespace Application.Features
                 }
                 DataRow dr = dt2.NewRow();
                 dr.SetField("م", counter++);
-                dr["الرقم القومى"] = empExist.NationalId;
+                dr["الرقم القومى"] = empExist.Id;
                 dr["كود طب"] = empExist.TabCode;
                 dr["كود تجارة"] = empExist.TegaraCode;
                 dr["القسم"] = empExist.Department == null ? "" : empExist.Department.Name;
@@ -331,7 +390,7 @@ namespace Application.Features
             if (messages.Count > 0)
             {
                 //   return Result.Failure(new Error("1500", " يوجد مشكلة بالبيانات الاتيه  " + string.Join(" |||", messages)));
-                return Result.Failure(new Error("1500", JsonSerializer.Serialize(messages)));
+                return Result.Failure(new Error("1500", System.Text.Json.JsonSerializer.Serialize(messages)));
             }
 
             var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
@@ -342,7 +401,7 @@ namespace Application.Features
                 var empDetails = new FormDetails();
                 empDetails.OrderNum = int.Parse(row.ItemArray[0].ToString());
                 empDetails.Amount = Math.Round(double.Parse(row.ItemArray[6].ToString()), 2);
-                empDetails.EmployeeId = int.Parse(row.ItemArray[7].ToString());
+                empDetails.EmployeeId = row.ItemArray[7].ToString();
                 empDetails.FormId = request.FormId;
                 await _formDetailsRepository.Insert(empDetails);
             }

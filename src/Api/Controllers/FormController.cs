@@ -145,6 +145,20 @@ namespace Api.Controllers
             result = await _formService.UploadExcelEmployeesToForm(model);
             return HandleResult(result);
         }
+        [HttpPost("upload-json-form")]
+        [AllowAnonymous]
+        public async Task<IActionResult> UploadJSONForm(UploadJsonFormRequest model)
+        {
+            Result result = null;
+            // if (!ModelState.IsValid)
+            // {
+            //     result = Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
+            // }
+            result = await _formService.UploadJSONForm(model);
+            return HandleResult(result);
+        }
+
+
 
     }
 }

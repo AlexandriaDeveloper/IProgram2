@@ -18,7 +18,9 @@
   <button mat-menu-item  (click)="downloadExcel()">
     <mat-icon>insert_drive_file</mat-icon>
     تنزيل ملف اكسيل</button>
-
+    <button mat-menu-item  (click)="downloadJSON()">
+      <mat-icon>insert_drive_file</mat-icon>
+      تنزيل البيانات</button>
     <button mat-menu-item  (click)="closeDaily()" [disabled]="daily?.closed">
       <mat-icon>close</mat-icon>
        اغلاق اليوميه </button>

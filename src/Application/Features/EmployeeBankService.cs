@@ -28,7 +28,7 @@ namespace Application.Features
             {
                 BankName = employeeBank.BankName,
                 BranchName = employeeBank.BranchName,
-                EmployeeId = employeeBank.EmployeeId.Value,
+                EmployeeId = employeeBank.EmployeeId,
                 AccountNumber = employeeBank.AccountNumber
             };
             await _employeeBankRepository.Insert(employeeBankToSave);
@@ -41,14 +41,14 @@ namespace Application.Features
         }
 
 
-        public async Task<Result> DeleteEmployeeBank(int id)
+        public async Task<Result> DeleteEmployeeBank(string employeeId)
         {
-            var employeeBank = await _employeeBankRepository.GetQueryable().Where(x => x.EmployeeId == id).FirstOrDefaultAsync();
+            var employeeBank = await _employeeBankRepository.GetQueryable().Where(x => x.EmployeeId == employeeId).FirstOrDefaultAsync();
             if (employeeBank == null)
             {
                 return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
             }
-            await _employeeBankRepository.Delete(id);
+            await _employeeBankRepository.Delete(employeeId);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)
             {
@@ -75,7 +75,7 @@ namespace Application.Features
             return Result.Success(employeeBankToReturn);
         }
 
-        public async Task<Result> GetByEmployeeId(int employeeId)
+        public async Task<Result> GetByEmployeeId(string employeeId)
         {
             var employeeBank = await _employeeBankRepository.GetQueryable().Where(x => x.EmployeeId == employeeId).FirstOrDefaultAsync();
             if (employeeBank == null)

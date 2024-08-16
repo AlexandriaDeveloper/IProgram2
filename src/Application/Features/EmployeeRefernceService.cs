@@ -35,7 +35,7 @@ namespace Application.Features
 
         }
 
-        public async Task<Result<List<EmployeeRefernceDto>>> GetEmployeeRefernces(int employeeId)
+        public async Task<Result<List<EmployeeRefernceDto>>> GetEmployeeRefernces(string employeeId)
         {
             var employeeRefernces = await _employeeRefernceRepository.GetQueryable().Where(x => x.EmployeeId == employeeId && x.IsActive).ToListAsync();
             var employeeReferncesToReturn = employeeRefernces.Select(x => new EmployeeRefernceDto()
