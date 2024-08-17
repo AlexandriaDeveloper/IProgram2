@@ -65,7 +65,7 @@ observe: "events"
     if(param.tegaraCode) params = params.append('tegaraCode',param.tegaraCode);
     if(param.collage) params = params.append('collage',param.collage);
     if(param.name) params = params.append('name',param.name);
-    if(param.nationalId) params = params.append('nationalId',param.nationalId);
+  if(param.employeeId) params = params.append('employeeId',param.employeeId);
     if(param.departmentName) params = params.append('departmentName',param.departmentName);
     if(param.tabCode) params = params.append('tabCode',param.tabCode);
 
@@ -81,10 +81,12 @@ observe: "events"
 
     // if(param.sortBy) params = params.append('sortBy',param.sortBy);
     // if(param.direction) params = params.append('direction',param.direction);
-    if(param.id) params = params.append('id',param.id);
+    console.log(param.employeeId);
+
+    if(param.employeeId) params = params.append('id',param.employeeId);
 
     if(param.tegaraCode) params = params.append('tegaraCode',param.tegaraCode);
-    if(param.nationalId) params = params.append('nationalId',param.nationalId);
+    // if(param.nationalId) params = params.append('nationalId',param.nationalId);
     if(param.tabCode) params = params.append('tabCode',param.tabCode);
     if(param.collage) params = params.append('collage',param.collage);
     if(param.departmentName) params = params.append('departmentName',param.departmentName);
@@ -113,10 +115,10 @@ observe: "events"
     );
   }
 
-  softDelete(id:number){
+  softDelete(id:string){
     return this.http.delete(this.apiUrl+'employee/softDelete/'+id)
   }
-  Delete(id:number){
+  Delete(id:string){
     return this.http.delete(this.apiUrl+'employee/'+id)
   }
 }

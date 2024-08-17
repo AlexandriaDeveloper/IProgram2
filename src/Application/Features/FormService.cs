@@ -279,7 +279,7 @@ namespace Application.Features
             daily.Name = json2Obj.Name;
             daily.DailyDate = json2Obj.DailyDate;
             daily.Forms = new List<Form>();
-            daily.CreatedBy = "a17bb0ab-1a8f-420c-bcc5-b9eee654f352";
+            daily.CreatedBy = _httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
             daily.CreatedAt = DateTime.Now;
 
             foreach (var form in json2Obj.Forms)
@@ -290,7 +290,7 @@ namespace Application.Features
                     Name = form.Name,
                     Index = form.Index,
                     CreatedAt = DateTime.Now,
-                    CreatedBy = "a17bb0ab-1a8f-420c-bcc5-b9eee654f352",
+                    CreatedBy = _httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value,
                     IsActive = true,
 
                 };
@@ -304,7 +304,7 @@ namespace Application.Features
                         EmployeeId = formDetail.EmployeeId,
                         OrderNum = formDetail.OrderNum,
                         CreatedAt = DateTime.Now,
-                        CreatedBy = "a17bb0ab-1a8f-420c-bcc5-b9eee654f352",
+                        CreatedBy = _httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value,
                         IsActive = true
                     });
                 }

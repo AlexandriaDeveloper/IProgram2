@@ -22,8 +22,8 @@ export class ReportpdfService {
     if(model.endDate){
       params = params.append('endDate',model.endDate);
     }
-    if(model.id){
-      params = params.append('id',model.id);
+    if(model.employeeId){
+      params = params.append('employeeId',model.employeeId);
     }
 
 

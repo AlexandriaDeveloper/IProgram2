@@ -212,6 +212,7 @@ namespace Application.Features
             EmployeeReportDto.TabCode = emp.TabCode;
             EmployeeReportDto.TegaraCode = emp.TegaraCode;
             EmployeeReportDto.Name = emp.Name;
+            EmployeeReportDto.NationalId = emp.Id;
 
 
             EmployeeReportDto.Dailies = employee
@@ -256,8 +257,8 @@ namespace Application.Features
             }
             DataTable dt = npoi.ReadSheeByIndex(0);
             int colIndex = -1;
-            int tegaraIndex = -1;
-            int tabIndex = -1;
+            // int tegaraIndex = -1;
+            // int tabIndex = -1;
 
             if (dt.Columns.Contains("الرقم القومى"))
             {
@@ -268,19 +269,22 @@ namespace Application.Features
             {
                 colIndex = dt.Columns.IndexOf("الرقم القومي");
             }
-            if (dt.Columns.Contains("كود تجارة"))
-            {
-                tegaraIndex = dt.Columns.IndexOf("كود تجارة");
-            }
-            if (dt.Columns.Contains("رقم الموظف بجهته الأصلية"))
-            {
-                tabIndex = dt.Columns.IndexOf("رقم الموظف بجهته الأصلية");
-            }
-            if (colIndex == -1 && tegaraIndex == -1 && tabIndex == -1)
+            // if (dt.Columns.Contains("كود تجارة"))
+            // {
+            //     tegaraIndex = dt.Columns.IndexOf("كود تجارة");
+            // }
+            // if (dt.Columns.Contains("رقم الموظف بجهته الأصلية"))
+            // {
+            //     tabIndex = dt.Columns.IndexOf("رقم الموظف بجهته الأصلية");
+            // }
+            // if (colIndex == -1 && tegaraIndex == -1 && tabIndex == -1)
+            // {
+            //     return Result.Failure(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
+            // }
+            if (colIndex == -1)
             {
                 return Result.Failure(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
-
             foreach (DataRow row in dt.Rows)
             {
 
@@ -289,26 +293,27 @@ namespace Application.Features
                     continue;
                 }
                 Employee empExist = null;
+                empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString());
                 if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
                 {
                     empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.Id == row.ItemArray[colIndex].ToString());
                 }
-                if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()) && tegaraIndex > -1)
-                {
-                    bool success = int.TryParse(row.ItemArray[tegaraIndex].ToString(), out int result);
-                    if (success)
-                    {
-                        empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.TegaraCode == result);
-                    }
-                }
-                if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tabIndex].ToString()) && tabIndex > -1)
-                {
-                    bool success = int.TryParse(row.ItemArray[tabIndex].ToString(), out int result);
-                    if (success)
-                    {
-                        empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.TabCode == result);
-                    }
-                }
+                // if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()) && tegaraIndex > -1)
+                // {
+                //     bool success = int.TryParse(row.ItemArray[tegaraIndex].ToString(), out int result);
+                //     if (success)
+                //     {
+                //         empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.TegaraCode == result);
+                //     }
+                // }
+                // if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tabIndex].ToString()) && tabIndex > -1)
+                // {
+                //     bool success = int.TryParse(row.ItemArray[tabIndex].ToString(), out int result);
+                //     if (success)
+                //     {
+                //         empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.TabCode == result);
+                //     }
+                // }
                 if (empExist != null && empExist.IsActive == false)
                 {
                     return Result.Failure(new Error("400", "هذا الموظف مسجل و  موقوف من قبل"));
@@ -326,8 +331,6 @@ namespace Application.Features
                     if (hasUpdat)
                         _employeeRepository.Update(empExist);
                 }
-
-
             }
             try
             {
@@ -344,8 +347,9 @@ namespace Application.Features
 
 
 
-
-
+        //27007091802437
+        //2531092501257
+        //2531092501257
         private Employee AddEmployee(DataColumnCollection columns, DataRow row)
         {
             var employee = new Employee();
@@ -406,29 +410,32 @@ namespace Application.Features
             {
                 employee.Section = row["الإدارة"].ToString();
             }
-            if (columns.Contains("البنك") && row["البنك"] != null)
+            if (!string.IsNullOrEmpty(row["البنك"].ToString()))
             {
-                if (employee.EmployeeBank == null)
-                    employee.EmployeeBank = new EmployeeBank();
+                if (columns.Contains("البنك"))
+                {
+                    if (employee.EmployeeBank == null)
+                        employee.EmployeeBank = new EmployeeBank();
 
-                employee.EmployeeBank.BankName = row["البنك"].ToString();
-                employee.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
-                employee.EmployeeBank.CreatedAt = DateTime.Now;
-            }
-            if (columns.Contains("الفرع") && row["الفرع"] != null)
-            {
-                if (employee.EmployeeBank == null)
-                    employee.EmployeeBank = new EmployeeBank();
+                    employee.EmployeeBank.BankName = row["البنك"].ToString();
+                    employee.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+                    employee.EmployeeBank.CreatedAt = DateTime.Now;
+                }
+                if (columns.Contains("الفرع") && row["الفرع"] != null)
+                {
+                    if (employee.EmployeeBank == null)
+                        employee.EmployeeBank = new EmployeeBank();
 
-                employee.EmployeeBank.BranchName = row["الفرع"].ToString();
-            }
-            if (columns.Contains("رقم الحساب") && row["رقم الحساب"] != null)
-            {
-                if (employee.EmployeeBank == null)
-                    employee.EmployeeBank = new EmployeeBank();
+                    employee.EmployeeBank.BranchName = row["الفرع"].ToString();
+                }
+                if (columns.Contains("رقم الحساب") && row["رقم الحساب"] != null)
+                {
+                    if (employee.EmployeeBank == null)
+                        employee.EmployeeBank = new EmployeeBank();
 
-                employee.EmployeeBank.AccountNumber = row["رقم الحساب"].ToString();
+                    employee.EmployeeBank.AccountNumber = row["رقم الحساب"].ToString();
 
+                }
             }
 
             return employee;

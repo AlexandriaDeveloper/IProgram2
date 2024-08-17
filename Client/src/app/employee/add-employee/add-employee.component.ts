@@ -24,7 +24,7 @@ export class AddEmployeeComponent implements OnInit {
     name: 'محمد على شريف',
     tabCode :null,
     tegaraCode : null,
-    nationalId:'12345678901234',
+    id:'12345678901234',
     collage:'طب',
     departmentId : null
   };
@@ -54,7 +54,7 @@ export class AddEmployeeComponent implements OnInit {
       collage : [this.employee?.collage,[]],
       tabCode : [this.employee?.tabCode,[]],
       tegaraCode : [this.employee?.tegaraCode,[]],
-      nationalId : [this.employee?.nationalId,[Validators.required]],
+      employeeId : [this.employee?.id,[Validators.required]],
       departmentId : [this.employee?.departmentId,[]]
     })
   }

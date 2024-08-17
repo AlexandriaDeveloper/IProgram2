@@ -28,7 +28,7 @@ export class EditEmployeeDialogComponent implements OnInit {
     name: '',
     tabCode :null,
     tegaraCode : null,
-    nationalId:'',
+id:null,
     collage:'',
     departmentId : null,
     email :null,
@@ -40,7 +40,7 @@ export class EditEmployeeDialogComponent implements OnInit {
 
     }
   ngOnInit(): void {
-    this.employeeParam.id=this.data.employeeId;
+    this.employeeParam.employeeId=this.data.employeeId;
 
 
 
@@ -51,9 +51,8 @@ export class EditEmployeeDialogComponent implements OnInit {
 
   initForm(){
     return this.fb.group({
-      id:[this.employee?.id,[]],
+      employeeId:[this.employee?.id,[]],
       name : [this.employee?.name,[Validators.required]],
-      nationalId : [this.employee?.nationalId,[Validators.required]],
       collage : [this.employee?.collage,[]],
       tabCode : [this.employee?.tabCode,[]],
       tegaraCode : [this.employee?.tegaraCode,[]],

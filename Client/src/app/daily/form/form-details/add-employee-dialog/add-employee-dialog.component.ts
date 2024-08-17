@@ -26,7 +26,7 @@ export class AddEmployeeDialogComponent implements OnInit {
   employeeService =inject(EmployeeService);
   employeeParam : EmployeeParam=new EmployeeParam();
   employeeSearch :IEmployeeSearch={
-    nationalId:null,
+    employeeId:null,
     tegaraCode:null,
     tabCode:null
   };
@@ -49,7 +49,7 @@ export class AddEmployeeDialogComponent implements OnInit {
      this.employee={...this.employee
       ,id : this.data?.employeeDetails?.employeeId,
       name : this.data?.employeeDetails?.name,
-      nationalId : this.data?.employeeDetails?.nationalId,
+
       tegaraCode : this.data?.employeeDetails?.tegaraCode,
       tabCode : this.data?.employeeDetails?.tabCode,
       collage : this.data?.employeeDetails?.collage}
@@ -69,7 +69,7 @@ export class AddEmployeeDialogComponent implements OnInit {
   }
     initForm(){
       return this.fb.group({
-        nationalId:[this.employeeSearch?.nationalId,[]],
+        nationalId:[this.employeeSearch?.employeeId,[]],
         tegaraCode : [this.employeeSearch?.tegaraCode,[]],
         tabCode : [this.employeeSearch?.tabCode,[]]
       })

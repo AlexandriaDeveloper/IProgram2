@@ -27,7 +27,7 @@ export class AddEmployeeDialogComponent implements OnInit {
   departmentService = inject(DepartmentService)
   employeeParam : EmployeeParam=new EmployeeParam();
   employeeSearch :IEmployeeSearch={
-    nationalId:null,
+    employeeId:null,
     tegaraCode:null,
     tabCode:null
   };
@@ -52,7 +52,7 @@ export class AddEmployeeDialogComponent implements OnInit {
   }
     initForm(){
       return this.fb.group({
-        nationalId:[this.employeeSearch?.nationalId,[]],
+        employeeId:[this.employeeSearch?.employeeId,[]],
         tegaraCode : [this.employeeSearch?.tegaraCode,[]],
         tabCode : [this.employeeSearch?.tabCode,[]]
       })

@@ -1,11 +1,11 @@
 import { Param } from "./Param"
 
 export interface IEmployee {
-  id?:number;
+  id?:string;
   name: string
   tabCode : number
   tegaraCode : number
-  nationalId:string
+
   collage:string
   departmentId? : number
   departmentName?:string
@@ -28,11 +28,10 @@ export interface IUploadEmployee {
 }
 
 export class EmployeeParam extends Param{
-  id:number
+  employeeId:string
   name : string
   tabCode : number
   tegaraCode : number
-  nationalId:string
   collage:string
   departmentId? : number
   departmentName?:string
@@ -42,13 +41,13 @@ export class EmployeeParam extends Param{
 
 export interface IEmployeeSearch {
 
-  nationalId :string;
+  employeeId :string;
   tabCode:number;
   tegaraCode:number;
 }
 
 export class EmployeeReportRequest{
-  id:number;
+  employeeId:string;
   startDate?:string;
   endDate?:string;
 }

@@ -1,5 +1,4 @@
 
-using Api.Filters;
 using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
@@ -16,23 +15,18 @@ namespace Api.Controllers
         public EmployeeController(EmployeeService employeeService)
         {
             this._employeeService = employeeService;
-
         }
         [HttpGet("GetEmployees")]
         [AllowAnonymous]
         public async Task<IActionResult> GetEmployees([FromQuery] EmployeeParam employeeParam)
         {
             return HandleResult(await _employeeService.getEmployees(employeeParam));
-
         }
         [HttpGet("GetEmployee")]
-
         public async Task<IActionResult> GetEmployeeBySpec([FromQuery] EmployeeParam employeeParam)
         {
             return HandleResult<EmployeeDto>(await _employeeService.getEmployee(employeeParam));
-
         }
-
         [HttpPost("Add")]
         public async Task<IActionResult> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
         {
@@ -42,12 +36,7 @@ namespace Api.Controllers
             }
 
             return HandleResult<EmployeeDto>(await _employeeService.AddEmployee(employee, cancellationToken));
-
-
-
-
         }
-
         [HttpPut()]
         public async Task<IActionResult> PutEmployee(EmployeeDto employee)
         {
@@ -55,22 +44,12 @@ namespace Api.Controllers
             {
                 return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-
             return HandleResult<EmployeeDto>(await _employeeService.UpdateEmployee(employee));
-
-
-
-
         }
-
-
-
         [HttpPost("Upload")]
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
-
         public async Task<IActionResult> UploadEmployees(EmployeeFileUploadRequest model)
         {
-
             if (!ModelState.IsValid)
             {
                 return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
@@ -78,22 +57,18 @@ namespace Api.Controllers
             try
             {
                 var result = await _employeeService.UploadTegaraFile(model);
-
                 return HandleResult(result);
             }
             catch (Exception ex)
             {
                 return HandleResult(Result.Failure<EmployeeDto>(new Error("500", ex.Message)));
             }
-
         }
 
         [HttpPost("UploadTegaraFile")]
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
-
         public async Task<IActionResult> UploadTegaraFile(EmployeeFileUploadRequest model)
         {
-
             if (!ModelState.IsValid)
             {
                 return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
@@ -101,23 +76,17 @@ namespace Api.Controllers
             try
             {
                 var result = await _employeeService.UploadTegaraFile(model);
-
                 return HandleResult(result);
             }
             catch (Exception ex)
             {
                 return HandleResult(Result.Failure<EmployeeDto>(new Error("500", ex.Message)));
             }
-
         }
-
-
-
         [HttpPost("EmployeeReport")]
         public async Task<IActionResult> EmployeeReport([FromBody] EmployeeReportRequest request)
         {
             return HandleResult<EmployeeReportDto>(await _employeeService.EmployeeReport(request));
-            // return null;
         }
 
         [HttpDelete("SoftDelete/{id}")]
@@ -133,7 +102,6 @@ namespace Api.Controllers
             var result = await _employeeService.SoftDelete(id);
             return HandleResult(result);// result;
         }
-
     }
 
 }

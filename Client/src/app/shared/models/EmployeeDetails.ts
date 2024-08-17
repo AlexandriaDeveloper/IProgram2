@@ -1,6 +1,6 @@
 export class AddEmployeeDetails {
   id: number=0;
-  employeeId: number;
+  employeeId: string;
   formId: number;
   amount: number;
 }

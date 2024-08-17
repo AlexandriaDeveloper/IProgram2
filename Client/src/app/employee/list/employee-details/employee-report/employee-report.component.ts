@@ -14,7 +14,9 @@ export class EmployeeReportComponent implements OnInit ,AfterViewInit{
   employeeDailies ;
   request =new EmployeeReportRequest();
   ngOnInit(): void {
-    this.request.id=this.employee.id
+    console.log(this.employee);
+
+    this.request.employeeId=this.employee.id
 
    this.load();
   }
@@ -51,6 +53,7 @@ export class EmployeeReportComponent implements OnInit ,AfterViewInit{
 
    }
    load(){
+
 
     this.employeeService.employeeReport(this.request).subscribe(x=>{
        // console.log(x);

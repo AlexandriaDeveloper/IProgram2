@@ -76,7 +76,7 @@ constructor( private cdref: ChangeDetectorRef ) {}
           case 'name':
           this.param.name=x; break;
           case 'nationalId':
-          this.param.nationalId=x; break;
+          this.param.employeeId=x; break;
           case 'collage':
           this.param.collage=x; break;
         }
@@ -177,9 +177,9 @@ constructor( private cdref: ChangeDetectorRef ) {}
       this.nameInput.nativeElement.value = '';
       this.param.name=null;
     }
-    if(input==='nationalId'){
+    if(input==='employeeId'){
       this.nationalIdInput.nativeElement.value = '';
-      this.param.nationalId=null;
+      this.param.employeeId=null;
     }
     if(input==='collage'){
       this.collageInput.nativeElement.value = '';

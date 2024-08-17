@@ -17,13 +17,13 @@ export class EmployeeBankService {
     return this.http.post(this.apiUrl+'employeeBank',model)
 
   }
-  deleteEmployeeBank(id:number){
+  deleteEmployeeBank(id:string){
     return this.http.delete(this.apiUrl+'employeeBank/'+id)
   }
-  getEmployeeBankById(id:number){
+  getEmployeeBankById(id:string){
     return this.http.get(this.apiUrl+'employeeBank/'+id)
   }
-  getEmployeeBankByEmployeeId(id:number){
+  getEmployeeBankByEmployeeId(id:string){
     return this.http.get(this.apiUrl+'employeeBank/'+id)
   }
 

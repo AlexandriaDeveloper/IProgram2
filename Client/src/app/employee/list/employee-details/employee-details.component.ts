@@ -42,8 +42,10 @@ param  :EmployeeParam =new EmployeeParam();
 
 employee ?:IEmployee;
 ngOnInit(): void {
+  console.log("hello")
+  console.log(this.employeeId);
 
-  this.param.id=this.employeeId
+  this.param.employeeId=this.employeeId
   this.loadEmployee();
 
 }

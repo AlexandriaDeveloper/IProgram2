@@ -1,17 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Threading.Tasks;
-using Application.Dtos;
-using Application.Helpers;
 using Application.Services;
 using Core.Interfaces;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using NPOI.SS.Formula;
-using NPOI.SS.Formula.Functions;
 
 namespace Api.Controllers
 {
@@ -21,7 +12,6 @@ namespace Api.Controllers
         public DownloadController(IDepartmentRepository departmentRepository)
         {
             this._departmentRepository = departmentRepository;
-
         }
 
 
@@ -69,20 +59,13 @@ namespace Api.Controllers
             dt = new DataTable();
             dt.Columns.Add("Id");
             dt.Columns.Add("Name");
-
-
             var departments = await _departmentRepository.GetQueryable().Where(x => x.IsActive).ToListAsync();
-
-
-
             departments.ForEach(x =>
               {
                   DataRow row = dt.NewRow();
                   row["Id"] = x.Id;
                   row["Name"] = x.Name;
-
                   dt.Rows.Add(row);
-
               });
 
             System.IO.File.Copy(filePath, tempPath);
@@ -93,9 +76,6 @@ namespace Api.Controllers
             }
             NpoiServiceProvider npoiProvider = new NpoiServiceProvider(tempPath);
             var workbook = await npoiProvider.OpenAndWriteSheetByName("Sheet2", dt, 1);
-
-
-
             FileStream fs;
             using (var ms = new MemoryStream())
             {
@@ -103,15 +83,8 @@ namespace Api.Controllers
                 workbook.Write(ms);
 
             }
-
-
             memory.Position = 0;
-
-
-
             workbook.Write(fs);
-
-
         }
     }
 }
