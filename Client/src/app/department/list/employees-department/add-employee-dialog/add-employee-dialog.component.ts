@@ -8,6 +8,7 @@ import { DailyService } from '../../../../shared/service/daily.service';
 import { EmployeeService } from '../../../../shared/service/employee.service';
 import { FormDetailsService } from '../../../../shared/service/form-details.service';
 import { DepartmentService } from '../../../../shared/service/department.service';
+import { Ids } from '../../../../shared/models/Department';
 
 @Component({
   selector: 'app-add-employee-dialog',
@@ -89,8 +90,14 @@ export class AddEmployeeDialogComponent implements OnInit {
     })
   }
   onSubmit(){
-    this.ids.push(this.form.value.employeeId);
-      this.departmentService.addEmployeesToDepartment(this.data.departmentId, this.ids).subscribe({
+    console.log(this.form.value);
+    let req = { } as Ids;
+    req.ids=[];
+    req.ids.push(this.form.value.employeeId);
+    console.log(req);
+
+
+      this.departmentService.addEmployeesToDepartment(this.data.departmentId,req ).subscribe({
         next:(x)=>{
           this.dialogRef.close();
         },

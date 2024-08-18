@@ -2,7 +2,7 @@ namespace Persistence.Helpers
 {
     public class EmployeeParam : Param
     {
-        public string Id { get; set; }
+        public string EmployeeId { get; set; }
         public string Name { get; set; }
         public int? TegaraCode { get; set; }
         public int? TabCode { get; set; }

@@ -12,9 +12,9 @@ namespace Persistence.Specifications
             AddInclude(x => x.Department);
             AddInclude(x => x.EmployeeBank);
             //  AddInclude(x => x.EmployeeRefernces);
-            if (!string.IsNullOrEmpty(param.Id))
+            if (!string.IsNullOrEmpty(param.EmployeeId))
             {
-                AddCriteries(x => x.Id == param.Id);
+                AddCriteries(x => x.Id == param.EmployeeId);
             }
             if (!string.IsNullOrEmpty(param.Name))
             {
@@ -62,9 +62,9 @@ namespace Persistence.Specifications
             AddInclude(x => x.Department);
             AddInclude(x => x.EmployeeBank);
             //  AddInclude(x => x.EmployeeRefernces);
-            if (!string.IsNullOrEmpty(param.Id))
+            if (!string.IsNullOrEmpty(param.EmployeeId))
             {
-                AddCriteries(x => x.Id == param.Id);
+                AddCriteries(x => x.Id == param.EmployeeId);
             }
             if (!string.IsNullOrEmpty(param.Name))
             {

@@ -46,6 +46,7 @@ export class InputTextComponent implements OnInit, ControlValueAccessor {
   // @Input() required: boolean;
    @Input() appearance: MatFormFieldAppearance="outline";
    @Input() matSuffix: string="settings";
+   @Input() readonly: boolean =false;
   // @Input() matPrefix: string;
   // @Input() matHint: string;
   // @Input() matError: string;

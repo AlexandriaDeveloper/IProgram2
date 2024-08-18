@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Org.BouncyCastle.Crypto;
 
 namespace Application.Dtos
 {
@@ -20,5 +21,10 @@ namespace Application.Dtos
     {
         public int DepartmentId { get; set; }
         public IFormFile File { get; set; }
+    }
+
+    public class EmployeesInDepartmentIdsRequest
+    {
+        public string[] Ids { get; set; }
     }
 }

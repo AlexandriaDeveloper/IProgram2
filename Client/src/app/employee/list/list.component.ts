@@ -6,11 +6,12 @@ import { MatSortModule, MatSort } from '@angular/material/sort';
 
 import { EmployeeService } from '../../shared/service/employee.service';
 import { IEmployee } from '../../shared/models/IEmployee';
-import { debounceTime, distinctUntilChanged, fromEvent, map, of } from 'rxjs';
+import { debounceTime, distinctUntilChanged, fromEvent, map, of, tap } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialog } from '@angular/material/dialog';
 import { AddBankDialogComponent } from './employee-details/bank-info/add-bank-dialog/add-bank-dialog.component';
 import { EditEmployeeDialogComponent } from './employee-details/edit-employee-dialog/edit-employee-dialog.component';
+import { ToasterService } from '../../shared/components/toaster/toaster.service';
 
 @Component({
   selector: 'app-list',
@@ -22,6 +23,7 @@ import { EditEmployeeDialogComponent } from './employee-details/edit-employee-di
 export class ListComponent implements AfterViewInit,OnInit {
   employeeService = inject(EmployeeService);
   router = inject(ActivatedRoute);
+  toaster =inject(ToasterService);
   public param :   EmployeeParam=new EmployeeParam();
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
@@ -29,7 +31,7 @@ export class ListComponent implements AfterViewInit,OnInit {
   @ViewChild("tabCodeInput") tabCodeInput :ElementRef;
   @ViewChild("tegaraCodeInput") tegaraCodeInput :ElementRef;
   @ViewChild("nameInput") nameInput :ElementRef;
-  @ViewChild("nationalIdInput") nationalIdInput :ElementRef;
+  @ViewChild("employeeIdInput") employeeIdInput :ElementRef;
   @ViewChild("collageInput") collageInput :ElementRef;
   @ViewChild("departmentInput") departmentInput :ElementRef;
   dataSource ;
@@ -58,7 +60,7 @@ constructor( private cdref: ChangeDetectorRef) {}
     this.initElement(this.tabCodeInput,'tabCode');
     this.initElement(this.tegaraCodeInput,'tegaraCode');
     this.initElement(this.nameInput,'name');
-    this.initElement(this.nationalIdInput,'nationalId');
+    this.initElement(this.employeeIdInput,'employeeId');
     this.initElement(this.collageInput,'collage');
     this.initElement(this.departmentInput,'department');
   }
@@ -77,7 +79,7 @@ constructor( private cdref: ChangeDetectorRef) {}
           this.param.tegaraCode=x; break;
           case 'name':
           this.param.name=x; break;
-          case 'nationalId':
+          case 'employeeId':
           this.param.employeeId=x; break;
           case 'collage':
           this.param.collage=x; break;
@@ -91,7 +93,7 @@ constructor( private cdref: ChangeDetectorRef) {}
 
 
   /** Columns displayed in the table. Columns IDs can be added, removed, or reordered. */
-  displayedColumns = ['action','tabCode','tegaraCode', 'name','nationalId','department','collage'];
+  displayedColumns = ['action','tabCode','tegaraCode', 'name','employeeId','department','collage'];
 
 
 
@@ -121,9 +123,13 @@ constructor( private cdref: ChangeDetectorRef) {}
   }
   deleteEmployee(row:IEmployee){
     if( confirm( `هل تريد حذف الموظف ${row.name}؟`)){
-      this.employeeService.Delete(row.id).subscribe();
-      this.param
-      this.loadData();
+      this.employeeService.softDelete(row.id).pipe(
+        tap(() =>{
+          this.toaster.openSuccessToaster('تم الحذف بنجاح','check_circle');
+          this.resetParam();
+           this.loadData()})
+      ).subscribe();
+
 
     }
   }
@@ -143,7 +149,7 @@ constructor( private cdref: ChangeDetectorRef) {}
       this.param.name=null;
     }
     if(input==='employeeId'){
-      this.nationalIdInput.nativeElement.value = '';
+      this.employeeIdInput.nativeElement.value = '';
       this.param.employeeId=null;
     }
     if(input==='collage'){

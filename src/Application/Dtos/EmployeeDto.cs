@@ -13,6 +13,7 @@ namespace Application.Dtos
         public int? TabCode { get; set; }
         public string Name { get; set; }
         public string NationalId => Id;
+        public string EmployeeId { get; set; }
         public string Collage { get; set; }
         [MaxLength(25)]
         public string Section { get; set; }

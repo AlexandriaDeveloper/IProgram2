@@ -42,7 +42,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   data :any;
   dataSource;
   filteredData :IEmployee[]=[]
-  displayedColumns = ['action','tabCode','tegaraCode','name','department','nationalId','amount']
+  displayedColumns = ['action','tabCode','tegaraCode','name','department','employeeId','amount']
   isLoading =false;
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
@@ -53,7 +53,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
   @ViewChild("tegaraCodeInput") tegaraCodeInput :ElementRef;
   @ViewChild("nameInput") nameInput :ElementRef;
   @ViewChild("departmentInput") departmentInput :ElementRef;
-  @ViewChild("nationalIdInput") nationalIdInput :ElementRef;
+  @ViewChild("employeeIdInput") employeeIdInput :ElementRef;
   @ViewChild("amountInput") amountInput :ElementRef;
 
 
@@ -88,7 +88,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
     this.initElement(this.tabCodeInput,'tabCode');
     this.initElement(this.tegaraCodeInput,'tegaraCode');
     this.initElement(this.nameInput,'name');
-    this.initElement(this.nationalIdInput,'nationalId');
+    this.initElement(this.employeeIdInput,'employeeId');
     this.initElement(this.amountInput,'amount');
     this.initElement(this.departmentInput,'department');
 
@@ -109,7 +109,7 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
       this.dataSource=this.data.formDetails.filter(x=>{
         console.log(param);
 
-        if(param === 'name'||param === 'nationalId'||param === 'department'){
+        if(param === 'name'||param === 'employeeId'||param === 'department'){
           if(x[param]!== null)
           return x[param].includes(event.target.value);
         }
@@ -264,8 +264,8 @@ export class FormDetailsComponent implements OnInit  ,AfterViewInit{
     if(input=='department'){
       this.departmentInput.nativeElement.value=''
     }
-    if(input=='nationalId'){
-      this.nationalIdInput.nativeElement.value=''
+    if(input=='employeeId'){
+      this.employeeIdInput.nativeElement.value=''
     }
     if(input=='amount'){
       this.amountInput.nativeElement.value=''

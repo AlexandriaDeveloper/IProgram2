@@ -1,4 +1,5 @@
 
+using System.Security.Claims;
 using Auth.Infrastructure;
 using Core.Interfaces;
 using Core.Models;
@@ -13,9 +14,11 @@ namespace Persistence.Repository
 
 
         // private readonly ApplicationContext _context;
+        private readonly IHttpContextAccessor _accessor;
 
         public EmployeeRepository(ApplicationContext context, IHttpContextAccessor accessor) : base(context, accessor)
         {
+            this._accessor = accessor;
             this._context = context;
 
         }
@@ -23,6 +26,22 @@ namespace Persistence.Repository
         {
             return await this._context.Set<Employee>().FirstOrDefaultAsync(x => x.Id == id);
         }
+        public new async Task Delete(string id)
+        {
+            var entity = await GetById(id);
+            this._context.Set<Employee>().Remove(entity);
+
+        }
+        public new async Task DeActive(string id)
+        {
+            var entity = await GetById(id);
+            entity.IsActive = false;
+            entity.DeactivatedAt = DateTime.Now;
+            entity.DeactivatedBy = _accessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
+            _context.Set<Employee>().Update(entity);
+
+        }
+
 
         public async Task<bool> CheckEmployeeByNationalId(string nationalId)
         {

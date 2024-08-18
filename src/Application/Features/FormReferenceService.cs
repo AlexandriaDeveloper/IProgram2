@@ -71,12 +71,12 @@ namespace Application.Features
         {
             var fileName = request.FormId.ToString() + "_" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + Path.GetExtension(request.File.FileName);
             //check directory exist
-            if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "FormReferences")))
+            if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "Content", "FormReferences")))
             {
-                Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "FormReferences"));
+                Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "Content", "FormReferences"));
             }
 
-            var path = Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "FormReferences", fileName);
+            var path = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "FormReferences", fileName);
 
 
             using (var fileStream = new FileStream(path, FileMode.Create))

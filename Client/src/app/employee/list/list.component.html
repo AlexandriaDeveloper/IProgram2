@@ -85,19 +85,19 @@
     </ng-container>
 
     <!-- nationalId Column -->
-    <ng-container matColumnDef="nationalId">
+    <ng-container matColumnDef="employeeId">
       <th mat-header-cell *matHeaderCellDef  [hidden]="!nationalIdCheck.checked" >
           <mat-form-field apperance="outline" class="search" color="primary"  style="width: 20vh !important;">
         <mat-label class="saerch-title">الرقم القومى</mat-label>
-        <input  matInput   #nationalIdInput (search)="clear('nationalId')" >
-        @if (nationalIdInput.value) {
-          <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('nationalId')" >
+        <input  matInput   #employeeIdInput (search)="clear('employeeId')" >
+        @if (employeeIdInput.value) {
+          <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('employeeId')" >
             <mat-icon>close</mat-icon>
           </button>
         }
       </mat-form-field>
     </th>
-      <td mat-cell *matCellDef="let row" [hidden]="!nationalIdCheck.checked">{{row.nationalId}}</td>
+      <td mat-cell *matCellDef="let row" [hidden]="!nationalIdCheck.checked">{{row.id}}</td>
     </ng-container>
         <!-- department Column -->
 

@@ -69,19 +69,19 @@ namespace Api.Controllers
             return HandleResult(await _departmentService.EditDepartment(departmentDto));// await _departmentService.EditDepartment(departmentDto);
         }
         [HttpPut("{id}/employees")]
-        public async Task<IActionResult> AddEmployees(int id, [FromBody] int[] employeeIds)
+        public async Task<IActionResult> AddEmployees(int id, [FromBody] EmployeesInDepartmentIdsRequest employeeIds)
         {
             return HandleResult(await _departmentService.UpdateEmployeesDepartment(id, employeeIds));// await _departmentService.UpdateEmployeesDepartment(id, employeeIds);
         }
         [HttpPut("removeEmployees")]
-        public async Task<IActionResult> RemoveEmployees([FromBody] int[] employeeIds)
+        public async Task<IActionResult> RemoveEmployees([FromBody] EmployeesInDepartmentIdsRequest employeeIds)
         {
             return HandleResult(await _departmentService.UpdateEmployeesDepartment(null, employeeIds));//  await  _departmentService.UpdateEmployeesDepartment(null, employeeIds);
         }
         [HttpPut("removeEmployeesByDepartment/{departmentId}")]
         public async Task<IActionResult> RemoveEmployees(int departmentId)
         {
-            return HandleResult(await _departmentService.UpdateEmployeesByDepartment(departmentId));//  await  _departmentService.UpdateEmployeesDepartment(null, employeeIds);
+            return HandleResult(await _departmentService.RemoveAllEmployeesFromDepartment(departmentId));//  await  _departmentService.UpdateEmployeesDepartment(null, employeeIds);
         }
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDepartment(int id)

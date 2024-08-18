@@ -155,7 +155,7 @@ namespace Application.Features
             return Result.Success<DepartmentDto>(departmentDto);
         }
 
-        public async Task<Result> UpdateEmployeesDepartment(int? id, int[] employees)
+        public async Task<Result> UpdateEmployeesDepartment(int? id, EmployeesInDepartmentIdsRequest employees)
         {
             if (id.HasValue)
             {
@@ -165,7 +165,7 @@ namespace Application.Features
                     return Result.Failure<DepartmentDto>(new Error("404", "Not Found"));
                 }
             }
-            foreach (var employee in employees)
+            foreach (var employee in employees.Ids)
             {
                 var emp = await _employeeRepository.GetById(employee);
                 if (emp == null)
@@ -184,7 +184,7 @@ namespace Application.Features
             return Result.Success("تم الحفظ بنجاح");
         }
 
-        public async Task<Result> UpdateEmployeesByDepartment(int departmentId)
+        public async Task<Result> RemoveAllEmployeesFromDepartment(int departmentId)
         {
 
             var department = await _departmentRepository.GetQueryable().Include(x => x.Employees).FirstOrDefaultAsync(x => x.Id == departmentId);

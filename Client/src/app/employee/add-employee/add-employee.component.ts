@@ -54,7 +54,7 @@ export class AddEmployeeComponent implements OnInit {
       collage : [this.employee?.collage,[]],
       tabCode : [this.employee?.tabCode,[]],
       tegaraCode : [this.employee?.tegaraCode,[]],
-      employeeId : [this.employee?.id,[Validators.required]],
+      id : [this.employee?.id,[Validators.required]],
       departmentId : [this.employee?.departmentId,[]]
     })
   }

@@ -49,10 +49,7 @@ namespace Persistence.Repository
         public virtual async Task DeActive(int id)
         {
             var entity = await GetById(id);
-
             entity.IsActive = false;
-
-
             entity.DeactivatedAt = DateTime.Now;
             entity.DeactivatedBy = _accessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
             _context.Set<T>().Update(entity);

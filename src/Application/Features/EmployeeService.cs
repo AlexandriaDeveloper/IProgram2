@@ -111,6 +111,7 @@ namespace Application.Features
             }
             var employeeToDb = new Employee()
             {
+                Id = employee.Id,
                 Collage = employee.Collage,
                 DepartmentId = employee.DepartmentId,
                 IsActive = true,
@@ -120,7 +121,12 @@ namespace Application.Features
             };
             await _employeeRepository.Insert(employeeToDb);
 
-            await _uow.SaveChangesAsync(cancellationToken);
+            var result = await _uow.SaveChangesAsync() > 0;
+
+            if (!result)
+            {
+                return Result.Failure<EmployeeDto>(new Error("500", "حدث خطأ في تحديث الموظف"));
+            }
 
             employee.Id = employeeToDb.Id;
 
@@ -130,7 +136,7 @@ namespace Application.Features
 
         public async Task<Result<EmployeeDto>> UpdateEmployee(EmployeeDto employee)
         {
-            var employeeFromDb = await _employeeRepository.GetById(employee.Id);
+            var employeeFromDb = await _employeeRepository.GetById(employee.EmployeeId);
             if (employeeFromDb == null)
             {
                 return Result.Failure<EmployeeDto>(new Error("500", "الموظف غير موجود"));
@@ -152,8 +158,8 @@ namespace Application.Features
             if (!string.IsNullOrEmpty(employee.Name) && employeeFromDb.Name != employee.Name)
                 employeeFromDb.Name = employee.Name;
 
-            if (!employeeFromDb.Id.Equals(employee.Id))
-                employeeFromDb.Id = employee.Id;
+            if (!employeeFromDb.Id.Equals(employee.EmployeeId))
+                employeeFromDb.Id = employee.EmployeeId;
 
             if (!string.IsNullOrEmpty(employee.Email) && employeeFromDb.Email != employee.Email)
                 employeeFromDb.Email = employee.Email;
@@ -596,7 +602,7 @@ namespace Application.Features
             return fileAccepted;
         }
 
-        public async Task<Result> SoftDelete(int id)
+        public async Task<Result> SoftDelete(string id)
         {
             var employee = await _employeeRepository.GetById(id);
             if (employee == null)
@@ -615,7 +621,7 @@ namespace Application.Features
             return Result.Success("تم حذف الموظف بنجاح");
         }
 
-        public async Task<Result> Delete(int id)
+        public async Task<Result> Delete(string id)
         {
             var employee = await _employeeRepository.GetById(id);
             if (employee == null)

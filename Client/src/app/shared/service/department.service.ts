@@ -1,4 +1,4 @@
-import { IDepartment } from './../models/Department';
+import { IDepartment, Ids } from './../models/Department';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environment';
@@ -37,16 +37,17 @@ export class DepartmentService {
     editDepartment(department :IDepartment){
       return this.http.put(this.apiUrl+'department',department)
     }
-    addEmployeesToDepartment(id,employeeIds){
-      return this.http.put(this.apiUrl+'department/'+id+'/employees',employeeIds)
+    addEmployeesToDepartment(id,employeesId: Ids ){
+      console.log(employeesId );
+      return this.http.put(this.apiUrl+'department/'+id+'/employees', employeesId)
     }
 
     deleteDepartment(id){
 
       return this.http.delete(this.apiUrl+'department/'+id)
     }
-    deleteEmployeeFromDepartment( ids){
-      return this.http.put(this.apiUrl+'department/removeEmployees',ids)
+    deleteEmployeeFromDepartment(employeesId: Ids ){
+      return this.http.put(this.apiUrl+'department/removeEmployees',employeesId)
     }
 //removeEmployeesByDepartment
     deleteEmployeesByDepartmentId( departmentId){

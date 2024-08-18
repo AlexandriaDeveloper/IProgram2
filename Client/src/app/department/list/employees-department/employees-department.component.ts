@@ -1,3 +1,4 @@
+import { Ids } from './../../../shared/models/Department';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
@@ -75,7 +76,7 @@ constructor( private cdref: ChangeDetectorRef ) {}
           this.param.tegaraCode=x; break;
           case 'name':
           this.param.name=x; break;
-          case 'nationalId':
+          case 'employeeId':
           this.param.employeeId=x; break;
           case 'collage':
           this.param.collage=x; break;
@@ -100,9 +101,12 @@ constructor( private cdref: ChangeDetectorRef ) {}
 
   }
   removeEmployees(){
-    const ids= this.dataSource.filter(x=>x.checked).map(x=>x.id);
-    if (confirm(`انت على وشك حذف عدد ${ids.length} موظف هل انت متأكد ؟!`)) {
-    this.departmentService.deleteEmployeeFromDepartment(ids).subscribe({
+
+    let req = {}as  Ids
+    req.ids=[];
+  req.ids= this.dataSource.filter(x=>x.checked).map(x=>x.id);
+    if (confirm(`انت على وشك حذف عدد ${req.ids.length} موظف هل انت متأكد ؟!`)) {
+    this.departmentService.deleteEmployeeFromDepartment(req).subscribe({
       next:(x)=>{
         this.loadData();
         this.toaster.openSuccessToaster('تم الحذف بنجاح','check_circle');

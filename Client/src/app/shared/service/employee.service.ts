@@ -83,7 +83,7 @@ observe: "events"
     // if(param.direction) params = params.append('direction',param.direction);
     console.log(param.employeeId);
 
-    if(param.employeeId) params = params.append('id',param.employeeId);
+    if(param.employeeId) params = params.append('employeeId',param.employeeId);
 
     if(param.tegaraCode) params = params.append('tegaraCode',param.tegaraCode);
     // if(param.nationalId) params = params.append('nationalId',param.nationalId);

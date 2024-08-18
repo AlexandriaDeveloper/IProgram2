@@ -15,3 +15,8 @@ export interface IDepartment {
   id?: number;
   name: string;
 }
+
+
+export interface Ids{
+  ids:string[];
+}

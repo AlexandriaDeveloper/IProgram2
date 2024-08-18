@@ -15,7 +15,7 @@
         <div class="col">
         </div>
         <div style="display: flex;align-items: center;  padding: 0px;margin: 5px;  flex:2 !important;" class="col">
-          <input  formControlName="nationalId" placeholder="البحث بالرقم القومى" class="data-input"  style="flex :2 !important; color: #fff;"  >
+          <input  formControlName="employeeId" placeholder="البحث بالرقم القومى" class="data-input"  style="flex :2 !important; color: #fff;"  >
           <input  formControlName="tegaraCode" placeholder="البحث بكود تجارة" class="data-input" style="flex :1 !important; color: #fff;"   >
           <input  formControlName="tabCode" placeholder="البحث بكود طب" class="data-input" style="flex :1 !important; color: #fff;"   >
             <button mat-icon-button color="accent" style="margin: 20px;">
@@ -39,7 +39,7 @@
             <div>
               <mat-form-field appearance="outline" class="form-dialog-input">
                 <mat-label class="saerch-title">الرقم القومى</mat-label>
-                  <input matInput placeholder="الرقم القومى" [value]="employee?.nationalId"  color="primary" readonly>
+                  <input matInput placeholder="الرقم القومى" [value]="employee?.id"  color="primary" readonly>
               </mat-form-field>
             </div>
             <div>
