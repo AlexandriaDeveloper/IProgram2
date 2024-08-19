@@ -77,9 +77,7 @@ namespace Api.Controllers
         {
 
             var result = await _dailyService.GetDaily(dailyId, cancellationToken);
-
             //  return result;
-
             return HandleResult<DailyDto>(result);// result;
         }
 
@@ -91,7 +89,7 @@ namespace Api.Controllers
             return HandleResult(result);// result;
         }
 
-        [HttpDelete("delete/{id}")]
+        [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
         {
             var result = await _dailyService.DeleteDaily(id, cancellationToken);

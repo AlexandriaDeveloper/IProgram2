@@ -215,7 +215,7 @@ namespace Application.Features
             {
                 return Result.Failure<DepartmentDto>(new Error("404", "Not Found"));
             }
-            await _departmentRepository.DeActive(id);
+            await _departmentRepository.Delete(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (!result)
             {

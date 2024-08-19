@@ -89,11 +89,8 @@ export class DailyService {
 
   uploadJsonFile (file) {
     // console.log(file);
-
     const formData  = new FormData();
-
       formData.append("file", file.file as Blob,file.file.name);
-
   return this.http.post(this.apiUrl+'form/upload-json-form',formData,{
   // responseType: "blob",
   // reportProgress: true,

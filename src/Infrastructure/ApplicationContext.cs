@@ -33,11 +33,22 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
 
         });
 
+        builder.Entity<Daily>(entity =>
+        {
+            entity.HasMany(x => x.Forms).WithOne(x => x.Daily).HasForeignKey(k => k.DailyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Department>(entity =>
+        {
+            entity.HasMany(x => x.Employees).WithOne(x => x.Department).HasForeignKey(k => k.DepartmentId).OnDelete(DeleteBehavior.SetNull);
+        });
 
         builder.Entity<Form>(entity =>
         {
             entity.HasOne(x => x.User).WithMany().HasForeignKey(k => k.CreatedBy);
         });
+
+
         base.OnModelCreating(builder);
     }
 }
