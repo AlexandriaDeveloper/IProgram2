@@ -42,7 +42,7 @@ namespace Application.Features
             {
                 FormId = x.FormId,
                 Id = x.Id,
-                ReferencePath = _config["ApiContent"] + "FormReferences/" + x.ReferencePath
+                ReferencePath = _config["ApiImageContent"] + "FormReferences/" + x.ReferencePath
             }).ToList();
             return Result.Success<List<FormReferenceDto>>(referencesDto);
         }

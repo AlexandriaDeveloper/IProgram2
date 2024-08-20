@@ -23,7 +23,7 @@
 </div>
 <button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >    <mat-icon>more_vert</mat-icon></button>
 <mat-menu #menu="matMenu">
-  <button mat-menu-item  (click)="exportPdf()">
+  <button mat-menu-item  (click)="exportPdf()" [disabled]="dataSource.length===0">
     <mat-icon >picture_as_pdf</mat-icon>
    استخراج تقرير
 
@@ -40,7 +40,7 @@
   <button mat-menu-item (click)="uploadReferenceDialog()" >
     <mat-icon>upload</mat-icon>
     رفع صور الموافقات</button>
-    <button mat-menu-item (click)="downloadExcel()" >
+    <button mat-menu-item (click)="downloadExcel()"  >
       <mat-icon>insert_drive_file</mat-icon>
      تنزيل ملف اكسيل</button>
      <button mat-menu-item (click)="openUploadExcelBottomSheet()" [disabled]="daily?.closed">

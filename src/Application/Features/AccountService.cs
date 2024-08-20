@@ -33,7 +33,8 @@ namespace Application.Features
                 Email = appUser.Email,
                 Token = await _tokenService.CreateToken(appUser),
                 DisplayName = appUser.DisplayName,
-                DisplayImage = appUser.DisplayImage
+                DisplayImage = appUser.DisplayImage,
+                Roles = await _roleRepository.GetUserRoles(appUser.Id)
             };
             return Result.Success(user);
 
@@ -60,12 +61,15 @@ namespace Application.Features
                 DisplayName = registerDto.DisplayName,
                 Email = registerDto.Email,
                 UserName = registerDto.Username,
-                DisplayImage = "default.jpg"
+                DisplayImage = "default.jpg",
+
             };
 
 
 
             var result = await _accountRepository.RegisterUser(user, registerDto.Password, registerDto.Roles.ToList());
+
+
 
             if (!result.Succeeded) return Result.Failure<UserDto>(new Error("500", "Error while saving User")); ;
 
@@ -86,7 +90,9 @@ namespace Application.Features
                 DisplayName = user.DisplayName,
                 Token = await _tokenService.CreateToken(user),
                 Email = user.Email,
-                DisplayImage = user.DisplayImage
+                DisplayImage = user.DisplayImage,
+                Roles = await _roleRepository.GetUserRoles(user.Id)
+
             };
         }
 

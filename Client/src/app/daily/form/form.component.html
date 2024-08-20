@@ -10,21 +10,21 @@
 <button mat-icon-button color="primary" [matMenuTriggerFor]="menu" >
   <mat-icon>more_vert</mat-icon></button>
 <mat-menu #menu="matMenu">
-  <button mat-menu-item  (click)="exportPdf()">
+  <button mat-menu-item  (click)="exportPdf()" [disabled]="dataSource?.length===0" >
     <mat-icon >picture_as_pdf</mat-icon>
    استخراج تقرير
 
   </button>
-  <button mat-menu-item  (click)="downloadExcel()">
+  <button mat-menu-item  (click)="downloadExcel()" [disabled]="dataSource?.length===0">
     <mat-icon>insert_drive_file</mat-icon>
     تنزيل ملف اكسيل</button>
-    <button mat-menu-item  (click)="downloadJSON()">
+    <button mat-menu-item  (click)="downloadJSON()" *ngIf="authService.isUserAdmin()" [disabled]="dataSource?.length===0">
       <mat-icon>insert_drive_file</mat-icon>
       تنزيل البيانات</button>
-    <button mat-menu-item  (click)="closeDaily()" [disabled]="daily?.closed">
+    <button mat-menu-item  (click)="closeDaily()" [disabled]="daily?.closed" *ngIf="authService.isUserAdmin()">
       <mat-icon>close</mat-icon>
        اغلاق اليوميه </button>
-       <button mat-menu-item  (click)="exportIndexPdf()" [disabled]="!daily?.closed">
+       <button mat-menu-item  (click)="exportIndexPdf()" [disabled]="!daily?.closed" *ngIf="authService.isUserAdmin()">
         <mat-icon>123</mat-icon>
          فهرسه اليوميه </button>
 </mat-menu>

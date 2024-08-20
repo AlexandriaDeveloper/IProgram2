@@ -12,6 +12,7 @@ namespace Application.Dtos
         public string Token { get; set; }
         public string DisplayName { get; set; }
         public string DisplayImage { get; set; }
+        public List<string> Roles { get; set; }
 
 
     }

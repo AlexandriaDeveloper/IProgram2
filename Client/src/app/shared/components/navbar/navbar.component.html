@@ -35,9 +35,10 @@ document.createElement('video');
         <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
       </button>
       <span class="welcome-msg">
-       مرحبا بك
+       مرحبا بك --
        <span class="user-name">
        {{(accountService.currentUserSig()).displayName}}
+
       </span>
       </span>
     </div>
@@ -78,14 +79,15 @@ document.createElement('video');
     <mat-expansion-panel
     (opened)="panelOpenState = true"
     (closed)="panelOpenState = false"
-    *ngIf="auth.isUserAdmin()">
+    *ngIf="auth?.isUserAdmin()"
+  >
 <mat-expansion-panel-header>
 <mat-panel-title>
   حسابات
 </mat-panel-title>
 </mat-expansion-panel-header>
 <mat-nav-list class="list" >
-<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/account/register']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  حسابات   </a>
+<a  mat-list-item [routerLink]="['/account/register']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  حسابات   </a>
 <a *ngIf="!auth.isAuthenticated()"  mat-list-item [routerLink]="['/account/login']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon>   دخول   </a>
 </mat-nav-list>
 </mat-expansion-panel>
@@ -100,7 +102,7 @@ document.createElement('video');
       <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/add']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon> تكوين موظف   </a>
       <!-- <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a> -->
       <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload-tegara']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a>
-      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"   > <mat-icon >people</mat-icon>  الموظفين  </a>
+      <a   mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"   > <mat-icon >people</mat-icon>  الموظفين  </a>
       </mat-nav-list>
     </mat-expansion-panel>
   <mat-expansion-panel (opened)="panelOpenState = true"
@@ -111,8 +113,8 @@ document.createElement('video');
 </mat-panel-title>
 </mat-expansion-panel-header>
 <mat-nav-list class="list" >
-<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/daily']" routerLinkActive="active"  [routerLinkActiveOptions]="{exact: true}" > <mat-icon >folders</mat-icon>اليوميات  </a>
-<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/daily/archivedform' ]" routerLinkActive="active" > <mat-icon >insert_drive_file</mat-icon> الملفات </a>
+<a  mat-list-item [routerLink]="['/daily']" routerLinkActive="active"  [routerLinkActiveOptions]="{exact: true}" > <mat-icon >folders</mat-icon>اليوميات  </a>
+<a  mat-list-item [routerLink]="['/daily/archivedform' ]" routerLinkActive="active" > <mat-icon >insert_drive_file</mat-icon> الملفات </a>
 </mat-nav-list>
 </mat-expansion-panel>
     <mat-expansion-panel (opened)="panelOpenState = true"
@@ -123,7 +125,7 @@ document.createElement('video');
 </mat-panel-title>
 </mat-expansion-panel-header>
 <mat-nav-list class="list" >
-<a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/department']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الاقسام   </a>
+<a   mat-list-item [routerLink]="['/department']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الاقسام   </a>
 </mat-nav-list>
 </mat-expansion-panel>
   </mat-accordion>

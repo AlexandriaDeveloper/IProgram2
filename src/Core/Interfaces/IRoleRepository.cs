@@ -16,6 +16,7 @@ namespace Core.Interfaces
         Task<IdentityRole> GetRoleByNameAsync(string name);
         Task<IdentityRole> GetRoleByIdAsync(string id);
         Task<bool> RoleExistsAsync(string roleName);
+        Task<List<string>> GetUserRoles(string UserId);
         Task<List<ApplicationUser>> GetUsersInRoleAsync(string roleName);
 
     }

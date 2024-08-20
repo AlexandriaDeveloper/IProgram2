@@ -17,6 +17,7 @@ import { AddFormComponent } from './add-form/add-form.component';
 import { FormParam } from '../../shared/models/IForm';
 import { AddEmployeeDialogComponent } from './form-details/add-employee-dialog/add-employee-dialog.component';
 import { debounceTime, distinctUntilChanged, fromEvent, map } from 'rxjs';
+import { AuthService } from '../../shared/service/auth.service';
 
 @Component({
   selector: 'app-form',
@@ -32,6 +33,7 @@ export class FormComponent implements OnInit,AfterViewInit {
   displayedColumns = ['action','name','createdBy','count','total'];
   formService = inject(FormService);
   dailyService = inject(DailyService);
+  authService = inject(AuthService);
   dailyId = inject(ActivatedRoute).snapshot.params['id'];
   daily : IDaily;
   public param :   FormParam=new FormParam();
@@ -88,6 +90,8 @@ fb =inject(FormBuilder);
     this.formService.GetForms(this.dailyId,this.param).subscribe({
       next:(x:any)=>{
         this.dataSource=x.data
+        console.log(this.dataSource);
+
         this.table.dataSource=x.data
         this.paginator.length=x.count;
         this.table.renderRows();

@@ -45,6 +45,17 @@ namespace Persistence.Repository
             return Task.FromResult(_userManager.GetUsersInRoleAsync(roleName).Result.ToList());
         }
 
+        public async Task<List<string>> GetUserRoles(string UserId)
+        {
+            var user = await _userManager.FindByIdAsync(UserId);
+            if (user == null)
+            {
+                return null;
+            }
+            var roles = await _userManager.GetRolesAsync(user);
+            return roles.ToList();
+        }
+
         public async Task RemoveRoleAsync(string roleName)
         {
             var role = await _roleManager.FindByNameAsync(roleName);
