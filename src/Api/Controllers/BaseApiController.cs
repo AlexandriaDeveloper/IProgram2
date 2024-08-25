@@ -1,14 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Threading.Tasks;
 using Application.Helpers;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
-using Org.BouncyCastle.Ocsp;
 
 namespace Api.Controllers
 {
@@ -45,7 +38,8 @@ namespace Api.Controllers
                         response = Forbid();// Result.Failure(new Error("403", "Forbidden"));
                         break;
                     case "500":
-                        response = Problem(result.Error.Message, null, int.Parse(result.Error.Code), "خطأ اثناء العمليه");
+                        // response = Problem(result.Error.Message, null, int.Parse(result.Error.Code), "خطأ اثناء العمليه");
+                        response = new BadRequestObjectResult(result) { StatusCode = 500 };
                         break;
                     case "1000":
                         response = BadRequest(result); // BadRequest(result);
@@ -87,7 +81,7 @@ namespace Api.Controllers
                         response = Forbid();
                         break;
                     case "500":
-                        response = Problem(result.Error.Message, null, int.Parse(result.Error.Code), "خطأ اثناء العمليه");
+                        response = new BadRequestObjectResult(result) { StatusCode = 500 };
                         break;
                     case "1000":
                         response = BadRequest(result.Error);

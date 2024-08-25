@@ -30,4 +30,10 @@ export const routes: Routes = [
     loadChildren: () => import('./department/department.module').then(m => m.DepartmentModule)
 
   }
+  ,
+  {
+    path:'settings',
+    loadChildren: () => import('./settings/settings.module').then(m => m.SettingsModule)
+
+  }
 ];

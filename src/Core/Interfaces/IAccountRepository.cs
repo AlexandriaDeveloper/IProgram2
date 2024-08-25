@@ -30,5 +30,6 @@ namespace Core.Interfaces
 
 
         Task SignOut();
+        Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword);
     }
 }

@@ -7,6 +7,7 @@ using Application.Helpers;
 
 using Core.Interfaces;
 using Core.Models;
+using FluentResults;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -91,6 +92,11 @@ namespace Api.Controllers
         [IncludeRolesFilter("Admin")]
         public async Task<IActionResult> Register(RegisterRequest registerDto)
         {
+
+            if (!User.IsInRole("Admin"))
+            {
+                return HandleResult(Application.Helpers.Result.Failure(new Application.Helpers.Error("403", "عفوا ليس لديك صلاحيه للدخول")));
+            }
             if (ModelState.IsValid == false)
             {
                 return BadRequest(ModelState.FirstOrDefault().Value);
@@ -101,7 +107,7 @@ namespace Api.Controllers
         }
 
         [HttpPut("ChangePassword")]
-        public async Task<ActionResult<UserDto>> ChangePassword(ChangePasswordDto changePasswordDto)
+        public async Task<IActionResult> ChangePassword(ChangePasswordDto changePasswordDto)
         {
             var userId = User.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
@@ -113,12 +119,20 @@ namespace Api.Controllers
             {
                 return NotFound();
             }
-            var result = await _userManager.ChangePasswordAsync(user, changePasswordDto.OldPassword, changePasswordDto.NewPassword);
-            if (!result.Succeeded)
-            {
-                return BadRequest();
-            }
-            return Ok();
+            // var result = await _userManager.ChangePasswordAsync(user, changePasswordDto.OldPassword, changePasswordDto.NewPassword);
+            //check oldPassword
+
+            // var result = await _userManager.CheckPasswordAsync(user, changePasswordDto.OldPassword);
+            // if (!result)
+            // {
+            //     return BadRequest();
+            // }
+
+            var result = await _accountService.ChangePasswordAsync(user, changePasswordDto);
+
+
+
+            return HandleResult(result);
 
         }
 

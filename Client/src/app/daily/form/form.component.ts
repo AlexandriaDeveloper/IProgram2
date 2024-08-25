@@ -61,7 +61,7 @@ fb =inject(FormBuilder);
 
    this.form=this.initilizeForm();
    this.loadData();
-
+    console.log( this.authService.isUserAdmin());
    this.cdref.detectChanges();
   }
 
@@ -79,7 +79,7 @@ fb =inject(FormBuilder);
 
   }
   loadData(){
-
+    console.log();
     this.dailyService.getDaily(this.dailyId).subscribe({
       next:(x:IDaily)=>{
         this.daily=x

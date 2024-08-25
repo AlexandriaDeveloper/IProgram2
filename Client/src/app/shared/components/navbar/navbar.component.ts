@@ -42,13 +42,13 @@ export class NavbarComponent {
 
 constructor(
   private breakpointObserver: BreakpointObserver,
-  public accountService : AuthService,
+
   ) {
 
   }
 
   logout(){
-    this.accountService.logout();
+    this.auth.logout();
   }
 
   navigateTo (url){

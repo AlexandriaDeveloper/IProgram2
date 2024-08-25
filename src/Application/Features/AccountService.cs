@@ -142,5 +142,29 @@ namespace Application.Features
         {
             await this._accountRepository.SignOut();
         }
+
+        //change password
+        public async Task<Result> ChangePasswordAsync(ApplicationUser user, ChangePasswordDto passwordDto)
+        {
+
+
+
+
+            var result = await _accountRepository.ChangePasswordAsync(user, passwordDto.OldPassword, passwordDto.NewPassword);
+            if (result.Succeeded)
+            {
+                return Result.Success();
+            }
+            if (result.Errors.Count() > 0)
+            {
+
+                //  return Result.Failure(new Error(result.Errors.FirstOrDefault().Code.ToString(), result.Errors.FirstOrDefault().Description));
+                return Result.Failure(new Error("400", result.Errors.FirstOrDefault().Description));
+            }
+
+            return Result.Failure(new Error("400", "Error while saving User"));
+
+        }
+
     }
 }

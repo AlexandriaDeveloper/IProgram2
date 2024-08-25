@@ -17,7 +17,7 @@ namespace Api.Controllers
             this._employeeService = employeeService;
         }
         [HttpGet("GetEmployees")]
-        [AllowAnonymous]
+
         public async Task<IActionResult> GetEmployees([FromQuery] EmployeeParam employeeParam)
         {
             return HandleResult(await _employeeService.getEmployees(employeeParam));

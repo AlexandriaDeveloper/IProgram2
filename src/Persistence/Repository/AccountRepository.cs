@@ -97,5 +97,16 @@ namespace Persistence.Repository
         {
             await this._signInManager.SignOutAsync();
         }
+        //change password
+        public async Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string oldPassword, string newPassword)
+        {
+
+
+            IdentityResult result = await _userManager.ChangePasswordAsync(user, oldPassword, newPassword);
+
+            return result;
+
+
+        }
     }
 }

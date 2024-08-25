@@ -1,6 +1,5 @@
 
-
-  <mat-form-field [appearance]="appearance" style="margin: 0 !important;padding: 0 !important;">
+<mat-form-field [appearance]="appearance" style="margin: 0 !important;padding: 0 !important;">
     <mat-label>{{label}}</mat-label>
     <input matInput autocomplete="off" #input
     [type]="type"
@@ -9,19 +8,16 @@
     [style.color]="color"
     [readonly]="readonly"
     />
-    <mat-icon matSuffix>{{matSuffix}}</mat-icon>
-
-
-
+    <mat-icon matSuffix [ngStyle]="{color:color}">{{matSuffix}}</mat-icon>
     <div *ngIf="(controlDir &&controlDir.control && controlDir.control.status ==='PENDING')"
     class="loader">
     <mat-spinner></mat-spinner>
   </div>
-  <div  *ngIf="(controlDir &&controlDir.control && !controlDir.control.valid && controlDir.control.touched )">
+  <div *ngIf="(controlDir &&controlDir.control && !controlDir.control.valid && controlDir.control.touched )">
     <mat-error *ngIf="(controlDir &&controlDir.control && controlDir.control.hasError('required'))">
       {{getErrorMessage()}}
     </mat-error>
   </div>
-  </mat-form-field>
+</mat-form-field>
 
 

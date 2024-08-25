@@ -3,6 +3,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { LoginComponent } from './login/login.component';
 import { RegisterComponent } from './register/register.component';
 import { authGuard } from '../shared/guards/auth.guard';
+import { ChangePasswordComponent } from './change-password/change-password.component';
 
 const routes: Routes = [{
   path :'login',
@@ -13,7 +14,11 @@ component:RegisterComponent,
 canActivate: [
   authGuard
 ]
-}
+},
+{
+  path:'change-password',
+  component:ChangePasswordComponent,
+  },
 ];
 
 @NgModule({

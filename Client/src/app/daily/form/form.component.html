@@ -30,6 +30,8 @@
 </mat-menu>
 
 <div class="mat-elevation-z8">
+
+
   <table  mat-table class="full-width-table" matSort aria-label="Elements">
         <!-- action Column -->
         <ng-container matColumnDef="action" >
@@ -38,6 +40,8 @@
             <div class="table-spacer"  style="width: 10vh !important;" >
               <button mat-icon-button (click)="openDialog(null)" color="primary" class="add-button" *ngIf="!daily?.closed">
                 <mat-icon style="color:#fff">add</mat-icon>
+
+                {{this.authService.isUserAdmin()}}
               </button>
             </div>
 

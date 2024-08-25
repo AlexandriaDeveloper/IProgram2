@@ -12,7 +12,10 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
  // console.log('intercept started');
    return next(req).pipe(
     catchError((error: any) => {
+      console.log(error);
       toaster.openErrorToaster(
+
+
        error.detail,"error"
       )
       if (error.status === 400) {
@@ -34,13 +37,14 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       router.navigateByUrl('/account/login');
     }
     if (error.status === 403) {
+      debugger
       // auto logout if 401 response returned from api
        //location.reload();
       // router.navigateByUrl('/account/login');
       toaster.openErrorToaster(
         "عفوا ليس لديك صلاحيه ","error"
       );
-      router.navigateByUrl('/');
+    //  router.navigateByUrl('/');
     }
     if (error.status === 404) {
       // auto logout if 401 response returned from api
@@ -51,11 +55,14 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
       );
     }
     if (error.status === 500) {
-      console.log(error);
+      console.log(error.error.error.message);
 
-      toaster.openErrorToaster(
-      error.error.detail,"error"
-      );
+        toaster.openErrorToaster(
+          error.error.error.message,"error"
+        );
+
+
+
     }
     // if (error.error.code === "500") {
     //   console.log(error);

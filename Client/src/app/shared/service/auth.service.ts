@@ -3,6 +3,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { environment } from '../../environment';
 import { Router } from '@angular/router';
 import { JwtHelperService } from '@auth0/angular-jwt';
+import { ChangePasswordRequest } from '../models/changePasswordRequest';
 @Injectable({
   providedIn: 'root',
 })
@@ -54,14 +55,10 @@ export class AuthService {
     return this.jwtHelper.decodeToken(token).role;
   }
   isUserAdmin(){
-
-    if(this.currentUserSig()!==null){
-      this.currentUserSig().roles.includes['Admin'];
-      return true
+    if(this.currentUserSig()===null){
+      return false;
     }
-    return false;
-   const roles:string[] =  this.currentUserSig().roles;
-   return roles.includes("Admin");
+    return  this.currentUserSig().roles.map(x => x==='Admin')[0] as boolean
   }
   isAuthenticated(){
     return  this.currentUserSig() && !this.jwtHelper.isTokenExpired(this.currentUserSig().token);
@@ -69,5 +66,8 @@ export class AuthService {
   test()
   {
     return this.http.get( this.apiUrl+'secure/secure');
+  }
+  changePassword(model : ChangePasswordRequest){
+    return this.http.put( this.apiUrl+'account/changePassword',model);
   }
 }

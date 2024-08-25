@@ -30,7 +30,7 @@
       <th mat-header-cell *matHeaderCellDef  [hidden]="!tabCodeCheck.checked" >
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"  >
           <mat-label class="saerch-title" >كود طب</mat-label>
-          <input  matInput   #tabCodeInput (search)="clear('tabCode')" >
+          <input  matInput   #tabCodeInput (search)="clear('tabCode')" type="number" >
           @if (tabCodeInput.value) {
             <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('tabCode')">
               <mat-icon>close</mat-icon>
@@ -46,10 +46,10 @@
     </ng-container>
      <!-- tegaraCode Column -->
     <ng-container matColumnDef="tegaraCode">
-      <th mat-header-cell *matHeaderCellDef  [hidden]="!tegaraCodeCheck.checked" >
+      <th mat-header-cell *matHeaderCellDef  [hidden]="!tegaraCodeCheck.checked"  >
         <mat-form-field apperance="outline" class="search" color="primary"  style="width: 15vh !important;" >
         <mat-label class="saerch-title">كود تجارة</mat-label>
-        <input  matInput   #tegaraCodeInput (search)="clear('tegaraCode')" >
+        <input  matInput   #tegaraCodeInput (search)="clear('tegaraCode')" type="number" >
         @if (tegaraCodeInput.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('tegaraCode')">
             <mat-icon>close</mat-icon>

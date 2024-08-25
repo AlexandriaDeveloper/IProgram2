@@ -14,7 +14,7 @@ namespace Persistence.Specifications
             //  AddInclude(x => x.EmployeeRefernces);
             if (!string.IsNullOrEmpty(param.EmployeeId))
             {
-                AddCriteries(x => x.Id == param.EmployeeId);
+                AddCriteries(x => x.Id.Contains(param.EmployeeId));
             }
             if (!string.IsNullOrEmpty(param.Name))
             {
