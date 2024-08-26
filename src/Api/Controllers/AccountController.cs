@@ -105,8 +105,9 @@ namespace Api.Controllers
 
             return HandleResult<UserDto>(user);
         }
-
+        [Authorize]
         [HttpPut("ChangePassword")]
+
         public async Task<IActionResult> ChangePassword(ChangePasswordDto changePasswordDto)
         {
             var userId = User.Claims.FirstOrDefault(x => x.Type == ClaimTypes.NameIdentifier)?.Value;

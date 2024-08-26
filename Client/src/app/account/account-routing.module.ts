@@ -18,6 +18,9 @@ canActivate: [
 {
   path:'change-password',
   component:ChangePasswordComponent,
+  canActivate: [
+    authGuard
+    ]
   },
 ];
 

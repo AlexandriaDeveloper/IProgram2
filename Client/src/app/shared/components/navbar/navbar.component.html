@@ -87,7 +87,7 @@ document.createElement('video');
 </mat-panel-title>
 </mat-expansion-panel-header>
 <mat-nav-list class="list" >
-<a  *ngIf="auth?.isUserAdmin()"  mat-list-item [routerLink]="['/account/register']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  حساب جديد  {{auth?.isUserAdmin()}}  </a>
+<a  *ngIf="auth?.isUserAdmin()"  mat-list-item [routerLink]="['/account/register']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  حساب جديد   </a>
 <a  mat-list-item [routerLink]="['/account/change-password']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  تفيير كلمة المرور   </a>
 
 <a *ngIf="!auth.isAuthenticated()"  mat-list-item [routerLink]="['/account/login']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon>   دخول   </a>

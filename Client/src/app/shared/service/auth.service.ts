@@ -55,10 +55,14 @@ export class AuthService {
     return this.jwtHelper.decodeToken(token).role;
   }
   isUserAdmin(){
-    if(this.currentUserSig()===null){
+
+    if(this.currentUserSig()===undefined){
       return false;
     }
-    return  this.currentUserSig().roles.map(x => x==='Admin')[0] as boolean
+    let isAdmin =false;
+    isAdmin= this.currentUserSig().roles.map(x => x==='Admin')[0] as boolean
+
+    return  isAdmin
   }
   isAuthenticated(){
     return  this.currentUserSig() && !this.jwtHelper.isTokenExpired(this.currentUserSig().token);

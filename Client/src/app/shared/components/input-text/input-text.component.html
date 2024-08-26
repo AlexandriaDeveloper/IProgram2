@@ -17,6 +17,15 @@
     <mat-error *ngIf="(controlDir &&controlDir.control && controlDir.control.hasError('required'))">
       {{getErrorMessage()}}
     </mat-error>
+    <mat-error *ngIf="(controlDir &&controlDir.control && controlDir.control.hasError('minlength'))">
+      {{getErrorMessage()}}
+    </mat-error>
+    <mat-error *ngIf="(controlDir &&controlDir.control && controlDir.control.hasError('maxlength'))">
+      {{getErrorMessage()}}
+    </mat-error>
+    <mat-error *ngIf="(controlDir &&controlDir.control && controlDir.control.hasError('email'))">
+      {{getErrorMessage()}}
+    </mat-error>
   </div>
 </mat-form-field>
 
