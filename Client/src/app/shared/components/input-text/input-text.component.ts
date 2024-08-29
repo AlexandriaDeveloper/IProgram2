@@ -68,28 +68,28 @@ export class InputTextComponent implements OnInit, ControlValueAccessor {
     let message = 'خطأ';
 
    if(this.controlDir.control.hasError('required')) {
-     message = 'هذا الحقل مطلوب';
+     message += 'هذا الحقل مطلوب';
    }
    if(this.controlDir.control.hasError('email')) {
-    message = 'البريد الالكتروني غير صحيح';
+    message += 'البريد الالكتروني غير صحيح';
   }
   if (this.controlDir.control.hasError('pattern')) {
-    message = 'الرقم القومي غير صحيح';
+    message += 'الرقم القومي غير صحيح';
   }
   if(this.controlDir.control.hasError('minlength')) {
-    message = 'الحد الادنى للحروف هو 8';
+    message += 'الحد الادنى للحروف هو 8';
   }
   if(this.controlDir.control.hasError('maxlength')) {
-    message = 'الحد الاقصى للحروف هو 10';
+    message += 'الحد الاقصى للحروف هو 10';
   }
   if(this.controlDir.control.hasError('min')) {
-    message = 'الحد الادنى هو 0';
+    message += 'الحد الادنى هو 0';
   }
   if(this.controlDir.control.hasError('max')) {
-    message = 'الحد الاقصى هو 100';
+    message += 'الحد الاقصى هو 100';
   }
   if(this.controlDir.control.hasError('matDatepickerParse')) {
-    message = 'التاريخ غير صحيح';
+    message += 'التاريخ غير صحيح';
   }
 
    return message;

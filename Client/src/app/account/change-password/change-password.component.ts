@@ -25,7 +25,7 @@ export class ChangePasswordComponent implements OnInit, AfterViewInit {
   }
   initForm(){
     return this.formBuilder.group({
-      oldPassword: ['', Validators.required],
+      oldPassword: ['', [Validators.required,Validators.minLength(6)]],
       newPassword: ['', [Validators.required,Validators.minLength(6)]],
       confirmPassword: ['', Validators.required],
     },{
