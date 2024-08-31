@@ -14,7 +14,9 @@ export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn)
  // console.log('intercept started');
    return next(req).pipe(
     catchError((error: any) => {
-      // console.log(error);
+
+
+       console.log(error);
       // toaster.openErrorToaster(
       //  error.error.message,"error"
       // )

@@ -2,7 +2,7 @@ import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environment';
 import { IDaily, DailyParam } from '../models/IDaily';
-import { map, tap } from 'rxjs';
+import { catchError, map, tap } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -95,7 +95,7 @@ export class DailyService {
   // responseType: "blob",
   // reportProgress: true,
   observe: "events"
-  })
+  });
 }
 
 }

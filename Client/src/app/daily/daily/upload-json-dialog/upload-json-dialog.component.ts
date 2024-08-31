@@ -29,9 +29,9 @@ export class UploadJsonDialogComponent {
    }
    onDrop(ev){
      // console.log(ev);
-
    }
    onUpload(ev :Event){
+    debugger
     console.log( this.fileInput.nativeElement.files[0]);
 
      this.onProgress=true;
@@ -46,6 +46,7 @@ export class UploadJsonDialogComponent {
            this.progress.update(val =>  Math.round(event.loaded / event.total * 100));
            // console.log(`Uploaded! ${this.progress()}%`);
            break;
+
          case HttpEventType.Response:
            // console.log('User successfully created!', event.body);
            setTimeout(() => {
@@ -54,15 +55,17 @@ export class UploadJsonDialogComponent {
            }, 1500);
            this._bottomSheetRef.dismiss(true);
            break;
+
          }
          return event;
      }))
      .subscribe({
        next:(event)=>{
-          // console.log(  event)
-
+           console.log(  event)
        },
        error:(err :any)=>{
+        console.log(err);
+        //this.toaster.openErrorToaster(err.error.message)
          this.onProgress=false;
        },
      })

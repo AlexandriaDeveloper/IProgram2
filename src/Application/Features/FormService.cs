@@ -298,6 +298,12 @@ namespace Application.Features
 
                 foreach (var formDetail in form.FormDetails)
                 {
+                    var empExist = await _employeeRepository.CheckEmployeeByNationalId(formDetail.EmployeeId);
+                    if (empExist == false)
+                    {
+                        return Result.Failure(new Error("500", $" الموظف صاحب الرقم القومى {formDetail.EmployeeId} غير مسجل بقاعدة البيانات "));
+                    }
+
                     formToAdd.FormDetails.Add(new FormDetails()
                     {
                         Amount = formDetail.Amount,
