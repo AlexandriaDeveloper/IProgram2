@@ -31,7 +31,7 @@ export class UploadJsonDialogComponent {
      // console.log(ev);
    }
    onUpload(ev :Event){
-    debugger
+
     console.log( this.fileInput.nativeElement.files[0]);
 
      this.onProgress=true;
