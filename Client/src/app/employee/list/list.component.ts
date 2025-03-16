@@ -20,34 +20,34 @@ import { ToasterService } from '../../shared/components/toaster/toaster.service'
   standalone: false,
 
 })
-export class ListComponent implements AfterViewInit,OnInit {
+export class ListComponent implements AfterViewInit, OnInit {
   employeeService = inject(EmployeeService);
   router = inject(ActivatedRoute);
-  toaster =inject(ToasterService);
-  public param :   EmployeeParam=new EmployeeParam();
+  toaster = inject(ToasterService);
+  public param: EmployeeParam = new EmployeeParam();
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatTable) table!: MatTable<IEmployee>;
-  @ViewChild("tabCodeInput") tabCodeInput :ElementRef;
-  @ViewChild("tegaraCodeInput") tegaraCodeInput :ElementRef;
-  @ViewChild("nameInput") nameInput :ElementRef;
-  @ViewChild("employeeIdInput") employeeIdInput :ElementRef;
-  @ViewChild("collageInput") collageInput :ElementRef;
-  @ViewChild("departmentInput") departmentInput :ElementRef;
-  dataSource ;
-  _dialog =inject(MatDialog)
+  @ViewChild("tabCodeInput") tabCodeInput: ElementRef;
+  @ViewChild("tegaraCodeInput") tegaraCodeInput: ElementRef;
+  @ViewChild("nameInput") nameInput: ElementRef;
+  @ViewChild("employeeIdInput") employeeIdInput: ElementRef;
+  @ViewChild("collageInput") collageInput: ElementRef;
+  @ViewChild("departmentInput") departmentInput: ElementRef;
+  dataSource;
+  _dialog = inject(MatDialog)
 
-constructor( private cdref: ChangeDetectorRef) {}
+  constructor(private cdref: ChangeDetectorRef) { }
   ngOnInit(): void {
     // console.log('onInit');
 
-    if(this.router.snapshot.queryParams['departmentId']){
+    if (this.router.snapshot.queryParams['departmentId']) {
 
-      this.param.departmentId=this.router.snapshot.queryParams['departmentId']
+      this.param.departmentId = this.router.snapshot.queryParams['departmentId']
     }
-    else{
+    else {
 
-      this.param=new EmployeeParam();
+      this.param = new EmployeeParam();
     }
     this.loadData();
     this.cdref.detectChanges();
@@ -56,44 +56,44 @@ constructor( private cdref: ChangeDetectorRef) {}
 
     this.search();
   }
-  search(){
-    this.initElement(this.tabCodeInput,'tabCode');
-    this.initElement(this.tegaraCodeInput,'tegaraCode');
-    this.initElement(this.nameInput,'name');
-    this.initElement(this.employeeIdInput,'employeeId');
-    this.initElement(this.collageInput,'collage');
-    this.initElement(this.departmentInput,'department');
+  search() {
+    this.initElement(this.tabCodeInput, 'tabCode');
+    this.initElement(this.tegaraCodeInput, 'tegaraCode');
+    this.initElement(this.nameInput, 'name');
+    this.initElement(this.employeeIdInput, 'employeeId');
+    this.initElement(this.collageInput, 'collage');
+    this.initElement(this.departmentInput, 'department');
   }
-  initElement(element :ElementRef,param ){
+  initElement(element: ElementRef, param) {
 
 
     fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
-    map((event: any) => {
-    return event.target.value;
-    })
-    ).subscribe(x=>{
-        switch(param){
-          case 'tabCode':
-          this.param.tabCode=x; break;
-          case 'tegaraCode':
-          this.param.tegaraCode=x; break;
-          case 'name':
-          this.param.name=x; break;
-          case 'employeeId':
-          this.param.employeeId=x; break;
-          case 'collage':
-          this.param.collage=x; break;
-          case 'department':
-            this.param.departmentName=x; break;
-        }
-        this.loadData();
+      map((event: any) => {
+        return event.target.value;
+      })
+    ).subscribe(x => {
+      switch (param) {
+        case 'tabCode':
+          this.param.tabCode = x; break;
+        case 'tegaraCode':
+          this.param.tegaraCode = x; break;
+        case 'name':
+          this.param.name = x; break;
+        case 'employeeId':
+          this.param.id = x; break;
+        case 'collage':
+          this.param.collage = x; break;
+        case 'department':
+          this.param.departmentName = x; break;
+      }
+      this.loadData();
     })
   }
 
 
 
   /** Columns displayed in the table. Columns IDs can be added, removed, or reordered. */
-  displayedColumns = ['action','tabCode','tegaraCode', 'name','employeeId','department','collage'];
+  displayedColumns = ['action', 'tabCode', 'tegaraCode', 'name', 'employeeId', 'department', 'collage'];
 
 
 
@@ -101,95 +101,96 @@ constructor( private cdref: ChangeDetectorRef) {}
 
 
 
-  this.employeeService.GetEmployees(this.param).subscribe((x:any) =>{
-    this.dataSource=x.data
-    this.paginator.length=x.count;
-    // this.paginator.pageIndex=x.pageIndex;
-    // this.paginator.pageSize=x.pageSize;
-  });
+    this.employeeService.GetEmployees(this.param).subscribe((x: any) => {
+      this.dataSource = x.data
+      this.paginator.length = x.count;
+      // this.paginator.pageIndex=x.pageIndex;
+      // this.paginator.pageSize=x.pageSize;
+    });
 
 
   }
-  onChange(ev){
-    this.param.pageSize=ev.pageSize;
-    this.param.pageIndex=ev.pageIndex;
+  onChange(ev) {
+    this.param.pageSize = ev.pageSize;
+    this.param.pageIndex = ev.pageIndex;
 
 
     this.loadData();
 
   }
-  editEmployee(id:number){
+  editEmployee(id: number) {
     // console.log(id);
   }
-  deleteEmployee(row:IEmployee){
-    if( confirm( `هل تريد حذف الموظف ${row.name}؟`)){
+  deleteEmployee(row: IEmployee) {
+    if (confirm(`هل تريد حذف الموظف ${row.name}؟`)) {
       this.employeeService.softDelete(row.id).pipe(
-        tap(() =>{
-          this.toaster.openSuccessToaster('تم الحذف بنجاح','check_circle');
+        tap(() => {
+          this.toaster.openSuccessToaster('تم الحذف بنجاح', 'check_circle');
           this.resetParam();
-           this.loadData()})
+          this.loadData()
+        })
       ).subscribe();
 
 
     }
   }
-  clear(input:any){
+  clear(input: any) {
 
 
-    if(input==='tabCode'){
+    if (input === 'tabCode') {
       this.tabCodeInput.nativeElement.value = '';
-      this.param.tabCode=null;
+      this.param.tabCode = null;
     }
-    if(input==='tegaraCode'){
+    if (input === 'tegaraCode') {
       this.tegaraCodeInput.nativeElement.value = '';
-      this.param.tegaraCode=null;
+      this.param.tegaraCode = null;
     }
-    if(input==='name'){
+    if (input === 'name') {
       this.nameInput.nativeElement.value = '';
-      this.param.name=null;
+      this.param.name = null;
     }
-    if(input==='employeeId'){
+    if (input === 'employeeId') {
       this.employeeIdInput.nativeElement.value = '';
-      this.param.employeeId=null;
+      this.param.id = null;
     }
-    if(input==='collage'){
+    if (input === 'collage') {
       this.collageInput.nativeElement.value = '';
-      this.param.collage=null;
+      this.param.collage = null;
     }
-    if(input==='department'){
+    if (input === 'department') {
       this.departmentInput.nativeElement.value = '';
-      this.param.departmentName=null;
+      this.param.departmentName = null;
     }
-      this.loadData();
+    this.loadData();
 
   }
-  openEmployeeEditDialog(row){
+  openEmployeeEditDialog(row) {
     const dialogRef = this._dialog.open(EditEmployeeDialogComponent, {
       width: '600px',
       disableClose: true,
-       data:  { employeeId :row.id },
+      data: { employeeId: row.id },
       panelClass: ['dialog-container'],
 
 
-     });
+    });
 
-     dialogRef.afterClosed().subscribe(result => {
-       this.ngOnInit();
+    dialogRef.afterClosed().subscribe(result => {
+      this.ngOnInit();
       // this.animal = result;
-     });
-    }
+    });
+  }
 
-    resetParam(){
-      this.param.pageIndex=0;
-      this.param.pageSize= this.paginator.pageSize;
-      this.param.name=null;
-      this.param.tegaraCode=null;
-      this.param.tabCode=null;
-      this.param.employeeId=null;
-      this.param.collage=null;
-      this.param.departmentName=null;
+  resetParam() {
+    this.param.pageIndex = 0;
+    this.param.pageSize = this.paginator.pageSize;
+    this.param.name = null;
+    this.param.tegaraCode = null;
+    this.param.tabCode = null;
+    this.param.id = null;
+    this.param.collage = null;
+    this.param.departmentName = null;
 
-      this.loadData();
+    this.loadData();
 
-    }
+  }
 }

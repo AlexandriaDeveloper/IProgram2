@@ -20,10 +20,10 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
             }
-            // if (!string.IsNullOrEmpty(param.NationalId))
-            // {
-            //     AddCriteries(x => x.NationalId.Equals(param.NationalId));
-            // }
+            if (!string.IsNullOrEmpty(param.Id))
+            {
+                AddCriteries(x => x.Id.Equals(param.Id));
+            }
             if (param.TabCode.HasValue)
             {
                 AddCriteries(x => x.TabCode.Equals(param.TabCode));
@@ -36,6 +36,7 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.Department.Name.Contains(param.DepartmentName));
             }
+
             if (!string.IsNullOrEmpty(param.Collage))
             {
                 AddCriteries(x => x.Collage.Contains(param.Collage));
@@ -69,6 +70,10 @@ namespace Persistence.Specifications
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
+            }
+            if (!string.IsNullOrEmpty(param.Id))
+            {
+                AddCriteries(x => x.Id.Equals(param.Id));
             }
             // if (!string.IsNullOrEmpty(param.NationalId))
             // {

@@ -23,108 +23,108 @@ import { fromEvent } from 'rxjs';
   templateUrl: './employee-details.component.html',
   styleUrl: './employee-details.component.scss'
 })
-export class EmployeeDetailsComponent implements OnInit{
+export class EmployeeDetailsComponent implements OnInit {
 
 
 
 
 
-router = inject(Router);
-gallery =inject(Gallery);
-toaster = inject(ToasterService);
-_dialog =inject(MatDialog)
-galleryRef: GalleryRef;
-employeeId =inject(ActivatedRoute).snapshot.params['id'];
+  router = inject(Router);
+  gallery = inject(Gallery);
+  toaster = inject(ToasterService);
+  _dialog = inject(MatDialog)
+  galleryRef: GalleryRef;
+  employeeId = inject(ActivatedRoute).snapshot.params['id'];
 
-employeeService =inject(EmployeeService);
-param  :EmployeeParam =new EmployeeParam();
-@ViewChild('mattab') matTab:MatTab;
+  employeeService = inject(EmployeeService);
+  param: EmployeeParam = new EmployeeParam();
+  @ViewChild('mattab') matTab: MatTab;
 
-employee ?:IEmployee;
-ngOnInit(): void {
-  console.log("hello")
-  console.log(this.employeeId);
+  employee?: IEmployee;
+  ngOnInit(): void {
+    console.log("hello")
+    console.log(this.employeeId);
 
-  this.param.employeeId=this.employeeId
-  this.loadEmployee();
+    this.param.id = this.employeeId
+    this.loadEmployee();
 
-}
-
-loadEmployee(){
-  this.galleryRef = this.gallery.ref('myGallery');
-  this.employeeService.GetEmployee(this.param).subscribe({
-    next:(x)=>{
-      this.employee=x
-    //  this.images = x.employeeRefernces.map(x=>new ImageItem({ src: x.referencePath, thumb: x.referencePath }));
-      //this.galleryRef.load(this.images);
-
-    },
-    error:(err)=>{
-      // console.log(err);
-
-      if(err.status==404){
-       this.router.navigate(['/employee'])
-      }
-    },
-    complete  : ()=>{
-    // console.log('ended');
-    }
-  })
-}
-
-
-openUploadDialog(){
-  const dialogRef = this._dialog.open(UploadEmployeeReferncesDialogComponent, {
-    // data: {name: this.name, animal: this.animal},
-
-    disableClose: true,
-     data:  { employeeId :this.employeeId },
-    panelClass: ['dialog-container'],
-   });
-
-   dialogRef.afterClosed().subscribe(result => {
-
-
-    window.location.reload();
-
-   });
   }
-  openBankDialog(){
+
+  loadEmployee() {
+    this.galleryRef = this.gallery.ref('myGallery');
+    this.employeeService.GetEmployee(this.param).subscribe({
+      next: (x) => {
+        this.employee = x
+        //  this.images = x.employeeRefernces.map(x=>new ImageItem({ src: x.referencePath, thumb: x.referencePath }));
+        //this.galleryRef.load(this.images);
+
+      },
+      error: (err) => {
+        // console.log(err);
+
+        if (err.status == 404) {
+          this.router.navigate(['/employee'])
+        }
+      },
+      complete: () => {
+        // console.log('ended');
+      }
+    })
+  }
+
+
+  openUploadDialog() {
+    const dialogRef = this._dialog.open(UploadEmployeeReferncesDialogComponent, {
+      // data: {name: this.name, animal: this.animal},
+
+      disableClose: true,
+      data: { employeeId: this.employeeId },
+      panelClass: ['dialog-container'],
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+
+
+      window.location.reload();
+
+    });
+  }
+  openBankDialog() {
     const dialogRef = this._dialog.open(AddBankDialogComponent, {
       width: '400px',
       disableClose: true,
-       data:  { employeeId :this.employeeId },
+      data: { employeeId: this.employeeId },
       panelClass: ['dialog-container'],
-     });
+    });
 
-     dialogRef.afterClosed().subscribe(result => {
+    dialogRef.afterClosed().subscribe(result => {
       this.loadEmployee();
 
-     });
-    }
-    openEmployeeEditDialog(){
-      const dialogRef = this._dialog.open(EditEmployeeDialogComponent, {
-        width: '600px',
-        disableClose: true,
-         data:  { employeeId :this.employeeId },
-        panelClass: ['dialog-container'],
-       });
-
-       dialogRef.afterClosed().subscribe(result => {
-         this.ngOnInit();
-       });
-      }
-
-      onTabChange(ev){
-        console.log(ev);
-
-
-      }
-stopEmployee(){
-  if(confirm("انت على وشك ايقاف الموظف من المنظومه هل انت متأكد ؟!!"))
-      this.employeeService.softDelete(this.employeeId).subscribe((res)=>{
-        this.toaster.openSuccessToaster('تم ايقاف الموظف بنجاح','check');
-
     });
-}
+  }
+  openEmployeeEditDialog() {
+    const dialogRef = this._dialog.open(EditEmployeeDialogComponent, {
+      width: '600px',
+      disableClose: true,
+      data: { employeeId: this.employeeId },
+      panelClass: ['dialog-container'],
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      this.ngOnInit();
+    });
+  }
+
+  onTabChange(ev) {
+    console.log(ev);
+
+
+  }
+  stopEmployee() {
+    if (confirm("انت على وشك ايقاف الموظف من المنظومه هل انت متأكد ؟!!"))
+      this.employeeService.softDelete(this.employeeId).subscribe((res) => {
+        this.toaster.openSuccessToaster('تم ايقاف الموظف بنجاح', 'check');
+
+      });
+  }
 }

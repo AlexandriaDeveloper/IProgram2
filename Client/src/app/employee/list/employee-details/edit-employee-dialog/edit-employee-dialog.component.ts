@@ -17,93 +17,93 @@ import { EmployeeParam, IEmployee } from '../../../../shared/models/IEmployee';
 })
 export class EditEmployeeDialogComponent implements OnInit {
 
-  form : FormGroup;
-  fb =  inject(FormBuilder);
+  form: FormGroup;
+  fb = inject(FormBuilder);
   employeeService = new EmployeeService();
-  employeeBankService =inject(EmployeeBankService)
-  departmentService =inject(DepartmentService)
+  employeeBankService = inject(EmployeeBankService)
+  departmentService = inject(DepartmentService)
   departments;
-  employeeParam :EmployeeParam =new EmployeeParam();
-  employee :IEmployee={
+  employeeParam: EmployeeParam = new EmployeeParam();
+  employee: IEmployee = {
     name: '',
-    tabCode :null,
-    tegaraCode : null,
-id:null,
-    collage:'',
-    departmentId : null,
-    email :null,
+    tabCode: null,
+    tegaraCode: null,
+    id: null,
+    collage: '',
+    departmentId: null,
+    email: null,
 
   };
-  constructor(private dialogRef : MatDialogRef<AddBankDialogComponent>,
+  constructor(private dialogRef: MatDialogRef<AddBankDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: any
-    ) {
+  ) {
 
-    }
+  }
   ngOnInit(): void {
-    this.employeeParam.employeeId=this.data.employeeId;
+    this.employeeParam.id = this.data.employeeId;
 
 
 
     this.loadDepartrments();
     this.loadEmployee();
-    this.form=this.initForm()
+    this.form = this.initForm()
   }
 
-  initForm(){
+  initForm() {
     return this.fb.group({
-      employeeId:[this.employee?.id,[]],
-      name : [this.employee?.name,[Validators.required]],
-      collage : [this.employee?.collage,[]],
-      tabCode : [this.employee?.tabCode,[]],
-      tegaraCode : [this.employee?.tegaraCode,[]],
-      section : [this.employee?.section,[]],
-      departmentId : [this.employee?.departmentId,[]],
-      email : [this.employee?.email,[]]
+      employeeId: [this.employee?.id, []],
+      name: [this.employee?.name, [Validators.required]],
+      collage: [this.employee?.collage, []],
+      tabCode: [this.employee?.tabCode, []],
+      tegaraCode: [this.employee?.tegaraCode, []],
+      section: [this.employee?.section, []],
+      departmentId: [this.employee?.departmentId, []],
+      email: [this.employee?.email, []]
     })
   }
-  loadEmployee(){
+  loadEmployee() {
     console.log(this.data.employeeId);
 
     this.employeeService.GetEmployee(this.employeeParam).subscribe({
-      next:(res:any)=>{
-        this.employee=res;
+      next: (res: any) => {
+        this.employee = res;
         console.log(res);
 
-        this.form=this.initForm();
+        this.form = this.initForm();
       },
-      error:(err)=> console.log(err)
+      error: (err) => console.log(err)
     })
   }
-  loadDepartrments(){
+  loadDepartrments() {
 
     this.departmentService.getAllDepartments().subscribe({
-      next:(res:any)=>{
+      next: (res: any) => {
         console.log(res);
 
-        this.departments=res;
+        this.departments = res;
       },
-      error:(err)=> console.log(err)
+      error: (err) => console.log(err)
     })
   }
   onNoClick(): void {
     this.dialogRef.close();
   }
-  onSubmit(){
+  onSubmit() {
 
-console.log(this.form.value);
-   if(this.form.value.tegaraCode ===''){
+    console.log(this.form.value);
+    if (this.form.value.tegaraCode === '') {
 
-     this.form.value.tegaraCode=null
-   }
-   if(this.form.value.tabCode ===''){
+      this.form.value.tegaraCode = null
+    }
+    if (this.form.value.tabCode === '') {
 
-    this.form.value.tabCode=null
-  }
-  if(this.form.value.email ===''){
+      this.form.value.tabCode = null
+    }
+    if (this.form.value.email === '') {
 
-    this.form.value.email=null
-  }
-    this.employeeService.updateEmployee(this.form.value).subscribe(res=>{
+      this.form.value.email = null
+    }
+    this.employeeService.updateEmployee(this.form.value).subscribe(res => {
       this.dialogRef.close();
     })
 

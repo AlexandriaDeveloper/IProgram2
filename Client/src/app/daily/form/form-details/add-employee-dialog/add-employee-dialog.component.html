@@ -1,65 +1,67 @@
-
-
-<mat-card    class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+<mat-card class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
   <mat-card-header>
-    <mat-card-title >
-        <div class="close" (click)="onNoClick()">
-          <mat-icon >close</mat-icon>
-        </div>
-        <span>تسجيل يوميه</span>
+    <mat-card-title>
+      <div class="close" (click)="onNoClick()">
+        <mat-icon>close</mat-icon>
+      </div>
+      <span>تسجيل يوميه</span>
     </mat-card-title>
   </mat-card-header>
   <mat-card-content>
-      <form [formGroup]="employeeSearchForm" class="form-dialg" (ngSubmit)="onEmployeeSearch()">
-        <div class="form-background">
+    <form [formGroup]="employeeSearchForm" class="form-dialg" (ngSubmit)="onEmployeeSearch()">
+      <div class="form-background">
         <div class="col">
         </div>
         <div style="display: flex;align-items: center;  padding: 0px;margin: 5px;  flex:2 !important;" class="col">
-          <input  formControlName="nationalId" placeholder="البحث بالرقم القومى" class="data-input"  style="flex :2 !important; color: #fff;"  >
-          <input  formControlName="tegaraCode" placeholder="البحث بكود تجارة" class="data-input" style="flex :1 !important; color: #fff;"   >
-          <input  formControlName="tabCode" placeholder="البحث بكود طب" class="data-input" style="flex :1 !important; color: #fff;"   >
-            <button mat-icon-button color="accent" style="margin: 20px;">
-              <mat-icon>search</mat-icon>
-            </button>
+          <input formControlName="id" placeholder="البحث بالرقم القومى" class="data-input"
+            style="flex :2 !important; color: #fff;">
+          <input formControlName="tegaraCode" placeholder="البحث بكود تجارة" class="data-input"
+            style="flex :1 !important; color: #fff;">
+          <input formControlName="tabCode" placeholder="البحث بكود طب" class="data-input"
+            style="flex :1 !important; color: #fff;">
+          <button mat-icon-button color="accent" style="margin: 20px;">
+            <mat-icon>search</mat-icon>
+          </button>
 
         </div>
       </div>
-        </form>
-        <div *ngIf="employeeDetails"  class="form-background">
-          <form [formGroup]="form" class="form-dialog" (ngSubmit)="onSubmit()" >
-            <input type="hidden" formControlName="employeeId" value="{{employee?.id}}" >
-            <div>
-              <mat-form-field appearance="outline" class="form-dialog-input">
-                <mat-label class="saerch-title">الاسم</mat-label>
-                  <input matInput placeholder="الاسم" [value]="employee?.name"  color="primary" readonly>
-              </mat-form-field>
-            </div>
-
-            <div>
-              <mat-form-field appearance="outline" class="form-dialog-input">
-                <mat-label class="saerch-title">الرقم القومى</mat-label>
-                  <input matInput placeholder="الرقم القومى" [value]="employee?.nationalId"  color="primary" readonly>
-              </mat-form-field>
-            </div>
-            <div>
-               <mat-form-field appearance="outline" class="form-dialog-input">
-                <mat-label class="saerch-title"> الكليه</mat-label>
-                  <input matInput placeholder="الكليه " [value]="employee.collage?employee?.collage:'غير محدد'"  color="primary" readonly>
-              </mat-form-field>
-              </div>
-          <div>
-            <input  formControlName="amount" [value]="employeeDetails?.amount" placeholder="المبلغ" class="data-input"  style=" color: #fff;text-align: right;"  type="number"   >
-          </div>
-            <div class="action-buttons" style="padding-top: 10px;">
-              <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid" >
-                حفظ
-               </button>
-               <button mat-raised-button color="warn" (click)="onNoClick()" >
-                 الغاء
-                </button>
-            </div>
-          </form>
+    </form>
+    <div *ngIf="employeeDetails" class="form-background">
+      <form [formGroup]="form" class="form-dialog" (ngSubmit)="onSubmit()">
+        <input type="hidden" formControlName="employeeId" value="{{employee?.id}}">
+        <div>
+          <mat-form-field appearance="outline" class="form-dialog-input">
+            <mat-label class="saerch-title">الاسم</mat-label>
+            <input matInput placeholder="الاسم" [value]="employee?.name" color="primary" readonly>
+          </mat-form-field>
         </div>
+
+        <div>
+          <mat-form-field appearance="outline" class="form-dialog-input">
+            <mat-label class="saerch-title">الرقم القومى</mat-label>
+            <input matInput placeholder="الرقم القومى" [value]="employee?.nationalId" color="primary" readonly>
+          </mat-form-field>
+        </div>
+        <div>
+          <mat-form-field appearance="outline" class="form-dialog-input">
+            <mat-label class="saerch-title"> الكليه</mat-label>
+            <input matInput placeholder="الكليه " [value]="employee.collage?employee?.collage:'غير محدد'"
+              color="primary" readonly>
+          </mat-form-field>
+        </div>
+        <div>
+          <input formControlName="amount" [value]="employeeDetails?.amount" placeholder="المبلغ" class="data-input"
+            style=" color: #fff;text-align: right;" type="number">
+        </div>
+        <div class="action-buttons" style="padding-top: 10px;">
+          <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">
+            حفظ
+          </button>
+          <button mat-raised-button color="warn" (click)="onNoClick()">
+            الغاء
+          </button>
+        </div>
+      </form>
+    </div>
   </mat-card-content>
 </mat-card>
-

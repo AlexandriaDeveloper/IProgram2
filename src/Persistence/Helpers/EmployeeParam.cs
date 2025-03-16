@@ -9,5 +9,6 @@ namespace Persistence.Helpers
         public string Collage { get; set; }
         public int? DepartmentId { get; set; }
         public string DepartmentName { get; set; }
+        public string Id { get; set; }
     }
 }
