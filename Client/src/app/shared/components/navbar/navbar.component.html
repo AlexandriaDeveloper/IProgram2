@@ -1,72 +1,72 @@
 <mat-sidenav-container class="sidenav-container">
   <mat-sidenav-content>
     <div class="contents">
-<!-- <video autoplay muted loop id="myVideo" >
+      <!-- <video autoplay muted loop id="myVideo" >
     <source src="../assets/bg/Technology_09.mov" type="video/mp4" >
     </video> -->
-  <!--[if lt IE 9]>
+      <!--[if lt IE 9]>
 <script>
 document.createElement('video');
 </script>
 <![endif]-->
-<div class="video-container">
-  <video autoplay loop muted id="video-bg">
-    <source src="../assets/images/bg/SciFi_01.mov" type="video/mp4"  (play)="true"/>
-  </video>
-</div>
-<div class="nav-bar-container">
-  <mat-toolbar>
-      <div>
-    <ng-container *ngIf="(auth.currentUserSig())==null" >
-    <div class="auth-user" >
-      <a  mat-icon-button color="primary"  routerLink="/account/login" >
-        <mat-icon>login</mat-icon>
-      </a>
-    <span>  Please Login</span>
-    </div>
-    </ng-container>
-    <ng-container *ngIf="(auth.isAuthenticated()) as user">
-    <div class="auth-user">
-      <button mat-icon-button class="example-icon" aria-label="Example icon-button with menu icon"   (click)="drawer.toggle()"
-        [hidden]="(auth.currentUserSig())===null">
-        <mat-icon>menu</mat-icon>
-      </button>
-      <button mat-icon-button color="accent" class="example-icon" aria-label="Example icon-button with share icon" (click)="logout()">
-        <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
-      </button>
-      <span class="welcome-msg">
-       مرحبا بك -
-       <span class="user-name">
-       {{(auth.currentUserSig()).displayName}}
-
-      </span>
-      </span>
-    </div>
-    </ng-container>
+      <div class="video-container">
+        <video autoplay loop muted id="video-bg">
+          <source src="../assets/images/bg/SciFi_01.mov" type="video/mp4" (play)="true" />
+        </video>
       </div>
+      <div class="nav-bar-container">
+        <mat-toolbar>
+          <div>
+            <ng-container *ngIf="(auth.currentUserSig())===null">
+              <div class="auth-user">
+                <a mat-icon-button color="primary" routerLink="/account/login">
+                  <mat-icon>login</mat-icon>
+                </a>
+                <span> Please Login</span>
+              </div>
+            </ng-container>
+            <ng-container *ngIf="(auth.isAuthenticated()) as user">
+              <div class="auth-user">
+                <button mat-icon-button class="example-icon" aria-label="Example icon-button with menu icon"
+                  (click)="drawer.toggle()" [hidden]="(auth.currentUserSig())===null">
+                  <mat-icon>menu</mat-icon>
+                </button>
+                <button mat-icon-button color="accent" class="example-icon"
+                  aria-label="Example icon-button with share icon" (click)="logout()">
+                  <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
+                </button>
+                <span class="welcome-msg">
+                  مرحبا بك -
+                  <span class="user-name">
+                    {{(auth.currentUserSig()).displayName}}
+
+                  </span>
+                </span>
+              </div>
+            </ng-container>
+          </div>
           <span class="spacer">
           </span>
-    <div class="navbar-title">
-      <span [routerLink]="['/']" style="cursor: pointer;" >الوحدة الحسابيه المركزيه للمجمع الطبى </span>
-    </div>
+          <div class="navbar-title">
+            <span [routerLink]="['/']" style="cursor: pointer;">الوحدة الحسابيه المركزيه للمجمع الطبى </span>
+          </div>
         </mat-toolbar>
       </div>
     </div>
-  <!-- Add Content Here -->
-<div class="container">
-  <ng-content></ng-content>
-</div>
-</mat-sidenav-content>
-<mat-sidenav #drawer class="sidenav" fixedInViewport
-    [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
-    [mode]="(isHandset$ | async) ? 'over' : 'side'"
-    opened= false
-    >
-  <mat-toolbar class="menu title"  >
-    القائمه
-    <mat-divider></mat-divider>
-   </mat-toolbar>
-  <!-- <mat-nav-list class="list" >
+    <!-- Add Content Here -->
+
+    <div class="container">
+
+      <ng-content></ng-content>
+    </div>
+  </mat-sidenav-content>
+  <mat-sidenav #drawer class="sidenav" fixedInViewport [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
+    [mode]="(isHandset$ | async) ? 'over' : 'side'" opened=false>
+    <mat-toolbar class="menu title">
+      القائمه
+      <mat-divider></mat-divider>
+    </mat-toolbar>
+    <!-- <mat-nav-list class="list" >
     <a *ngIf="auth.isUserAdmin()" mat-list-item  [routerLink]="['/account/register']" routerLinkActive="active" > <mat-icon color="primary">home_work</mat-icon> حسابات  </a>
     <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee']" routerLinkActive="active"  > <mat-icon color="primary">people</mat-icon> الموظفين  </a>
     <a mat-list-item [routerLink]="['/order']"  routerLinkActive="active" >  <mat-icon color="primary">receipt</mat-icon> ملفات الاوامر  </a>
@@ -75,72 +75,74 @@ document.createElement('video');
     <a mat-list-item  [routerLink]="['/accounts-tree']" routerLinkActive="active" ><mat-icon color="primary">settings</mat-icon>
        ادارة العناصر  </a>
   </mat-nav-list> -->
-  <mat-accordion multi="false">
-    <mat-expansion-panel
-    (opened)="panelOpenState = true"
-    (closed)="panelOpenState = false"
+    <mat-accordion multi="false">
+      <mat-expansion-panel (opened)="panelOpenState = true" (closed)="panelOpenState = false">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            حسابات
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <mat-nav-list class="list">
+          <a *ngIf="auth?.isUserAdmin()" mat-list-item [routerLink]="['/account/register']" routerLinkActive="active"
+            label="تكوين موظف"> <mat-icon>person_add_alt</mat-icon> حساب جديد </a>
+          <a mat-list-item [routerLink]="['/account/change-password']" routerLinkActive="active" label="تكوين موظف">
+            <mat-icon>person_add_alt</mat-icon> تفيير كلمة المرور </a>
 
-  >
-<mat-expansion-panel-header>
-<mat-panel-title>
-  حسابات
-</mat-panel-title>
-</mat-expansion-panel-header>
-<mat-nav-list class="list" >
-<a  *ngIf="auth?.isUserAdmin()"  mat-list-item [routerLink]="['/account/register']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  حساب جديد   </a>
-<a  mat-list-item [routerLink]="['/account/change-password']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon>  تفيير كلمة المرور   </a>
-
-<a *ngIf="!auth.isAuthenticated()"  mat-list-item [routerLink]="['/account/login']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon>   دخول   </a>
-</mat-nav-list>
-</mat-expansion-panel>
-    <mat-expansion-panel (opened)="panelOpenState = true"
-                         (closed)="panelOpenState = false">
-      <mat-expansion-panel-header>
-        <mat-panel-title>
-        الموظفين
-        </mat-panel-title>
-      </mat-expansion-panel-header>
-      <mat-nav-list class="list" >
-      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/add']" routerLinkActive="active"  label="تكوين موظف" > <mat-icon >person_add_alt</mat-icon> تكوين موظف   </a>
-      <!-- <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a> -->
-      <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload-tegara']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a>
-      <a   mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"   > <mat-icon >people</mat-icon>  الموظفين  </a>
-      </mat-nav-list>
-    </mat-expansion-panel>
-  <mat-expansion-panel (opened)="panelOpenState = true"
-    (closed)="panelOpenState = false">
-<mat-expansion-panel-header>
-<mat-panel-title>
-اليوميات و الملفات
-</mat-panel-title>
-</mat-expansion-panel-header>
-<mat-nav-list class="list" >
-<a  mat-list-item [routerLink]="['/daily']" routerLinkActive="active"  [routerLinkActiveOptions]="{exact: true}" > <mat-icon >folders</mat-icon>اليوميات  </a>
-<a  mat-list-item [routerLink]="['/daily/archivedform' ]" routerLinkActive="active" > <mat-icon >insert_drive_file</mat-icon> الملفات </a>
-</mat-nav-list>
-</mat-expansion-panel>
-    <mat-expansion-panel (opened)="panelOpenState = true"
-    (closed)="panelOpenState = false">
-<mat-expansion-panel-header>
-<mat-panel-title>
-   الأقسام
-</mat-panel-title>
-</mat-expansion-panel-header>
-<mat-nav-list class="list" >
-<a   mat-list-item [routerLink]="['/department']" routerLinkActive="active"  > <mat-icon >people</mat-icon> الاقسام   </a>
-</mat-nav-list>
-</mat-expansion-panel>
-<mat-expansion-panel (opened)="panelOpenState = true"
-(closed)="panelOpenState = false">
-<mat-expansion-panel-header>
-<mat-panel-title>
-الاعدادات
-</mat-panel-title>
-</mat-expansion-panel-header>
-<mat-nav-list class="list" >
-<a   mat-list-item [routerLink]="['/settings/change-password']" routerLinkActive="active"  > <mat-icon >settings</mat-icon> تغيير الباسورد   </a>
-</mat-nav-list>
-</mat-expansion-panel>
-  </mat-accordion>
-</mat-sidenav>
+          <a *ngIf="!auth.isAuthenticated()" mat-list-item [routerLink]="['/account/login']" routerLinkActive="active">
+            <mat-icon>cloud_upload</mat-icon> دخول </a>
+        </mat-nav-list>
+      </mat-expansion-panel>
+      <mat-expansion-panel (opened)="panelOpenState = true" (closed)="panelOpenState = false">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            الموظفين
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <mat-nav-list class="list">
+          <a *ngIf="auth.isUserAdmin()" mat-list-item [routerLink]="['/employee/add']" routerLinkActive="active"
+            label="تكوين موظف"> <mat-icon>person_add_alt</mat-icon> تكوين موظف </a>
+          <!-- <a *ngIf="auth.isUserAdmin()"  mat-list-item [routerLink]="['/employee/upload']" routerLinkActive="active"  > <mat-icon >cloud_upload</mat-icon> تحميل ملف موظفين   </a> -->
+          <a *ngIf="auth.isUserAdmin()" mat-list-item [routerLink]="['/employee/upload-tegara']"
+            routerLinkActive="active"> <mat-icon>cloud_upload</mat-icon> تحميل ملف موظفين </a>
+          <a mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"> <mat-icon>people</mat-icon>
+            الموظفين </a>
+        </mat-nav-list>
+      </mat-expansion-panel>
+      <mat-expansion-panel (opened)="panelOpenState = true" (closed)="panelOpenState = false">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            اليوميات و الملفات
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <mat-nav-list class="list">
+          <a mat-list-item [routerLink]="['/daily']" routerLinkActive="active"
+            [routerLinkActiveOptions]="{exact: true}"> <mat-icon>folders</mat-icon>اليوميات </a>
+          <a mat-list-item [routerLink]="['/daily/archivedform' ]" routerLinkActive="active">
+            <mat-icon>insert_drive_file</mat-icon> الملفات </a>
+        </mat-nav-list>
+      </mat-expansion-panel>
+      <mat-expansion-panel (opened)="panelOpenState = true" (closed)="panelOpenState = false">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            الأقسام
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <mat-nav-list class="list">
+          <a mat-list-item [routerLink]="['/department']" routerLinkActive="active"> <mat-icon>people</mat-icon> الاقسام
+          </a>
+        </mat-nav-list>
+      </mat-expansion-panel>
+      <mat-expansion-panel (opened)="panelOpenState = true" (closed)="panelOpenState = false">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            الاعدادات
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <mat-nav-list class="list">
+          <a mat-list-item [routerLink]="['/settings/change-password']" routerLinkActive="active">
+            <mat-icon>settings</mat-icon> تغيير الباسورد </a>
+        </mat-nav-list>
+      </mat-expansion-panel>
+    </mat-accordion>
+  </mat-sidenav>
 </mat-sidenav-container>
