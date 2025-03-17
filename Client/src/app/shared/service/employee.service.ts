@@ -115,6 +115,17 @@ export class EmployeeService {
     );
   }
 
+  downloadEmployeesFile2() {
+    return this.http.get(this.apiUrl + 'employee/download-employees/', { observe: 'response', responseType: 'blob' }).pipe(
+      map((x: HttpResponse<any>) => {
+        let blob = new Blob([x.body], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url);
+      }))
+  }
+
   softDelete(id: string) {
     return this.http.delete(this.apiUrl + 'employee/softDelete/' + id)
   }

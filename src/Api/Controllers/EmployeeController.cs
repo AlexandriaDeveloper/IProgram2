@@ -88,6 +88,15 @@ namespace Api.Controllers
         {
             return HandleResult<EmployeeReportDto>(await _employeeService.EmployeeReport(request));
         }
+        [HttpGet("download-employees/")]
+        public async Task<FileResult> DownloadFile()
+        {
+            var ms = await _employeeService.DownloadAllEmployees();
+
+            return File(ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "employees.xlsx");
+
+
+        }
 
         [HttpDelete("SoftDelete/{id}")]
         public async Task<IActionResult> SoftDelete(string id)

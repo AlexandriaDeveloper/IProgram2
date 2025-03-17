@@ -19,18 +19,18 @@ export class UploadEmployeeTegaraComponent implements OnInit {
 
   employeeService = inject(EmployeeService);
   toaster = inject(ToasterService);
-  fb =inject(FormBuilder);
-  progress =signal<number[]>([]);
+  fb = inject(FormBuilder);
+  progress = signal<number[]>([]);
   @ViewChild("fileDropRef", { static: false }) fileDropEl: UploadComponent;
   files: any[] = [];
-  uploadForm :FormGroup;
+  uploadForm: FormGroup;
 
   ngOnInit(): void {
     this.uploadForm = this.initUploadForm()
-   }
-  initUploadForm(){
+  }
+  initUploadForm() {
     return this.fb.group({
-      file:[]
+      file: []
     })
   }
   formatBytes(bytes, decimals = 2) {
@@ -43,68 +43,71 @@ export class UploadEmployeeTegaraComponent implements OnInit {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
   }
-  onFileSelected(ev){
-// console.log(ev.target.files);
+  onFileSelected(ev) {
+    // console.log(ev.target.files);
 
 
 
-// console.log(this.uploadForm.value);
+    // console.log(this.uploadForm.value);
 
   }
 
 
 
-  uploadFiles(){
-    var files =  this.fileDropEl.files;
-   // // console.log(this.uploadForm.value);
+  uploadFiles() {
+    var files = this.fileDropEl.files;
+    // // console.log(this.uploadForm.value);
 
-// console.log(this.fileDropEl.files);
-let req : Observable<any>[]=[]
-// console.log(this.fileDropEl.files);
+    // console.log(this.fileDropEl.files);
+    let req: Observable<any>[] = []
+    // console.log(this.fileDropEl.files);
 
-for (let index = 0; index < this.fileDropEl.files.length; index++) {
-req.push(  this.employeeService.uploadEmployeeTegaraFile(this.fileDropEl.files[index] ).pipe(
-  map(event => {
-    this.fileDropEl.onProgress[index]=true;
-    switch (event?.type) {
-      case HttpEventType.Sent:
-        // console.log('Request has been made!');
-        break;
-      case HttpEventType.UploadProgress:
-        this.progress[index] = Math.round(event.loaded / event.total * 100);
-        // console.log(`Uploaded! ${this.progress[index]}%`);
+    for (let index = 0; index < this.fileDropEl.files.length; index++) {
+      req.push(this.employeeService.uploadEmployeeTegaraFile(this.fileDropEl.files[index]).pipe(
+        map(event => {
+          this.fileDropEl.onProgress[index] = true;
+          switch (event?.type) {
+            case HttpEventType.Sent:
+              // console.log('Request has been made!');
+              break;
+            case HttpEventType.UploadProgress:
+              this.progress[index] = Math.round(event.loaded / event.total * 100);
+              // console.log(`Uploaded! ${this.progress[index]}%`);
 
-        break;
-      case HttpEventType.Response:
-        // console.log('User successfully created!', event.body);
-        this.progress[index] = 0;
-        this.fileDropEl.onProgress[index]=false;
+              break;
+            case HttpEventType.Response:
+              // console.log('User successfully created!', event.body);
+              this.progress[index] = 0;
+              this.fileDropEl.onProgress[index] = false;
 
-        this.fileDropEl.files[index]=null;
+              this.fileDropEl.files[index] = null;
 
 
 
-        break;
-      default:
-        // console.log(event);
-        break;
+              break;
+            default:
+              // console.log(event);
+              break;
+          }
+        })
+      ))
     }
-  })
-  ))
-}
-return from(req).pipe(
-mergeMap((x,i)=> req[i]),
-finalize(()=>{
-  // console.log('finalize');
+    return from(req).pipe(
+      mergeMap((x, i) => req[i]),
+      finalize(() => {
+        // console.log('finalize');
 
-  this.fileDropEl.files=[];
-  // console.log(this.fileDropEl.files);
-})
-).subscribe({
+        this.fileDropEl.files = [];
+        // console.log(this.fileDropEl.files);
+      })
+    ).subscribe({
 
-});
+    });
   }
-  downloadFile(){
+  downloadFile() {
     this.employeeService.downloadEmployeesFile().subscribe();
+  }
+  downloadFile2() {
+    this.employeeService.downloadEmployeesFile2().subscribe();
   }
 }

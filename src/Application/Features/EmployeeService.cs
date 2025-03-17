@@ -8,6 +8,7 @@ using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using NPOI.SS.UserModel;
 using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
@@ -636,6 +637,78 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
             }
             return Result.Success("تم حذف الموظف بنجاح");
+        }
+
+
+        public async Task<MemoryStream> DownloadAllEmployees()
+        {
+            var employees = await _employeeRepository.ListAllAsync();
+            var departments = await _departmentRepository.ListAllAsync();
+            var npoi = new NpoiServiceProvider();
+            IWorkbook workbook = null;
+            int i = 1;
+
+
+
+
+            DataTable dt2 = new DataTable();
+            dt2.Columns.Add("رقم الموظف بجهته الأصلية", typeof(string));
+            dt2.Columns.Add("كود تجارة", typeof(string));
+            dt2.Columns.Add("الاسم", typeof(string));
+            dt2.Columns.Add("الرقم القومى", typeof(string));
+            dt2.Columns.Add("الإدارة", typeof(string));
+            dt2.Columns.Add("القطاع", typeof(string));
+            dt2.Columns.Add("اسم القسم", typeof(string));
+            dt2.Columns.Add("الايميل", typeof(string));
+            dt2.Columns.Add("البنك", typeof(string));
+            dt2.Columns.Add("الفرع", typeof(string));
+            dt2.Columns.Add("رقم الحساب", typeof(string));
+
+            foreach (var employee in employees)
+            {
+                DataRow dr = dt2.NewRow();
+                dr["رقم الموظف بجهته الأصلية"] = employee.TabCode.HasValue ? employee.TabCode.Value.ToString() : string.Empty;
+                dr["كود تجارة"] = employee.TegaraCode.HasValue ? employee.TegaraCode.Value.ToString() : string.Empty;
+                dr["الاسم"] = employee.Name;
+                dr["الرقم القومى"] = employee.Id.ToString();
+                dr["الإدارة"] = employee.Section;
+                dr["القطاع"] = employee.Collage;
+                dr["اسم القسم"] = employee.DepartmentId.HasValue ? departments.SingleOrDefault(x => x.Id == employee.DepartmentId).Name : string.Empty;
+                dr["الايميل"] = employee.Email;
+                dr["البنك"] = string.Empty;
+                dr["الفرع"] = string.Empty;
+                dr["رقم الحساب"] = string.Empty;
+                dt2.Rows.Add(dr);
+
+            }
+
+            workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "رقم الموظف بجهته الأصلية", "كود تجارة", "الاسم", "الرقم القومى", "الإدارة", "القطاع", "اسم القسم", "الايميل", "البنك", "الفرع", "رقم الحساب" }, dt2);
+
+
+
+            if (workbook == null)
+            {
+                return null;
+            }
+            string tempPath = Path.GetTempPath();
+            string filePath = Path.Combine(tempPath, Path.GetTempFileName() + ".xlsx");
+            var memory = new MemoryStream();
+
+            FileStream fs;
+            using (var ms = new MemoryStream())
+            {
+                fs = new FileStream(filePath, System.IO.FileMode.Create);
+                workbook.Write(fs);
+            }
+
+            await using (var stream = new FileStream(filePath, FileMode.Open))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+
+            return memory;
+
         }
     }
 }

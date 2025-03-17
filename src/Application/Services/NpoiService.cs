@@ -4,8 +4,6 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using NPOI.HSSF.UserModel;
-using NPOI.HSSF.Util;
-using NPOI.SS.Formula.Functions;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 
@@ -13,16 +11,23 @@ namespace Application.Services
 {
     public class NpoiServiceProvider
     {
-        IWorkbook workbook;
-        int headerIndex = 0;
+        private IWorkbook workbook;
+        private int headerIndex = 0;
+        private XSSFCellStyle headerStyle; // نمط العناوين
+        private XSSFCellStyle rowStyle;    // نمط الصفوف
+        private XSSFCellStyle titleStyle;  // نمط العنوان
+
         public NpoiServiceProvider()
         {
             if (workbook == null)
+            {
                 workbook = new XSSFWorkbook();
+                InitializeStyles(); // تهيئة الأنماط مرة واحدة
+            }
         }
+
         public NpoiServiceProvider(string path)
         {
-            //get extension
             string extension = Path.GetExtension(path);
             if (extension == ".xls")
             {
@@ -30,56 +35,14 @@ namespace Application.Services
             }
             else if (extension == ".xlsx")
             {
-                workbook = WorkbookFactory.Create(path); // new XSSFWorkbook();
+                workbook = WorkbookFactory.Create(path);
             }
             else
             {
                 throw new Exception("Invalid file type");
             }
-
+            InitializeStyles(); // تهيئة الأنماط بعد تحميل الملف
         }
-
-        public List<string> GetSheetsName()
-        {
-            List<string> workbookSheets = new List<string>();
-            var sheets = workbook.GetAllNames();
-            foreach (var sheet in sheets)
-            {
-                workbookSheets.Add(sheet.SheetName);
-            }
-            return workbookSheets;
-        }
-
-        //read sheet headers
-        public List<string> GetHeadersBySheerName(string sheetName, int rowIndex = 0)
-        {
-            headerIndex = rowIndex;
-            List<string> headers = new List<string>();
-            ISheet sheet = workbook.GetSheet(sheetName);
-            IRow headerRow = sheet.GetRow(rowIndex);
-            for (int i = 0; i < headerRow.LastCellNum; i++)
-            {
-                ICell cell = headerRow.GetCell(i);
-                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
-                headers.Add(cell.ToString());
-            }
-            return headers;
-        }
-        public List<string> GetHeadersByIndex(int sheetIndex, int rowIndex = 0)
-        {
-            headerIndex = rowIndex;
-            List<string> headers = new List<string>();
-            ISheet sheet = workbook.GetSheetAt(sheetIndex);
-            IRow headerRow = sheet.GetRow(rowIndex);
-            for (int i = 0; i < headerRow.LastCellNum; i++)
-            {
-                ICell cell = headerRow.GetCell(i);
-                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
-                headers.Add(cell.ToString());
-            }
-            return headers;
-        }
-
         public DataTable ReadSheeBySheetName(string sheetName, int startRowIndex = 0)
         {
             ISheet sheet = workbook.GetSheet(sheetName);
@@ -90,7 +53,6 @@ namespace Application.Services
             ISheet sheet = workbook.GetSheetAt(sheetIndex);
             return ReadSheetData(sheet, startRowIndex);
         }
-
 
         //Read SheetData And ConvertItTo DataTable
         private DataTable ReadSheetData(ISheet sheetElement, int startRowIndex = 0)
@@ -120,42 +82,71 @@ namespace Application.Services
             }
             return dt;
         }
+        //read sheet headers
+        public List<string> GetHeadersBySheerName(string sheetName, int rowIndex = 0)
+        {
+            headerIndex = rowIndex;
+            List<string> headers = new List<string>();
+            ISheet sheet = workbook.GetSheet(sheetName);
+            IRow headerRow = sheet.GetRow(rowIndex);
+            for (int i = 0; i < headerRow.LastCellNum; i++)
+            {
+                ICell cell = headerRow.GetCell(i);
+                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
+                headers.Add(cell.ToString());
+            }
+            return headers;
+        }
+        public List<string> GetHeadersByIndex(int sheetIndex, int rowIndex = 0)
+        {
+            headerIndex = rowIndex;
+            List<string> headers = new List<string>();
+            ISheet sheet = workbook.GetSheetAt(sheetIndex);
+            IRow headerRow = sheet.GetRow(rowIndex);
+            for (int i = 0; i < headerRow.LastCellNum; i++)
+            {
+                ICell cell = headerRow.GetCell(i);
+                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
+                headers.Add(cell.ToString());
+            }
+            return headers;
+        }
+        // تهيئة الأنماط مرة واحدة
+        private void InitializeStyles()
+        {
+            var xssfWorkbook = workbook as XSSFWorkbook;
+            headerStyle = HeaderStyle(xssfWorkbook);
+            rowStyle = RowStyle(xssfWorkbook);
+            titleStyle = TitleStyle(xssfWorkbook);
+        }
+
+        // ... (دوال أخرى مثل GetSheetsName و GetHeadersBySheerName بدون تغيير)
 
         public async Task<IWorkbook> CreateExcelFile(string sheetName, string[] ColumnsNames, DataTable data, string Title = null)
         {
-
-
-            //check if sheet name dublicated
-
-
-            headerIndex = 0;
-            if (Title != null)
-                headerIndex = 1;
+            headerIndex = Title != null ? 1 : 0;
 
             ISheet sheet = workbook.CreateSheet(sheetName.Length > 31 ? sheetName.Substring(0, 31) : sheetName);
-
             sheet.SetMargin(MarginType.LeftMargin, 0.2);
             sheet.SetMargin(MarginType.RightMargin, 0.2);
             sheet.IsRightToLeft = true;
+
             if (Title != null)
             {
                 IRow titleRow = sheet.CreateRow(0);
                 titleRow.Height = 900;
                 titleRow.CreateCell(0).SetCellValue(Title);
-                titleRow.Cells[0].CellStyle = TitleStyle(workbook as XSSFWorkbook);
+                titleRow.Cells[0].CellStyle = titleStyle; // استخدام نمط العنوان المُعد مسبقًا
                 sheet.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(0, 0, 0, ColumnsNames.Length - 1));
             }
+
             IRow headerRow = sheet.CreateRow(headerIndex);
             headerRow.Height = 600;
-
-            XSSFCellStyle headerStyle = HeaderStyle(workbook as XSSFWorkbook);
-
 
             for (int i = 0; i < ColumnsNames.Length; i++)
             {
                 headerRow.CreateCell(i).SetCellValue(ColumnsNames[i]);
-                headerRow.Cells[i].CellStyle.SetFont(HeaderFont(workbook as XSSFWorkbook));
-                headerRow.Cells[i].CellStyle = headerStyle;
+                headerRow.Cells[i].CellStyle = headerStyle; // استخدام نمط العناوين المُعد مسبقًا
             }
 
             for (int i = 0; i < data.Rows.Count; i++)
@@ -163,12 +154,11 @@ namespace Application.Services
                 IRow row = sheet.CreateRow(i + headerIndex + 1);
                 row.Height = 600;
                 await CreateRow(i + headerIndex + 1, data.Rows[i], row);
-
             }
+
             for (int i = 0; i < ColumnsNames.Length; i++)
             {
                 sheet.AutoSizeColumn(i);
-
             }
             return workbook;
         }
@@ -176,13 +166,35 @@ namespace Application.Services
         public async Task<IWorkbook> OpenAndWriteSheetByName(string sheetName, DataTable data, int rowIndex = 0)
         {
             ISheet sheet = workbook.GetSheet(sheetName);
-
             sheet.IsRightToLeft = true;
+
             foreach (DataRow row in data.Rows)
             {
                 await CreateRow(rowIndex, row, sheet.CreateRow(rowIndex++));
             }
             return workbook;
+        }
+        private ICell CheckCell(ICell cell, object value)
+        {
+            //check if value is double or not
+            if (value is double)
+            {
+                //how to cast object to double
+
+                cell.SetCellType(CellType.Numeric);
+                cell.SetCellValue(double.TryParse(value.ToString(), out double result) ? result : 0);
+                return cell;
+
+            }
+            else if (value is string)
+            {
+                cell.SetCellType(CellType.String);
+                cell.SetCellValue(value.ToString());
+                return cell;
+            }
+            return cell;
+
+
         }
 
         private async Task CreateRow(int rowIndex, DataRow row, IRow rowElement)
@@ -192,44 +204,48 @@ namespace Application.Services
                 rowElement.CreateCell(i);
             }
 
-            if (row.ItemArray.Length >= 1 && !string.IsNullOrWhiteSpace(row.ItemArray[0].ToString()) && row.ItemArray[0] != null)
+            if (row.ItemArray.Length >= 1)
             {
-                rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
-                rowElement.Cells[0].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+                // rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
+                CheckCell(rowElement.GetCell(0), row.ItemArray[0].ToString());
+                rowElement.Cells[0].CellStyle = rowStyle; // استخدام نمط الصفوف المُعد مسبقًا
             }
-            if (row.ItemArray.Length >= 2 && !string.IsNullOrWhiteSpace(row.ItemArray[1].ToString()) && row.ItemArray[1] != null)
+            if (row.ItemArray.Length >= 2)
             {
-                rowElement.GetCell(1).SetCellValue(row[1].ToString());
-                rowElement.Cells[1].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+                CheckCell(rowElement.GetCell(1), row.ItemArray[1].ToString());
+                // rowElement.GetCell(1).SetCellValue(row[1].ToString());
+                rowElement.Cells[1].CellStyle = rowStyle;
             }
-
-            if (row.ItemArray.Length >= 3 && !string.IsNullOrWhiteSpace(row.ItemArray[2].ToString()) && row.ItemArray[2] != null)
+            if (row.ItemArray.Length >= 3)
             {
-                rowElement.GetCell(2).SetCellValue(double.TryParse(row.ItemArray[2].ToString(), out double result4) ? result4 : 0);
-                rowElement.Cells[2].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+                //  rowElement.GetCell(2).SetCellValue(double.TryParse(row.ItemArray[2].ToString(), out double result4) ? result4 : 0);
+                CheckCell(rowElement.GetCell(2), row.ItemArray[2].ToString());
+                rowElement.Cells[2].CellStyle = rowStyle;
             }
-            if (row.ItemArray.Length >= 4 && !string.IsNullOrWhiteSpace(row.ItemArray[3].ToString()) && row.ItemArray[3] != null)
+            if (row.ItemArray.Length >= 4)
             {
-                rowElement.GetCell(3).SetCellValue(double.TryParse(row.ItemArray[3].ToString(), out double result2) ? result2 : 0);
-                rowElement.Cells[3].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+                //rowElement.GetCell(3).SetCellValue(double.TryParse(row.ItemArray[3].ToString(), out double result2) ? result2 : 0);
+                CheckCell(rowElement.GetCell(3), row.ItemArray[3].ToString());
+                rowElement.Cells[3].CellStyle = rowStyle;
             }
-            if (row.ItemArray.Length >= 5 && !string.IsNullOrWhiteSpace(row.ItemArray[4].ToString()) && row.ItemArray[4] != null)
+            if (row.ItemArray.Length >= 5)
             {
-                rowElement.GetCell(4).SetCellValue(row.ItemArray[4].ToString());
-                rowElement.Cells[4].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+                // rowElement.GetCell(4).SetCellValue(row.ItemArray[4].ToString());
+                CheckCell(rowElement.GetCell(4), row.ItemArray[4].ToString());
+                rowElement.Cells[4].CellStyle = rowStyle;
             }
-            if (row.ItemArray.Length >= 6 && !string.IsNullOrWhiteSpace(row.ItemArray[5].ToString()) && row.ItemArray[5] != null)
+            if (row.ItemArray.Length >= 6)
             {
-                rowElement.GetCell(5).SetCellValue(row.ItemArray[5].ToString());
-                rowElement.Cells[5].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+                // rowElement.GetCell(5).SetCellValue(row.ItemArray[5].ToString());
+                CheckCell(rowElement.GetCell(5), row.ItemArray[5].ToString());
+                rowElement.Cells[5].CellStyle = rowStyle;
             }
-            if (row.ItemArray.Length >= 7 && !string.IsNullOrWhiteSpace(row.ItemArray[6].ToString()) && row.ItemArray[6] != null)
+            if (row.ItemArray.Length >= 7)
             {
-                rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
-                rowElement.Cells[6].CellStyle = await rowStyle(workbook as XSSFWorkbook);
+                // rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
+                CheckCell(rowElement.GetCell(6), row.ItemArray[6].ToString());
+                rowElement.Cells[6].CellStyle = rowStyle;
             }
-
-
         }
 
         private IFont HeaderFont(XSSFWorkbook workbook)
@@ -240,9 +256,9 @@ namespace Application.Services
             font.Color = NPOI.HSSF.Util.HSSFColor.Black.Index;
             font.Underline = FontUnderlineType.Single;
             font.IsBold = true;
-
             return font;
         }
+
         private IFont TitleFont(XSSFWorkbook workbook)
         {
             var font = workbook.CreateFont() as XSSFFont;
@@ -251,10 +267,9 @@ namespace Application.Services
             font.IsBold = true;
             font.Underline = FontUnderlineType.Single;
             font.Color = NPOI.HSSF.Util.HSSFColor.Black.Index;
-            font.Underline = FontUnderlineType.Single;
-
             return font;
         }
+
         private IFont RowFont(XSSFWorkbook workbook)
         {
             var font = workbook.CreateFont() as XSSFFont;
@@ -264,11 +279,9 @@ namespace Application.Services
             return font;
         }
 
-        private XSSFCellStyle HeaderStyle(XSSFWorkbook Workbook)
+        private XSSFCellStyle HeaderStyle(XSSFWorkbook workbook)
         {
             var headerCellStyle = (XSSFCellStyle)workbook.CreateCellStyle();
-
-            // headerCellStyle.FillForegroundColor = NPOI.HSSF.Util.HSSFColor.Grey80Percent.Index;
             headerCellStyle.SetFillForegroundColor(new XSSFColor(new byte[] { 200, 200, 200 }));
             headerCellStyle.FillPattern = FillPattern.SolidForeground;
             headerCellStyle.Alignment = HorizontalAlignment.Center;
@@ -279,39 +292,33 @@ namespace Application.Services
             headerCellStyle.BorderTop = BorderStyle.Thin;
             headerCellStyle.WrapText = true;
             headerCellStyle.BorderDiagonalLineStyle = BorderStyle.Thin;
-            headerCellStyle.SetFont(HeaderFont(Workbook as XSSFWorkbook));
-
+            headerCellStyle.SetFont(HeaderFont(workbook));
             return headerCellStyle;
         }
-        private async Task<XSSFCellStyle> rowStyle(XSSFWorkbook Workbook)
+
+        private XSSFCellStyle RowStyle(XSSFWorkbook workbook)
         {
-            var headerCellStyle = (XSSFCellStyle)workbook.CreateCellStyle();
-
-
-            headerCellStyle.Alignment = HorizontalAlignment.Center;
-            headerCellStyle.VerticalAlignment = VerticalAlignment.Center;
-            headerCellStyle.BorderBottom = BorderStyle.Thin;
-            headerCellStyle.BorderLeft = BorderStyle.Thin;
-            headerCellStyle.BorderRight = BorderStyle.Thin;
-            headerCellStyle.BorderTop = BorderStyle.Thin;
-            headerCellStyle.WrapText = true;
-            headerCellStyle.BorderDiagonalLineStyle = BorderStyle.Thin;
-            headerCellStyle.SetFont(RowFont(Workbook as XSSFWorkbook));
-
-            return await Task.FromResult(headerCellStyle);
+            var cellStyle = (XSSFCellStyle)workbook.CreateCellStyle();
+            cellStyle.Alignment = HorizontalAlignment.Center;
+            cellStyle.VerticalAlignment = VerticalAlignment.Center;
+            cellStyle.BorderBottom = BorderStyle.Thin;
+            cellStyle.BorderLeft = BorderStyle.Thin;
+            cellStyle.BorderRight = BorderStyle.Thin;
+            cellStyle.BorderTop = BorderStyle.Thin;
+            cellStyle.WrapText = true;
+            cellStyle.BorderDiagonalLineStyle = BorderStyle.Thin;
+            cellStyle.SetFont(RowFont(workbook));
+            return cellStyle;
         }
-        private XSSFCellStyle TitleStyle(XSSFWorkbook Workbook)
+
+        private XSSFCellStyle TitleStyle(XSSFWorkbook workbook)
         {
             var headerCellStyle = (XSSFCellStyle)workbook.CreateCellStyle();
             headerCellStyle.Alignment = HorizontalAlignment.Center;
             headerCellStyle.VerticalAlignment = VerticalAlignment.Center;
             headerCellStyle.WrapText = true;
-            headerCellStyle.SetFont(TitleFont(Workbook as XSSFWorkbook));
+            headerCellStyle.SetFont(TitleFont(workbook));
             return headerCellStyle;
         }
-
     }
-
-
 }
-
