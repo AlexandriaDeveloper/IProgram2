@@ -44,10 +44,10 @@ export class NavbarComponent {
     private breakpointObserver: BreakpointObserver,
 
   ) {
-    if (!this.auth.isAuthenticated()) {
-      //navigate to login page
-      this.router.navigate(['/account/login']);
-    }
+    // if (!this.auth.isAuthenticated()) {
+    //   //navigate to login page
+    //   this.router.navigate(['/account/login']);
+    // }
 
   }
 

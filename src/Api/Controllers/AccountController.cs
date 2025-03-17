@@ -43,9 +43,12 @@ namespace Api.Controllers
 
 
         [HttpGet]
+        [Authorize]
         public async Task<IActionResult> GetCurrentUser()
         {
-            return HandleResult<UserDto>(await _accountService.GetCurrentUserByNameAsync(User.Identity.Name));
+            var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (user == null) return NotFound();
+            return HandleResult<UserDto>(await _accountService.GetCurrentUserByNameAsync(user));
         }
         [HttpGet("emailexists")]
         public async Task<ActionResult<bool>> CheckEmailExistsAsync([FromQuery] string email)
@@ -152,6 +155,20 @@ namespace Api.Controllers
 
             return await Task.FromResult(Content("hello from secure controller"));
         }
+
+        // [Authorize]
+        // [HttpGet("GetCurrentUser")]
+        // public async Task<ActionResult<UserDto>> GetCurrentUser()
+        // {
+        //     var user = await _userManager.FindByEmailAsync(HttpContext.User);
+
+        //     return new UserDto
+        //     {
+        //         Email = user.Email,
+        //         Token = _tokenService.CreateToken(user),
+        //         DisplayName = user.DisplayName
+        //     };
+        // }
 
 
     }

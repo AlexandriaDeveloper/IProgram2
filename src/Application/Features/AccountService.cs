@@ -109,7 +109,7 @@ namespace Application.Features
         public async Task<Result<UserDto>> GetCurrentUserByNameAsync(string username)
         {
 
-            var user = await _accountRepository.GetUserByUsername(username);
+            var user = await _accountRepository.GetUserById(username);
             if (user == null)
             {
                 return Result.Failure<UserDto>(new Error("404", "User Not Found"));
@@ -119,7 +119,8 @@ namespace Application.Features
                 DisplayImage = user.DisplayImage,
                 Email = user.Email,
                 DisplayName = user.DisplayName,
-                Token = await _tokenService.CreateToken(user)
+                Token = await _tokenService.CreateToken(user),
+                Roles = await _roleRepository.GetUserRoles(user.Id)
 
             };
             Console.WriteLine(userToReturn.Token);

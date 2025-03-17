@@ -1,9 +1,10 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { environment } from '../../environment';
 import { Router } from '@angular/router';
 import { JwtHelperService } from '@auth0/angular-jwt';
 import { ChangePasswordRequest } from '../models/changePasswordRequest';
+import { map } from 'rxjs';
 @Injectable({
   providedIn: 'root',
 })
@@ -71,16 +72,35 @@ export class AuthService {
     }
     let isAdmin = false;
     isAdmin = this.currentUserSig().roles.map(x => x === 'Admin')[0] as boolean
-
+    //    console.log(this.currentUserSig().roles.);
     return isAdmin
   }
   isAuthenticated() {
     return this.currentUserSig() && !this.jwtHelper.isTokenExpired(this.currentUserSig().token);
+
   }
   test() {
     return this.http.get(this.apiUrl + 'secure/secure');
   }
   changePassword(model: ChangePasswordRequest) {
     return this.http.put(this.apiUrl + 'account/changePassword', model);
+  }
+  loadCurrentUser(token: string) {
+    if (token === null) {
+      this.currentUserSig.set(null);
+      return this.currentUserSig();
+    }
+
+    let headers = new HttpHeaders();
+    headers = headers.set('Authorization', `Bearer ${token}`);
+
+    return this.http.get(this.apiUrl + 'account', { headers }).pipe(
+      map((user: any) => {
+        if (user) {
+          localStorage.setItem('token', user.token);
+          this.currentUserSig.set(user);
+        }
+      })
+    );
   }
 }
