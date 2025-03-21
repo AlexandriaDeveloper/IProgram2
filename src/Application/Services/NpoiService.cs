@@ -202,50 +202,63 @@ namespace Application.Services
             for (int i = 0; i < row.ItemArray.Length; i++)
             {
                 rowElement.CreateCell(i);
+
+                if (row.ItemArray.Length > i)
+                {
+                    // rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
+                    CheckCell(rowElement.GetCell(i), row.ItemArray[i].ToString());
+                    rowElement.Cells[i].CellStyle = rowStyle; // استخدام نمط الصفوف المُعد مسبقًا
+                }
             }
 
-            if (row.ItemArray.Length >= 1)
-            {
-                // rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
-                CheckCell(rowElement.GetCell(0), row.ItemArray[0].ToString());
-                rowElement.Cells[0].CellStyle = rowStyle; // استخدام نمط الصفوف المُعد مسبقًا
-            }
-            if (row.ItemArray.Length >= 2)
-            {
-                CheckCell(rowElement.GetCell(1), row.ItemArray[1].ToString());
-                // rowElement.GetCell(1).SetCellValue(row[1].ToString());
-                rowElement.Cells[1].CellStyle = rowStyle;
-            }
-            if (row.ItemArray.Length >= 3)
-            {
-                //  rowElement.GetCell(2).SetCellValue(double.TryParse(row.ItemArray[2].ToString(), out double result4) ? result4 : 0);
-                CheckCell(rowElement.GetCell(2), row.ItemArray[2].ToString());
-                rowElement.Cells[2].CellStyle = rowStyle;
-            }
-            if (row.ItemArray.Length >= 4)
-            {
-                //rowElement.GetCell(3).SetCellValue(double.TryParse(row.ItemArray[3].ToString(), out double result2) ? result2 : 0);
-                CheckCell(rowElement.GetCell(3), row.ItemArray[3].ToString());
-                rowElement.Cells[3].CellStyle = rowStyle;
-            }
-            if (row.ItemArray.Length >= 5)
-            {
-                // rowElement.GetCell(4).SetCellValue(row.ItemArray[4].ToString());
-                CheckCell(rowElement.GetCell(4), row.ItemArray[4].ToString());
-                rowElement.Cells[4].CellStyle = rowStyle;
-            }
-            if (row.ItemArray.Length >= 6)
-            {
-                // rowElement.GetCell(5).SetCellValue(row.ItemArray[5].ToString());
-                CheckCell(rowElement.GetCell(5), row.ItemArray[5].ToString());
-                rowElement.Cells[5].CellStyle = rowStyle;
-            }
-            if (row.ItemArray.Length >= 7)
-            {
-                // rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
-                CheckCell(rowElement.GetCell(6), row.ItemArray[6].ToString());
-                rowElement.Cells[6].CellStyle = rowStyle;
-            }
+            // if (row.ItemArray.Length >= 1)
+            // {
+            //     // rowElement.GetCell(0).SetCellValue(double.TryParse(row.ItemArray[0].ToString(), out double result) ? result : 0);
+            //     CheckCell(rowElement.GetCell(0), row.ItemArray[0].ToString());
+            //     rowElement.Cells[0].CellStyle = rowStyle; // استخدام نمط الصفوف المُعد مسبقًا
+            // }
+            // if (row.ItemArray.Length >= 2)
+            // {
+            //     CheckCell(rowElement.GetCell(1), row.ItemArray[1].ToString());
+            //     // rowElement.GetCell(1).SetCellValue(row[1].ToString());
+            //     rowElement.Cells[1].CellStyle = rowStyle;
+            // }
+            // if (row.ItemArray.Length >= 3)
+            // {
+            //     //  rowElement.GetCell(2).SetCellValue(double.TryParse(row.ItemArray[2].ToString(), out double result4) ? result4 : 0);
+            //     CheckCell(rowElement.GetCell(2), row.ItemArray[2].ToString());
+            //     rowElement.Cells[2].CellStyle = rowStyle;
+            // }
+            // if (row.ItemArray.Length >= 4)
+            // {
+            //     //rowElement.GetCell(3).SetCellValue(double.TryParse(row.ItemArray[3].ToString(), out double result2) ? result2 : 0);
+            //     CheckCell(rowElement.GetCell(3), row.ItemArray[3].ToString());
+            //     rowElement.Cells[3].CellStyle = rowStyle;
+            // }
+            // if (row.ItemArray.Length >= 5)
+            // {
+            //     // rowElement.GetCell(4).SetCellValue(row.ItemArray[4].ToString());
+            //     CheckCell(rowElement.GetCell(4), row.ItemArray[4].ToString());
+            //     rowElement.Cells[4].CellStyle = rowStyle;
+            // }
+            // if (row.ItemArray.Length >= 6)
+            // {
+            //     // rowElement.GetCell(5).SetCellValue(row.ItemArray[5].ToString());
+            //     CheckCell(rowElement.GetCell(5), row.ItemArray[5].ToString());
+            //     rowElement.Cells[5].CellStyle = rowStyle;
+            // }
+            // if (row.ItemArray.Length >= 7)
+            // {
+            //     // rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
+            //     CheckCell(rowElement.GetCell(6), row.ItemArray[6].ToString());
+            //     rowElement.Cells[6].CellStyle = rowStyle;
+            // }
+            // if (row.ItemArray.Length >= 8)
+            // {
+            //     // rowElement.GetCell(6).SetCellValue(double.TryParse(row.ItemArray[6].ToString(), out double result3) ? result3 : 0);
+            //     CheckCell(rowElement.GetCell(7), row.ItemArray[7].ToString());
+            //     rowElement.Cells[7].CellStyle = rowStyle;
+            // }
         }
 
         private IFont HeaderFont(XSSFWorkbook workbook)

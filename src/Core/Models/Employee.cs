@@ -32,7 +32,7 @@ namespace Core.Models
         public int? DepartmentId { get; set; }
 
         public Department Department { get; set; }
-        public EmployeeBank EmployeeBank { get; set; }
+        public EmployeeBank? EmployeeBank { get; set; } = null;
         public ICollection<FormDetails> FormDetails { get; set; }
         public ICollection<EmployeeRefernce> EmployeeRefernces { get; set; }
 

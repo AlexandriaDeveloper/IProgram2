@@ -1,5 +1,5 @@
 import { HttpEventType } from '@angular/common/http';
-import { Component, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { Observable, map, from, mergeMap, finalize } from 'rxjs';
 import { ToasterService } from '../../shared/components/toaster/toaster.service';
@@ -13,7 +13,27 @@ import { EmployeeService } from '../../shared/service/employee.service';
   templateUrl: './upload-employee-tegara.component.html',
   styleUrl: './upload-employee-tegara.component.scss'
 })
-export class UploadEmployeeTegaraComponent implements OnInit {
+export class UploadEmployeeTegaraComponent implements OnInit, AfterViewInit {
+  collages: string[] = [];
+  sections: string[] = [];
+
+  departments: string[] = [];
+
+  ngAfterViewInit(): void {
+    this.loadCollages().subscribe((x: []) => {
+      console.log(x);
+      this.collages = x;
+    })
+    this.loadSections().subscribe((x: []) => {
+      console.log(x);
+      this.sections = x;
+    })
+
+    this.loadDepartments().subscribe((data: []) => {
+      this.departments = data;
+
+    });
+  }
 
 
 
@@ -24,13 +44,38 @@ export class UploadEmployeeTegaraComponent implements OnInit {
   @ViewChild("fileDropRef", { static: false }) fileDropEl: UploadComponent;
   files: any[] = [];
   uploadForm: FormGroup;
+  searchForm: FormGroup;
 
   ngOnInit(): void {
+
     this.uploadForm = this.initUploadForm()
+    this.searchForm = this.initSearchForm()
   }
   initUploadForm() {
     return this.fb.group({
       file: []
+    })
+  }
+
+  loadCollages() {
+    return this.employeeService.GetCollages();
+  }
+  loadSections() {
+    return this.employeeService.GetSections();
+  }
+
+  loadDepartments() {
+    return this.employeeService.GetDepartments();
+  }
+
+
+  initSearchForm() {
+    return this.fb.group({
+
+      departmentId: [],
+      section: [],
+      collage: []
+
     })
   }
   formatBytes(bytes, decimals = 2) {
@@ -43,14 +88,7 @@ export class UploadEmployeeTegaraComponent implements OnInit {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
   }
-  onFileSelected(ev) {
-    // console.log(ev.target.files);
 
-
-
-    // console.log(this.uploadForm.value);
-
-  }
 
 
 
@@ -108,6 +146,11 @@ export class UploadEmployeeTegaraComponent implements OnInit {
     this.employeeService.downloadEmployeesFile().subscribe();
   }
   downloadFile2() {
-    this.employeeService.downloadEmployeesFile2().subscribe();
+    this.employeeService.downloadEmployeesFile2(this.searchForm.value).subscribe();
+  }
+
+
+  onSearchSubmit() {
+    console.log(this.searchForm.value);
   }
 }

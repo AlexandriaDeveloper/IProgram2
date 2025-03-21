@@ -58,7 +58,7 @@ namespace Persistence.Specifications
 
     public class EmployeeCountSpecification : Specification<Employee>
     {
-        public EmployeeCountSpecification(EmployeeParam param)
+        public EmployeeCountSpecification(EmployeeParam param) : base(x => x.IsActive == true)
         {
             AddInclude(x => x.Department);
             AddInclude(x => x.EmployeeBank);

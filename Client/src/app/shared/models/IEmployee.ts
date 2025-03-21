@@ -51,3 +51,11 @@ export class EmployeeReportRequest {
   startDate?: string;
   endDate?: string;
 }
+
+export class EmployeeDownloadParam {
+  departmentId?: string;
+  collage?: string;
+  section?: string;
+
+
+}

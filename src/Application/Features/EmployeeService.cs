@@ -640,10 +640,12 @@ namespace Application.Features
         }
 
 
-        public async Task<MemoryStream> DownloadAllEmployees()
+        public async Task<MemoryStream> DownloadAllEmployees(DownloadAllEmployeesParam employeeParam)
         {
-            var employees = await _employeeRepository.ListAllAsync();
-            var departments = await _departmentRepository.ListAllAsync();
+            var spec = new DownloadAllEmployeeSpecification(employeeParam);
+            spec.PaginationEnabled = false;
+            var employees = await _employeeRepository.ListAllAsync(spec);
+            // var departments = await _departmentRepository.ListAllAsync();
             var npoi = new NpoiServiceProvider();
             IWorkbook workbook = null;
             int i = 1;
@@ -673,11 +675,20 @@ namespace Application.Features
                 dr["الرقم القومى"] = employee.Id.ToString();
                 dr["الإدارة"] = employee.Section;
                 dr["القطاع"] = employee.Collage;
-                dr["اسم القسم"] = employee.DepartmentId.HasValue ? departments.SingleOrDefault(x => x.Id == employee.DepartmentId).Name : string.Empty;
+                dr["اسم القسم"] = employee.DepartmentId.HasValue ? employee.Department.Name : string.Empty;
                 dr["الايميل"] = employee.Email;
-                dr["البنك"] = string.Empty;
-                dr["الفرع"] = string.Empty;
-                dr["رقم الحساب"] = string.Empty;
+                if (employee.EmployeeBank != null)
+                {
+                    dr["البنك"] = employee.EmployeeBank.BankName;
+                    dr["الفرع"] = employee.EmployeeBank.BranchName;
+                    dr["رقم الحساب"] = employee.EmployeeBank.AccountNumber;
+                }
+                else
+                {
+                    dr["البنك"] = string.Empty;
+                    dr["الفرع"] = string.Empty;
+                    dr["رقم الحساب"] = string.Empty;
+                }
                 dt2.Rows.Add(dr);
 
             }
@@ -709,6 +720,17 @@ namespace Application.Features
 
             return memory;
 
+        }
+
+        public async Task<List<string>> GetSectionsName()
+        {
+            var sections = _employeeRepository.GetQueryable().Select(x => x.Section).Distinct().ToList();
+            return await Task.FromResult(sections);
+        }
+        public async Task<List<string>> GetCollagesName()
+        {
+            var collages = _employeeRepository.GetQueryable().Select(x => x.Collage).Distinct().ToList();
+            return await Task.FromResult(collages);
         }
     }
 }

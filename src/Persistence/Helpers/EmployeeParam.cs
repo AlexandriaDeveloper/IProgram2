@@ -11,4 +11,6 @@ namespace Persistence.Helpers
         public string DepartmentName { get; set; }
         public string Id { get; set; }
     }
+
+
 }

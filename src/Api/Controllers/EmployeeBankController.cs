@@ -15,6 +15,16 @@ namespace Api.Controllers
             this._employeeBankService = employeeBankService;
 
         }
+        [HttpGet("GetBanks")]
+        public async Task<IActionResult> GetAllBanks()
+        {
+            return HandleResult(await this._employeeBankService.GetAllBanks());
+        }
+        [HttpGet("GetBankBranches")]
+        public async Task<IActionResult> GetAllBranches(string bankName)
+        {
+            return HandleResult(await this._employeeBankService.GetAllBranches(bankName));
+        }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEmployeeBank(string id)

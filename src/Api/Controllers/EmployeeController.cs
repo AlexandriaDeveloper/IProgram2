@@ -89,13 +89,24 @@ namespace Api.Controllers
             return HandleResult<EmployeeReportDto>(await _employeeService.EmployeeReport(request));
         }
         [HttpGet("download-employees/")]
-        public async Task<FileResult> DownloadFile()
+        public async Task<FileResult> DownloadFile([FromQuery] DownloadAllEmployeesParam param = null)
         {
-            var ms = await _employeeService.DownloadAllEmployees();
+            var ms = await _employeeService.DownloadAllEmployees(param);
 
             return File(ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "employees.xlsx");
 
 
+        }
+        [HttpGet("GetCollages")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetCollages()
+        {
+            return HandleResult<List<string>>(await _employeeService.GetCollagesName());
+        }
+        [HttpGet("GetSections")]
+        public async Task<IActionResult> GetSections()
+        {
+            return HandleResult<List<string>>(await _employeeService.GetSectionsName());
         }
 
         [HttpDelete("SoftDelete/{id}")]

@@ -1,4 +1,4 @@
-import { EmployeeParam, EmployeeReportRequest } from '../models/IEmployee';
+import { EmployeeDownloadParam, EmployeeParam, EmployeeReportRequest } from '../models/IEmployee';
 import { HttpClient, HttpEventType, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environment';
@@ -9,6 +9,8 @@ import { catchError, map, of, tap } from 'rxjs';
   providedIn: 'root'
 })
 export class EmployeeService {
+
+
   apiUrl = environment.apiUrl;
   http = inject(HttpClient);
   constructor() { }
@@ -115,8 +117,12 @@ export class EmployeeService {
     );
   }
 
-  downloadEmployeesFile2() {
-    return this.http.get(this.apiUrl + 'employee/download-employees/', { observe: 'response', responseType: 'blob' }).pipe(
+  downloadEmployeesFile2(employeeDownloadParam: EmployeeDownloadParam) {
+    let params = new HttpParams();
+    if (employeeDownloadParam.departmentId) params = params.append('departmentId', employeeDownloadParam.departmentId);
+    if (employeeDownloadParam.collage) params = params.append('collage', employeeDownloadParam.collage);
+    if (employeeDownloadParam.section) params = params.append('section', employeeDownloadParam.section);
+    return this.http.get(this.apiUrl + 'employee/download-employees/', { observe: 'response', responseType: 'blob', params }).pipe(
       map((x: HttpResponse<any>) => {
         let blob = new Blob([x.body], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -131,6 +137,22 @@ export class EmployeeService {
   }
   Delete(id: string) {
     return this.http.delete(this.apiUrl + 'employee/' + id)
+  }
+
+  GetCollages() {
+    return this.http.get(this.apiUrl + 'employee/getCollages')
+  }
+  GetSections() {
+    return this.http.get(this.apiUrl + 'employee/getSections')
+  }
+  GetBanks() {
+    return this.http.get(this.apiUrl + 'employeeBank/getBanks')
+  }
+  GetBankBranches(bankName: string) {
+    return this.http.get(this.apiUrl + 'employeeBank/getBankBranches?bankName=' + bankName)
+  }
+  GetDepartments() {
+    return this.http.get(this.apiUrl + 'department/getAllDepartments')
   }
 }
 

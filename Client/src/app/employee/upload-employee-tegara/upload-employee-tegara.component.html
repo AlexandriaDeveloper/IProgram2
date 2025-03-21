@@ -2,13 +2,60 @@
   <mat-icon>download</mat-icon>
 </button>
 
-<button mat-icon-button color="warn" (click)="downloadFile2()">
+
+<!-- <button mat-icon-button color="warn" (click)="downloadFile2()">
   <mat-icon>download</mat-icon>
-</button>
+</button> -->
+
+
+
+<form [formGroup]="searchForm" (ngSubmit)="onSearchSubmit()" style=" background-color: rgba(0, 0, 0, 0.2)">
+  <div style="display: flex; justify-content: center;">
+    <!-- 
+    <mat-label style="color: #fff; font-size: large; font-weight: bold;">بحث</mat-label> -->
+  </div>
+
+
+  <div style="display: flex;margin: 20px;padding: 20px;">
+    <mat-form-field appearance="outline">
+      <mat-label> البحث بالكليه </mat-label>
+      <mat-select formControlName="collage">
+
+        <mat-option *ngFor="let collage of collages" [value]="collage">{{ collage }}</mat-option>
+      </mat-select>
+
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label> البحث بالوظيفه </mat-label>
+      <mat-select formControlName="section">
+
+        <mat-option *ngFor="let section of sections" [value]="section">{{ section }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label> البحث بالقسم </mat-label>
+      <mat-select formControlName="departmentId">
+
+        <mat-option *ngFor="let department of departments" [value]="department.id">{{ department.name }}</mat-option>
+      </mat-select>
+
+
+    </mat-form-field>
+
+
+  </div>
+  <div style="display: flex; justify-content: center;">
+    <button mat-raised-button color="primary" (click)="downloadFile2()">
+      <mat-icon>download</mat-icon>
+      تنزيل
+    </button>
+  </div>
+</form>
+
+
 <form [formGroup]="uploadForm">
 
-  <app-upload #fileDropRef (upload)="uploadFiles()" (change)="onFileSelected($event)"
-    formControlName="file"></app-upload>
+  <app-upload #fileDropRef (upload)="uploadFiles()" formControlName="file"></app-upload>
 
 
 </form>

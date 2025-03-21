@@ -93,5 +93,19 @@ namespace Application.Features
 
             return Result.Success(employeeBankToReturn);
         }
+
+        public async Task<Result<List<string>>> GetAllBanks()
+        {
+            var banks = _employeeBankRepository.GetQueryable().Select(x => x.BankName).Distinct().ToList();
+
+
+            return await Task.FromResult(Result.Success(banks));
+        }
+        public async Task<Result<List<string>>> GetAllBranches(string bankName)
+        {
+            var bankBranches = _employeeBankRepository.GetQueryable().Where(x => x.BankName.Equals(bankName)).Select(x => x.BranchName).Distinct().ToList();
+
+            return await Task.FromResult(Result.Success(bankBranches));
+        }
     }
 }
