@@ -272,26 +272,24 @@ namespace Application.Features
                 colIndex = dt.Columns.IndexOf("الرقم القومى");
             }
 
-            if (dt.Columns.Contains("الرقم القومي"))
+            else if (dt.Columns.Contains("الرقم القومي"))
             {
                 colIndex = dt.Columns.IndexOf("الرقم القومي");
             }
-            // if (dt.Columns.Contains("كود تجارة"))
+
+            // else if (dt.Columns.Contains("كود تجارة"))
             // {
-            //     tegaraIndex = dt.Columns.IndexOf("كود تجارة");
+            //     colIndex = dt.Columns.IndexOf("كود تجارة");
             // }
-            // if (dt.Columns.Contains("رقم الموظف بجهته الأصلية"))
+            // else if (dt.Columns.Contains("رقم الموظف بجهته الأصلية"))
             // {
-            //     tabIndex = dt.Columns.IndexOf("رقم الموظف بجهته الأصلية");
+            //     colIndex = dt.Columns.IndexOf("رقم الموظف بجهته الأصلية");
             // }
-            // if (colIndex == -1 && tegaraIndex == -1 && tabIndex == -1)
-            // {
-            //     return Result.Failure(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
-            // }
-            if (colIndex == -1)
+            else if (colIndex == -1)
             {
                 return Result.Failure(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
+            colIndex = 0;
             foreach (DataRow row in dt.Rows)
             {
 
@@ -300,7 +298,7 @@ namespace Application.Features
                     continue;
                 }
                 Employee empExist = null;
-                empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString());
+                empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString(), true);
                 if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
                 {
                     empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.Id == row.ItemArray[colIndex].ToString());
@@ -490,18 +488,7 @@ namespace Application.Features
                 }
 
             }
-            if (columns.Contains("اسم القسم") && row["اسم القسم"] != null && !string.IsNullOrEmpty(row["اسم القسم"].ToString()))
-            {
-                var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["اسم القسم"].ToString().Trim());
-                if (department != null)
-                {
 
-
-                    empExist.DepartmentId = department.Id;
-                    hasUpdat = true;
-
-                }
-            }
 
             if (columns.Contains("الإدارة") && row["الإدارة"] != null && !string.IsNullOrEmpty(row["الإدارة"].ToString()))
             {
