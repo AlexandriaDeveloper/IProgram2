@@ -13,44 +13,43 @@ import { UploadComponent } from '../../../../shared/components/upload/upload.com
 })
 export class EmployeeReferencesComponent implements OnInit {
 
-  images: GalleryItem[]=null;
-  @Input('employeeId') employeeId:number
-  employeeReferenceServices=inject(EmployeeReferencesService);
+  images: GalleryItem[] = null;
+  @Input('employeeId') employeeId: number
+  employeeReferenceServices = inject(EmployeeReferencesService);
 
 
   ngOnInit(): void {
     // console.log('tab is hits ');
-    if(this.images==null)
-    {
+    if (this.images == null) {
       this.loadRefernces();
     }
 
   }
 
-  loadRefernces(){
+  loadRefernces() {
     this.employeeReferenceServices.getEmployeeReferences(this.employeeId).subscribe({
-      next:(res:any)=>{
-        // console.log(res);
+      next: (res: any) => {
+        console.log(res);
 
-          this.images = res.map(x=>new ImageItem({ src: x.referencePath, thumb: x.referencePath ,args:{id:x.id}}));
-      //this.galleryRef.load(this.images);
+        this.images = res.map(x => new ImageItem({ src: x.referencePath, thumb: x.referencePath, args: { id: x.id } }));
+        //this.galleryRef.load(this.images);
       }
     })
   }
 
-  saveImage(imageSrc){
+  saveImage(imageSrc) {
 
-     window.open(imageSrc,'_blank');
+    window.open(imageSrc, '_blank');
   }
-  deleteImage(imageItem){
-if(confirm('هل تريد حذف هذا المستند؟')){
-  this.employeeReferenceServices.deleteEmployeeReference(imageItem?.args?.id).subscribe({
-    next:(res)=>{
-      // console.log(res);
-      this.loadRefernces();
+  deleteImage(imageItem) {
+    if (confirm('هل تريد حذف هذا المستند؟')) {
+      this.employeeReferenceServices.deleteEmployeeReference(imageItem?.args?.id).subscribe({
+        next: (res) => {
+          console.log(res);
+          this.loadRefernces();
+        }
+      })
     }
-  })
-}
 
   }
 

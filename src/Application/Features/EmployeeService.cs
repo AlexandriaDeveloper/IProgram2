@@ -289,7 +289,7 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "الملف غير صالح للرفع الرجاء التأكد من الملف"));
             }
-            colIndex = 0;
+            //  colIndex = 0;
             foreach (DataRow row in dt.Rows)
             {
 
@@ -498,6 +498,9 @@ namespace Application.Features
                     hasUpdat = true;
                 }
             }
+
+
+
 
             if (columns.Contains("الايميل") && row["الايميل"] != null && !string.IsNullOrEmpty(row["الايميل"].ToString()))
             {

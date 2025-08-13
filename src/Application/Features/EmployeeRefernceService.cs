@@ -72,12 +72,25 @@ namespace Application.Features
         {
             var fileName = request.EmployeeId.ToString() + "_" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + Path.GetExtension(request.File.FileName);
             //check directory exist
-            if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences")))
-            {
-                Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences"));
-            }
+            // if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences")))
+            // {
+            //     Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences"));
+            // }
 
-            var path = Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences", fileName);
+            // var path = Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences", fileName);
+
+            var path = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "EmployeeReferences", fileName);
+            //check directory exist
+            if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "Content", "EmployeeReferences")))
+            {
+                Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "Content", "EmployeeReferences"));
+            }
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+            //save file
+
 
 
             using (var fileStream = new FileStream(path, FileMode.Create))

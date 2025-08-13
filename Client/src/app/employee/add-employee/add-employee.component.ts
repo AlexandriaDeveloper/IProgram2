@@ -16,56 +16,56 @@ import { DepartmentService } from '../../shared/service/department.service';
 export class AddEmployeeComponent implements OnInit {
   fb = inject(FormBuilder)
   employeeService = inject(EmployeeService)
-  departmentService =inject(DepartmentService)
+  departmentService = inject(DepartmentService)
 
   toaster = inject(ToasterService)
 
-  employee : IEmployee = {
-    name: 'محمد على شريف',
-    tabCode :null,
-    tegaraCode : null,
-    id:'12345678901234',
-    collage:'طب',
-    departmentId : null
+  employee: IEmployee = {
+    name: null,
+    tabCode: null,
+    tegaraCode: null,
+    id: null,
+    collage: null,
+    departmentId: null
   };
-  form : FormGroup;
-  departments : any[]=[];
+  form: FormGroup;
+  departments: any[] = [];
 
   ngOnInit(): void {
     this.loadDepartrments();
-  this.form=this.initForm();
+    this.form = this.initForm();
 
   }
-  loadDepartrments(){
+  loadDepartrments() {
 
     this.departmentService.getAllDepartments().subscribe({
-      next:(res:any)=>{
+      next: (res: any) => {
         console.log(res);
 
-        this.departments=res;
+        this.departments = res;
       },
-      error:(err)=> console.log(err)
+      error: (err) => console.log(err)
     })
   }
 
-  initForm (){
- return   this.fb.group({
-      name : [this.employee?.name,[Validators.required]],
-      collage : [this.employee?.collage,[]],
-      tabCode : [this.employee?.tabCode,[]],
-      tegaraCode : [this.employee?.tegaraCode,[]],
-      id : [this.employee?.id,[Validators.required]],
-      departmentId : [this.employee?.departmentId,[]]
+  initForm() {
+    return this.fb.group({
+      name: [this.employee?.name, [Validators.required]],
+      collage: [this.employee?.collage, []],
+      tabCode: [this.employee?.tabCode, []],
+      tegaraCode: [this.employee?.tegaraCode, []],
+      id: [this.employee?.id, [Validators.required, Validators.maxLength(14), Validators.minLength(14)]],
+      departmentId: [this.employee?.departmentId, []]
     })
   }
 
-  onSubmit(){
+  onSubmit() {
 
-   this.employee={...this.employee,...this.form.value};
-// console.log(this.employee);
+    this.employee = { ...this.employee, ...this.form.value };
+    // console.log(this.employee);
 
     this.employeeService.addEmployee(this.employee).subscribe({
-      next:(res)=>{this.toaster.openSuccessToaster('تم اضافة الموظف بنجاح','check');this.form.reset();},
+      next: (res) => { this.toaster.openSuccessToaster('تم اضافة الموظف بنجاح', 'check'); this.form.reset(); },
 
     })
   }
