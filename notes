@@ -1,6 +1,7 @@
  <Content Include="Content\**" CopyToPublishDirectory="PreserveNewest" />
 
  dotnet ef migrations add inital   -s src/API -p src/Infrastructure -c ApplicationContext   
+  dotnet ef database update   -s src/API -p src/Infrastructure 
 <!-- 
  Note that if you are creating your initial Script-Migration then leave the migration name blank. Leaving the migration name blank will also script the entire database.
 

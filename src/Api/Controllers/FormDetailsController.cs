@@ -42,6 +42,15 @@ namespace Api.Controllers
             }
             return HandleResult(await _formDetailsService.ReOrderRows(id, rows));
         }
+        [HttpPut("MarkAsReviewed/{id}")]
+        public async Task<IActionResult> MarkAsReviewed(int id, [FromBody] bool isReviewed)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<FormDetailsRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            return HandleResult(await _formDetailsService.MarkFormDetailsAsReviewed(id, isReviewed));
+        }
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEmployeeFromFormDetails(int id)
         {

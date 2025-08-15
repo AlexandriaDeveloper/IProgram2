@@ -12,6 +12,14 @@ namespace Core.Models
         public string EmployeeId { get; set; }
         public double Amount { get; set; }
         public int OrderNum { get; set; }
+        public bool IsReviewed { get; set; }
+        [MaxLength(100)]
+        public string IsReviewedBy { get; set; }
+        public DateTime? ReviewedAt { get; set; }
+        public string ReviewComments { get; set; }
+
+
+
         public Form Form { get; set; }
         public Employee Employee { get; set; }
     }

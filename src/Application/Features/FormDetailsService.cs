@@ -57,7 +57,9 @@ namespace Application.Features
                     TegaraCode = x.Employee.TegaraCode,
                     Amount = x.Amount,
                     EmployeeId = x.EmployeeId,
-                    Department = x.Employee?.Department == null ? null : x.Employee?.Department.Name
+                    Department = x.Employee?.Department == null ? null : x.Employee?.Department.Name,
+                    IsReviewed = x.IsReviewed
+
 
 
 
@@ -141,7 +143,9 @@ namespace Application.Features
                 formDetailsFromDb.EmployeeId = form.EmployeeId;
             }
 
-
+            formDetailsFromDb.IsReviewed = false;
+            formDetailsFromDb.ReviewedAt = null;
+            formDetailsFromDb.IsReviewedBy = null;
 
             _formDetailsRepository.Update(formDetailsFromDb);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
@@ -190,6 +194,35 @@ namespace Application.Features
             }
             await _unitOfWork.SaveChangesAsync();
             return Result.Success("تم التعديل بنجاح");
+        }
+        public async Task<Result> MarkFormDetailsAsReviewed(int formDetailsId, bool isReviewed)
+        {
+            var formDetails = await _formDetailsRepository.GetById(formDetailsId);
+            if (formDetails == null)
+            {
+                return Result.Failure(new Error("404", "عفوا التفاصيل غير موجودة"));
+            }
+
+            formDetails.IsReviewed = isReviewed;
+            if (isReviewed)
+            {
+                formDetails.ReviewedAt = DateTime.Now;
+                formDetails.IsReviewedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+            }
+            else
+            {
+                formDetails.ReviewedAt = null;
+                formDetails.IsReviewedBy = null;
+            }
+
+            _formDetailsRepository.Update(formDetails);
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "Internal Server Error"));
+            }
+
+            return Result.Success("تم وضع علامة المراجعة بنجاح");
         }
 
 
