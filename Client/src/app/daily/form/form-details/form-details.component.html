@@ -74,7 +74,8 @@
         </div>
       </th>
       <td mat-cell *matCellDef="let row" style="text-align: right !important;">
-        <mat-checkbox [checked]="row?.isReviewed" (change)="markAsReviewed(row.id, $event.checked)"></mat-checkbox>
+        <mat-checkbox *ngIf="!daily?.closed" [checked]="row?.isReviewed"
+          (change)="markAsReviewed(row.id, $event.checked)"></mat-checkbox>
         <!-- <button mat-icon-button [routerLink]="['/employee/details/'+row?.employeeId]" color="primary"
           class="info-button">
           <mat-icon>info</mat-icon>
@@ -139,6 +140,10 @@
 
       </th>
       <td mat-cell *matCellDef="let row">
+        <button mat-icon-button color="warn" class="info-button" *ngIf="row.reviewComments"
+          [matTooltip]="row.reviewComments" [matTooltipPosition]="'right'">
+          <mat-icon>info</mat-icon>
+        </button>
         <span [routerLink]="['/employee/details/'+row?.employeeId]">
           {{row.name}}
 
@@ -199,7 +204,7 @@
     </ng-container>
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
     <tr mat-row *matRowDef="let row; columns: displayedColumns;" [cdkDrag]="!daily.closed" [cdkDragData]=row
-      class="example-box"></tr>
+      class="example-box" [ngClass]="row.isReviewed?'reviewed':'not-reviewed'"></tr>
 
 
   </table>

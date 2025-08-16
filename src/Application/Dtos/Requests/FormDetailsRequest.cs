@@ -6,6 +6,7 @@ namespace Application.Dtos.Requests
         public int FormId { get; set; }
         public string EmployeeId { get; set; }
         public double Amount { get; set; }
+        public string ReviewComments { get; set; }
         //   public int OrderNum { get; set; }
 
     }

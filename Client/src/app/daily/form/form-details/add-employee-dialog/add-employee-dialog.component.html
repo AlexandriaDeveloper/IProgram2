@@ -39,7 +39,7 @@
         <div>
           <mat-form-field appearance="outline" class="form-dialog-input">
             <mat-label class="saerch-title">الرقم القومى</mat-label>
-            <input matInput placeholder="الرقم القومى" [value]="employee?.nationalId" color="primary" readonly>
+            <input matInput placeholder="الرقم القومى" [value]="employee?.id" color="primary" readonly>
           </mat-form-field>
         </div>
         <div>
@@ -52,6 +52,10 @@
         <div>
           <input formControlName="amount" [value]="employeeDetails?.amount" placeholder="المبلغ" class="data-input"
             style=" color: #fff;text-align: right;" type="number">
+        </div>
+        <div>
+          <textarea formControlName="reviewComments" [value]="employeeDetails?.reviewComments ?? ''"
+            placeholder="ملاحظات" class="data-input" style=" color: #fff;text-align: right;"></textarea>
         </div>
         <div class="action-buttons" style="padding-top: 10px;">
           <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">

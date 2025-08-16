@@ -14,6 +14,7 @@ namespace Application.Dtos
         //   public string NationalId { get; set; }
         public string Name { get; set; }
         public bool IsReviewed { get; set; }
+        public string ReviewComments { get; set; }
         //  public Form Form { get; set; }
         // public Employee Employee { get; set; }
 

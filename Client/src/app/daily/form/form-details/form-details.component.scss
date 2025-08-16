@@ -1,20 +1,32 @@
 @import "./../../../../assets/themes/varibale.scss";
-.container{
+
+.container {
   width: 80%;
   padding: 10px 10px;
   background-color: rgba(65, 90, 93, 0.8) !important;
 }
 
-.description-text{
+.description-text {
   color: $white-color;
   background-color: rgba($color: $primary-color, $alpha: 0.8);
   padding: 5px 20px;
   font-size: 18px;
   margin-bottom: 10px;
   border: rgba($color: $white-color, $alpha: 0.6) 4px solid;
-  border-radius: 10px ;
+  border-radius: 10px;
 
 }
 
+.reviewed {
+  opacity: 0.5;
+  background-color: rgba($color: #000000, $alpha: 0.4)
+}
 
+.is-not-reviewed {
+  opacity: 1;
+}
 
+.info-button {
+  color: red !important;
+
+}

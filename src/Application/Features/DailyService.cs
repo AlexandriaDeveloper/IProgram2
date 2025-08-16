@@ -282,7 +282,7 @@ namespace Application.Features
             dt2.Columns.Add("كود تجارة", typeof(string));
             dt2.Columns.Add("القسم", typeof(string));
             dt2.Columns.Add("الاسم", typeof(string));
-            dt2.Columns.Add("المبلغ", typeof(double));
+            dt2.Columns.Add("المبلغ", typeof(decimal));
             int counter2 = 1;
             foreach (var item in dailyToDataTable)
             {
@@ -293,7 +293,7 @@ namespace Application.Features
                 dr["كود تجارة"] = item.TegaraCode;
                 dr["القسم"] = item.Department == null ? "" : item.Department.Name;
                 dr["الاسم"] = item.Name;
-                dr.SetField("المبلغ", (double)item.Amount);
+                dr.SetField("المبلغ", (decimal)item.Amount);
                 dt2.Rows.Add(dr);
 
             }

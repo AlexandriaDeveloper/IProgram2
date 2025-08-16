@@ -58,7 +58,8 @@ namespace Application.Features
                     Amount = x.Amount,
                     EmployeeId = x.EmployeeId,
                     Department = x.Employee?.Department == null ? null : x.Employee?.Department.Name,
-                    IsReviewed = x.IsReviewed
+                    IsReviewed = x.IsReviewed,
+                    ReviewComments = x.ReviewComments
 
 
 
@@ -84,7 +85,8 @@ namespace Application.Features
                 EmployeeId = form.EmployeeId,
                 FormId = form.FormId,
                 OrderNum = _formDetailsRepository.GetMaxOrderNum(form.FormId) + 1,
-                IsActive = true
+                IsActive = true,
+                ReviewComments = form.ReviewComments ?? string.Empty
 
             });
             await _unitOfWork.SaveChangesAsync();
@@ -128,6 +130,7 @@ namespace Application.Features
         public async Task<Result> EditEmployeeToFormDetails(FormDetailsRequest form)
         {
             var formDetailsFromDb = await _formDetailsRepository.GetById(form.Id);
+
             if (formDetailsFromDb == null)
             {
                 return Result.Failure(new Error("400", "عفوا الموظف مسجل بالفعل فى الملف"));
@@ -146,6 +149,18 @@ namespace Application.Features
             formDetailsFromDb.IsReviewed = false;
             formDetailsFromDb.ReviewedAt = null;
             formDetailsFromDb.IsReviewedBy = null;
+            if (formDetailsFromDb.ReviewComments != form.ReviewComments)
+            {
+                if (string.IsNullOrEmpty(form.ReviewComments))
+                {
+                    formDetailsFromDb.ReviewComments = null;
+                }
+                else
+                {
+                    formDetailsFromDb.ReviewComments = form.ReviewComments;
+                }
+
+            }
 
             _formDetailsRepository.Update(formDetailsFromDb);
             var result = await _unitOfWork.SaveChangesAsync() > 0;

@@ -255,7 +255,8 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
 
     this.formDetailsService.markAsReviewed(id, isChecked).subscribe({
       next: (x: any) => {
-        this.toasterService.openSuccessToaster('تم تحديث حالة المراجعة بنجاح')
+        //  this.toasterService.openSuccessToaster('تم تحديث حالة المراجعة بنجاح')
+        this.loadData();
       },
       error: (err) => {
         this.toasterService.openErrorToaster('حدث خطأ أثناء تحديث حالة المراجعة')

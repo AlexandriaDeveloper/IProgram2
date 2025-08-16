@@ -28,7 +28,7 @@ export class AddEmployeeDialogComponent implements OnInit {
   employeeSearch: IEmployeeSearch = {
     employeeId: null,
     tegaraCode: null,
-    tabCode: null
+    tabCode: null,
   };
   employee: IEmployee;
   employeeDetails: AddEmployeeDetails = null;
@@ -61,7 +61,8 @@ export class AddEmployeeDialogComponent implements OnInit {
         id: this.data?.employeeDetails?.id,
         employeeId: this.data?.employeeDetails?.employeeId,
         formId: this.data?.employeeDetails?.formId,
-        amount: this.data?.employeeDetails?.amount
+        amount: this.data?.employeeDetails?.amount,
+        reviewComments: this.data?.employeeDetails?.reviewComments
       }
       this.form = this.initEmployeeForm();
     }
@@ -96,7 +97,7 @@ export class AddEmployeeDialogComponent implements OnInit {
           employeeId: x.id,
           formId: this.data?.formId,
           amount: this.employeeDetails?.amount ?? 0,
-
+          reviewComments: this.employeeDetails?.reviewComments ?? ''
         }
         this.form = this.initEmployeeForm();
 
@@ -111,11 +112,12 @@ export class AddEmployeeDialogComponent implements OnInit {
       id: [this.employeeDetails?.id, []],
       employeeId: [this.employeeDetails?.employeeId, []],
       formId: [this.employeeDetails?.formId, []],
-      amount: [this.employeeDetails?.amount, Validators.required]
+      amount: [this.employeeDetails?.amount, Validators.required],
+      reviewComments: [this.employeeDetails?.reviewComments, []]
     })
   }
   onSubmit() {
-    // console.log(this.form.value);
+    console.log(this.form.value);
     if (this.form.value.id === 0) {
       this.formDetailsService.addEmployeeToFormDetails(this.form.value).subscribe(x => {
         this.dialogRef.close();

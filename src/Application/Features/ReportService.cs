@@ -68,7 +68,7 @@ namespace Application.Features
             totalText = totalText.Replace("(", "");
             totalText = totalText.Replace(")", "");
             totalText = totalText.Replace("،", "");
-            QuestPDF.Drawing.FontManager.RegisterFont(File.OpenRead(_config["ApiContent"] + "Fonts/Cairo-Regular.ttf"));
+            QuestPDF.Drawing.FontManager.RegisterFont(File.OpenRead(_config["ApiImageContent"] + "Fonts/Cairo-Regular.ttf"));
 
             var pdf = QuestPDF.Fluent.Document.Create(c =>
              {
@@ -84,7 +84,7 @@ namespace Application.Features
                       {
                           c.Item().Row(r =>
                           {
-                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiContent"] + "images.png");
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiImageContent"] + "images.png");
                           });
                           if (!string.IsNullOrEmpty(formModel.Description))
                               c.Item().Column(c =>
@@ -197,7 +197,7 @@ namespace Application.Features
                           });
                       p.Background()
                       .AlignBottom()
-                      .Image(_config["ApiContent"] + "logo3.png");
+                      .Image(_config["ApiImageContent"] + "logo3.png");
                       p.Footer()
                              .Table(t =>
                              {
@@ -253,7 +253,7 @@ namespace Application.Features
                       {
                           c.Item().Row(r =>
                           {
-                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiContent"] + "images.png");
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiImageContent"] + "images.png");
                           });
                           //   if (!string.IsNullOrEmpty(formModel.Description))
                           //       c.Item().Column(c =>
@@ -331,7 +331,7 @@ namespace Application.Features
                           });
                       p.Background()
                       .AlignBottom()
-                      .Image(_config["ApiContent"] + "logo3.png");
+                      .Image(_config["ApiImageContent"] + "logo3.png");
                       p.Footer()
                              .Table(t =>
                              {
@@ -405,7 +405,7 @@ namespace Application.Features
                       {
                           c.Item().Row(r =>
                           {
-                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiContent"] + "images.png");
+                              r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiImageContent"] + "images.png");
                           });
 
                       });
@@ -526,7 +526,7 @@ namespace Application.Features
                           });
                       p.Background()
                       .AlignBottom()
-                      .Image(_config["ApiContent"] + "logo3.png");
+                      .Image(_config["ApiImageContent"] + "logo3.png");
                       p.Footer()
                              .Table(t =>
                              {
