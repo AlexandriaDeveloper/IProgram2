@@ -4,6 +4,7 @@ using Auth.Infrastructure;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace Persistence.Repository
 {
@@ -19,6 +20,11 @@ namespace Persistence.Repository
         {
             var entity = _context.Set<EmployeeBank>().FirstOrDefault(x => x.EmployeeId == employeeId);
             _context.Set<EmployeeBank>().Remove(entity);
+        }
+
+        public async Task<EmployeeBank> GetByEmployeeId(string employeeId)
+        {
+            return await _context.Set<EmployeeBank>().FirstOrDefaultAsync(x => x.EmployeeId == employeeId);
         }
     }
 }

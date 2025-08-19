@@ -16,4 +16,6 @@ namespace Core.Interfaces
         Task Delete(string id);
         Task DeActive(string id);
     }
+
+
 }

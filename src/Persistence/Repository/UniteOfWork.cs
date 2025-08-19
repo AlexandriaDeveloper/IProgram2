@@ -1,6 +1,7 @@
 
 using Auth.Infrastructure;
 using Core.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Persistence.Repository
 {
@@ -23,6 +24,10 @@ namespace Persistence.Repository
             try
             {
                 return context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new System.Exception("Concurrency error occurred: " + ex.Message);
             }
             catch (System.Exception ex)
             {

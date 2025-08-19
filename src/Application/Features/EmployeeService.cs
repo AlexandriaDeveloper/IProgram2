@@ -26,6 +26,7 @@ namespace Application.Features
         public EmployeeService(IEmployeeRepository employeeRepository,
          IFormDetailsRepository formDetailsRepository
         , IDepartmentRepository departmentRepository
+
         , IUniteOfWork uow, IConfiguration config,
         IHttpContextAccessor httpContextAccessor)
         {
@@ -298,8 +299,9 @@ namespace Application.Features
                     continue;
                 }
                 Employee empExist = null;
+                EmployeeBank employeeBankExist = null;
                 empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString(), true);
-                if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
+                if (empExist != null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
                 {
                     empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.Id == row.ItemArray[colIndex].ToString());
                 }
@@ -723,5 +725,9 @@ namespace Application.Features
             var collages = _employeeRepository.GetQueryable().Select(x => x.Collage).Distinct().ToList();
             return await Task.FromResult(collages);
         }
+
+
+
+
     }
 }
