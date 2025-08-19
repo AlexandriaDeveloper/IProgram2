@@ -8,6 +8,12 @@ namespace Persistence.Repository
     {
         private readonly ApplicationContext context;
 
+        /*************  ✨ Windsurf Command ⭐  *************/
+        /// <summary>
+        /// Initializes a new instance of the <see cref="UniteOfWork"/> class.
+        /// </summary>
+        /// <param name="context">The context.</param>
+        /*******  ed2684a2-cb0c-48bf-8e59-ff5bb26a2bbb  *******/
         public UniteOfWork(ApplicationContext context)
         {
             this.context = context;

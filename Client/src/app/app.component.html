@@ -1,13 +1,20 @@
-
-
-
-
 <div class="custom-theme">
 
   <app-navbar class="nav-bar">
     <div class="nav-bar-container">
-    <router-outlet></router-outlet>
-    </div>
-</app-navbar>
-</div>
+      <router-outlet>
+        <!-- global loading overlay -->
 
+
+
+        <div class="loading-overlay" *ngIf="loadingService.isLoading$ | async">
+          Loading.......
+          <mat-progress-spinner color="primary" mode="indeterminate" diameter="56"></mat-progress-spinner>
+        </div>
+      </router-outlet>
+
+
+    </div>
+
+  </app-navbar>
+</div>

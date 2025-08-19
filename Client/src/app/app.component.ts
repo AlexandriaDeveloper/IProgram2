@@ -2,6 +2,8 @@ import { Component, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule, RouterOutlet } from '@angular/router';
 import { AuthService } from './shared/service/auth.service';
+import { LoadingService } from './shared/service/loading.service';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AngularComponentsModule } from './shared/angular-components.module';
 import { SharedModule } from './shared/shared.module';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
@@ -21,13 +23,15 @@ interface IUser {
     RouterOutlet,
     RouterModule,
     SharedModule,
-    NavbarComponent
+    NavbarComponent,
+    MatProgressSpinnerModule
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
 export class AppComponent implements OnInit {
   constructor(private router: Router) { }
+  loadingService = inject(LoadingService);
   ngOnInit(): void {
 
     this.loadCurrentUser();

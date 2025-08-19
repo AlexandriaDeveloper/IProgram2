@@ -6,21 +6,34 @@
   min-height: 100%;
   z-index: -1;
 }
-.custom-theme{
+
+.custom-theme {
 
   height: 100vh !important;
 }
-.nav-bar{
+
+.nav-bar {
   position: sticky;
 
 }
-.nav-bar-container{
 
- div{
-  display: flex;
-  justify-content: center;
- }
+.nav-bar-container {
+
+  div {
+    display: flex;
+    justify-content: center;
+  }
 
 
 
+
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    background: rgba(255, 255, 255, 0.6);
+  }
 }

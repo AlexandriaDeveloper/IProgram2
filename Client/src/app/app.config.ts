@@ -1,12 +1,14 @@
-import {  ResponseInterceptor } from './shared/interceptors/response.interceptor';
+import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
 import { ApplicationConfig, importProvidersFrom } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { routes } from './app.routes';
-import {  provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { loadingInterceptor } from './shared/interceptors/loading.interceptor';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthInterceptor } from './shared/interceptors/auth.interceptor';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { ErrorInterceptor } from './shared/interceptors/error.interceptor';
-import {  GALLERY_CONFIG as DEFAULT_GALLERY_CONFIG, GalleryConfig, GalleryModule } from 'ng-gallery';
+import { GALLERY_CONFIG as DEFAULT_GALLERY_CONFIG, GalleryConfig, GalleryModule } from 'ng-gallery';
 export const appConfig: ApplicationConfig = {
 
   providers: [
@@ -22,13 +24,14 @@ export const appConfig: ApplicationConfig = {
 
       } as GalleryConfig
     },
-    provideAnimations() ,
+    provideAnimations(),
 
     provideRouter(routes),
-     provideHttpClient(withInterceptors(
-      [AuthInterceptor,ResponseInterceptor,ErrorInterceptor]
-      ))
-     , provideAnimations()
+    provideHttpClient(withInterceptors(
+      [AuthInterceptor, ResponseInterceptor, ErrorInterceptor, loadingInterceptor]
+    )),
+    importProvidersFrom(MatProgressSpinnerModule)
+    , provideAnimations()
 
   ]
 };

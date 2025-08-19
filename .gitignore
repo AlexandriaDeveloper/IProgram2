@@ -56,6 +56,7 @@ Client/src/assets/images/bg
 wwwroot
 
 
+
 # Node
 /node_modules
 npm-debug.log
@@ -79,7 +80,9 @@ yarn-error.log
 .history/*
 
 # Miscellaneous
-/.angular/cache
+
+.angular/*
+**/.angular/cache/*
 .sass-cache/
 /connect.lock
 /coverage

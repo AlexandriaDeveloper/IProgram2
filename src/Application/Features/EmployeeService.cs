@@ -515,6 +515,7 @@ namespace Application.Features
                 if (empExist.EmployeeBank == null && !string.IsNullOrEmpty(row["البنك"].ToString()))
                 {
                     empExist.EmployeeBank = new EmployeeBank();
+                    empExist.EmployeeBank.EmployeeId = empExist.Id;
                     empExist.EmployeeBank.CreatedAt = DateTime.Now;
                     empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
                     empExist.EmployeeBank.IsActive = true;

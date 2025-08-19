@@ -56,8 +56,14 @@ document.createElement('video');
     <!-- Add Content Here -->
 
     <div class="container">
+      <!-- global loading overlay -->
 
-      <ng-content></ng-content>
+
+      <ng-content>
+
+
+
+      </ng-content>
     </div>
   </mat-sidenav-content>
   <mat-sidenav #drawer class="sidenav" fixedInViewport [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
