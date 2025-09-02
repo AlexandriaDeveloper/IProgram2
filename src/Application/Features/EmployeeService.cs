@@ -674,7 +674,7 @@ namespace Application.Features
                 {
                     dr["البنك"] = employee.EmployeeBank.BankName;
                     dr["الفرع"] = employee.EmployeeBank.BranchName;
-                    dr["رقم الحساب"] = employee.EmployeeBank.AccountNumber;
+                    dr["رقم الحساب"] = employee.EmployeeBank.AccountNumber.ToString();
                 }
                 else
                 {
