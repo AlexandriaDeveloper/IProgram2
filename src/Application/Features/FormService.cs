@@ -75,6 +75,7 @@ namespace Application.Features
                 Count = x.FormDetails.Count,
                 TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
                 CreatedBy = _userManager.FindByIdAsync(x.CreatedBy).Result.DisplayName,
+                isReviewed = x.FormDetails.All(d => d.IsReviewed),
             }).ToList();
             var pagedResult = PaginatedResult<FormDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormDto>>(pagedResult);
