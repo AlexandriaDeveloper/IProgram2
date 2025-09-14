@@ -5,11 +5,12 @@ import { DescriptionDialogComponent } from './description-dialog/description-dia
 import { MatDialog } from '@angular/material/dialog';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
-import { MatTable } from '@angular/material/table';
+import { MatTable, MatTableDataSource } from '@angular/material/table';
 import { IEmployee } from '../../../shared/models/IEmployee';
 import { AddEmployeeDialogComponent } from './add-employee-dialog/add-employee-dialog.component';
-import { moveItemInArray } from '@angular/cdk/drag-drop';
+import { moveItemInArray, CdkDragDrop } from '@angular/cdk/drag-drop';
 import { fromEvent, debounceTime, distinctUntilChanged, map, Subscription } from 'rxjs';
+import { MatCheckboxChange } from '@angular/material/checkbox';
 import { FormService } from '../../../shared/service/form.service';
 import { ToasterService } from '../../../shared/components/toaster/toaster.service';
 import { ReferencesDialogComponent } from './references-dialog/references-dialog.component';
@@ -40,8 +41,11 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
   toasterService = inject(ToasterService);
   bottomSheet = inject(MatBottomSheet)
   data: any;
-  dataSource;
+  dataSource: MatTableDataSource<IEmployee>;
   filteredData: IEmployee[] = []
+  // (multi-sort UI removed) keep single-column MatSort
+  // active filter values per column
+  filterValues: { [key: string]: string } = {};
   displayedColumns = ['action', 'tabCode', 'tegaraCode', 'name', 'department', 'employeeId', 'amount']
   isLoading = false;
 
@@ -82,8 +86,15 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
 
   }
   ngAfterViewInit(): void {
+    // attach sort/paginator after view init
+    if (this.dataSource) {
+      this.dataSource.sort = this.sort;
+      if (this.paginator) this.dataSource.paginator = this.paginator;
+    }
     this.search();
   }
+
+  // multi-sort removed: using single-column MatSort only
   search() {
     this.initElement(this.tabCodeInput, 'tabCode');
     this.initElement(this.tegaraCodeInput, 'tegaraCode');
@@ -94,34 +105,12 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
 
   }
   initElement(element: ElementRef, param) {
-
-
     return fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
       map((event: any) => {
-        console.log(this.dataSource);
-
-        this.dataSource = this.data.formDetails;
-
-        if (event.target.value == '') {
-          return event.target.value
-        }
-
-        this.dataSource = this.data.formDetails.filter(x => {
-          console.log(param);
-
-          if (param === 'name' || param === 'employeeId' || param === 'department') {
-            if (x[param] !== null)
-              return x[param].includes(event.target.value);
-          }
-          else {
-            return x[param] == (event.target.value.toString());
-          }
-
-
-          // return x[param].includes(event.target.value)
-        });
-
-
+        const value = (event.target.value || '').toString().trim();
+        // update the filter value for this column and apply
+        this.filterValues[param] = value;
+        this.applyFilter();
         return event.target.value;
       })
     ).subscribe();
@@ -134,8 +123,33 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
       console.log(x);
 
       this.data = x;
-      // this.paginator.length=x.formDetails.length;
-      this.dataSource = x.formDetails
+      // set MatTableDataSource so sort/filter work
+      this.dataSource = new MatTableDataSource<IEmployee>(x.formDetails);
+      // setup filter predicate that checks each active filter value
+      this.dataSource.filterPredicate = (data: IEmployee, filter: string) => {
+        const fv = JSON.parse(filter || '{}');
+        // iterate filters
+        for (const key of Object.keys(fv)) {
+          const filterVal = (fv[key] || '').toString().trim();
+          if (!filterVal) continue;
+          const cell = (data as any)[key];
+          if (cell === null || cell === undefined) return false;
+          const cellStr = cell.toString();
+          // for name/employeeId/department do substring match, else startsWith
+          if (key === 'name' || key === 'employeeId' || key === 'department') {
+            if (!cellStr.includes(filterVal)) return false;
+          } else {
+            if (!cellStr.startsWith(filterVal)) return false;
+          }
+        }
+        return true;
+      };
+      // initialize filters
+      this.filterValues = {};
+      this.dataSource.filter = JSON.stringify(this.filterValues);
+      // attach sort/paginator if available
+      if (this.sort) this.dataSource.sort = this.sort;
+      if (this.paginator) this.dataSource.paginator = this.paginator;
     })
   }
   onChange(ev) {
@@ -234,32 +248,87 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
   exportPdf() {
     this.formDetailsService.exportForms(this.id).subscribe()
   }
-  drop(event) {
-    if (this.daily.closed) {
-      return;
-    }
-    // console.log(this.dataSource);
+  drop(event: CdkDragDrop<IEmployee[]>) {
+    if (this.daily?.closed) return;
 
-    const previousIndex = this.dataSource.findIndex(row => row === event.item.data);
-    moveItemInArray(this.dataSource, previousIndex, event.currentIndex);
+    // If no dataSource yet, nothing to do
+    if (!this.dataSource) return;
+
+    // Use previousIndex provided by the event when possible
+    const previousIndex = event.previousIndex;
+    const currentIndex = event.currentIndex;
+
+    // Make a shallow copy of the data array, mutate it, then replace the data reference
+    const newData = this.dataSource.data.slice();
+    moveItemInArray(newData, previousIndex, currentIndex);
+
+    // Replace dataSource.data with a new array reference so MatTable detects change
+    this.dataSource.data = newData;
+
+    // Persist the new order to the server
     this.reOrderRows();
-    this.table.renderRows();
-
   }
   reOrderRows() {
-    var ids = this.dataSource.map(x => x.id)
-    this.formDetailsService.reOrderRows(this.id, ids).subscribe()
-  }
-  markAsReviewed(id: number, isChecked: boolean) {
-    console.log(isChecked);
+    const ids = this.dataSource.data.map(x => x.id);
+    console.log('reOrderRows ids', ids);
 
-    this.formDetailsService.markAsReviewed(id, isChecked).subscribe({
-      next: (x: any) => {
-        //  this.toasterService.openSuccessToaster('تم تحديث حالة المراجعة بنجاح')
-        this.loadData();
+    this.formDetailsService.reOrderRows(this.id, ids).subscribe({
+      next: () => {
+        // ensure the table renders with the updated data reference
+        try { this.table.renderRows(); } catch { }
       },
       error: (err) => {
-        this.toasterService.openErrorToaster('حدث خطأ أثناء تحديث حالة المراجعة')
+        // if server update failed, reload data to restore UI
+        console.error('Failed to persist row order', err);
+        this.loadData();
+      }
+    });
+  }
+  markAsReviewed(row: IEmployee, event: MatCheckboxChange) {
+    const idStr = row.id;
+    const isChecked = event.checked;
+    const id = Number(idStr);
+    if (isNaN(id)) {
+      // invalid id, revert UI and notify
+      this.toasterService.openErrorToaster('معرف السجل غير صالح');
+      // revert checkbox
+      row.isReviewed = !isChecked;
+      this.dataSource.data = this.dataSource.data.slice();
+      try { this.table.renderRows(); } catch { }
+      return;
+    }
+
+    // If unchecking, confirm first
+    if (!isChecked) {
+      const ok = confirm('انت على وشك الغاء علامة مراجعة هل انت متأكd');
+      if (!ok) {
+        // revert UI by resetting the model value and forcing table render
+        row.isReviewed = !isChecked;
+        // replace data reference to trigger change detection
+        this.dataSource.data = this.dataSource.data.slice();
+        // try { this.table.renderRows(); } catch { }
+        console.log("unchecking");
+
+        return;
+      }
+    }
+
+    // Optimistically set the value on the row (already set by the checkbox) and persist
+    row.isReviewed = isChecked;
+    // ensure Angular/MatTable picks up the change
+    this.dataSource.data = this.dataSource.data.slice();
+
+    this.formDetailsService.markAsReviewed(id, isChecked).subscribe({
+      next: () => {
+        // success - optionally show toast
+        // this.toasterService.openSuccessToaster('تم تحديث حالة المراجعة بنجاح');
+      },
+      error: (err) => {
+        // revert UI on error
+        row.isReviewed = !isChecked;
+        this.dataSource.data = this.dataSource.data.slice();
+        try { this.table.renderRows(); } catch { }
+        this.toasterService.openErrorToaster('حدث خطأ أثناء تحديث حالة المراجعة');
       }
     });
   }
@@ -282,7 +351,19 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
     if (input == 'amount') {
       this.amountInput.nativeElement.value = ''
     }
-    this.dataSource = this.data.formDetails;
+    // reset the input element value and the corresponding filter value
+    this.filterValues[input] = '';
+    if (this[input + 'Input'] && this[input + 'Input'].nativeElement) {
+      try { this[input + 'Input'].nativeElement.value = ''; } catch { }
+    }
+    // reapply filters (this will show original data and keep multi-sort)
+    this.applyFilter();
+  }
+
+  applyFilter() {
+    if (!this.dataSource) return;
+    // set the filter string to the serialized filter values
+    this.dataSource.filter = JSON.stringify(this.filterValues || {});
   }
   moveFromDailyToArchive() {
     if (confirm(`هل تريد الغاء استمارة ${this.data.name} ؟من اليوميه!`)) {

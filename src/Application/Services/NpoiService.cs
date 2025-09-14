@@ -60,26 +60,64 @@ namespace Application.Services
             headerIndex = startRowIndex;
             ISheet sheet = sheetElement;
             DataTable dt = new DataTable();
-            IRow headerRow = sheet.GetRow(headerIndex);
-            for (int i = 0; i < headerRow.LastCellNum; i++)
+
+            // Defensive: sheet may be null
+            if (sheet == null)
             {
-                ICell cell = headerRow.GetCell(i);
-                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
-                dt.Columns.Add(cell.ToString());
+                return dt;
             }
 
+            IRow headerRow = sheet.GetRow(headerIndex);
+            // Defensive: header row may be null or empty
+            if (headerRow != null)
+            {
+                int headerCellCount = Math.Max(0, (int)headerRow.LastCellNum);
+                for (int i = 0; i < headerCellCount; i++)
+                {
+                    ICell cell = headerRow.GetCell(i);
+                    if (cell == null) continue;
+                    var text = cell.ToString();
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    dt.Columns.Add(text);
+                }
+            }
+
+            // If no columns were discovered, try to infer column count from first non-null data row
+            int inferredColumns = dt.Columns.Count;
             for (int i = (headerIndex + 1); i <= sheet.LastRowNum; i++)
             {
                 IRow row = sheet.GetRow(i);
+                if (row == null) continue; // skip empty rows
+
+                if (inferredColumns == 0)
+                {
+                    // infer columns from this row
+                    inferredColumns = Math.Max(0, (int)row.LastCellNum);
+                    for (int c = 0; c < inferredColumns; c++)
+                    {
+                        // add generic column names if headers were absent
+                        dt.Columns.Add($"Column{c}");
+                    }
+                }
+
                 DataRow dataRow = dt.NewRow();
-                for (int j = 0; j < row.LastCellNum; j++)
+                int cellCount = Math.Min(inferredColumns, Math.Max(0, (int)row.LastCellNum));
+                for (int j = 0; j < cellCount; j++)
                 {
                     ICell cell = row.GetCell(j);
-                    if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
-                    dataRow[j] = cell.ToString();
+                    if (cell == null) continue;
+                    var text = cell.ToString();
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    // Ensure index exists
+                    if (j >= dt.Columns.Count)
+                    {
+                        dt.Columns.Add($"Column{j}");
+                    }
+                    dataRow[j] = text;
                 }
                 dt.Rows.Add(dataRow);
             }
+
             return dt;
         }
         //read sheet headers
@@ -88,12 +126,17 @@ namespace Application.Services
             headerIndex = rowIndex;
             List<string> headers = new List<string>();
             ISheet sheet = workbook.GetSheet(sheetName);
+            if (sheet == null) return headers;
             IRow headerRow = sheet.GetRow(rowIndex);
-            for (int i = 0; i < headerRow.LastCellNum; i++)
+            if (headerRow == null) return headers;
+            int headerCellCount = Math.Max(0, (int)headerRow.LastCellNum);
+            for (int i = 0; i < headerCellCount; i++)
             {
                 ICell cell = headerRow.GetCell(i);
-                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
-                headers.Add(cell.ToString());
+                if (cell == null) continue;
+                var text = cell.ToString();
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                headers.Add(text);
             }
             return headers;
         }
@@ -102,12 +145,17 @@ namespace Application.Services
             headerIndex = rowIndex;
             List<string> headers = new List<string>();
             ISheet sheet = workbook.GetSheetAt(sheetIndex);
+            if (sheet == null) return headers;
             IRow headerRow = sheet.GetRow(rowIndex);
-            for (int i = 0; i < headerRow.LastCellNum; i++)
+            if (headerRow == null) return headers;
+            int headerCellCount = Math.Max(0, (int)headerRow.LastCellNum);
+            for (int i = 0; i < headerCellCount; i++)
             {
                 ICell cell = headerRow.GetCell(i);
-                if (cell == null || string.IsNullOrWhiteSpace(cell.ToString())) continue;
-                headers.Add(cell.ToString());
+                if (cell == null) continue;
+                var text = cell.ToString();
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                headers.Add(text);
             }
             return headers;
         }
@@ -197,7 +245,7 @@ namespace Application.Services
 
         }
 
-        private async Task CreateRow(int rowIndex, DataRow row, IRow rowElement)
+        private Task CreateRow(int rowIndex, DataRow row, IRow rowElement)
         {
             for (int i = 0; i < row.ItemArray.Length; i++)
             {
@@ -210,6 +258,7 @@ namespace Application.Services
                     rowElement.Cells[i].CellStyle = rowStyle; // استخدام نمط الصفوف المُعد مسبقًا
                 }
             }
+            return Task.CompletedTask;
 
             // if (row.ItemArray.Length >= 1)
             // {

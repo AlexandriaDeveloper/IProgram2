@@ -1,7 +1,3 @@
-@if(isLoading)
-{
-<div>Loading ....</div>
-}
 <div class="description-text">
   <button mat-icon-button color="accent" (click)="openDescriptionDialog()" class="add-button"
     [disabled]="daily?.closed">
@@ -22,7 +18,7 @@
 </div>
 <button mat-icon-button color="primary" [matMenuTriggerFor]="menu"> <mat-icon>more_vert</mat-icon></button>
 <mat-menu #menu="matMenu">
-  <button mat-menu-item (click)="exportPdf()" [disabled]="dataSource?.length===0">
+  <button mat-menu-item (click)="exportPdf()" [disabled]="dataSource?.data?.length===0">
     <mat-icon>picture_as_pdf</mat-icon>
     استخراج تقرير
 
@@ -60,7 +56,8 @@
 
 <div class="mat-elevation-z8">
   <table [dataSource]="dataSource" mat-table class="example-list full-width-table" matSort aria-label="Elements"
-    cdkDropList [cdkDropListData]="dataSource && !daily.closed" (cdkDropListDropped)="drop($event)">
+    cdkDropList [cdkDropListData]="dataSource?.data" [cdkDropListDisabled]="daily?.closed"
+    (cdkDropListDropped)="drop($event)">
     <!-- action Column -->
     <ng-container matColumnDef="action">
       <th mat-header-cell *matHeaderCellDef>
@@ -74,8 +71,8 @@
         </div>
       </th>
       <td mat-cell *matCellDef="let row" style="text-align: right !important;">
-        <mat-checkbox *ngIf="!daily?.closed" [checked]="row?.isReviewed"
-          (change)="markAsReviewed(row.id, $event.checked)"></mat-checkbox>
+        <mat-checkbox *ngIf="!daily?.closed" [checked]="row?.isReviewed" [disabled]="daily?.closed"
+          (click)="markAsReviewed(row, $event)"></mat-checkbox>
         <!-- <button mat-icon-button [routerLink]="['/employee/details/'+row?.employeeId]" color="primary"
           class="info-button">
           <mat-icon>info</mat-icon>
@@ -84,6 +81,7 @@
           *ngIf="!daily?.closed">
           <mat-icon>edit</mat-icon>
         </button>
+        <!-- test dialog button removed -->
         <button mat-icon-button (click)="deleteEmployee(row)" color="warn" class="delete-button" *ngIf="!daily?.closed">
           <mat-icon>delete</mat-icon>
         </button>
@@ -91,7 +89,8 @@
     </ng-container>
     <!-- tabCode Column -->
     <ng-container matColumnDef="tabCode">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!tabCodeCheck.checked">
+      <th mat-header-cell *matHeaderCellDef [hidden]="!tabCodeCheck.checked" mat-sort-header="tabCode"
+        class="sortable-header">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
           <mat-label class="saerch-title">كود طب</mat-label>
           <input matInput #tabCodeInput>
@@ -102,6 +101,7 @@
           }
 
         </mat-form-field>
+
       </th>
       <td mat-cell *matCellDef="let row" [hidden]="!tabCodeCheck.checked">
 
@@ -110,7 +110,8 @@
     </ng-container>
     <!-- tegaraCode Column -->
     <ng-container matColumnDef="tegaraCode">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!tegaraCodeCheck.checked">
+      <th mat-header-cell *matHeaderCellDef [hidden]="!tegaraCodeCheck.checked" mat-sort-header="tegaraCode"
+        class="sortable-header">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
           <mat-label class="saerch-title">كود تجارة</mat-label>
           <input matInput #tegaraCodeInput>
@@ -120,6 +121,7 @@
           </button>
           }
         </mat-form-field>
+
       </th>
       <td mat-cell *matCellDef="let row" [hidden]="!tegaraCodeCheck.checked">{{row.tegaraCode}}</td>
     </ng-container>
@@ -138,6 +140,7 @@
           }
         </mat-form-field>
 
+
       </th>
       <td mat-cell *matCellDef="let row">
         <button mat-icon-button color="warn" class="info-button" *ngIf="row.reviewComments"
@@ -155,7 +158,8 @@
     <!-- Department Column -->
 
     <ng-container matColumnDef="department">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!departmentCheck.checked">
+      <th mat-header-cell *matHeaderCellDef [hidden]="!departmentCheck.checked" mat-sort-header="department"
+        class="sortable-header">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 10vh !important;">
           <mat-label class="saerch-title">القسم </mat-label>
           <input matInput #departmentInput>
@@ -163,10 +167,9 @@
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('department')">
             <mat-icon>close</mat-icon>
           </button>
-
-
           }
         </mat-form-field>
+
       </th>
       <td mat-cell *matCellDef="let row" [hidden]="!departmentCheck.checked">{{row.department}} </td>
     </ng-container>
@@ -174,7 +177,8 @@
 
     <!-- employeeId Column -->
     <ng-container matColumnDef="employeeId">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!employeeIdCheck.checked">
+      <th mat-header-cell *matHeaderCellDef [hidden]="!employeeIdCheck.checked" mat-sort-header="employeeId"
+        class="sortable-header">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
           <mat-label class="saerch-title">الرقم القومى </mat-label>
           <input matInput #employeeIdInput>
@@ -184,31 +188,33 @@
           </button>
           }
         </mat-form-field>
+
       </th>
       <td mat-cell *matCellDef="let row" [hidden]="!employeeIdCheck.checked">{{row.employeeId}}</td>
     </ng-container>
     <!-- collage Column -->
     <ng-container matColumnDef="amount">
-      <th mat-header-cell *matHeaderCellDef>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="amount" class="sortable-header">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
           <mat-label class="saerch-title"> المبلغ</mat-label>
           <input matInput #amountInput>
           @if (amountInput.value) {
-          <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('collage')">
+          <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('amount')">
             <mat-icon>close</mat-icon>
           </button>
           }
         </mat-form-field>
+
       </th>
       <td mat-cell *matCellDef="let row">{{row.amount}}</td>
     </ng-container>
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-    <tr mat-row *matRowDef="let row; columns: displayedColumns;" [cdkDrag]="!daily.closed" [cdkDragData]=row
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;" [cdkDrag]="!daily?.closed" [cdkDragData]="row"
       class="example-box" [ngClass]="row.isReviewed?'reviewed':'not-reviewed'"></tr>
 
 
   </table>
-  <div class="no-data" *ngIf="dataSource?.length===0">
+  <div class="no-data" *ngIf="!(dataSource?.data?.length) || dataSource?.data?.length===0">
     لا يوجد بيانات للعرض
   </div>
   <!-- <mat-paginator

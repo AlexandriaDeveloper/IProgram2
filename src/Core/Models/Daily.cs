@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Core.Models
 {
@@ -12,5 +13,8 @@ namespace Core.Models
 
         public bool Closed { get; set; } = false;
         public ICollection<Form> Forms { get; set; }
+        public ICollection<DailyReference> DailyReferences { get; set; }
     }
+
+
 }

@@ -13,11 +13,11 @@ export const loadingInterceptor: HttpInterceptorFn = (req: HttpRequest<any>, nex
         return next(copy);
     }
 
-    loading.show();
+    // loading.show();
 
     return next(req).pipe(
-        finalize(() => loading.hide()
+        //finalize(() => loading.hide()
 
-        )
+        // )
     );
 };

@@ -14,38 +14,38 @@ using Persistence.Services;
 
 namespace Persistence.Extensions
 {
-    public static class PersistenceExtensoion
+  public static class PersistenceExtensoion
+  {
+    public static IServiceCollection AddPersistence(this IServiceCollection services)
     {
-        public static IServiceCollection AddPersistence(this IServiceCollection services)
-        {
-            services.AddHttpContextAccessor();
-            services.AddScoped<ITokenService, TokenService>();
-            services.AddScoped<IUniteOfWork, UniteOfWork>();
-            services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-            // services.AddScoped<IAccountRepository, AccountRepository>();
-            // services.AddScoped<IRoleRepository, RoleRepository>();
-            // services.AddScoped<IEmployeeRepository, EmployeeRepository>();
-            // services.AddScoped<IDailyRepository, DailyRepository>();
-            // services.AddScoped<IFormRepository, FormRepository>();
-            // services.AddScoped<IFormDetailsRepository, FormDetailsRepository>();
-            // services.AddScoped<IDepartmentRepository, DepartmentRepository>();
+      services.AddHttpContextAccessor();
+      services.AddScoped<ITokenService, TokenService>();
+      services.AddScoped<IUniteOfWork, UniteOfWork>();
+      services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+      // services.AddScoped<IAccountRepository, AccountRepository>();
+      // services.AddScoped<IRoleRepository, RoleRepository>();
+      // services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+      // services.AddScoped<IDailyRepository, DailyRepository>();
+      // services.AddScoped<IFormRepository, FormRepository>();
+      // services.AddScoped<IFormDetailsRepository, FormDetailsRepository>();
+      // services.AddScoped<IDepartmentRepository, DepartmentRepository>();
 
-            //auto register services end with word Repository
-            var assembliesToScan = new[]
-              {
+      //auto register services end with word Repository
+      var assembliesToScan = new[]
+        {
         Assembly.GetExecutingAssembly(),
         Assembly.GetAssembly(typeof(IAccountRepository)),
         Assembly.GetAssembly(typeof(AccountRepository))
    };
 
-            services.RegisterAssemblyPublicNonGenericClasses(assembliesToScan)
-              //commenting the line below means it will scan all public classes
-              .Where(c => c.Name.EndsWith("Repository"))
-              .AsPublicImplementedInterfaces();
+      services.RegisterAssemblyPublicNonGenericClasses(assembliesToScan)
+        //commenting the line below means it will scan all public classes
+        .Where(c => c.Name.EndsWith("Repository"))
+        .AsPublicImplementedInterfaces();
 
 
-            // services.AddScoped<IParam, Param>();
-            return services;
-        }
+      // services.AddScoped<IParam, Param>();
+      return services;
     }
+  }
 }

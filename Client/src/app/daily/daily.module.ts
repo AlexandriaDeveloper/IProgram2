@@ -32,17 +32,18 @@ import { UploadJsonDialogComponent } from './daily/upload-json-dialog/upload-jso
     AddEmployeeDialogComponent,
     DescriptionDialogComponent,
     ArchivedFormsComponent,
-     FormDetailsComponent,
-     ReferencesDialogComponent,
-     MoveToDailyDialogComponent,
-     UploadReferencesDialogComponent,
-     UploadExcelFileBottomComponent,
-     UploadReportDialogComponent,
-     UploadJsonDialogComponent
+    FormDetailsComponent,
+    ReferencesDialogComponent,
+    MoveToDailyDialogComponent,
+    UploadReferencesDialogComponent,
+    UploadExcelFileBottomComponent,
+    UploadReportDialogComponent,
+    UploadJsonDialogComponent
 
-],
+
+  ],
   imports: [
-    MatDatepickerModule ,
+    MatDatepickerModule,
     AddDailyComponent,
     CommonModule,
     DailyRoutingModule,

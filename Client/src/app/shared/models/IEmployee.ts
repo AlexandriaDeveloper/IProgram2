@@ -5,9 +5,14 @@ export interface IEmployee {
   name: string
   tabCode: number
   tegaraCode: number
+  employeeId?: string
 
   collage: string
   departmentId?: number
+  department?: string
+  amount?: number
+  isReviewed?: boolean
+  reviewComments?: string
   departmentName?: string
   email?: string
   section?: string
