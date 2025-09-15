@@ -7,9 +7,11 @@ using Application.Services;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using NPOI.SS.UserModel;
 using Persistence.Helpers;
+using Persistence.Repository;
 using Persistence.Specifications;
 
 namespace Application.Features
@@ -17,16 +19,19 @@ namespace Application.Features
     public class DailyService
     {
         private readonly IDailyRepository _dailyRepository;
+        private readonly IDailyReferencesRepository _dailyReferenceRepository;
         private readonly IUniteOfWork _unitOfWork;
         private readonly IFormRepository _formRepository;
         private readonly ReportService _reportService;
+        private IConfiguration _config;
 
-        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUniteOfWork unitOfWork)
+        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUniteOfWork unitOfWork, IConfiguration config)
         {
             this._formRepository = formRepository;
             this._reportService = reportService;
             this._unitOfWork = unitOfWork;
             this._dailyRepository = dailyRepository;
+            this._config = config;
         }
 
         public async Task<Result<DailyDto>> AddDaily(DailyDto dailyDto, CancellationToken cancellationToken)
@@ -416,19 +421,34 @@ namespace Application.Features
 
         public async Task<Result<DailyDto>> GetDaily(int dailyId, CancellationToken cancellationToken)
         {
-            Daily daily = await _dailyRepository.GetById(dailyId);
+            Daily daily = await _dailyRepository.GetQueryable(null)
+            .Include(x => x.DailyReferences)
+            .FirstOrDefaultAsync(x => x.Id == dailyId);
+
+
+
             if (daily == null)
             {
                 return Result.Failure<DailyDto>(new Error("500", "اليوميه غير موجودة"));
             }
             else
             {
+
                 return Result.Success(new DailyDto
                 {
                     Id = daily.Id,
                     Name = daily.Name,
                     DailyDate = daily.DailyDate,
-                    Closed = daily.Closed
+                    Closed = daily.Closed,
+                    DailyReferences = daily.DailyReferences.Select(x => new DailyReferenceDto
+                    {
+                        Id = x.Id,
+                        DailyId = x.DailyId,
+                        Description = x.Description,
+                        ReferencePath = _config["ApiImageContent"] + "DailyReferences/" + x.ReferencePath
+                    }).ToList()
+
+
                 });
             }
 

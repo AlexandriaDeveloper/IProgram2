@@ -19,6 +19,8 @@ import { UploadComponent } from '../shared/components/upload/upload.component';
 import { UploadExcelFileBottomComponent } from './form/form-details/upload-excel-file-bottom/upload-excel-file-bottom.component';
 import { UploadReportDialogComponent } from './form/form-details/upload-excel-file-bottom/upload-report-dialog/upload-report-dialog.component';
 import { UploadJsonDialogComponent } from './daily/upload-json-dialog/upload-json-dialog.component';
+import { UploadPdfBottomComponent } from './form/form-details/upload-pdf-bottom/upload-pdf-bottom.component';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
 
 
@@ -38,11 +40,14 @@ import { UploadJsonDialogComponent } from './daily/upload-json-dialog/upload-jso
     UploadReferencesDialogComponent,
     UploadExcelFileBottomComponent,
     UploadReportDialogComponent,
-    UploadJsonDialogComponent
+    UploadJsonDialogComponent,
+    UploadPdfBottomComponent
 
 
   ],
   imports: [
+    FormsModule,
+    ReactiveFormsModule,
     MatDatepickerModule,
     AddDailyComponent,
     CommonModule,

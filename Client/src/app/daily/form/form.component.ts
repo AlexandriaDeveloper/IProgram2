@@ -18,6 +18,9 @@ import { FormParam } from '../../shared/models/IForm';
 import { AddEmployeeDialogComponent } from './form-details/add-employee-dialog/add-employee-dialog.component';
 import { debounceTime, distinctUntilChanged, fromEvent, map } from 'rxjs';
 import { AuthService } from '../../shared/service/auth.service';
+import { UploadPdfBottomComponent } from './form-details/upload-pdf-bottom/upload-pdf-bottom.component';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
+import { environment } from '../../environment';
 
 @Component({
   selector: 'app-form',
@@ -49,6 +52,7 @@ export class FormComponent implements OnInit, AfterViewInit {
 
   pdfReportService = inject(ReportpdfService);
   employeeService = inject(EmployeeService)
+  bottomSheet = inject(MatBottomSheet)
   form: FormGroup
   fb = inject(FormBuilder);
   constructor(private cdref: ChangeDetectorRef) {
@@ -194,6 +198,23 @@ export class FormComponent implements OnInit, AfterViewInit {
 
     })
   }
+  uploadPdf() {
+    const bottomSheetRef = this.bottomSheet.open(UploadPdfBottomComponent, {
+      panelClass: ['bottomSheet'],
+      hasBackdrop: true,
+      data: {
+        dailyId: this.dailyId
+      }
+    });
+
+    bottomSheetRef.afterDismissed().subscribe(result => {
+      if (result) { // result is true on successful upload
+        this.loadData(); // Or any other action needed
+        // this.toasterService.openSuccessToaster('تم رفع مرجع PDF بنجاح');
+      }
+    });
+
+  }
   closeDaily() {
 
     this.dailyService.closeDaily(this.dailyId).subscribe({
@@ -201,6 +222,11 @@ export class FormComponent implements OnInit, AfterViewInit {
         this.loadData();
       }
     })
+  }
+  openReferenceDialog(dailyReference) {
+    console.log(dailyReference);
+
+    window.open(environment.apiContent + dailyReference.referencePath, '_blank');
   }
 
 }

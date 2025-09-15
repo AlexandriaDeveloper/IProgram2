@@ -19,6 +19,7 @@ import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { UploadExcelFileBottomComponent } from './upload-excel-file-bottom/upload-excel-file-bottom.component';
 import { IDaily } from '../../../shared/models/IDaily';
 import { DailyService } from '../../../shared/service/daily.service';
+import { UploadPdfBottomComponent } from './upload-pdf-bottom/upload-pdf-bottom.component';
 
 
 
@@ -228,6 +229,24 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
       }
     })
   }
+
+  openPdfUploadSheet() {
+    const bottomSheetRef = this.bottomSheet.open(UploadPdfBottomComponent, {
+      panelClass: ['bottomSheet'],
+      hasBackdrop: true,
+      data: {
+        dailyId: this.dailyId
+      }
+    });
+
+    bottomSheetRef.afterDismissed().subscribe(result => {
+      if (result) { // result is true on successful upload
+        this.loadData(); // Or any other action needed
+        this.toasterService.openSuccessToaster('تم رفع مرجع PDF بنجاح');
+      }
+    });
+  }
+
   addEmployeeFormDialog(model) {
     const dialogRef = this.dialog.open(AddEmployeeDialogComponent, {
       width: '50%',
@@ -284,53 +303,23 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
       }
     });
   }
-  markAsReviewed(row: IEmployee, event: MatCheckboxChange) {
-    const idStr = row.id;
-    const isChecked = event.checked;
-    const id = Number(idStr);
-    if (isNaN(id)) {
-      // invalid id, revert UI and notify
-      this.toasterService.openErrorToaster('معرف السجل غير صالح');
-      // revert checkbox
-      row.isReviewed = !isChecked;
-      this.dataSource.data = this.dataSource.data.slice();
-      try { this.table.renderRows(); } catch { }
-      return;
-    }
+  markAsReviewed(row: IEmployee, event: boolean) {
+    if (this.daily?.closed) return;
+    //confirm you uncheck 
+    console.log(row);
+    console.log(event);
 
-    // If unchecking, confirm first
-    if (!isChecked) {
-      const ok = confirm('انت على وشك الغاء علامة مراجعة هل انت متأكd');
-      if (!ok) {
-        // revert UI by resetting the model value and forcing table render
-        row.isReviewed = !isChecked;
-        // replace data reference to trigger change detection
-        this.dataSource.data = this.dataSource.data.slice();
-        // try { this.table.renderRows(); } catch { }
-        console.log("unchecking");
-
+    if (!event) {
+      if (!confirm("انت على وشك الغاء مراجعة البيان هل انت متأكد ؟")) {
+        this.loadData();
         return;
+
       }
+
     }
-
-    // Optimistically set the value on the row (already set by the checkbox) and persist
-    row.isReviewed = isChecked;
-    // ensure Angular/MatTable picks up the change
-    this.dataSource.data = this.dataSource.data.slice();
-
-    this.formDetailsService.markAsReviewed(id, isChecked).subscribe({
-      next: () => {
-        // success - optionally show toast
-        // this.toasterService.openSuccessToaster('تم تحديث حالة المراجعة بنجاح');
-      },
-      error: (err) => {
-        // revert UI on error
-        row.isReviewed = !isChecked;
-        this.dataSource.data = this.dataSource.data.slice();
-        try { this.table.renderRows(); } catch { }
-        this.toasterService.openErrorToaster('حدث خطأ أثناء تحديث حالة المراجعة');
-      }
-    });
+    this.formDetailsService.markAsReviewed(Number(row.id), event).subscribe(x => {
+      this.loadData();
+    })
   }
   clear(input) {
     if (input == 'tabCode') {

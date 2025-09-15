@@ -24,7 +24,7 @@ namespace Application.Features
 
         public async Task<Result> UploadReference(DailyReferenceFileUploadRequest request)
         {
-            var fileName = $"{request.DailyId}_{DateTime.Now:yyyyMMddHHmmssfff}{Path.GetExtension(request.File.FileName)}";
+            var fileName = $"{request.DailyId}_{DateTime.Now:yyyyMMddHHmmssfff}{Path.GetExtension(request.File.FileName.ToLower())}";
             var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
 
             if (!Directory.Exists(directoryPath))
@@ -44,7 +44,7 @@ namespace Application.Features
                 DailyId = request.DailyId,
                 ReferencePath = fileName,
                 Description = request.Description,
-                Name = request.File.FileName // This is a [NotMapped] property for display
+                //Name = request.File.FileName // This is a [NotMapped] property for display
             };
 
             await _dailyReferencesRepository.Insert(dailyReference);

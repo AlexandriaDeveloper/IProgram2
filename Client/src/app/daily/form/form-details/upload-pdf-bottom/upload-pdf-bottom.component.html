@@ -1,0 +1,38 @@
+<div class="container p-3">
+  <div style="display: flex; justify-content: center; padding: 0px; cursor: pointer;">
+    <mat-progress-bar color="accent" mode="indeterminate" *ngIf="onProgress"></mat-progress-bar>
+  </div>
+
+  <h4 class="text-center">رفع مرجع PDF</h4>
+
+  <div class="form-group mb-3">
+    <mat-form-field class="w-100">
+      <mat-label>الوصف</mat-label>
+      <input matInput [(ngModel)]="description" placeholder="ادخل وصف المرجع">
+    </mat-form-field>
+  </div>
+
+  <div
+    style="display: flex; justify-content: center; padding: 20px; cursor: pointer; border: 2px dashed #ccc; border-radius: 5px;"
+    (click)="fileInput.click()">
+    <div class="text-center">
+      <mat-icon style="font-size: 64px !important;">cloud_upload</mat-icon>
+      <p>اضغط هنا لاختيار ملف PDF</p>
+    </div>
+  </div>
+
+  <input id="fileInput" hidden type="file" #fileInput (change)="onFileSelected($event)" accept=".pdf" />
+
+  <div class="file-info mt-2">
+    <label class="file-label"><b>الملف المختار:</b> {{fileName || 'لم يتم اختيار ملف'}}</label>
+  </div>
+
+  <div class="action-buttons mt-3 text-center">
+    <button class="bottomSheet-button" mat-raised-button color="primary" (click)="onUpload()"
+      [disabled]="!selectedFile  || onProgress">
+      <span *ngIf="!onProgress">تحميل</span>
+      <span *ngIf="onProgress">جاري التحميل... ({{progress()}}%)</span>
+    </button>
+    <button mat-button (click)="closeSheet()" class="ms-2">إلغاء</button>
+  </div>
+</div>
