@@ -7,6 +7,7 @@ import { AddBankDialogComponent } from '../bank-info/add-bank-dialog/add-bank-di
 import { DepartmentService } from '../../../../shared/service/department.service';
 import { EmployeeService } from '../../../../shared/service/employee.service';
 import { EmployeeParam, IEmployee } from '../../../../shared/models/IEmployee';
+import { ToasterService } from '../../../../shared/components/toaster/toaster.service';
 
 @Component({
   selector: 'app-edit-employee-dialog',
@@ -19,6 +20,7 @@ export class EditEmployeeDialogComponent implements OnInit {
 
   form: FormGroup;
   fb = inject(FormBuilder);
+  toaster = inject(ToasterService);
   employeeService = new EmployeeService();
   employeeBankService = inject(EmployeeBankService)
   departmentService = inject(DepartmentService)
@@ -104,7 +106,12 @@ export class EditEmployeeDialogComponent implements OnInit {
       this.form.value.email = null
     }
     this.employeeService.updateEmployee(this.form.value).subscribe(res => {
+      //TOASTER
+      this.toaster.openSuccessToaster('تم التعديل بنجاح', 'check');
       this.dialogRef.close();
+    }, err => {
+      console.log(err);
+      this.toaster.openErrorToaster('حدث خطأ ما', 'error');
     })
 
   }

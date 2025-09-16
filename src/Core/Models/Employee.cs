@@ -23,6 +23,7 @@ namespace Core.Models
         // [MinLength(14, ErrorMessage = "الرقم القومى لا يمكن ان يقل عن 14 رقم")]
         // [Required]
         // public string NationalId { get; set; }
+        [MaxLength(15)]
         public string Collage { get; set; }
         [MaxLength(25)]
         public string Section { get; set; }
@@ -36,7 +37,16 @@ namespace Core.Models
         public ICollection<FormDetails> FormDetails { get; set; }
         public ICollection<EmployeeRefernce> EmployeeRefernces { get; set; }
 
+
     }
+
+    public class Collage : Entity
+
+    {
+
+    }
+
+
 
 
 }

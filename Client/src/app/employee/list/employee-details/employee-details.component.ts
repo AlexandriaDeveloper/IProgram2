@@ -112,6 +112,8 @@ export class EmployeeDetailsComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       this.ngOnInit();
+      //TOASTER
+      // this.toaster.openSuccessToaster('تم التعديل بنجاح', 'check');
     });
   }
 

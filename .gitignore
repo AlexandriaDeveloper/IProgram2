@@ -54,6 +54,10 @@ msbuild.wrn
 Client/node_modules
 Client/src/assets/images/bg
 wwwroot
+/Content/DailyReferences/* 
+/Content/Employee/*
+/Content/EmployeeReferences/*
+/Content/FormReferences/*
 
 
 
