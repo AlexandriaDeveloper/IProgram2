@@ -104,8 +104,16 @@ export class ListComponent implements AfterViewInit, OnInit {
     this.employeeService.GetEmployees(this.param).subscribe((x: any) => {
       this.dataSource = x.data
       this.paginator.length = x.count;
-      // this.paginator.pageIndex=x.pageIndex;
-      // this.paginator.pageSize=x.pageSize;
+
+      //reset paramater
+      this.param.pageIndex = this.paginator.pageIndex;
+      this.param.pageSize = this.paginator.pageSize;
+      //reset search
+      this.table.dataSource = this.dataSource;
+      this.table.renderRows();
+      this.search();
+
+
     });
 
 
@@ -127,7 +135,7 @@ export class ListComponent implements AfterViewInit, OnInit {
         tap(() => {
           this.toaster.openSuccessToaster('تم الحذف بنجاح', 'check_circle');
           this.resetParam();
-          this.loadData()
+
         })
       ).subscribe();
 
@@ -164,6 +172,16 @@ export class ListComponent implements AfterViewInit, OnInit {
     this.loadData();
 
   }
+  clearAll() {
+    this.resetParam();
+    this.tabCodeInput.nativeElement.value = '';
+    this.tegaraCodeInput.nativeElement.value = '';
+    this.nameInput.nativeElement.value = '';
+    this.employeeIdInput.nativeElement.value = '';
+    this.collageInput.nativeElement.value = '';
+    this.departmentInput.nativeElement.value = '';
+    //  this.loadData();
+  }
   openEmployeeEditDialog(row) {
     const dialogRef = this._dialog.open(EditEmployeeDialogComponent, {
       width: '600px',
@@ -176,6 +194,9 @@ export class ListComponent implements AfterViewInit, OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       this.ngOnInit();
+
+      this.clearAll();
+
       // this.animal = result;
     });
   }

@@ -453,7 +453,7 @@ namespace Application.Features
             hasUpdat = false;
 
 
-            if (columns.Contains("القطاع") && row["القطاع"] != null && !string.IsNullOrEmpty(row["القطاع"].ToString()))
+            if (columns.Contains("القطاع") && row["القطاع"] != null && !string.IsNullOrWhiteSpace(row["القطاع"].ToString()))
             {
                 if (row["القطاع"].ToString() != empExist.Collage)
                 {
@@ -469,7 +469,7 @@ namespace Application.Features
                 hasUpdat = true;
             }
 
-            if (columns.Contains("كود القسم") && row["كود القسم"] != null && !string.IsNullOrEmpty(row["كود القسم"].ToString()))
+            if (columns.Contains("كود القسم") && row["كود القسم"] != null && !string.IsNullOrWhiteSpace(row["كود القسم"].ToString()))
             {
                 if (row["كود القسم"].ToString() != empExist.DepartmentId.ToString())
                 {
@@ -478,7 +478,7 @@ namespace Application.Features
                 }
             }
 
-            if (columns.Contains("أسم القسم") && row["أسم القسم"] != null && !string.IsNullOrEmpty(row["أسم القسم"].ToString()))
+            if (columns.Contains("أسم القسم") && row["أسم القسم"] != null && !string.IsNullOrWhiteSpace(row["أسم القسم"].ToString()))
             {
                 var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["أسم القسم"].ToString().Trim());
                 if (department != null)
@@ -492,7 +492,7 @@ namespace Application.Features
             }
 
 
-            if (columns.Contains("الإدارة") && row["الإدارة"] != null && !string.IsNullOrEmpty(row["الإدارة"].ToString()))
+            if (columns.Contains("الإدارة") && row["الإدارة"] != null && !string.IsNullOrWhiteSpace(row["الإدارة"].ToString()))
             {
                 if (row["الإدارة"].ToString() != empExist.Section)
                 {
@@ -504,7 +504,7 @@ namespace Application.Features
 
 
 
-            if (columns.Contains("الايميل") && row["الايميل"] != null && !string.IsNullOrEmpty(row["الايميل"].ToString()))
+            if (columns.Contains("الايميل") && row["الايميل"] != null && !string.IsNullOrWhiteSpace(row["الايميل"].ToString()))
             {
                 if (row["الايميل"].ToString() != empExist.Email)
                 {
@@ -522,12 +522,12 @@ namespace Application.Features
                     empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
                     empExist.EmployeeBank.IsActive = true;
                     empExist.EmployeeBank.BankName = row["البنك"].ToString();
-                    if (!string.IsNullOrEmpty(row["الفرع"].ToString()))
+                    if (!string.IsNullOrWhiteSpace(row["الفرع"].ToString()))
                     {
                         empExist.EmployeeBank.BranchName = row["الفرع"].ToString();
                         hasUpdat = true;
                     }
-                    if (!string.IsNullOrEmpty(row["رقم الحساب"].ToString()))
+                    if (!string.IsNullOrWhiteSpace(row["رقم الحساب"].ToString()))
                     {
                         empExist.EmployeeBank.AccountNumber = row["رقم الحساب"].ToString();
                         hasUpdat = true;
@@ -538,17 +538,17 @@ namespace Application.Features
                 }
                 else if (empExist.EmployeeBank != null)
                 {
-                    if (!string.IsNullOrEmpty(row["البنك"].ToString()) && row["البنك"].ToString() != empExist.EmployeeBank.BankName)
+                    if (!string.IsNullOrWhiteSpace(row["البنك"].ToString()) && row["البنك"].ToString() != empExist.EmployeeBank.BankName)
                     {
                         empExist.EmployeeBank.BankName = row["البنك"].ToString();
                         hasUpdat = true;
                     }
-                    if (!string.IsNullOrEmpty(row["الفرع"].ToString()) && row["الفرع"].ToString() != empExist.EmployeeBank.BranchName)
+                    if (!string.IsNullOrWhiteSpace(row["الفرع"].ToString()) && row["الفرع"].ToString() != empExist.EmployeeBank.BranchName)
                     {
                         empExist.EmployeeBank.BranchName = row["الفرع"].ToString();
                         hasUpdat = true;
                     }
-                    if (!string.IsNullOrEmpty(row["رقم الحساب"].ToString()) && row["رقم الحساب"].ToString() != empExist.EmployeeBank.AccountNumber)
+                    if (!string.IsNullOrWhiteSpace(row["رقم الحساب"].ToString()) && row["رقم الحساب"].ToString() != empExist.EmployeeBank.AccountNumber)
                     {
                         empExist.EmployeeBank.AccountNumber = row["رقم الحساب"].ToString();
                         hasUpdat = true;
@@ -568,7 +568,7 @@ namespace Application.Features
 
             foreach (var cell in row.ItemArray)
             {
-                if (!string.IsNullOrEmpty(cell.ToString()))
+                if (!string.IsNullOrWhiteSpace(cell.ToString()))
                 {
                     return false;
                 }
