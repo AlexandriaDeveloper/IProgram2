@@ -396,9 +396,9 @@ namespace Application.Features
                 }
 
             }
-            if (columns.Contains("اسم القسم") && row["اسم القسم"] != null)
+            if (columns.Contains("أسم القسم") && row["أسم القسم"] != null)
             {
-                var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["اسم القسم"].ToString().Trim());
+                var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == row["أسم القسم"].ToString().Trim());
                 if (department != null)
                 {
                     employee.DepartmentId = department.Id;
@@ -471,8 +471,13 @@ namespace Application.Features
 
             if (columns.Contains("كود القسم") && row["كود القسم"] != null && !string.IsNullOrWhiteSpace(row["كود القسم"].ToString()))
             {
+
+                //Get Department Id By Name 
+
+
                 if (row["كود القسم"].ToString() != empExist.DepartmentId.ToString())
                 {
+                    var departmentId = GetDepartmentIdByName(row["كود القسم"].ToString());
                     empExist.DepartmentId = int.TryParse(row["كود القسم"].ToString(), out int code) ? code : null;
                     hasUpdat = true;
                 }
@@ -653,7 +658,7 @@ namespace Application.Features
             dt2.Columns.Add("الرقم القومى", typeof(string));
             dt2.Columns.Add("الإدارة", typeof(string));
             dt2.Columns.Add("القطاع", typeof(string));
-            dt2.Columns.Add("اسم القسم", typeof(string));
+            dt2.Columns.Add("أسم القسم", typeof(string));
             dt2.Columns.Add("الايميل", typeof(string));
             dt2.Columns.Add("البنك", typeof(string));
             dt2.Columns.Add("الفرع", typeof(string));
@@ -668,7 +673,7 @@ namespace Application.Features
                 dr["الرقم القومى"] = employee.Id.ToString();
                 dr["الإدارة"] = employee.Section;
                 dr["القطاع"] = employee.Collage;
-                dr["اسم القسم"] = employee.DepartmentId.HasValue ? employee.Department.Name : string.Empty;
+                dr["أسم القسم"] = employee.DepartmentId.HasValue ? employee.Department.Name : string.Empty;
                 dr["الايميل"] = employee.Email;
                 if (employee.EmployeeBank != null)
                 {
@@ -686,7 +691,7 @@ namespace Application.Features
 
             }
 
-            workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "رقم الموظف بجهته الأصلية", "كود تجارة", "الاسم", "الرقم القومى", "الإدارة", "القطاع", "اسم القسم", "الايميل", "البنك", "الفرع", "رقم الحساب" }, dt2);
+            workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "رقم الموظف بجهته الأصلية", "كود تجارة", "الاسم", "الرقم القومى", "الإدارة", "القطاع", "أسم القسم", "الايميل", "البنك", "الفرع", "رقم الحساب" }, dt2);
 
 
 
@@ -724,6 +729,17 @@ namespace Application.Features
         {
             var collages = _employeeRepository.GetQueryable().Select(x => x.Collage).Distinct().ToList();
             return await Task.FromResult(collages);
+        }
+
+        private int? GetDepartmentIdByName(string name)
+        {
+            var dpeartment = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == name);
+            if (dpeartment != null)
+                return dpeartment.Id;
+            return null;
+
+
+
         }
 
 
