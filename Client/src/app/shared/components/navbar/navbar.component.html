@@ -10,7 +10,7 @@ document.createElement('video');
 </script>
 <![endif]-->
       <div class="video-container">
-        <video autoplay loop muted id="video-bg">
+        <video #videoBg autoplay loop muted id="video-bg" preload="auto">
           <source src="../assets/images/bg/SciFi_01.mov" type="video/mp4" (play)="true" />
         </video>
       </div>

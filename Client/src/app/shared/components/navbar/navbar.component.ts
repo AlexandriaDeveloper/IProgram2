@@ -1,6 +1,6 @@
 import { AuthService } from './../../service/auth.service';
 
-import { Component, ViewChild, NgModule, inject } from '@angular/core';
+import { Component, ViewChild, NgModule, inject, AfterViewInit } from '@angular/core';
 import { AngularComponentsModule } from '../../angular-components.module';
 import { SharedModule } from '../../shared.module';
 import { Router, RouterModule } from '@angular/router';
@@ -29,17 +29,18 @@ import { CommonModule } from '@angular/common';
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
 })
-export class NavbarComponent {
+export class NavbarComponent implements AfterViewInit {
   auth = inject(AuthService);
   router = inject(Router);
   panelOpenState = false;
   @ViewChild('drawer', { static: true }) drawer: MatSidenav;
+  @ViewChild('videoBg') videoBg: any;
   isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
     .pipe(
       map(result => result.matches),
       shareReplay()
     );
-
+  private videoCheckInterval: any;
   constructor(
     private breakpointObserver: BreakpointObserver,
 
@@ -49,6 +50,57 @@ export class NavbarComponent {
     //   this.router.navigate(['/account/login']);
     // }
 
+  }
+  ngAfterViewInit(): void {
+    this.setupBackgroundVideo();
+  }
+
+  private setupBackgroundVideo(): void {
+    if (!this.videoBg) return;
+
+    // Function to ensure video plays and loops
+    const ensureVideoPlays = () => {
+      if (this.videoBg.nativeElement.paused) {
+        const playPromise = this.videoBg.nativeElement.play();
+
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.log("Auto-play was prevented. Muting video to enable playback.");
+            this.videoBg.nativeElement.muted = true;
+            this.videoBg.nativeElement.play();
+          });
+        }
+      }
+
+      // Ensure loop attribute is set
+      this.videoBg.nativeElement.loop = true;
+
+      // Listen for video end event to restart if needed
+      this.videoBg.nativeElement.addEventListener('ended', () => {
+        this.videoBg.nativeElement.currentTime = 0;
+        this.videoBg.nativeElement.play();
+      });
+    };
+
+    // Initial call
+    ensureVideoPlays();
+
+    // Set up a periodic check to ensure video is still playing
+    this.videoCheckInterval = setInterval(ensureVideoPlays, 1000);
+
+    // Handle page visibility changes
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        ensureVideoPlays();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    // Clean up the interval when component is destroyed
+    if (this.videoCheckInterval) {
+      clearInterval(this.videoCheckInterval);
+    }
   }
 
   logout() {
