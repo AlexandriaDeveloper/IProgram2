@@ -26,10 +26,12 @@ namespace Persistence.Specifications
                     query = query.Where(criteria);
                 }
             }
+
+            query = spec.Includes.Aggregate(query, (current, include) => current.Include(include));
+
             if (spec.OrderBy != null)
             {
                 query = query.OrderBy(spec.OrderBy);
-
             }
             if (spec.OrderByDescending != null)
             {
@@ -38,13 +40,15 @@ namespace Persistence.Specifications
 
             if (spec.PaginationEnabled)
             {
+                if (spec.OrderBy == null && spec.OrderByDescending == null)
+                {
+                    query = query.OrderByDescending(e => e.Id);
+                }
+
                 query = query.Skip(spec.Skip).Take(spec.Take);
             }
-
-            query = spec.Includes.Aggregate(query, (current, include) => current.Include(include));
+            
             return query;
-
         }
-
     }
 }

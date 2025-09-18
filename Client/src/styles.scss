@@ -1,3 +1,4 @@
+@import "~/../assets/themes/tooltip.scss";
 @import "~/../assets/themes/varibale.scss";
 @import "~/../assets/themes/dialog.scss";
 @import "~/../assets/themes/calender.scss";
@@ -12,11 +13,20 @@
 @import "~/../assets/themes/toaster.scss";
 @import "~/../assets/themes/gallery.scss";
 @import "~/../assets/themes/tab.scss";
+
 // @import '../node_modules//lightgallery/scss/lightgallery';
 
 /* You can add global styles to this file, and also import other style files */
-html, body { height: 100%; margin: 0 auto;padding: 0; }
-body { font-family: Roboto, "Helvetica Neue", sans-serif; }
+html,
+body {
+  height: 100%;
+  margin: 0 auto;
+  padding: 0;
+}
+
+body {
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}
 
 .container {
   width: 100%;
@@ -24,40 +34,42 @@ body { font-family: Roboto, "Helvetica Neue", sans-serif; }
 }
 
 
-.nav-bar{
+.nav-bar {
   position: sticky;
 }
-.content{
+
+.content {
   padding-top: 40px;
- display: flex;
- justify-content: center;
+  display: flex;
+  justify-content: center;
 }
 
 
 
 
 
-.fileover{
+.fileover {
   border: dotted 3px green !important;
 }
 
 
 //center form button
-.action-buttons{
-display: flex;
-justify-content: center;
+.action-buttons {
+  display: flex;
+  justify-content: center;
 
 
 }
-:ng-deep{
 
-  .mat-mdc-form-field{
+:ng-deep {
+
+  .mat-mdc-form-field {
     color: #fff !important;
   }
 
 }
 
-.date-input{
+.date-input {
   outline-style: none !important;
   padding: 15px;
   width: 100% !important;
@@ -65,19 +77,21 @@ justify-content: center;
   border: 1px solid #293d1f !important;
   border-radius: 5px;
 
-  &:focus-visible{
-    border: 2px solid rgba( #476936,1) !important;
-    .ng-invalid.ng-touched{
-      border: 3px solid rgba( #e57373,1) !important;
+  &:focus-visible {
+    border: 2px solid rgba(#476936, 1) !important;
+
+    .ng-invalid.ng-touched {
+      border: 3px solid rgba(#e57373, 1) !important;
     }
   }
-  &.ng-invalid.ng-touched{
-    border: 1px solid rgba( #e57373,1) !important;
+
+  &.ng-invalid.ng-touched {
+    border: 1px solid rgba(#e57373, 1) !important;
   }
 }
 
 
-.bottomSheet{
+.bottomSheet {
   background-color: $primary-color !important;
   color: $white-color !important;
   min-height: 200px;
@@ -85,20 +99,21 @@ justify-content: center;
   transition: 0.4s ease-in-out;
 
 }
-.bottomSheet-button{
+
+.bottomSheet-button {
   border: 1px solid $white-color !important;
   color: $white-color !important;
   padding: 5px 30px !important;
-  &:hover{
+
+  &:hover {
     background-color: $white-color !important;
     color: $primary-color !important;
   }
-  &:disabled{
+
+  &:disabled {
     color: $white-color !important;
     border: 1px solid $white-color !important;
     background-color: gray !important;
   }
 
 }
-
-

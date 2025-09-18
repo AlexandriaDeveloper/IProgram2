@@ -14,6 +14,7 @@ namespace Core.Interfaces
         int Take { get; }
         bool PaginationEnabled { get; }
         List<string> IncludeStrings { get; }
+        Expression<Func<TEntity, bool>> Any { get; }
         Expression<Func<TEntity, bool>> Criteria { get; }
         List<Expression<Func<TEntity, bool>>> Criterias { get; }
         List<Expression<Func<TEntity, object>>> Includes { get; }

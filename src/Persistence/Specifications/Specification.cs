@@ -17,6 +17,7 @@ namespace Persistence.Specifications
         public bool PaginationEnabled { get; set; } = true;
 
         public List<string> IncludeStrings { get; }
+        public Expression<Func<TEntity, bool>> Any { get; private set; }
 
         public Expression<Func<TEntity, bool>> Criteria { get; }
 
@@ -49,6 +50,10 @@ namespace Persistence.Specifications
         protected void AddInclude(Expression<Func<TEntity, object>> include)
         {
             this.Includes.Add(include);
+        }
+        protected void AddAny(Expression<Func<TEntity, bool>> criteria)
+        {
+            this.Any = criteria;
         }
 
         protected void AddOrderBy(Expression<Func<TEntity, object>> orderByExpression)

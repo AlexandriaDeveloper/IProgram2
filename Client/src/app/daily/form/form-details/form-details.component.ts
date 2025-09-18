@@ -32,6 +32,7 @@ import { UploadPdfBottomComponent } from './upload-pdf-bottom/upload-pdf-bottom.
 export class FormDetailsComponent implements OnInit, AfterViewInit {
 
   dialog = inject(MatDialog)
+  toaster = inject(ToasterService);
   formDetailsService = inject(FormDetailsService);
   formService = inject(FormService);
   dailyService = inject(DailyService);
@@ -319,6 +320,8 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
     }
     this.formDetailsService.markAsReviewed(Number(row.id), event).subscribe(x => {
       this.loadData();
+    }, err => {
+      this.toasterService.openErrorToaster('حدث خطأ ما الرجاء المحاولة لاحقا')
     })
   }
   clear(input) {

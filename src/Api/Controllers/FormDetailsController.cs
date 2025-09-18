@@ -45,10 +45,10 @@ namespace Api.Controllers
         [HttpPut("MarkAsReviewed/{id}")]
         public async Task<IActionResult> MarkAsReviewed(int id, [FromBody] bool isReviewed)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<FormDetailsRequest>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+            // if (!ModelState.IsValid)
+            // {
+            //     return HandleResult(Result.ValidationErrors<FormDetailsRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            // }
             return HandleResult(await _formDetailsService.MarkFormDetailsAsReviewed(id, isReviewed));
         }
         [HttpDelete("{id}")]

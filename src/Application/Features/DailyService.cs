@@ -6,6 +6,7 @@ using Application.Helpers;
 using Application.Services;
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -13,6 +14,7 @@ using NPOI.SS.UserModel;
 using Persistence.Helpers;
 using Persistence.Repository;
 using Persistence.Specifications;
+using Persistence.Extensions;
 
 namespace Application.Features
 {
@@ -23,15 +25,17 @@ namespace Application.Features
         private readonly IUniteOfWork _unitOfWork;
         private readonly IFormRepository _formRepository;
         private readonly ReportService _reportService;
+        private readonly UserManager<ApplicationUser> _userManager;
         private IConfiguration _config;
 
-        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUniteOfWork unitOfWork, IConfiguration config)
+        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUniteOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config)
         {
             this._formRepository = formRepository;
             this._reportService = reportService;
             this._unitOfWork = unitOfWork;
             this._dailyRepository = dailyRepository;
             this._config = config;
+            this._userManager = userManager;
         }
 
         public async Task<Result<DailyDto>> AddDaily(DailyDto dailyDto, CancellationToken cancellationToken)
@@ -277,8 +281,22 @@ namespace Application.Features
                  TegaraCode = g.FirstOrDefault().Employee.TegaraCode,
                  NationalId = g.FirstOrDefault().Employee.Id,
                  Department = g.FirstOrDefault().Employee.Department,
-                 Amount = g.Sum(x => x.Amount)
+
+                 Amount = g.Sum(x => x.Amount),
+                 //get all reviewers by name with amount in brackets
+
+                 ReviewedBy = g.Select(x => x.IsReviewed).Any() ? g.Select(x => x.IsReviewed ? x.FormId.ToString() +
+                  " - " + _userManager.GetUserByIdAsync(x.IsReviewedBy).Result + " (" + x.Amount + ")" : x.FormId.ToString()
+                  + " -  لم يتم مراجعته   " + " (" + x.Amount + ")").ToList()
+                  : new List<string> { "لم يتم مراجعته   " }.ToList()
+
+
+                 //ReviewedBy = g.Select(x => x.IsReviewed).Any() ? g.Select(x => x.IsReviewedBy + " (" + x.Amount + ")").ToList() : new List<string> { "لم يتم مراجعته   " }
+
              });
+
+
+
             var title2 = "اجمالى اليوميه";
             DataTable dt2 = new DataTable();
             dt2.Columns.Add("م", typeof(int));
@@ -288,6 +306,7 @@ namespace Application.Features
             dt2.Columns.Add("القسم", typeof(string));
             dt2.Columns.Add("الاسم", typeof(string));
             dt2.Columns.Add("المبلغ", typeof(decimal));
+            dt2.Columns.Add("المراجع", typeof(string));
             int counter2 = 1;
             foreach (var item in dailyToDataTable)
             {
@@ -299,11 +318,14 @@ namespace Application.Features
                 dr["القسم"] = item.Department == null ? "" : item.Department.Name;
                 dr["الاسم"] = item.Name;
                 dr.SetField("المبلغ", (decimal)item.Amount);
+                //add all reviewers by name  separated by comma with amount 
+                dr["المراجع"] = string.Join(",", item.ReviewedBy);
+
                 dt2.Rows.Add(dr);
 
             }
 
-            workbook = await npoi.CreateExcelFile(title2.Length > 31 ? title2.Substring(0, 31) : title2, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt2, title2);
+            workbook = await npoi.CreateExcelFile(title2.Length > 31 ? title2.Substring(0, 31) : title2, new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ", "المراجع" }, dt2, title2);
 
 
 

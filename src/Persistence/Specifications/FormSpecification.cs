@@ -11,6 +11,7 @@ namespace Persistence.Specifications
     {
         public FormSpecification(int id, FormParam param) : base(x => x.DailyId == id)
         {
+
             AddInclude(x => x.FormDetails);
             if (!string.IsNullOrEmpty(param.Name))
             {

@@ -4,6 +4,7 @@ using Application.Helpers;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Persistence.Extensions;
 
@@ -17,6 +18,7 @@ namespace Application.Features
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IUniteOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly UserManager<ApplicationUser> _userManager;
 
         public FormDetailsService(
             IFormRepository formRepository,
@@ -24,13 +26,15 @@ namespace Application.Features
          IFormDetailsRepository formDetailsRepository,
          IDailyRepository dailyRepository,
          IUniteOfWork unitOfWork,
-          IHttpContextAccessor httpContextAccessor)
+          IHttpContextAccessor httpContextAccessor,
+          UserManager<ApplicationUser> userManager)
         {
             this._unitOfWork = unitOfWork;
             this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
             this._formReferencesRepository = formReferencesRepository;
             this._formDetailsRepository = formDetailsRepository;
+            this._userManager = userManager;
         }
 
         public async Task<Result<FormDto>> GetFormDetails(int id)
@@ -112,6 +116,10 @@ namespace Application.Features
                     EmployeeId = x.EmployeeId,
                     FormId = x.FormId,
                     IsActive = x.IsActive,
+                    ReviewComments = x.ReviewComments,
+                    IsReviewed = x.IsReviewed,
+                    ReviewedAt = x.ReviewedAt,
+                    IsReviewedBy = x.IsReviewedBy,
                     OrderNum = x.OrderNum,
                     CreatedAt = DateTime.Now,
                     CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User), //_httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value
@@ -212,7 +220,18 @@ namespace Application.Features
         }
         public async Task<Result> MarkFormDetailsAsReviewed(int formDetailsId, bool isReviewed)
         {
+
+
             var formDetails = await _formDetailsRepository.GetById(formDetailsId);
+
+            // Get User Id 
+            var user = _httpContextAccessor.HttpContext.User;
+            var userId = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(user);
+            //check if current user not same id reviewdby and current user not admin return not authorizerd to check out
+            if (!user.IsInRole("Admin") && formDetails.CreatedBy != userId)
+            {
+                return Result.Failure(new Error("403", "عفوا لا يمكنك التحقق من هذا الملف"));
+            }
             if (formDetails == null)
             {
                 return Result.Failure(new Error("404", "عفوا التفاصيل غير موجودة"));
@@ -222,7 +241,7 @@ namespace Application.Features
             if (isReviewed)
             {
                 formDetails.ReviewedAt = DateTime.Now;
-                formDetails.IsReviewedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+                formDetails.IsReviewedBy = userId;
             }
             else
             {

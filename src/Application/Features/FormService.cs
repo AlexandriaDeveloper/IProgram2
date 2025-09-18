@@ -52,14 +52,31 @@ namespace Application.Features
         {
 
 
-            var user = _httpContextAccessor.HttpContext.User.IsInRole("Admin") ? null :
-            ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+            // determine current user id; if current user is admin, leave user null to fetch all
+            var user = _httpContextAccessor.HttpContext.User;
+            bool isAdmin = user?.IsInRole("Admin") ?? false;
+            string userId = isAdmin ? null : ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(user);
+
             var spec = new FormSpecification(id, param);
             var specCount = new FormCountSpecification(id, param);
-            if (user != null)
+
+            // If current user is not admin, restrict results to forms created by any admin OR by the current user
+            if (!isAdmin && userId != null)
             {
-                spec.Criterias.Add(x => x.CreatedBy == user);
-                specCount.Criterias.Add(x => x.CreatedBy == user);
+                // get all users in Admin role and use their ids as allowed creators
+                var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+                var adminIds = adminUsers?.Select(a => a.Id).ToList() ?? new List<string>();
+
+                // add current user id to allowed creators
+                adminIds.Add(userId);
+                
+                var predicate = PredicateBuilder.False<Form>();
+                foreach (var adminId in adminIds)
+                {
+                    predicate = predicate.Or(p => p.CreatedBy == adminId);
+                }
+                spec.Criterias.Add(predicate);
+                specCount.Criterias.Add(predicate);
             }
 
 
@@ -223,6 +240,8 @@ namespace Application.Features
             dt.Columns.Add("القسم", typeof(string));
             dt.Columns.Add("الاسم", typeof(string));
             dt.Columns.Add("المبلغ", typeof(double));
+            dt.Columns.Add("المراجع");
+
             int counter = 1;
             foreach (var item in formDetails)
             {
@@ -234,13 +253,15 @@ namespace Application.Features
                 dr["القسم"] = item.Employee.Department == null ? "" : item.Employee.Department.Name;
                 dr["الاسم"] = item.Employee.Name;
                 dr.SetField("المبلغ", Math.Round((double)item.Amount, 2));
+                //_userManager.FindByIdAsync(item.IsReviewedBy).Result.DisplayName + (item.IsReviewed ? " (تم المراجعة)" : " (لم يتم المراجعة)")
+                dr["المراجع"] = item.IsReviewed ? _userManager.FindByIdAsync(item.IsReviewedBy).Result.DisplayName + " ( تم المراجعة بواسطة)" : " (لم يتم المراجعة)";
                 dt.Rows.Add(dr);
             }
 
 
 
             var npoi = new NpoiServiceProvider();
-            var workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ" }, dt, title);
+            var workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ", "المراجع" }, dt, title);
 
 
             string tempPath = Path.GetTempPath();
