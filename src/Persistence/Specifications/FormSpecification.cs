@@ -12,10 +12,16 @@ namespace Persistence.Specifications
         public FormSpecification(int id, FormParam param) : base(x => x.DailyId == id)
         {
 
+
             AddInclude(x => x.FormDetails);
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
+            }
+
+            if (param.Index.HasValue)
+            {
+                AddCriteries(x => x.Index == param.Index.Value);
             }
 
             if (!string.IsNullOrEmpty(param.CreatedBy))
@@ -24,7 +30,7 @@ namespace Persistence.Specifications
                 AddCriteries(x => x.User.DisplayName.Contains(param.CreatedBy));
             }
 
-            AddOrderByDescending(x => x.Id);
+            AddOrderByDescending(x => x.Index);
 
             ApplyPaging(param.PageIndex, param.PageSize);
         }
@@ -40,6 +46,10 @@ namespace Persistence.Specifications
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
+            }
+            if (param.Index.HasValue)
+            {
+                AddCriteries(x => x.Index == param.Index.Value);
             }
             if (!string.IsNullOrEmpty(param.CreatedBy))
             {

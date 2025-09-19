@@ -33,7 +33,7 @@ export class FormComponent implements OnInit, AfterViewInit {
 
   //dailyId;
   dialog = inject(MatDialog)
-  displayedColumns = ['action', 'name', 'createdBy', 'count', 'total', 'isReviewed'];
+  displayedColumns = ['action', 'index', 'name', 'createdBy', 'count', 'total', 'isReviewed'];
   formService = inject(FormService);
   dailyService = inject(DailyService);
   authService = inject(AuthService);
@@ -44,6 +44,7 @@ export class FormComponent implements OnInit, AfterViewInit {
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatTable) table!: MatTable<IEmployee>;
+  @ViewChild("indexInput") indexInput: ElementRef;
   @ViewChild("nameInput") nameInput: ElementRef;
   @ViewChild("createdByInput") createdByInput: ElementRef;
   @ViewChild("countInput") countInput: ElementRef;
@@ -151,6 +152,16 @@ export class FormComponent implements OnInit, AfterViewInit {
   }
 
   onSearch() {
+    fromEvent(this.indexInput.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+      map((event: any) => {
+        return event.target.value;
+      })
+    ).subscribe(x => {
+
+      this.param.index = x
+      this.loadData()
+    })
+
     fromEvent(this.nameInput.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
       map((event: any) => {
         return event.target.value;
@@ -176,6 +187,12 @@ export class FormComponent implements OnInit, AfterViewInit {
 
 
   clear(input) {
+    if (input === 'index') {
+      this.indexInput.nativeElement.value = ''
+      this.param.index = null
+      this.loadData();
+
+    }
     if (input === 'name') {
       this.nameInput.nativeElement.value = ''
       this.param.name = ''

@@ -215,7 +215,7 @@ namespace Application.Features
 
 
 
-                }).ToList()
+                }).OrderBy(x => x.Index).ToList()
             };
 
 
@@ -285,8 +285,8 @@ namespace Application.Features
                  Amount = g.Sum(x => x.Amount),
                  //get all reviewers by name with amount in brackets
 
-                 ReviewedBy = g.Select(x => x.IsReviewed).Any() ? g.Select(x => x.IsReviewed ? x.FormId.ToString() +
-                  " - " + _userManager.GetUserByIdAsync(x.IsReviewedBy).Result + " (" + x.Amount + ")" : x.FormId.ToString()
+                 ReviewedBy = g.Select(x => x.IsReviewed).Any() ? g.Select(x => x.IsReviewed ? x.Form.Index.ToString() +
+                  " - " + _userManager.GetUserByIdAsync(x.IsReviewedBy).Result + " (" + x.Amount + ")" : x.Form.Index.ToString()
                   + " -  لم يتم مراجعته   " + " (" + x.Amount + ")").ToList()
                   : new List<string> { "لم يتم مراجعته   " }.ToList()
 
@@ -400,6 +400,7 @@ namespace Application.Features
                         Amount = x.Amount,
                         EmployeeId = x.EmployeeId,
                         OrderNum = x.OrderNum,
+
                     }).ToList()
                 });
             }

@@ -13,67 +13,70 @@ import { FormService } from '../../../shared/service/form.service';
   templateUrl: './add-form.component.html',
   styleUrl: './add-form.component.scss'
 })
-export class AddFormComponent  implements OnInit{
-  form : FormGroup;
-  fb =  inject(FormBuilder);
-  formService =inject(FormService);
-  formData :IForm={
-    id:0,
-    name:'',
-    dailyId:null
+export class AddFormComponent implements OnInit {
+  form: FormGroup;
+  fb = inject(FormBuilder);
+  formService = inject(FormService);
+  formData: IForm = {
+    id: 0,
+    index: null,
+    name: '',
+    description: '',
+    dailyId: null
 
   };
 
   constructor(
     private dialogRef: MatDialogRef<AddFormComponent>,
     @Inject(MAT_DIALOG_DATA) public data: any
-    ) {
+  ) {
 
-    }
-
-    ngOnInit(): void {
-
-// console.log(this.data);
-
-
-    if(this.data.form){
-      this.formData=Object.assign({...this.formData},this.data.form);
-    }
-
-   this.form=this.initForm();
   }
-    initForm(){
-      return this.fb.group({
-        id:[this.formData?.id,[]],
-        name : [this.formData?.name,[Validators.required]],
-       dailyId : [this.data?.dailyId,[]],
-      })
+
+  ngOnInit(): void {
+
+    // console.log(this.data);
+
+
+    if (this.data.form) {
+      this.formData = Object.assign({ ...this.formData }, this.data.form);
     }
-    onSubmit(){
-      if(this.formData.id ===0)
-     {
-       this.formService.addForm(this.form.value).subscribe({
-        next:(res:any)=>{
+
+    this.form = this.initForm();
+  }
+  initForm() {
+    return this.fb.group({
+      id: [this.formData?.id, []],
+      index: [this.formData?.index, [Validators.required]],
+      name: [this.formData?.name, [Validators.required]],
+      description: [this.formData?.description, []],
+      dailyId: [this.data?.dailyId, []],
+    })
+  }
+  onSubmit() {
+    if (this.formData.id === 0) {
+      this.formService.addForm(this.form.value).subscribe({
+        next: (res: any) => {
 
           this.dialogRef.close(this.form.value);
         },
-        error:(err)=> console.log(err)
+        error: (err) => console.log(err)
       })
     }
-      else{
+    else {
 
-        this.formService.editForm(this.form.value).subscribe({
-          next:(res:any)=>{
+      this.formService.editForm(this.form.value).subscribe({
+        next: (res: any) => {
 
-       this.dialogRef.close(this.form.value);
-          },
-          error:(err)=> console.log(err)
-        })
-      }
-
+          this.dialogRef.close(this.form.value);
+        },
+        error: (err) => console.log(err)
+      })
     }
-    onNoClick(){
 
-      this.dialogRef.close();
-    }
+  }
+  onNoClick() {
+
+    this.dialogRef.close();
+  }
 }

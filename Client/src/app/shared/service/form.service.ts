@@ -25,6 +25,7 @@ export class FormService {
 
 
     if (param.name) params = params.append('name', param.name);
+    if (param.index) params = params.append('index', param.index);
 
     if (param.createdBy) params = params.append('createdBy', param.createdBy);
 

@@ -69,7 +69,7 @@ namespace Application.Features
 
                 // add current user id to allowed creators
                 adminIds.Add(userId);
-                
+
                 var predicate = PredicateBuilder.False<Form>();
                 foreach (var adminId in adminIds)
                 {
@@ -88,6 +88,8 @@ namespace Application.Features
             {
                 Name = x.Name,
                 Id = x.Id,
+                Index = x.Index,
+                Description = x.Description,
                 DailyId = x.DailyId,
                 Count = x.FormDetails.Count,
                 TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
@@ -109,7 +111,10 @@ namespace Application.Features
 
             var formToDb = new Form
             {
+                Index = form.Index,
+
                 Name = form.Name,
+                Description = form.Description,
                 DailyId = form.DailyId.HasValue ? form.DailyId.Value : null
 
             };
@@ -135,6 +140,8 @@ namespace Application.Features
                 return Result.Failure(new Error("404", "Not Found"));
             form.Name = request.Name;
             form.DailyId = request.DailyId;
+            form.Index = request.Index;
+            form.Description = request.Description;
             _formRepository.Update(form);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (result)

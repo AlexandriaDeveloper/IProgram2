@@ -1,28 +1,34 @@
-
-
-<mat-card    class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
-    <mat-card-header>
-      <mat-card-title >
-          <div class="close" (click)="onNoClick()">
-            <mat-icon >close</mat-icon>
-          </div>
-          <span>تسجيل ملف جديد</span>
-      </mat-card-title>
-    </mat-card-header>
+<mat-card class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+  <mat-card-header>
+    <mat-card-title>
+      <div class="close" (click)="onNoClick()">
+        <mat-icon>close</mat-icon>
+      </div>
+      <span>تسجيل ملف جديد</span>
+    </mat-card-title>
+  </mat-card-header>
   <mat-card-content>
     <form [formGroup]="form" class="form-dialg" (ngSubmit)="onSubmit()">
+      <mat-form-field appearance="outline" class="form-dialog-input">
+        <mat-label> رقم الموافقة</mat-label>
+        <input matInput formControlName="index" type="number">
+      </mat-form-field>
 
       <mat-form-field appearance="outline" class="form-dialog-input">
         <mat-label> البيان</mat-label>
-        <input matInput formControlName="name" >
+        <input matInput formControlName="name">
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="form-dialog-input">
+        <mat-label> ملاحظات</mat-label>
+        <input matInput formControlName="description">
       </mat-form-field>
 
       <div class="action-buttons">
-          <button   mat-raised-button color="primary"  [disabled]="form.invalid">
-              حفظ
-          </button>
-          <button mat-raised-button color="warn">
-            الغاء
+        <button mat-raised-button color="primary" [disabled]="form.invalid">
+          حفظ
+        </button>
+        <button mat-raised-button color="warn">
+          الغاء
         </button>
 
       </div>
@@ -33,4 +39,3 @@
 
 
 </mat-card>
-
