@@ -14,6 +14,7 @@ namespace Application.Dtos
     public class EmployeeFormDto
     {
         public int FormId { get; set; }
+        public int? FormIndex { get; set; }
         public string FormName { get; set; }
         public double Amount { get; set; }
     }

@@ -44,10 +44,15 @@
   <button mat-menu-item (click)="openPdfUploadSheet()" [disabled]="daily?.closed">
     <mat-icon>upload_file</mat-icon>
     رفع مرجع PDF</button>
+
+  <button mat-menu-item (click)="HideForm()" [disabled]="daily?.closed">
+    <mat-icon>remove_red_eye</mat-icon>
+    اخفاء</button>
 </mat-menu>
 <button mat-icon-button color="primary" *ngIf="data?.hasReferences" (click)="openReferenceDialog()">
   <mat-icon style="color:#fff">image</mat-icon>
 </button>
+
 <div>
 
   <mat-checkbox color="accent" #departmentCheck><span style="color:  #fff !important">القسم</span> </mat-checkbox>
@@ -213,21 +218,16 @@
     </ng-container>
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
     <tr mat-row *matRowDef="let row; columns: displayedColumns;" [cdkDrag]="!daily?.closed" [cdkDragData]="row"
-      class="example-box" [ngClass]="row.isReviewed?'reviewed':'not-reviewed'"></tr>
+      class="example-box" [ngClass]="{
+      'reviewed': row.isReviewed,
+      'not-reviewed': !row.isReviewed,
+      'selected': row.isSelected
+    }">
+    </tr>
 
 
   </table>
   <div class="no-data" *ngIf="!(dataSource?.data?.length) || dataSource?.data?.length===0">
     لا يوجد بيانات للعرض
   </div>
-  <!-- <mat-paginator
-      #paginator
-      [length]="paginator?.length"
-      [pageIndex]="paginator.pageIndex"
-      [pageSize]="paginator.pageSize"
-      [pageSizeOptions]="[30,5, 10]"
-      (page)="onChange( $event)"
-
-      aria-label="Select page">
-  </mat-paginator> -->
 </div>

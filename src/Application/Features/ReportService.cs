@@ -238,7 +238,7 @@ namespace Application.Features
             totalText = totalText.Replace("(", "");
             totalText = totalText.Replace(")", "");
             totalText = totalText.Replace("،", "");
-
+            QuestPDF.Drawing.FontManager.RegisterFont(File.OpenRead(_config["ApiImageContent"] + "Fonts/Cairo-Regular.ttf"));
             var pdf = QuestPDF.Fluent.Document.Create(c =>
              {
                  c.Page(p =>
@@ -386,6 +386,7 @@ namespace Application.Features
             totalText = totalText.Replace("(", "");
             totalText = totalText.Replace(")", "");
             totalText = totalText.Replace("،", "");
+            QuestPDF.Drawing.FontManager.RegisterFont(File.OpenRead(_config["ApiImageContent"] + "Fonts/Cairo-Regular.ttf"));
 
             var pdf = QuestPDF.Fluent.Document.Create(c =>
              {
@@ -453,7 +454,9 @@ namespace Application.Features
                                   t.ColumnsDefinition(h =>
                                   {
                                       h.ConstantColumn(35);
-                                      h.ConstantColumn(350);
+                                      h.ConstantColumn(35);
+                                      //h.RelativeColumn();
+                                      h.ConstantColumn(250);
                                       h.RelativeColumn();
                                       // h.ConstantColumn(35);
 
@@ -465,6 +468,16 @@ namespace Application.Features
                                          {
                                              t.Span("م").ExtraBold().FontFamily("Cairo").FontSize(12);
                                          });
+                                      h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(
+                                        t =>
+                                        {
+                                            t.Span("رقم").ExtraBold().FontFamily("Cairo").FontSize(12);
+                                        });
+                                      //   h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(
+                                      //     t =>
+                                      //     {
+                                      //         t.Span("اليوميه").ExtraBold().FontFamily("Cairo").FontSize(12);
+                                      //     });
 
                                       h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(
                                             t =>
@@ -489,27 +502,30 @@ namespace Application.Features
                                       foreach (var form in daily.Forms)
                                       {
                                           t.Cell().Row((uint)row + 1).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((formCounter + 1).ToString());
-                                          t.Cell().Row((uint)row + 1).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.FormName.ToString());
-                                          t.Cell().Row((uint)row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Amount.ToString());
+                                          t.Cell().Row((uint)row + 1).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.FormIndex.ToString());
+                                          // t.Cell().Row((uint)row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(daily.DailyName.ToString());
+                                          t.Cell().Row((uint)row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.FormName.ToString());
+                                          t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(form.Amount.ToString());
                                           // t.Cell().Row((uint)row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(string.Empty);
                                           formCounter++;
                                           row++;
 
                                       }
                                       t.Cell().Row((uint)row + 1).Column(1).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text((dailyCounter + 1).ToString()).Bold();
-                                      t.Cell().Row((uint)row + 1).Column(2).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text("  إجمالى  " + daily.DailyName).Bold();
-                                      t.Cell().Row((uint)row + 1).Column(3).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text(daily.TotalAmount.ToString()).Bold();
-                                      //  t.Cell().Row((uint)row + 1).Column(4).Background("#b8b8b8").Border(1).Padding(2).AlignMiddle().AlignCenter().Text(daily.State.ToString()).Bold();
+
+                                      t.Cell().Row((uint)row + 1).Column(2).ColumnSpan(2).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text("  إجمالى  " + daily.DailyName).Bold();
+                                      //   t.Cell().Row((uint)row + 1).Column(3).Background("#d0d0d0").BorderBottom(1).BorderTop(1).Height(1, Unit.Centimetre).AlignMiddle().AlignCenter().Text(daily.TotalAmount.ToString()).Bold();
+                                      t.Cell().Row((uint)row + 1).Column(4).Background("#d0d0d0").Border(1).Padding(2).AlignMiddle().AlignCenter().Text(daily.TotalAmount.ToString()).Bold();
                                       dailyCounter++;
                                       row++;
                                   }
-                                  t.Cell().Row((row + 1)).ColumnSpan(2).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(
+                                  t.Cell().Row((row + 1)).ColumnSpan(3).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(
                                      t =>
                                      {
                                          t.Span("الاجمالى الكلى").Bold().FontSize(12).FontFamily("Cairo");
                                          //  t.Span(" اجمالى المبلغ : " + totalText + "فقط لا غير").Bold().FontSize(9).FontFamily("Cairo");
                                      });
-                                  t.Cell().Row((row + 1)).Column(3).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
+                                  t.Cell().Row((row + 1)).Column(4).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text
                                   (formModel.GrandTotal.ToString()).Bold().FontFamily("Cairo");
                               });
 
@@ -528,18 +544,18 @@ namespace Application.Features
                       .AlignBottom()
                       .Image(_config["ApiImageContent"] + "logo3.png");
                       p.Footer()
-                             .Table(t =>
-                             {
-                                 t.ColumnsDefinition(c =>
+                                           .Table(t =>
+                                           {
+                                               t.ColumnsDefinition(c =>
                                  {
                                      c.RelativeColumn();
                                      c.RelativeColumn();
                                      c.RelativeColumn();
                                  });
-                                 t.Cell().Row(1).Column(1).AlignRight().Text("الموظف المختص").Bold();
-                                 t.Cell().Row(1).Column(2).AlignCenter().Text("رئيس القسم").Bold();
-                                 t.Cell().Row(1).Column(3).AlignLeft().Text("رئيس المصلحة").Bold();
-                                 t.Cell().Row(2).Column(2).AlignCenter().Text(x =>
+                                               t.Cell().Row(1).Column(1).AlignRight().Text("الموظف المختص").Bold();
+                                               t.Cell().Row(1).Column(2).AlignCenter().Text("رئيس القسم").Bold();
+                                               t.Cell().Row(1).Column(3).AlignLeft().Text("رئيس المصلحة").Bold();
+                                               t.Cell().Row(2).Column(2).AlignCenter().Text(x =>
                                  {
                                      x.EmptyLine();
                                      x.EmptyLine();
@@ -547,7 +563,7 @@ namespace Application.Features
                                      x.CurrentPageNumber().FontSize(12).FontColor("#484848");
                                      x.Span("-").FontSize(12).FontColor("#484848");
                                  });
-                             });
+                                           });
                   });
              }).WithMetadata(new DocumentMetadata()
              {

@@ -52,6 +52,18 @@ namespace Api.Controllers
         {
             return HandleResult(await _formService.MoveFormDailyToArchive(request));// await _formService.MoveFormDailyToArchive(request);
         }
+        [HttpPut("hide-form/{id}")]
+        public async Task<IActionResult> HideForm(int id)
+        {
+            var result = await _formService.HideForm(id);
+            return HandleResult(result);
+        }
+        [HttpPut("restore-form/{id}")]
+        public async Task<IActionResult> RestoreForm(int id)
+        {
+            var result = await _formService.RestoreForm(id);
+            return HandleResult(result);
+        }
 
         [HttpGet("{dailyId}")]
 

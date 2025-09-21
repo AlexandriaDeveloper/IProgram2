@@ -237,6 +237,7 @@ namespace Application.Features
                 {
                     Amount = Math.Round(x2.Amount, 2),
                     FormId = x2.Form.Id,
+                    FormIndex = x2.Form.Index,
                     FormName = x2.Form.Name
 
                 }).ToList()
@@ -303,7 +304,7 @@ namespace Application.Features
                 empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString(), true);
                 if (empExist != null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
                 {
-                    empExist = _employeeRepository.GetQueryable(null).Include(x => x.EmployeeBank).FirstOrDefault(x => x.Id == row.ItemArray[colIndex].ToString());
+                    empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.Id == row.ItemArray[colIndex].ToString());
                 }
                 // if (empExist == null && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()) && tegaraIndex > -1)
                 // {

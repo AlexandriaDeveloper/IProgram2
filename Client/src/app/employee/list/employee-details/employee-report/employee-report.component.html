@@ -1,78 +1,76 @@
+<div style="display: flex;align-items: center ; justify-items: center;">
+  <div style="position: relative;top:-15px !important">
+    <button mat-icon-button (click)="printPdf()">
+      <mat-icon>print</mat-icon>
 
-  <div style="display: flex;align-items: center ; justify-items: center;">
-    <div style="position: relative;top:-15px !important">
-      <button mat-icon-button (click)="printPdf()">
-        <mat-icon>print</mat-icon>
-
-        </button>
-    </div>
-
-    <mat-form-field  class=" input-date" apperance="fill" style="padding-left: 15px;" >
-      <mat-label style="color: #3a3838;">Choose a date</mat-label>
-      <input matInput [matDatepicker]="picker" [(value)]="request.startDate" (dateChange)="onStartChange($event)">
-      @if (request.startDate) {
-        <button matSuffix mat-icon-button aria-label="Clear" (click)="clearStart()">
-          <mat-icon>close</mat-icon>
-        </button>
-      }
-
-      <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-      <mat-datepicker #picker></mat-datepicker>
-    </mat-form-field>
-
-    <mat-form-field class=" input-date" >
-      <mat-label style="color: #3a3838;">Choose a date</mat-label>
-      <input matInput [matDatepicker]="picker2"  [(value)]="request.endDate"       (dateChange)="onEndChange($event)" >
-      @if (request.endDate) {
-        <button matSuffix mat-icon-button aria-label="Clear" (click)="clearEnd()">
-          <mat-icon>close</mat-icon>
-        </button>
-      }
-
-      <mat-datepicker-toggle matIconSuffix [for]="picker2"></mat-datepicker-toggle>
-      <mat-datepicker #picker2></mat-datepicker>
-    </mat-form-field>
-
-    <div class="action-buttons"  style="position: relative;top:-10px !important;padding-right: 20px;">
-      <button mat-raised-button color="primary" (click)="search()">بحث</button>
-    </div>
-
+    </button>
   </div>
 
-  <mat-accordion>
+  <mat-form-field class=" input-date" apperance="fill" style="padding-left: 15px;">
+    <mat-label style="color: #3a3838;">Choose a date</mat-label>
+    <input matInput [matDatepicker]="picker" [(value)]="request.startDate" (dateChange)="onStartChange($event)">
+    @if (request.startDate) {
+    <button matSuffix mat-icon-button aria-label="Clear" (click)="clearStart()">
+      <mat-icon>close</mat-icon>
+    </button>
+    }
+
+    <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+    <mat-datepicker #picker></mat-datepicker>
+  </mat-form-field>
+
+  <mat-form-field class=" input-date">
+    <mat-label style="color: #3a3838;">Choose a date</mat-label>
+    <input matInput [matDatepicker]="picker2" [(value)]="request.endDate" (dateChange)="onEndChange($event)">
+    @if (request.endDate) {
+    <button matSuffix mat-icon-button aria-label="Clear" (click)="clearEnd()">
+      <mat-icon>close</mat-icon>
+    </button>
+    }
+
+    <mat-datepicker-toggle matIconSuffix [for]="picker2"></mat-datepicker-toggle>
+    <mat-datepicker #picker2></mat-datepicker>
+  </mat-form-field>
+
+  <div class="action-buttons" style="position: relative;top:-10px !important;padding-right: 20px;">
+    <button mat-raised-button color="primary" (click)="search()">بحث</button>
+  </div>
+
+</div>
+
+<mat-accordion>
 
   <div *ngFor="let daily of employeeDailies?.dailies">
-    <mat-expansion-panel (opened)="panelOpenState = true"
-    (closed)="panelOpenState = false">
-    <mat-expansion-panel-header>
+    <mat-expansion-panel (opened)="panelOpenState = true" (closed)="panelOpenState = false">
+      <mat-expansion-panel-header>
 
-   <mat-panel-title>
-    {{daily.dailyName}}
-    </mat-panel-title>
-    <mat-panel-description>
-    {{daily.dailyDate |date}} {{daily.state}}
-    </mat-panel-description>
-    <mat-panel-title>
+        <mat-panel-title>
+          {{daily.dailyName}}
+        </mat-panel-title>
+        <mat-panel-description>
+          {{daily.dailyDate |date}} {{daily.state}}
+        </mat-panel-description>
+        <mat-panel-title>
 
-    </mat-panel-title>
-    <mat-panel-title>
-      الاجمالى : {{daily?.totalAmount}}
-    </mat-panel-title>
-    </mat-expansion-panel-header>
+        </mat-panel-title>
+        <mat-panel-title>
+          الاجمالى : {{daily?.totalAmount}}
+        </mat-panel-title>
+      </mat-expansion-panel-header>
       <table class="table table-striped table-bordered table-hover">
         <thead>
           <tr>
-            <th></th>
+            <th>رقم الملف</th>
             <th>اسم الملف</th>
             <th>المبلغ</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let form of daily?.forms">
-            <td></td>
+            <td>{{form.formIndex}}</td>
             <td>
               <div [routerLink]="['/daily/'+daily.dailyId+'/form/'+form. formId]" style="cursor: pointer;">
-              {{form.formName}}
+                {{form.formName}}
               </div>
             </td>
             <td>{{form.amount}}</td>
@@ -86,20 +84,20 @@
             </td>
             <td>
               <strong>
-              {{daily?.totalAmount}}
-            </strong>
+                {{daily?.totalAmount}}
+              </strong>
             </td>
           </tr>
         </tbody>
       </table>
     </mat-expansion-panel>
   </div>
-  <mat-expansion-panel >
+  <mat-expansion-panel>
     <mat-expansion-panel-header>
       <mat-panel-title>
-             <div class="total">
-                الاجمالى الكلى
-             </div>
+        <div class="total">
+          الاجمالى الكلى
+        </div>
       </mat-panel-title>
       <mat-panel-description>
 
@@ -110,14 +108,12 @@
       <mat-panel-title>
         <div class="total">
 
-          {{employeeDailies?.grandTotal|currency :'  EGP ':'symbol-narrow':'4.2-2' }}
+          {{employeeDailies?.grandTotal|currency :' EGP ':'symbol-narrow':'4.2-2' }}
 
 
-       </div>
+        </div>
       </mat-panel-title>
     </mat-expansion-panel-header>
 
   </mat-expansion-panel>
-  </mat-accordion>
-
-
+</mat-accordion>

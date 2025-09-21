@@ -9,6 +9,9 @@ import { map, catchError, of } from 'rxjs';
   providedIn: 'root'
 })
 export class FormService {
+  restoreForm(id: number) {
+    return this.http.put(this.apiUrl + 'form/restore-form/' + id, {});
+  }
 
   apiUrl = environment.apiUrl;
   http = inject(HttpClient);
@@ -122,6 +125,9 @@ export class FormService {
       // reportProgress: true,
       observe: "events"
     })
+  }
+  HideForm(id) {
+    return this.http.put(this.apiUrl + 'form/hide-form/' + id, {});
   }
 
 }

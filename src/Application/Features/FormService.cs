@@ -80,7 +80,7 @@ namespace Application.Features
             }
 
 
-            var result = await _formRepository.ListAllAsync(spec);
+            var result = await _formRepository.ListAllAsync(spec, withInactive: true);
             var count = await _formRepository.CountAsync(specCount);
 
 
@@ -95,6 +95,7 @@ namespace Application.Features
                 TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
                 CreatedBy = _userManager.FindByIdAsync(x.CreatedBy).Result.DisplayName,
                 isReviewed = x.FormDetails.All(d => d.IsReviewed),
+                isActive = x.IsActive,
             }).ToList();
             var pagedResult = PaginatedResult<FormDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormDto>>(pagedResult);
@@ -445,13 +446,29 @@ namespace Application.Features
 
         }
 
+        public async Task<Result<object>> HideForm(int id)
+        {
+            var form = await _formRepository.GetQueryable().FirstOrDefaultAsync(x => x.Id == id);
+            if (form == null) return Result.Failure<object>(new Error("404", "Form not found"));
 
+            form.IsActive = false;
+            _formRepository.Update(form);
+            await _unitOfWork.SaveChangesAsync();
 
+            return Result.Success("تم اخفاء النموذج بنجاح");
+        }
 
+        public async Task<Result<object>> RestoreForm(int id)
+        {
+            var form = await _formRepository.GetQueryable(null).FirstOrDefaultAsync(x => x.Id == id);
+            if (form == null) return Result.Failure<object>(new Error("404", "Form not found"));
 
+            form.IsActive = true;
+            _formRepository.Update(form);
+            await _unitOfWork.SaveChangesAsync();
 
-
-
+            return Result.Success("تم استرجاع النموذج بنجاح");
+        }
     }
 }
 /*

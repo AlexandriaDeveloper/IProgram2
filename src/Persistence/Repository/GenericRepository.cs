@@ -83,10 +83,12 @@ namespace Persistence.Repository
             return await _context.Set<T>().Where(t => t.IsActive).ToListAsync();
         }
 
-        public async Task<List<T>> ListAllAsync(ISpecification<T> spec)
+        public async Task<List<T>> ListAllAsync(ISpecification<T> spec, bool? withInactive = false)
         {
-
-            return await ApplyActiveSpecification(spec).ToListAsync();
+            if (withInactive == true)
+                return await ApplySpecification(spec).ToListAsync();
+            else
+                return await ApplyActiveSpecification(spec).ToListAsync();
         }
         public async Task<int> CountAsync(ISpecification<T> spec)
         {
@@ -101,6 +103,10 @@ namespace Persistence.Repository
         private IQueryable<T> ApplyInactiveSpecification(ISpecification<T> spec)
         {
             spec.Criterias.Add(c => c.IsActive == false);
+            return SpecificationEvaluator<T>.GetQuery(_context.Set<T>().AsQueryable(), spec);
+        }
+        private IQueryable<T> ApplySpecification(ISpecification<T> spec)
+        {
             return SpecificationEvaluator<T>.GetQuery(_context.Set<T>().AsQueryable(), spec);
         }
         public async Task<T> GetInactiveById(int id)
@@ -129,5 +135,8 @@ namespace Persistence.Repository
             else
                 return _context.Set<T>().Where(t => t.IsActive == isActive);
         }
+
+
+
     }
 }

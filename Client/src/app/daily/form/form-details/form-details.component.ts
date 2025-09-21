@@ -306,20 +306,19 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
   }
   markAsReviewed(row: IEmployee, event: boolean) {
     if (this.daily?.closed) return;
-    //confirm you uncheck 
-    console.log(row);
-    console.log(event);
+
+    row.isReviewed = event;
 
     if (!event) {
       if (!confirm("انت على وشك الغاء مراجعة البيان هل انت متأكد ؟")) {
-        this.loadData();
+        // this.loadData();
         return;
 
       }
 
     }
     this.formDetailsService.markAsReviewed(Number(row.id), event).subscribe(x => {
-      this.loadData();
+      //this.loadData();
     }, err => {
       this.toasterService.openErrorToaster('حدث خطأ ما الرجاء المحاولة لاحقا')
     })
@@ -384,6 +383,22 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
       }
 
     )
+  }
+  HideForm() {
+    if (confirm(`هل تريد اخفاء استمارة ${this.data.name} ؟!`)) {
+
+      this.formService.HideForm(this.id).subscribe(x => {
+
+        this.toasterService.openSuccessToaster('تم اخفاء النموذج بنجاح')
+      }, error => {
+        this.toasterService.openErrorToaster('حدث خطأ ما الرجاء المحاولة لاحقا')
+      }, () => {
+        //navigate to daily forms page
+        this.router.navigateByUrl(`/daily/${this.dailyId}/form`);
+      });
+
+    }
+
   }
 
 

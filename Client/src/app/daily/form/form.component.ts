@@ -245,6 +245,15 @@ export class FormComponent implements OnInit, AfterViewInit {
 
     window.open(environment.apiContent + dailyReference.referencePath, '_blank');
   }
+  restoreForm(row) {
+    if (confirm(` أنت على وشك استرجاع ملف ${row.name} هل انت متاكد ؟؟!`)) {
+      this.formService.restoreForm(row.id).subscribe({
+        next: (x: any) => {
+          this.loadData();
+        }
+      })
+    }
+  }
 
 }
 

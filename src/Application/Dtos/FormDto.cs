@@ -13,7 +13,7 @@ namespace Application.Dtos
         public int Count { get; set; }
         public string CreatedBy { get; set; }
         public bool isReviewed { get; set; }
-
+        public bool isActive { get; set; }
         public virtual int? Index { get; set; }
         public List<FormDetailsDto> FormDetails { get; set; }
 

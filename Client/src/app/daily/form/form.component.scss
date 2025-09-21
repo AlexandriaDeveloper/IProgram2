@@ -10,3 +10,18 @@
 .mat-column-index {
   width: 80px !important;
 }
+
+.activeRow {
+  // background-color: rgba($color: $primary-color, $alpha: 0.1);
+}
+
+.inactiveRow {
+  background-color: rgba($color: #81b5bd, $alpha: 0.4);
+  opacity: 0.6;
+
+  &:hover {
+    cursor: not-allowed !important;
+    background-color: rgba($color: #fafafa, $alpha: 0.9) !important;
+    opacity: 0.6 !important;
+  }
+}

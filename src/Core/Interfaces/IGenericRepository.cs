@@ -10,7 +10,7 @@ namespace Core.Interfaces
         Task<TValue> GetById(int id);
         Task<TValue> GetBySpec(ISpecification<TValue> spec);
         Task<List<TValue>> ListAllAsync();
-        Task<List<TValue>> ListAllAsync(ISpecification<TValue> spec);
+        Task<List<TValue>> ListAllAsync(ISpecification<TValue> spec, bool? withInactive = false);
 
 
 
