@@ -1,12 +1,12 @@
 import { EmployeeParam } from '../../shared/models/IEmployee';
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, OnInit, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, OnInit, ViewChild, inject, OnDestroy } from '@angular/core';
 import { MatTableModule, MatTable } from '@angular/material/table';
 import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatSortModule, MatSort } from '@angular/material/sort';
 
 import { EmployeeService } from '../../shared/service/employee.service';
 import { IEmployee } from '../../shared/models/IEmployee';
-import { debounceTime, distinctUntilChanged, fromEvent, map, of, tap } from 'rxjs';
+import { debounceTime, distinctUntilChanged, fromEvent, map, of, tap, Subscription } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialog } from '@angular/material/dialog';
 import { AddBankDialogComponent } from './employee-details/bank-info/add-bank-dialog/add-bank-dialog.component';
@@ -20,7 +20,7 @@ import { ToasterService } from '../../shared/components/toaster/toaster.service'
   standalone: false,
 
 })
-export class ListComponent implements AfterViewInit, OnInit {
+export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
   employeeService = inject(EmployeeService);
   router = inject(ActivatedRoute);
   toaster = inject(ToasterService);
@@ -36,6 +36,8 @@ export class ListComponent implements AfterViewInit, OnInit {
   @ViewChild("departmentInput") departmentInput: ElementRef;
   dataSource;
   _dialog = inject(MatDialog)
+  // hold subscriptions created by initElement so we can unsubscribe on destroy
+  private _subs: Subscription[] = [];
 
   constructor(private cdref: ChangeDetectorRef) { }
   ngOnInit(): void {
@@ -53,8 +55,14 @@ export class ListComponent implements AfterViewInit, OnInit {
     this.cdref.detectChanges();
   }
   ngAfterViewInit(): void {
-
+    // create search subscriptions once after view init
     this.search();
+  }
+
+  ngOnDestroy(): void {
+    // unsubscribe any subscriptions created by initElement
+    this._subs.forEach(s => s.unsubscribe());
+    this._subs = [];
   }
   search() {
     this.initElement(this.tabCodeInput, 'tabCode');
@@ -65,9 +73,7 @@ export class ListComponent implements AfterViewInit, OnInit {
     this.initElement(this.departmentInput, 'department');
   }
   initElement(element: ElementRef, param) {
-
-
-    fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+    const sub = fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
       map((event: any) => {
         return event.target.value;
       })
@@ -88,6 +94,7 @@ export class ListComponent implements AfterViewInit, OnInit {
       }
       this.loadData();
     })
+    this._subs.push(sub);
   }
 
 
@@ -111,7 +118,6 @@ export class ListComponent implements AfterViewInit, OnInit {
       //reset search
       this.table.dataSource = this.dataSource;
       this.table.renderRows();
-      this.search();
 
 
     });

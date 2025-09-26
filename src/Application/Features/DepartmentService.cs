@@ -10,6 +10,7 @@ using Application.Services;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Persistence.Helpers;
 using Persistence.Specifications;
 
@@ -20,12 +21,14 @@ namespace Application.Features
         private readonly IDepartmentRepository _departmentRepository;
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IUniteOfWork _unitOfWork;
+        private readonly IMemoryCache _cache;
 
-        public DepartmentService(IDepartmentRepository departmentRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork)
+        public DepartmentService(IDepartmentRepository departmentRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IMemoryCache cache)
         {
             this._unitOfWork = unitOfWork;
             this._departmentRepository = departmentRepository;
             this._employeeRepository = employeeRepository;
+            this._cache = cache;
         }
 
         public async Task<Result<PaginatedResult<DepartmentDto>>> getDepartments(DepartmentParam departmentParam)
@@ -82,6 +85,10 @@ namespace Application.Features
                 return Result.Failure<DepartmentDto>(new Error("500", "Internal Server Error"));
             }
             departmentDto.Id = department.Id;
+
+            // Clear cache after successful save
+            ClearDepartmentCache();
+
             return Result.Success<DepartmentDto>(departmentDto);
         }
         public async Task<Result> UploadEmployeesDepartment(EmployeesDepartmentFileUploadRequest request)
@@ -137,6 +144,10 @@ namespace Application.Features
 
             }
             await _unitOfWork.SaveChangesAsync();
+
+            // Clear cache after successful bulk update
+            ClearDepartmentCache();
+
             return Result.Success("تم الرفع بنجاح");
 
         }
@@ -152,6 +163,10 @@ namespace Application.Features
                 return Result.Failure<DepartmentDto>(new Error("500", "Internal Server Error"));
             }
             departmentDto.Id = department.Id;
+
+            // Clear cache after successful edit
+            ClearDepartmentCache();
+
             return Result.Success<DepartmentDto>(departmentDto);
         }
 
@@ -221,12 +236,42 @@ namespace Application.Features
             {
                 return Result.Failure<DepartmentDto>(new Error("500", "Internal Server Error"));
             }
+
+            // Clear cache after successful deletion
+            ClearDepartmentCache();
+
             return Result.Success("تم الحذف بنجاح");
         }
 
         public async Task<Result<List<DepartmentDto>>> getAllDepartments()
         {
-            return Result.Success(await _departmentRepository.GetQueryable().Where(x => x.IsActive).Select(x => new DepartmentDto { Id = x.Id, Name = x.Name }).ToListAsync());
+            const string cacheKey = "departments_all";
+
+            // Try to get from cache first
+            if (!_cache.TryGetValue(cacheKey, out List<DepartmentDto> departments))
+            {
+                // Cache miss - fetch from database
+                departments = await _departmentRepository.GetQueryable()
+                    .Where(x => x.IsActive)
+                    .Select(x => new DepartmentDto { Id = x.Id, Name = x.Name })
+                    .ToListAsync();
+
+                // Set cache options
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(TimeSpan.FromMinutes(30)) // Keep for 30 minutes
+                    .SetSlidingExpiration(TimeSpan.FromMinutes(10)); // Reset if accessed within 10 minutes
+
+                // Save to cache
+                _cache.Set(cacheKey, departments, cacheOptions);
+            }
+
+            return Result.Success(departments);
+        }
+
+        private void ClearDepartmentCache()
+        {
+            // Clear the all departments cache when data changes
+            _cache.Remove("departments_all");
         }
     }
 }

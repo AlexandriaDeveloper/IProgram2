@@ -81,7 +81,7 @@ export class AddEmployeeDialogComponent implements OnInit {
     this.dialogRef.close();
   }
   onEmployeeSearch() {
-    debugger
+
     this.employeeParam = Object.assign(this.employeeParam, this.employeeSearchForm.value);
     this.loadEmployee();
 

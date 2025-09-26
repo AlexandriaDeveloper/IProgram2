@@ -1,6 +1,6 @@
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormDetailsService } from './../../../shared/service/form-details.service';
-import { AfterViewInit, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { DescriptionDialogComponent } from './description-dialog/description-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { MatPaginator } from '@angular/material/paginator';
@@ -9,7 +9,7 @@ import { MatTable, MatTableDataSource } from '@angular/material/table';
 import { IEmployee } from '../../../shared/models/IEmployee';
 import { AddEmployeeDialogComponent } from './add-employee-dialog/add-employee-dialog.component';
 import { moveItemInArray, CdkDragDrop } from '@angular/cdk/drag-drop';
-import { fromEvent, debounceTime, distinctUntilChanged, map, Subscription } from 'rxjs';
+import { fromEvent, debounceTime, distinctUntilChanged, map, Subscription, catchError, throwError } from 'rxjs';
 import { MatCheckboxChange } from '@angular/material/checkbox';
 import { FormService } from '../../../shared/service/form.service';
 import { ToasterService } from '../../../shared/components/toaster/toaster.service';
@@ -29,7 +29,8 @@ import { UploadPdfBottomComponent } from './upload-pdf-bottom/upload-pdf-bottom.
   templateUrl: './form-details.component.html',
   styleUrl: './form-details.component.scss'
 })
-export class FormDetailsComponent implements OnInit, AfterViewInit {
+export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
+  private subscriptions: Subscription[] = [];
 
   dialog = inject(MatDialog)
   toaster = inject(ToasterService);
@@ -48,8 +49,14 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
   // (multi-sort UI removed) keep single-column MatSort
   // active filter values per column
   filterValues: { [key: string]: string } = {};
+  // reviewFilter: 'all' | 'reviewed' | 'unreviewed'
+  reviewFilter: string = 'all';
   displayedColumns = ['action', 'tabCode', 'tegaraCode', 'name', 'department', 'employeeId', 'amount']
   isLoading = false;
+  isDeleting = false;
+  isReordering = false;
+  isMarkingReviewed = false;
+  isExportingPdf = false;
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
@@ -69,23 +76,21 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
     this.loadDaily();
     this.loadData();
   }
+
   loadDaily() {
     if (this.dailyId !== undefined) {
-      this.dailyService.getDaily(this.dailyId).subscribe(x => {
-        console.log(x);
-
-        this.daily = x
-      })
-    }
-    else {
+      const sub = this.dailyService.getDaily(this.dailyId).subscribe(x => {
+        console.log('Loaded daily:', x);
+        this.daily = x;
+      });
+      this.subscriptions.push(sub);
+    } else {
       this.daily = {
         id: null,
         dailyDate: new Date(),
         name: 'ارشيف',
-
-      }
+      };
     }
-
   }
   ngAfterViewInit(): void {
     // attach sort/paginator after view init
@@ -106,8 +111,8 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
     this.initElement(this.departmentInput, 'department');
 
   }
-  initElement(element: ElementRef, param) {
-    return fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
+  initElement(element: ElementRef, param): Subscription {
+    const sub = fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
       map((event: any) => {
         const value = (event.target.value || '').toString().trim();
         // update the filter value for this column and apply
@@ -116,43 +121,65 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
         return event.target.value;
       })
     ).subscribe();
+    this.subscriptions.push(sub);
+    return sub;
   }
 
 
   loadData() {
-
-    this.formDetailsService.GetFormDetails(this.id).subscribe(x => {
-      console.log(x);
-
-      this.data = x;
-      // set MatTableDataSource so sort/filter work
-      this.dataSource = new MatTableDataSource<IEmployee>(x.formDetails);
-      // setup filter predicate that checks each active filter value
-      this.dataSource.filterPredicate = (data: IEmployee, filter: string) => {
-        const fv = JSON.parse(filter || '{}');
-        // iterate filters
-        for (const key of Object.keys(fv)) {
-          const filterVal = (fv[key] || '').toString().trim();
-          if (!filterVal) continue;
-          const cell = (data as any)[key];
-          if (cell === null || cell === undefined) return false;
-          const cellStr = cell.toString();
-          // for name/employeeId/department do substring match, else startsWith
-          if (key === 'name' || key === 'employeeId' || key === 'department') {
-            if (!cellStr.includes(filterVal)) return false;
-          } else {
-            if (!cellStr.startsWith(filterVal)) return false;
+    this.isLoading = true;
+    this.formDetailsService.GetFormDetails(this.id).pipe(
+      catchError(error => {
+        console.error('Error loading form details:', error);
+        this.toasterService.openErrorToaster('حدث خطأ في تحميل البيانات');
+        return throwError(() => error);
+      })
+    ).subscribe({
+      next: x => {
+        console.log('Loaded form details:', x);
+        this.data = x;
+        // set MatTableDataSource so sort/filter work
+        this.dataSource = new MatTableDataSource<IEmployee>((x.formDetails as any));
+        // setup filter predicate that checks each active filter value
+        this.dataSource.filterPredicate = (data: IEmployee, filter: string) => {
+          const fv = JSON.parse(filter || '{}');
+          // iterate filters
+          for (const key of Object.keys(fv)) {
+            const filterVal = (fv[key] || '').toString().trim();
+            if (!filterVal) continue;
+            const cell = (data as any)[key];
+            if (cell === null || cell === undefined) return false;
+            const cellStr = cell.toString();
+            // for name/employeeId/department do substring match, else startsWith
+            if (key === 'name' || key === 'employeeId' || key === 'department') {
+              if (!cellStr.includes(filterVal)) return false;
+            } else {
+              if (!cellStr.startsWith(filterVal)) return false;
+            }
           }
-        }
-        return true;
-      };
-      // initialize filters
-      this.filterValues = {};
-      this.dataSource.filter = JSON.stringify(this.filterValues);
-      // attach sort/paginator if available
-      if (this.sort) this.dataSource.sort = this.sort;
-      if (this.paginator) this.dataSource.paginator = this.paginator;
-    })
+          // apply review filter
+          if (this.reviewFilter === 'reviewed') {
+            if (!data?.isReviewed) return false;
+          } else if (this.reviewFilter === 'unreviewed') {
+            if (data?.isReviewed) return false;
+          }
+          return true;
+        };
+        // initialize filters
+        this.filterValues = {};
+        this.dataSource.filter = JSON.stringify(this.filterValues);
+        // attach sort/paginator if available
+        if (this.sort) this.dataSource.sort = this.sort;
+        if (this.paginator) this.dataSource.paginator = this.paginator;
+      },
+      error: (err) => {
+        // Already handled in pipe, but ensure loading is reset
+        this.isLoading = false;
+      },
+      complete: () => {
+        this.isLoading = false;
+      }
+    });
   }
   onChange(ev) {
 
@@ -259,14 +286,35 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
       // this.animal = result;
     });
   }
-  deleteEmployee(row) {
+  deleteEmployee(row: IEmployee) {
     if (confirm(`انت على وشك حذف الموظف ${row.name} هل انت متاكد ؟؟!`)) {
-      this.formDetailsService.deleteFormDetails(row.id).subscribe(x => this.loadData())
+      this.isDeleting = true;
+      this.formDetailsService.deleteFormDetails(Number(row.id)).subscribe({
+        next: () => {
+          this.isDeleting = false;
+          this.loadData();
+        },
+        error: (err) => {
+          this.isDeleting = false;
+          this.toasterService.openErrorToaster('فشل في حذف الموظف');
+        }
+      });
     }
-    // this.formDetailsService.deleteFormDetails(rowId).subscribe(x=>this.loadData())
   }
+
   exportPdf() {
-    this.formDetailsService.exportForms(this.id).subscribe()
+    this.isExportingPdf = true;
+    this.formDetailsService.exportForms(this.id).subscribe({
+      next: () => {
+        this.isExportingPdf = false;
+        this.toasterService.openSuccessToaster('تم تصدير PDF بنجاح');
+      },
+      error: (err) => {
+        this.isExportingPdf = false;
+        console.error('Export error:', err);
+        this.toasterService.openErrorToaster('فشل في تصدير PDF');
+      }
+    });
   }
   drop(event: CdkDragDrop<IEmployee[]>) {
     if (this.daily?.closed) return;
@@ -289,7 +337,7 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
     this.reOrderRows();
   }
   reOrderRows() {
-    const ids = this.dataSource.data.map(x => x.id);
+    const ids = this.dataSource.data.map(x => Number(x.id));
     console.log('reOrderRows ids', ids);
 
     this.formDetailsService.reOrderRows(this.id, ids).subscribe({
@@ -353,8 +401,15 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
 
   applyFilter() {
     if (!this.dataSource) return;
-    // set the filter string to the serialized filter values
+    // ensure review filter is included in the filter values for serialization (so predicate can use this.reviewFilter)
+    // we don't need to add it to filterValues object; predicate reads this.reviewFilter directly. Still serialize filterValues.
     this.dataSource.filter = JSON.stringify(this.filterValues || {});
+  }
+
+  applyReviewToggle(value: string) {
+    this.reviewFilter = value;
+    // trigger table filter re-evaluation
+    this.applyFilter();
   }
   moveFromDailyToArchive() {
     if (confirm(`هل تريد الغاء استمارة ${this.data.name} ؟من اليوميه!`)) {
@@ -400,8 +455,23 @@ export class FormDetailsComponent implements OnInit, AfterViewInit {
     }
 
   }
+  countReviewed() {
+    return this.dataSource?.data?.filter(item => item?.isReviewed).length;
+  }
 
+  applyReviewFilter(checked: boolean) {
+    if (checked) {
+      this.filterValues['isReviewed'] = 'true';
+    } else {
+      this.filterValues['isReviewed'] = '';
+    }
+    this.applyFilter();
 
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
 
 
 }

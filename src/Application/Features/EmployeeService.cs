@@ -7,6 +7,7 @@ using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using NPOI.SS.UserModel;
 using Persistence.Extensions;
@@ -22,13 +23,13 @@ namespace Application.Features
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IConfiguration _config;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IMemoryCache _cache;
 
         public EmployeeService(IEmployeeRepository employeeRepository,
          IFormDetailsRepository formDetailsRepository
         , IDepartmentRepository departmentRepository
-
         , IUniteOfWork uow, IConfiguration config,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor, IMemoryCache cache)
         {
             this._config = config;
             this._httpContextAccessor = httpContextAccessor;
@@ -36,6 +37,7 @@ namespace Application.Features
             this._uow = uow;
             this._employeeRepository = employeeRepository;
             this._departmentRepository = departmentRepository;
+            this._cache = cache;
 
         }
         public async Task<Result<PaginatedResult<EmployeeDto>>> getEmployees(EmployeeParam param)
@@ -132,6 +134,12 @@ namespace Application.Features
 
             employee.Id = employeeToDb.Id;
 
+            // Clear cache if new collage/section was added
+            if (!string.IsNullOrEmpty(employee.Collage) || !string.IsNullOrEmpty(employee.Section))
+            {
+                ClearEmployeeReferenceCache();
+            }
+            ClearEmployeeCache();
             return Result.Success(employee);
 
         }
@@ -173,11 +181,19 @@ namespace Application.Features
 
             _employeeRepository.Update(employeeFromDb);
 
+
             var result = await _uow.SaveChangesAsync() > 0;
 
             if (!result)
             {
                 return Result.Failure<EmployeeDto>(new Error("500", "حدث خطأ في تحديث الموظف"));
+            }
+            ClearEmployeeCache();
+            // Clear cache if collage/section was updated
+            if (!string.IsNullOrEmpty(employee.Collage) || !string.IsNullOrEmpty(employee.Section) ||
+                employeeFromDb.Collage != employee.Collage || employeeFromDb.Section != employee.Section)
+            {
+                ClearEmployeeReferenceCache();
             }
 
             return Result.Success(employee);
@@ -343,7 +359,11 @@ namespace Application.Features
             try
             {
                 await _uow.SaveChangesAsync();
+                ClearEmployeeCache();
+                // Clear cache after bulk operations that might change reference data
+                ClearEmployeeReferenceCache();
 
+                return Result.Success("تم الرفع بنجاح");
             }
             catch (Exception ex)
             {
@@ -618,6 +638,7 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
             }
+            ClearEmployeeCache();
             return Result.Success("تم حذف الموظف بنجاح");
         }
 
@@ -631,10 +652,12 @@ namespace Application.Features
 
             await _employeeRepository.Delete(id);
             var result = await _uow.SaveChangesAsync() > 0;
+
             if (!result)
             {
                 return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
             }
+            ClearEmployeeCache();
             return Result.Success("تم حذف الموظف بنجاح");
         }
 
@@ -723,13 +746,57 @@ namespace Application.Features
 
         public async Task<List<string>> GetSectionsName()
         {
-            var sections = _employeeRepository.GetQueryable().Select(x => x.Section).Distinct().ToList();
-            return await Task.FromResult(sections);
+            const string cacheKey = "employee_sections_all";
+
+            if (!_cache.TryGetValue(cacheKey, out List<string> sections))
+            {
+                sections = await _employeeRepository.GetQueryable()
+                    .Where(x => !string.IsNullOrEmpty(x.Section))
+                    .Select(x => x.Section)
+                    .Distinct()
+                    .ToListAsync();
+
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(TimeSpan.FromMinutes(30))
+                    .SetSlidingExpiration(TimeSpan.FromMinutes(10));
+
+                _cache.Set(cacheKey, sections, cacheOptions);
+            }
+
+            return sections;
         }
+
         public async Task<List<string>> GetCollagesName()
         {
-            var collages = _employeeRepository.GetQueryable().Select(x => x.Collage).Distinct().ToList();
-            return await Task.FromResult(collages);
+            const string cacheKey = "employee_collages_all";
+
+            if (!_cache.TryGetValue(cacheKey, out List<string> collages))
+            {
+                collages = await _employeeRepository.GetQueryable()
+                    .Where(x => !string.IsNullOrEmpty(x.Collage))
+                    .Select(x => x.Collage)
+                    .Distinct()
+                    .ToListAsync();
+
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(TimeSpan.FromMinutes(30))
+                    .SetSlidingExpiration(TimeSpan.FromMinutes(10));
+
+                _cache.Set(cacheKey, collages, cacheOptions);
+            }
+
+            return collages;
+        }
+
+        private void ClearEmployeeReferenceCache()
+        {
+            // Clear reference data cache when employee reference data changes
+            _cache.Remove("employee_sections_all");
+            _cache.Remove("employee_collages_all");
+        }
+        private void ClearEmployeeCache()
+        {
+            _cache.Remove("employees_all");
         }
 
         private int? GetDepartmentIdByName(string name)

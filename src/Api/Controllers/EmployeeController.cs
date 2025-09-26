@@ -5,6 +5,7 @@ using Application.Features;
 using Application.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Persistence.Helpers;
 
 namespace Api.Controllers
@@ -17,7 +18,7 @@ namespace Api.Controllers
             this._employeeService = employeeService;
         }
         [HttpGet("GetEmployees")]
-
+        [ResponseCache(CacheProfileName = "Short")]
         public async Task<IActionResult> GetEmployees([FromQuery] EmployeeParam employeeParam)
         {
             return HandleResult(await _employeeService.getEmployees(employeeParam));
@@ -44,7 +45,17 @@ namespace Api.Controllers
             {
                 return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
-            return HandleResult<EmployeeDto>(await _employeeService.UpdateEmployee(employee));
+            var result = await _employeeService.UpdateEmployee(employee);
+
+            // Force browser to refetch employee data after update
+            if (result.IsSuccess)
+            {
+                Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+                Response.Headers.Pragma = "no-cache";
+                Response.Headers.Expires = "0";
+            }
+
+            return HandleResult<EmployeeDto>(result);
         }
         [HttpPost("Upload")]
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
@@ -99,11 +110,13 @@ namespace Api.Controllers
         }
         [HttpGet("GetCollages")]
         [AllowAnonymous]
+        [ResponseCache(Duration = 1800, Location = ResponseCacheLocation.Any, NoStore = false)] // 30 minutes cache for collages
         public async Task<IActionResult> GetCollages()
         {
             return HandleResult<List<string>>(await _employeeService.GetCollagesName());
         }
         [HttpGet("GetSections")]
+        [ResponseCache(Duration = 1800, Location = ResponseCacheLocation.Any, NoStore = false)] // 30 minutes cache for sections
         public async Task<IActionResult> GetSections()
         {
             return HandleResult<List<string>>(await _employeeService.GetSectionsName());

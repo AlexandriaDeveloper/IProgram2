@@ -6,6 +6,7 @@ using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Persistence.Extensions;
 
 namespace Application.Features
@@ -18,6 +19,7 @@ namespace Application.Features
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IUniteOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IMemoryCache _cache;
         private readonly UserManager<ApplicationUser> _userManager;
 
         public FormDetailsService(
@@ -27,6 +29,7 @@ namespace Application.Features
          IDailyRepository dailyRepository,
          IUniteOfWork unitOfWork,
           IHttpContextAccessor httpContextAccessor,
+          IMemoryCache cache,
           UserManager<ApplicationUser> userManager)
         {
             this._unitOfWork = unitOfWork;
@@ -35,43 +38,71 @@ namespace Application.Features
             this._formReferencesRepository = formReferencesRepository;
             this._formDetailsRepository = formDetailsRepository;
             this._userManager = userManager;
+            this._cache = cache;
+        }
+
+        private void ClearFormDetailsCache(int formId)
+        {
+            var cacheKey = $"FormDetails_{formId}";
+            _cache.Remove(cacheKey);
+        }
+
+        private void ClearFormDetailsCache()
+        {
+            // In a real scenario, you might want to clear related caches too
+            // For now, individual form cache clearing is sufficient
         }
 
         public async Task<Result<FormDto>> GetFormDetails(int id)
         {
-            var result = await _formRepository.GetFormWithDetailsByIdAsync(id);
-            if (result == null)
+            // Single optimized query: fetch form with active form details and includes
+            var cacheKey = $"FormDetails_{id}";
+            if (!_cache.TryGetValue(cacheKey, out FormDto formDto))
             {
-                return Result.Failure<FormDto>(new Error("404", "Not Found"));
-            }
-            result.FormDetails = await _formDetailsRepository.GetQueryable().Include(X => X.Employee).ThenInclude(x => x.Department).Where(x => x.FormId == id).ToListAsync();
+                formDto = await _formRepository.GetQueryable()
+                   .Where(f => f.Id == id)
+                   .Select(f => new FormDto
+                   {
+                       Description = f.Description,
+                       Id = f.Id,
+                       Name = f.Name,
+                       FormDetails = f.FormDetails
+                           .Where(fd => fd.IsActive)
+                           .OrderBy(fd => fd.OrderNum)
+                           .Select(fd => new FormDetailsDto
+                           {
+                               Id = fd.Id,
+                               FormId = fd.FormId,
+                               Name = fd.Employee.Name,
+                               TabCode = fd.Employee.TabCode,
+                               TegaraCode = fd.Employee.TegaraCode,
+                               Amount = fd.Amount,
+                               EmployeeId = fd.EmployeeId,
+                               Department = fd.Employee.Department.Name,
+                               IsReviewed = fd.IsReviewed,
+                               ReviewComments = fd.ReviewComments
+                           }).ToList()
+                   })
+                   .FirstOrDefaultAsync();
 
-            var resultToReturn = new FormDto()
-            {
-                Description = result.Description,
-                Id = result.Id,
-                Name = result.Name,
-                HasReferences = await _formReferencesRepository.CheckFomHaveReferences(result.Id),
-                FormDetails = result.FormDetails.OrderBy(x => x.OrderNum).Select(x => new FormDetailsDto()
+                if (formDto == null)
                 {
-                    Id = x.Id,
-                    FormId = x.FormId,
-                    Name = x.Employee.Name,
-                    TabCode = x.Employee.TabCode,
-                    TegaraCode = x.Employee.TegaraCode,
-                    Amount = x.Amount,
-                    EmployeeId = x.EmployeeId,
-                    Department = x.Employee?.Department == null ? null : x.Employee?.Department.Name,
-                    IsReviewed = x.IsReviewed,
-                    ReviewComments = x.ReviewComments
+                    return Result.Failure<FormDto>(new Error("404", "Form not found"));
+                }
+
+                // Check references in separate async call (can't await inside Select query)
+                formDto.HasReferences = await _formReferencesRepository.CheckFomHaveReferences(id);
+                // Cache the result for future requests
+                var cacheEntryOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
+                .SetSlidingExpiration(TimeSpan.FromMinutes(5)); // Adjust cache duration as needed
+
+                _cache.Set(cacheKey, formDto, cacheEntryOptions);
 
 
+            }
+            return Result.Success<FormDto>(formDto);
 
-
-                }).ToList()
-            };
-
-            return Result.Success<FormDto>(resultToReturn);
         }
 
         public async Task<Result> AddEmployeeToFormDetails(FormDetailsRequest form)
@@ -94,6 +125,9 @@ namespace Application.Features
 
             });
             await _unitOfWork.SaveChangesAsync();
+
+            // Clear cache after adding employee to form
+            ClearFormDetailsCache(form.FormId);
 
             return Result.Success("تم الحفظ بنجاح");
         }
@@ -177,6 +211,9 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "Internal Server Error"));
             }
 
+            // Clear cache after editing employee in form
+            ClearFormDetailsCache(formDetailsFromDb.FormId);
+
             return Result.Success("تم التعديل بنجاح");
         }
 
@@ -193,6 +230,10 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "حدث خطأ أثناء الحذف الرجاء المحاوله لاحقا "));
             }
+
+            // Clear cache after deleting employee from form
+            ClearFormDetailsCache(formDetailsFromDb.FormId);
+
             return Result.Success("تم الحذف بنجاح");
         }
 
@@ -216,6 +257,10 @@ namespace Application.Features
 
             }
             await _unitOfWork.SaveChangesAsync();
+
+            // Clear cache after reordering rows
+            ClearFormDetailsCache(formId);
+
             return Result.Success("تم التعديل بنجاح");
         }
         public async Task<Result> MarkFormDetailsAsReviewed(int formDetailsId, bool isReviewed)
@@ -255,6 +300,9 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "Internal Server Error"));
             }
+
+            // Clear cache after marking form details as reviewed
+            ClearFormDetailsCache(formDetails.FormId);
 
             return Result.Success("تم وضع علامة المراجعة بنجاح");
         }

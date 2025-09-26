@@ -66,6 +66,7 @@ namespace Api.Controllers
         }
 
         [HttpGet("{dailyId}")]
+        [ResponseCache(CacheProfileName = "Default")] // 5 minutes cache for forms listings
 
         public async Task<IActionResult> GetForms(int dailyId, [FromQuery] FormParam param)
         {
@@ -82,6 +83,7 @@ namespace Api.Controllers
 
 
         [HttpGet("formDetails/{id}")]
+        // Removed Response Cache - form details change frequently after edits
 
         public async Task<IActionResult> GetFormByIdWithDetails(int id)
         {

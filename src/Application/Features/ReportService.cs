@@ -272,8 +272,10 @@ namespace Application.Features
                               {
                                   r2.RelativeItem().AlignCenter().Text(t =>
                                  {
-                                     t.Span(formModel.Name).Bold().FontSize(14);
-                                     t.EmptyLine();
+                                     t.Span(" تقرير يوميه ").Bold().FontSize(14).FontFamily("Cairo").Underline();
+                                     t.Span(formModel.DailyDate.ToShortDateString()).Bold().FontSize(14).FontFamily("Cairo").Underline();
+                                     //t.EmptyLine();
+
                                  });
                               });
 

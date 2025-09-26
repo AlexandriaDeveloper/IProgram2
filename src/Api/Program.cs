@@ -14,7 +14,27 @@ using System.Security.Claims;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    // Add Response Caching
+    options.CacheProfiles.Add("Default", new Microsoft.AspNetCore.Mvc.CacheProfile { Duration = 300 }); // 5 minutes
+    options.CacheProfiles.Add("Short", new Microsoft.AspNetCore.Mvc.CacheProfile { Duration = 60 }); // 1 minute
+    options.CacheProfiles.Add("Long", new Microsoft.AspNetCore.Mvc.CacheProfile { Duration = 1800 }); // 30 minutes
+});
+
+// Add Response Caching middleware
+builder.Services.AddResponseCaching();
+
+// Add Output Caching for more advanced scenarios
+builder.Services.AddOutputCache(options =>
+{
+    options.AddBasePolicy(builder => builder.Expire(TimeSpan.FromMinutes(30)));
+    options.AddPolicy("Short", builder => builder.Expire(TimeSpan.FromMinutes(1)));
+});
+
+// Add Memory Cache for service-level caching
+builder.Services.AddMemoryCache();
+
 builder.Services
 .AddIdentity(builder.Configuration)
 .AddInfrastructure(builder.Configuration)
@@ -99,6 +119,13 @@ if (app.Environment.IsDevelopment())
 
 //app.UseHttpsRedirection();
 app.UseRouting();
+
+// Add Response Caching middleware BEFORE static files
+app.UseResponseCaching();
+
+// Add Output Caching middleware
+app.UseOutputCache();
+
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -131,4 +158,3 @@ app.UseEndpoints(endpoints =>
 
 
 app.Run();
-

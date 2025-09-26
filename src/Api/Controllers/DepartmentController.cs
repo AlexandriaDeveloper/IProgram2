@@ -10,6 +10,7 @@ using Application.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Persistence.Helpers;
+using Microsoft.Extensions.Caching.Memory;
 
 
 namespace Api.Controllers
@@ -24,20 +25,16 @@ namespace Api.Controllers
         }
 
         [HttpGet()]
+        [ResponseCache(CacheProfileName = "Short")] // 1 minute cache for paginated results
         public async Task<IActionResult> GetDepartments([FromQuery] DepartmentParam departmentParam)
         {
             return HandleResult<PaginatedResult<DepartmentDto>>(await _departmentService.getDepartments(departmentParam));
         }
         [HttpGet("GetAllDepartments")]
+        [ResponseCache(Duration = 1800)] // 30 minutes cache - departments change rarely
         public async Task<IActionResult> GetAllDepartments()
         {
             return HandleResult<List<DepartmentDto>>(await _departmentService.getAllDepartments());
-        }
-
-        [HttpGet("{id}")]
-        public async Task<Result<DepartmentDto>> GetDepartment(int id)
-        {
-            return await _departmentService.getDepartment(id);
         }
         [HttpPost]
         public async Task<IActionResult> AddDepartment(DepartmentDto departmentDto)

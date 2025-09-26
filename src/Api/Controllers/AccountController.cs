@@ -11,6 +11,7 @@ using FluentResults;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 
 namespace Api.Controllers
@@ -71,6 +72,7 @@ namespace Api.Controllers
 
 
         [HttpGet("GetRoleByUserId/{userId}")]
+        [ResponseCache(CacheProfileName = "Short")] // 1 minute cache for user roles
 
         public async Task<ActionResult<List<string>>> GetRoles(string userId)
         {

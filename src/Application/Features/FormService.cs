@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
 using Newtonsoft.Json;
 using NPOI.Util;
@@ -36,8 +37,9 @@ namespace Application.Features
         private readonly IEmployeeRepository _employeeRepository;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IDailyRepository _dailyRepository;
+        private readonly IMemoryCache _cache;
 
-        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IDailyRepository dailyRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager)
+        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IDailyRepository dailyRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager, IMemoryCache cache)
         {
             this._dailyRepository = dailyRepository;
             this._userManager = userManager;
@@ -46,6 +48,13 @@ namespace Application.Features
             this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
             this._formDetailsRepository = formDetailsRepository;
+            this._cache = cache;
+        }
+
+        private void ClearFormCache()
+        {
+            // Basic cache clearing foundation for future form caching needs
+            // Currently no service-level caching in FormService, but prepared for future use
         }
 
         public async Task<Result<PaginatedResult<FormDto>>> GetForms(int id, FormParam param)
