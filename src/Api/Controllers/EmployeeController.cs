@@ -5,7 +5,6 @@ using Application.Features;
 using Application.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
 using Persistence.Helpers;
 
 namespace Api.Controllers
@@ -13,12 +12,13 @@ namespace Api.Controllers
     public class EmployeeController : BaseApiController
     {
         private readonly EmployeeService _employeeService;
+
         public EmployeeController(EmployeeService employeeService)
         {
             this._employeeService = employeeService;
         }
         [HttpGet("GetEmployees")]
-        [ResponseCache(CacheProfileName = "Short")]
+        // [ResponseCache(CacheProfileName = "Short")]
         public async Task<IActionResult> GetEmployees([FromQuery] EmployeeParam employeeParam)
         {
             return HandleResult(await _employeeService.getEmployees(employeeParam));
@@ -36,7 +36,9 @@ namespace Api.Controllers
                 return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
 
-            return HandleResult<EmployeeDto>(await _employeeService.AddEmployee(employee, cancellationToken));
+            var result = await _employeeService.AddEmployee(employee, cancellationToken);
+
+            return HandleResult<EmployeeDto>(result);
         }
         [HttpPut()]
         public async Task<IActionResult> PutEmployee(EmployeeDto employee)
@@ -46,14 +48,6 @@ namespace Api.Controllers
                 return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
             var result = await _employeeService.UpdateEmployee(employee);
-
-            // Force browser to refetch employee data after update
-            if (result.IsSuccess)
-            {
-                Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
-                Response.Headers.Pragma = "no-cache";
-                Response.Headers.Expires = "0";
-            }
 
             return HandleResult<EmployeeDto>(result);
         }
@@ -126,15 +120,14 @@ namespace Api.Controllers
         public async Task<IActionResult> SoftDelete(string id)
         {
             var result = await _employeeService.SoftDelete(id);
-            return HandleResult(result);// result;
+            return HandleResult(result);
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
             var result = await _employeeService.Delete(id);
-            return HandleResult(result);// result;
+            return HandleResult(result);
         }
     }
-
 }

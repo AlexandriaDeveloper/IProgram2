@@ -23,13 +23,14 @@ namespace Application.Features
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IConfiguration _config;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly IMemoryCache _cache;
+
 
         public EmployeeService(IEmployeeRepository employeeRepository,
          IFormDetailsRepository formDetailsRepository
         , IDepartmentRepository departmentRepository
         , IUniteOfWork uow, IConfiguration config,
-        IHttpContextAccessor httpContextAccessor, IMemoryCache cache)
+        IHttpContextAccessor httpContextAccessor,
+        IMemoryCache cache)
         {
             this._config = config;
             this._httpContextAccessor = httpContextAccessor;
@@ -37,7 +38,6 @@ namespace Application.Features
             this._uow = uow;
             this._employeeRepository = employeeRepository;
             this._departmentRepository = departmentRepository;
-            this._cache = cache;
 
         }
         public async Task<Result<PaginatedResult<EmployeeDto>>> getEmployees(EmployeeParam param)
@@ -45,8 +45,8 @@ namespace Application.Features
             var spec = new EmployeeSpecification(param);
             spec.PaginationEnabled = true;
 
-            var employees = await _employeeRepository.ListAllAsync(spec);
-            var employeeToReturn = employees.Select(x => new EmployeeDto
+            var employeesFromDb = await _employeeRepository.ListAllAsync(spec);
+            var employeeToReturn = employeesFromDb.Select(x => new EmployeeDto
             {
                 Collage = x.Collage,
                 DepartmentId = x.DepartmentId,
@@ -57,8 +57,9 @@ namespace Application.Features
                 TegaraCode = x.TegaraCode
             }).ToList();
             var count = await _employeeRepository.CountAsync(new EmployeeCountSpecification(param));
-            var result = PaginatedResult<EmployeeDto>.Create(employeeToReturn.ToList(), param.PageIndex, param.PageSize, count);
-            return Result.Success(result);
+            var employees = PaginatedResult<EmployeeDto>.Create(employeeToReturn.ToList(), param.PageIndex, param.PageSize, count);
+
+            return Result.Success(employees);
         }
 
 
@@ -134,12 +135,6 @@ namespace Application.Features
 
             employee.Id = employeeToDb.Id;
 
-            // Clear cache if new collage/section was added
-            if (!string.IsNullOrEmpty(employee.Collage) || !string.IsNullOrEmpty(employee.Section))
-            {
-                ClearEmployeeReferenceCache();
-            }
-            ClearEmployeeCache();
             return Result.Success(employee);
 
         }
@@ -187,13 +182,6 @@ namespace Application.Features
             if (!result)
             {
                 return Result.Failure<EmployeeDto>(new Error("500", "حدث خطأ في تحديث الموظف"));
-            }
-            ClearEmployeeCache();
-            // Clear cache if collage/section was updated
-            if (!string.IsNullOrEmpty(employee.Collage) || !string.IsNullOrEmpty(employee.Section) ||
-                employeeFromDb.Collage != employee.Collage || employeeFromDb.Section != employee.Section)
-            {
-                ClearEmployeeReferenceCache();
             }
 
             return Result.Success(employee);
@@ -359,17 +347,13 @@ namespace Application.Features
             try
             {
                 await _uow.SaveChangesAsync();
-                ClearEmployeeCache();
-                // Clear cache after bulk operations that might change reference data
-                ClearEmployeeReferenceCache();
-
                 return Result.Success("تم الرفع بنجاح");
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
+                return Result.Success("تم الرفع بنجاح");
             }
-            return Result.Success("تم الرفع بنجاح");
 
         }
 
@@ -638,7 +622,6 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
             }
-            ClearEmployeeCache();
             return Result.Success("تم حذف الموظف بنجاح");
         }
 
@@ -657,7 +640,6 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "حدث خطأ في عملية الحذف"));
             }
-            ClearEmployeeCache();
             return Result.Success("تم حذف الموظف بنجاح");
         }
 
@@ -746,64 +728,33 @@ namespace Application.Features
 
         public async Task<List<string>> GetSectionsName()
         {
-            const string cacheKey = "employee_sections_all";
-
-            if (!_cache.TryGetValue(cacheKey, out List<string> sections))
-            {
-                sections = await _employeeRepository.GetQueryable()
-                    .Where(x => !string.IsNullOrEmpty(x.Section))
-                    .Select(x => x.Section)
-                    .Distinct()
-                    .ToListAsync();
-
-                var cacheOptions = new MemoryCacheEntryOptions()
-                    .SetAbsoluteExpiration(TimeSpan.FromMinutes(30))
-                    .SetSlidingExpiration(TimeSpan.FromMinutes(10));
-
-                _cache.Set(cacheKey, sections, cacheOptions);
-            }
+            var sections = await _employeeRepository.GetQueryable()
+                .Where(x => !string.IsNullOrEmpty(x.Section))
+                .Select(x => x.Section)
+                .Distinct()
+                .ToListAsync();
 
             return sections;
         }
 
         public async Task<List<string>> GetCollagesName()
         {
-            const string cacheKey = "employee_collages_all";
-
-            if (!_cache.TryGetValue(cacheKey, out List<string> collages))
-            {
-                collages = await _employeeRepository.GetQueryable()
-                    .Where(x => !string.IsNullOrEmpty(x.Collage))
-                    .Select(x => x.Collage)
-                    .Distinct()
-                    .ToListAsync();
-
-                var cacheOptions = new MemoryCacheEntryOptions()
-                    .SetAbsoluteExpiration(TimeSpan.FromMinutes(30))
-                    .SetSlidingExpiration(TimeSpan.FromMinutes(10));
-
-                _cache.Set(cacheKey, collages, cacheOptions);
-            }
+            var collages = await _employeeRepository.GetQueryable()
+                .Where(x => !string.IsNullOrEmpty(x.Collage))
+                .Select(x => x.Collage)
+                .Distinct()
+                .ToListAsync();
 
             return collages;
         }
 
-        private void ClearEmployeeReferenceCache()
-        {
-            // Clear reference data cache when employee reference data changes
-            _cache.Remove("employee_sections_all");
-            _cache.Remove("employee_collages_all");
-        }
-        private void ClearEmployeeCache()
-        {
-            _cache.Remove("employees_all");
-        }
+
 
         private int? GetDepartmentIdByName(string name)
         {
-            var dpeartment = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == name);
-            if (dpeartment != null)
-                return dpeartment.Id;
+            var department = _departmentRepository.GetQueryable().FirstOrDefault(x => x.Name == name);
+            if (department != null)
+                return department.Id;
             return null;
 
 

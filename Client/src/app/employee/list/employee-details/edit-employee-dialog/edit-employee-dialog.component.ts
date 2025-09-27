@@ -53,6 +53,7 @@ export class EditEmployeeDialogComponent implements OnInit {
 
   initForm() {
     return this.fb.group({
+      id: [this.employee?.id, [Validators.required, Validators.maxLength(14), Validators.minLength(14)]],
       employeeId: [this.employee?.id, []],
       name: [this.employee?.name, [Validators.required]],
       collage: [this.employee?.collage, []],

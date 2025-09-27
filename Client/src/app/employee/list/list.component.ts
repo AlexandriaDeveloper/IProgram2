@@ -132,9 +132,9 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
     this.loadData();
 
   }
-  editEmployee(id: number) {
-    // console.log(id);
-  }
+  // editEmployee(id: number) {
+  //   // console.log(id);
+  // }
   deleteEmployee(row: IEmployee) {
     if (confirm(`هل تريد حذف الموظف ${row.name}؟`)) {
       this.employeeService.softDelete(row.id).pipe(

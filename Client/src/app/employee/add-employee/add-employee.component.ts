@@ -21,11 +21,11 @@ export class AddEmployeeComponent implements OnInit {
   toaster = inject(ToasterService)
 
   employee: IEmployee = {
-    name: null,
+    name: '',
     tabCode: null,
     tegaraCode: null,
-    id: null,
-    collage: null,
+    id: '',
+    collage: '',
     departmentId: null
   };
   form: FormGroup;
@@ -50,6 +50,7 @@ export class AddEmployeeComponent implements OnInit {
 
   initForm() {
     return this.fb.group({
+
       name: [this.employee?.name, [Validators.required]],
       collage: [this.employee?.collage, []],
       tabCode: [this.employee?.tabCode, []],

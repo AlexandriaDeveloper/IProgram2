@@ -4,7 +4,6 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Features;
 using Application.Helpers;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Persistence.Helpers;
@@ -26,7 +25,6 @@ namespace Api.Controllers
         }
 
         [HttpPost()]
-
         public async Task<IActionResult> AddForm([FromBody] FormDto form)
         {
             if (!ModelState.IsValid)
@@ -34,6 +32,7 @@ namespace Api.Controllers
                 return HandleResult(Result.ValidationErrors<FormDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
             var result = await _formService.AddForm(form);
+
             return HandleResult(result);
         }
         [HttpPut("{id}")]
@@ -44,24 +43,28 @@ namespace Api.Controllers
                 return HandleResult(Result.ValidationErrors<FormDto>(ModelState.SelectMany(x => x.Value.Errors)));
             }
             var result = await _formService.UpdateForm(id, form);
+
             return HandleResult(result);
         }
         [HttpPut("MoveFormDailyArchives")]
-        public async Task<IActionResult
-        > MoveFormDailyToArchives([FromBody] MoveFormRequest request)
+        public async Task<IActionResult> MoveFormDailyToArchives([FromBody] MoveFormRequest request)
         {
-            return HandleResult(await _formService.MoveFormDailyToArchive(request));// await _formService.MoveFormDailyToArchive(request);
+            var result = await _formService.MoveFormDailyToArchive(request);
+
+            return HandleResult(result);
         }
         [HttpPut("hide-form/{id}")]
         public async Task<IActionResult> HideForm(int id)
         {
             var result = await _formService.HideForm(id);
+
             return HandleResult(result);
         }
         [HttpPut("restore-form/{id}")]
         public async Task<IActionResult> RestoreForm(int id)
         {
             var result = await _formService.RestoreForm(id);
+
             return HandleResult(result);
         }
 
@@ -105,34 +108,31 @@ namespace Api.Controllers
         [HttpPut("UpdateDescription/{id}")]
         public async Task<IActionResult> UpdateDescription(int id, [FromBody] UpdateFormDescriptonRequest request)
         {
-
             if (!ModelState.IsValid)
             {
                 return HandleResult(Result.ValidationErrors<UpdateFormDescriptonRequest>(ModelState.SelectMany(x => x.Value.Errors)));
             }
 
             string decodedString = HttpUtility.HtmlDecode(request.Description);
-            // Clean HTML
-            // string sanitizedHtmlText = HtmlUtility.SanitizeHtml(decodedString);
-
-            // string encoded = HttpUtility.HtmlEncode(sanitizedHtmlText);
-
             request.Description = decodedString;
 
             var result = await _formService.UpdateDescription(id, request);
+
             return HandleResult(result);
         }
         [HttpDelete("SoftDelete/{id}")]
         public async Task<IActionResult> SoftDelete(int id)
         {
             var result = await _formService.SoftDelete(id);
-            return HandleResult(result);// result;
+
+            return HandleResult(result);
         }
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _formService.Delete(id);
-            return HandleResult(result);// result;
+
+            return HandleResult(result);
         }
 
         [HttpPost("download-form")]
@@ -157,6 +157,7 @@ namespace Api.Controllers
             //     result = Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
             // }
             result = await _formService.UploadExcelEmployeesToForm(model);
+
             return HandleResult(result);
         }
         [HttpPost("upload-json-form")]
@@ -169,10 +170,8 @@ namespace Api.Controllers
             //     result = Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
             // }
             result = await _formService.UploadJSONForm(model);
+
             return HandleResult(result);
         }
-
-
-
     }
 }

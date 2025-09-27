@@ -83,7 +83,7 @@ export class EmployeeService {
 
     // if(param.sortBy) params = params.append('sortBy',param.sortBy);
     // if(param.direction) params = params.append('direction',param.direction);
-    console.log(param.id);
+    console.log(param);
 
     if (param.id) params = params.append('id', param.id);
 
