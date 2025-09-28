@@ -29,5 +29,13 @@ namespace Api.Controllers
 
             return HandleResult(result);
         }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteDailyReference(int id)
+        {
+            var result = await _dailyReferenceService.DeleteReference(id);
+
+            return HandleResult(result);
+        }
     }
 }

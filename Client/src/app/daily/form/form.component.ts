@@ -21,6 +21,7 @@ import { AuthService } from '../../shared/service/auth.service';
 import { UploadPdfBottomComponent } from './form-details/upload-pdf-bottom/upload-pdf-bottom.component';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { environment } from '../../environment';
+import { DailyReferencesService } from '../../shared/service/daily-references.service';
 
 @Component({
   selector: 'app-form',
@@ -36,6 +37,7 @@ export class FormComponent implements OnInit, AfterViewInit {
   displayedColumns = ['action', 'index', 'name', 'createdBy', 'count', 'total', 'isReviewed'];
   formService = inject(FormService);
   dailyService = inject(DailyService);
+  dailyRefService = inject(DailyReferencesService);
   authService = inject(AuthService);
   dailyId = inject(ActivatedRoute).snapshot.params['id'];
   daily: IDaily;
@@ -255,9 +257,19 @@ export class FormComponent implements OnInit, AfterViewInit {
     }
   }
 
+  deleteReference(dailyReference: any, event?: Event) {
+    if (event) {
+      event.stopPropagation(); // Prevent the click from bubbling up to parent
+    }
+    if (confirm(` أنت على وشك حذف مرجع ${dailyReference.name} هل انت متاكد ؟؟!`)) {
+      // Add your delete logic here
+      console.log('Delete reference:', dailyReference);
+      this.dailyRefService.deleteDailyReference(dailyReference.id).subscribe({
+        next: (x: any) => {
+          this.loadData();
+        }
+      });
+    }
+  }
+
 }
-
-
-
-
-

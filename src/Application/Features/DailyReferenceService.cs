@@ -22,6 +22,35 @@ namespace Application.Features
             _hostEnvironment = hostEnvironment;
         }
 
+        public async Task<Result<object>> DeleteReference(int id)
+        {
+
+
+
+            var dailyReference = await _dailyReferencesRepository.GetById(id);
+            if (dailyReference == null)
+            {
+                return Result.Failure(new Error("404", "المرجع غير موجود."));
+            }
+
+            await _dailyReferencesRepository.Delete(dailyReference.Id);
+            var result = await _uow.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "فشلت عملية حذف المرجع."));
+            }
+
+            var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
+            var filePath = Path.Combine(directoryPath, dailyReference.ReferencePath);
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+
+            return Result.Success("تم حذف المرجع بنجاح.");
+        }
+
         public async Task<Result> UploadReference(DailyReferenceFileUploadRequest request)
         {
             var fileName = $"{request.DailyId}_{DateTime.Now:yyyyMMddHHmmssfff}{Path.GetExtension(request.File.FileName.ToLower())}";

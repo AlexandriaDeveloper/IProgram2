@@ -117,3 +117,66 @@ body {
   }
 
 }
+
+// Sticky container for PDF actions
+.pdf-actions-container {
+  position: fixed;
+  left: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  z-index: 1000;
+}
+
+.pdf-action-button {
+  width: 120px;
+  height: 60px;
+  background-color: #476936;
+  border: none;
+  border-radius: 10%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+
+  &:hover {
+    background-color: #2a4d1a;
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+
+  .pdf-icon {
+    font-size: 24px;
+    color: white;
+    margin-bottom: 2px;
+  }
+
+  .close-icon {
+    position: absolute;
+    top: -5px !important;
+    right: -15px;
+    font-size: 16px;
+    color: #e57373;
+    background-color: white;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e57373;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background-color: #e57373;
+      color: white;
+    }
+  }
+}

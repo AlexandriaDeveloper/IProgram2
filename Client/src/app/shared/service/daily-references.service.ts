@@ -22,4 +22,8 @@ export class DailyReferencesService {
       observe: 'events'
     });
   }
+
+  deleteDailyReference(id: number): Observable<any> {
+    return this.http.delete(this.apiUrl + 'dailyReferences/' + id);
+  }
 }

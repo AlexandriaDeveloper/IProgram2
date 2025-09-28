@@ -33,15 +33,32 @@
 </mat-menu>
 
 <div class="mat-elevation-z8">
-  @for(dailyReference of daily?.dailyReferences ;track dailyReference.id){
-  <span>
-    <button mat-icon-button (click)="openReferenceDialog(dailyReference)" color="primary" class="info-button">
+
+
+  <!-- <button mat-raised-button color="primary" (click)="openReferenceDialog(dailyReference)" class="download-pdf-button">
       <mat-icon> picture_as_pdf</mat-icon>
+      {{dailyReference.name}}
+
+    </button> -->
+  <div class="pdf-actions-container">
+    @for(dailyReference of daily?.dailyReferences ;track dailyReference.id){
+    <button class="pdf-action-button" (click)="openReferenceDialog(dailyReference)"
+      matTooltip="{{dailyReference.description|json}}" matTooltipPosition="above">
+      <mat-icon class="pdf-icon">picture_as_pdf</mat-icon>
+      <mat-icon class="close-icon" (click)="deleteReference(dailyReference, $event)">close</mat-icon>
     </button>
+    }
+    <!-- Add more PDF buttons as needed -->
+  </div>
 
 
-  </span>
-  }
+  <!-- <button mat-icon-button (click)="openReferenceDialog(dailyReference)" color="primary" class="info-button">
+    <mat-icon> picture_as_pdf</mat-icon>
+  </button> -->
+
+
+
+
 
   <table mat-table class="full-width-table" matSort aria-label="Elements">
     <!-- action Column -->
