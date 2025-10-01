@@ -14,6 +14,7 @@ import { Observable, map, shareReplay, window } from 'rxjs';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 
 import { CommonModule } from '@angular/common';
+import { VideoService } from '../../service/video.service';
 
 
 @Component({
@@ -32,6 +33,7 @@ import { CommonModule } from '@angular/common';
 export class NavbarComponent implements AfterViewInit {
   auth = inject(AuthService);
   router = inject(Router);
+  videoService = inject(VideoService);
   panelOpenState = false;
   @ViewChild('drawer', { static: true }) drawer: MatSidenav;
   @ViewChild('videoBg') videoBg: any;
@@ -51,8 +53,19 @@ export class NavbarComponent implements AfterViewInit {
     // }
 
   }
-  ngAfterViewInit(): void {
+  async ngAfterViewInit(): Promise<void> {
     this.setupBackgroundVideo();
+    try {
+      const url = await this.videoService.getVideoUrl();
+      if (this.videoBg && this.videoBg.nativeElement) {
+        const v = this.videoBg.nativeElement;
+        v.src = url;
+        v.load();
+        v.play().catch(() => { /* autoplay may be blocked; keep muted */ });
+      }
+    } catch (err) {
+      console.error('Failed to load background video', err);
+    }
   }
 
   private setupBackgroundVideo(): void {
@@ -101,6 +114,7 @@ export class NavbarComponent implements AfterViewInit {
     if (this.videoCheckInterval) {
       clearInterval(this.videoCheckInterval);
     }
+    this.videoService.revoke();
   }
 
   logout() {

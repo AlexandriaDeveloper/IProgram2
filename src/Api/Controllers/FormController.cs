@@ -69,7 +69,7 @@ namespace Api.Controllers
         }
 
         [HttpGet("{dailyId}")]
-        [ResponseCache(CacheProfileName = "Default")] // 5 minutes cache for forms listings
+        // [ResponseCache(CacheProfileName = "Default")] // 5 minutes cache for forms listings
 
         public async Task<IActionResult> GetForms(int dailyId, [FromQuery] FormParam param)
         {

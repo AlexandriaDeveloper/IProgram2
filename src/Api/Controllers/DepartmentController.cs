@@ -25,7 +25,7 @@ namespace Api.Controllers
         }
 
         [HttpGet()]
-        [ResponseCache(CacheProfileName = "Short")] // 1 minute cache for paginated results
+        // [ResponseCache(CacheProfileName = "Short")] // 1 minute cache for paginated results
         public async Task<IActionResult> GetDepartments([FromQuery] DepartmentParam departmentParam)
         {
             return HandleResult<PaginatedResult<DepartmentDto>>(await _departmentService.getDepartments(departmentParam));

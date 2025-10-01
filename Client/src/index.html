@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en" dir="rtl">
-<head >
+
+<head>
   <meta charset="utf-8">
   <title>Client</title>
   <base href="/">
@@ -10,7 +11,14 @@
   <link href="https://fonts.googleapis.com/css?family=Cairo" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
+
 <body class="mat-typography">
+  <div class="video-container">
+    <video #videoBg autoplay loop muted id="video-bg" preload="auto">
+      <source src="./assets/images/bg/SciFi_01.mov" type="video/mp4" (play)="true" />
+    </video>
+  </div>
   <app-root></app-root>
 </body>
+
 </html>

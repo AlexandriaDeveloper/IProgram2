@@ -10,9 +10,8 @@ document.createElement('video');
 </script>
 <![endif]-->
       <div class="video-container">
-        <video #videoBg autoplay loop muted id="video-bg" preload="auto">
-          <source src="../assets/images/bg/SciFi_01.mov" type="video/mp4" (play)="true" />
-        </video>
+        <!-- template ref for ViewChild -->
+        <video #videoBg id="video-bg" autoplay muted loop playsinline preload="auto"></video>
       </div>
       <div class="nav-bar-container">
         <mat-toolbar>

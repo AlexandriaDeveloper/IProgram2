@@ -131,7 +131,12 @@ app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
         Path.Combine(Directory.GetCurrentDirectory(), @"Content")),
-    RequestPath = "/content"
+    RequestPath = "/content",
+    OnPrepareResponse = ctx =>
+    {
+        // Cache static files for 1 hour
+        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=3600");
+    }
 });
 
 app.UseCors("CorsPolicy");

@@ -182,31 +182,24 @@ video {
 
 .video-container {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;                 /* top:0; right:0; bottom:0; left:0; */
   z-index: -1;
   overflow: hidden;
-  // width: 100%;
-
-  // overflow: hidden;
-  // position: fixed;
-  // top: 0;
-  // right: 0;
-  // z-index: -100;
+  pointer-events: none;
 }
 
+.video-container video,
 #video-bg {
   position: absolute;
   top: 50%;
   left: 50%;
+  width: 100vw;
+  height: 100vh;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+  -o-object-fit: cover;     /* vendor fallback */
   min-width: 100%;
   min-height: 100%;
-  width: auto;
-  height: auto;
-  transform: translateX(-50%) translateY(-50%);
-  object-fit: cover;
 }
 
 .layout-container {
