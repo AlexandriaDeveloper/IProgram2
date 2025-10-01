@@ -182,7 +182,8 @@ video {
 
 .video-container {
   position: fixed;
-  inset: 0;                 /* top:0; right:0; bottom:0; left:0; */
+  inset: 0;
+  /* top:0; right:0; bottom:0; left:0; */
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
@@ -197,7 +198,8 @@ video {
   height: 100vh;
   transform: translate(-50%, -50%);
   object-fit: cover;
-  -o-object-fit: cover;     /* vendor fallback */
+  -o-object-fit: cover;
+  /* vendor fallback */
   min-width: 100%;
   min-height: 100%;
 }
