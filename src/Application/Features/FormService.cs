@@ -156,6 +156,7 @@ namespace Application.Features
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (result)
                 return Result.Success("تم التعديل بنجاح");
+
             return Result.Failure(new Error("500", "Internal Server Error"));
         }
 
@@ -195,6 +196,7 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "Internal Server Error"));
             }
+            ClearFormDetailsCache(request.FormId);
             return Result.Success("تم التعديل بنجاح");
         }
 
@@ -366,7 +368,6 @@ namespace Application.Features
         }
         public async Task<Result> UploadExcelEmployeesToForm(UploadEmployeesToFormRequest request)
         {
-
             if (request.File == null)
             {
                 return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
@@ -431,13 +432,11 @@ namespace Application.Features
                 dr.SetField("كود الموظف", empExist.Id);
                 dt2.Rows.Add(dr);
             }
-
             if (messages.Count > 0)
             {
                 //   return Result.Failure(new Error("1500", " يوجد مشكلة بالبيانات الاتيه  " + string.Join(" |||", messages)));
                 return Result.Failure(new Error("1500", System.Text.Json.JsonSerializer.Serialize(messages)));
             }
-
             var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
             _formDetailsRepository.DeleteRange(deleteEntity);
             await _unitOfWork.SaveChangesAsync();
@@ -450,11 +449,11 @@ namespace Application.Features
                 empDetails.FormId = request.FormId;
                 await _formDetailsRepository.Insert(empDetails);
             }
+            ClearFormDetailsCache(request.FormId);
             await _unitOfWork.SaveChangesAsync();
+
             return Result.Success("تم الرفع بنجاح");
-
         }
-
         public async Task<Result<object>> HideForm(int id)
         {
             var form = await _formRepository.GetQueryable().FirstOrDefaultAsync(x => x.Id == id);
@@ -477,6 +476,11 @@ namespace Application.Features
             await _unitOfWork.SaveChangesAsync();
 
             return Result.Success("تم استرجاع النموذج بنجاح");
+        }
+        private void ClearFormDetailsCache(int formId)
+        {
+            var cacheKey = $"FormDetails_{formId}";
+            _cache.Remove(cacheKey);
         }
     }
 }

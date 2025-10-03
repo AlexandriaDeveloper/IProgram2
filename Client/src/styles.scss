@@ -75,6 +75,25 @@ body {
     color: #fff !important;
   }
 
+
+
+}
+
+.mat-mdc-menu-content {
+  width: 220px !important;
+  // padding: 10px 20px !important;
+
+  & .mat-mdc-menu-item {
+    padding: 10px 20px !important;
+
+
+    &:hover {
+      background-color: rgba($color: $hover-bg-color, $alpha: 0.8) !important;
+      transition: all 0.6s ease-in-out;
+      color: $hover-color !important;
+
+    }
+  }
 }
 
 .date-input {

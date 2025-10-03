@@ -87,7 +87,7 @@ namespace Api.Controllers
 
         [HttpGet("formDetails/{id}")]
         // Removed Response Cache - form details change frequently after edits
-
+        // [ResponseCache(CacheProfileName = "Short")] // 1 minute cache for form details
         public async Task<IActionResult> GetFormByIdWithDetails(int id)
         {
             var result = await _formDetailsService.GetFormDetails(id);

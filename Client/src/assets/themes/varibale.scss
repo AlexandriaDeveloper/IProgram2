@@ -1,16 +1,19 @@
 $dark-primary-color: #1b282e;
 
-$background-gradient: linear-gradient(45deg, rgba(54, 78, 93, 1) 0%,rgba(54, 78, 93, 0.7) 50%, rgba(54, 78, 93, 0.4 )75%,  rgba(54, 78, 93, 0.1) 100%);
+$background-gradient: linear-gradient(45deg, rgba(54, 78, 93, 1) 0%, rgba(54, 78, 93, 0.7) 50%, rgba(54, 78, 93, 0.4)75%, rgba(54, 78, 93, 0.1) 100%);
 $primary-color: #40595d;
 //$primary-color: #1123A0;
 $accent2-color: #fa9c69;
 $accent-color: #ff5a00;
 $warn-color: #ff3e00;
-$white-color:#fff;
-$black-color:#000;
+$white-color: #fff;
+$black-color: #000;
 
 
 
 $success-color: #0ca07b;
 $error-color: #f44336;
 $info-color: #fa9c69;
+
+$hover-color: rgba($color: #e7e3e3, $alpha: 0.8);
+$hover-bg-color: rgba($color: #ff5a00, $alpha: 0.1);
