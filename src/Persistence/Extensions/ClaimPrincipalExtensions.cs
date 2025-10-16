@@ -34,6 +34,7 @@ namespace Persistence.Extensions
         //Get User By Id
         public static async Task<string> GetUserByIdAsync(this UserManager<ApplicationUser> userManager, string id)
         {
+            if (id == null) return null;
             return userManager.Users.FirstOrDefaultAsync(u => u.Id == id).Result.DisplayName;
         }
     }

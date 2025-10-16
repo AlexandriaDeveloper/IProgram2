@@ -282,7 +282,9 @@ export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
       disableClose: true,
     })
     dialogRef.afterClosed().subscribe(result => {
+      //return data and if it was filterd return filterd data only 
       this.loadData();
+
       // this.animal = result;
     });
   }

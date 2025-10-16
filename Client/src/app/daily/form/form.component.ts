@@ -110,7 +110,7 @@ export class FormComponent implements OnInit, AfterViewInit {
     this.param.pageIndex = ev.pageIndex;
     this.loadData();
   }
-  openDialog(model): void {
+  openEditDialog(model): void {
 
     const dialogRef = this.dialog.open(AddFormComponent, {
       // data: {name: this.name, animal: this.animal},

@@ -88,7 +88,7 @@
           </button>
         </ng-container>
 
-        <button mat-icon-button (click)="openDialog(row)" color="accent" class="edit-button"
+        <button mat-icon-button (click)="openEditDialog(row)" color="accent" class="edit-button"
           *ngIf="!daily?.closed && row.isActive">
           <mat-icon>edit</mat-icon>
         </button>
