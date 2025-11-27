@@ -245,25 +245,13 @@ namespace Application.Features
 
         public async Task<Result<List<DepartmentDto>>> getAllDepartments()
         {
-            const string cacheKey = "departments_all";
 
-            // Try to get from cache first
-            if (!_cache.TryGetValue(cacheKey, out List<DepartmentDto> departments))
-            {
-                // Cache miss - fetch from database
-                departments = await _departmentRepository.GetQueryable()
-                    .Where(x => x.IsActive)
-                    .Select(x => new DepartmentDto { Id = x.Id, Name = x.Name })
-                    .ToListAsync();
+            var departments = await _departmentRepository.GetQueryable()
+                  .Where(x => x.IsActive)
+                  .Select(x => new DepartmentDto { Id = x.Id, Name = x.Name })
+                  .ToListAsync();
 
-                // Set cache options
-                var cacheOptions = new MemoryCacheEntryOptions()
-                    .SetAbsoluteExpiration(TimeSpan.FromMinutes(30)) // Keep for 30 minutes
-                    .SetSlidingExpiration(TimeSpan.FromMinutes(10)); // Reset if accessed within 10 minutes
 
-                // Save to cache
-                _cache.Set(cacheKey, departments, cacheOptions);
-            }
 
             return Result.Success(departments);
         }

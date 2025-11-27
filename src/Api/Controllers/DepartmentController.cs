@@ -31,7 +31,7 @@ namespace Api.Controllers
             return HandleResult<PaginatedResult<DepartmentDto>>(await _departmentService.getDepartments(departmentParam));
         }
         [HttpGet("GetAllDepartments")]
-        [ResponseCache(Duration = 1800)] // 30 minutes cache - departments change rarely
+        //[ResponseCache(Duration = 1800)] // 30 minutes cache - departments change rarely
         public async Task<IActionResult> GetAllDepartments()
         {
             return HandleResult<List<DepartmentDto>>(await _departmentService.getAllDepartments());

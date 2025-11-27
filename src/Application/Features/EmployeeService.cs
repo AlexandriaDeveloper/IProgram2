@@ -270,23 +270,25 @@ namespace Application.Features
             }
             DataTable dt = npoi.ReadSheeByIndex(0);
             int colIndex = -1;
-            // int tegaraIndex = -1;
+            int tegaraIndex = -1;
             // int tabIndex = -1;
-
             if (dt.Columns.Contains("الرقم القومى"))
             {
                 colIndex = dt.Columns.IndexOf("الرقم القومى");
+
             }
 
             else if (dt.Columns.Contains("الرقم القومي"))
             {
                 colIndex = dt.Columns.IndexOf("الرقم القومي");
+
             }
 
-            // else if (dt.Columns.Contains("كود تجارة"))
-            // {
-            //     colIndex = dt.Columns.IndexOf("كود تجارة");
-            // }
+            if (dt.Columns.Contains("كود تجارة"))
+            {
+                tegaraIndex = dt.Columns.IndexOf("كود تجارة");
+
+            }
             // else if (dt.Columns.Contains("رقم الموظف بجهته الأصلية"))
             // {
             //     colIndex = dt.Columns.IndexOf("رقم الموظف بجهته الأصلية");
@@ -305,7 +307,16 @@ namespace Application.Features
                 }
                 Employee empExist = null;
                 EmployeeBank employeeBankExist = null;
-                empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString(), true);
+                if (row.ItemArray[colIndex] != null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()))
+                    empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString(), true);
+                else if (tegaraIndex > -1 && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()))
+                {
+                    bool success = int.TryParse(row.ItemArray[tegaraIndex].ToString(), out int result);
+                    if (success)
+                    {
+                        empExist = await _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefaultAsync(x => x.TegaraCode == result);
+                    }
+                }
                 if (empExist != null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()) && colIndex > -1)
                 {
                     empExist = _employeeRepository.GetQueryable().Include(x => x.EmployeeBank).FirstOrDefault(x => x.Id == row.ItemArray[colIndex].ToString());
