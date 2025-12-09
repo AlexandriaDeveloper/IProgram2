@@ -45,7 +45,9 @@ namespace Persistence.Repository
             {
                 return null;
             }
-            return _userManager.GetRolesAsync(user).Result.ToList();
+
+            var roles = await _userManager.GetRolesAsync(user);
+            return roles.ToList();
         }
 
         public async Task<IEnumerable<ApplicationUser>> GetUsers()
@@ -65,10 +67,19 @@ namespace Persistence.Repository
 
         public async Task<IdentityResult> RegisterUser(ApplicationUser user, string Password, List<string> roles)
         {
-            var user2 = await _userManager.CreateAsync(user, Password);
-            await _userManager.AddToRolesAsync(user, roles);
+            var creationResult = await _userManager.CreateAsync(user, Password);
+            if (!creationResult.Succeeded)
+            {
+                return creationResult;
+            }
 
-            return user2;
+            var roleResult = await _userManager.AddToRolesAsync(user, roles);
+            if (!roleResult.Succeeded)
+            {
+                return IdentityResult.Failed(roleResult.Errors.ToArray());
+            }
+
+            return creationResult;
         }
 
         public async Task<bool> CheckUsernameExists(string username)
