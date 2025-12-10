@@ -115,7 +115,8 @@
     <ng-container matColumnDef="tabCode">
       <th mat-header-cell *matHeaderCellDef [hidden]="!tabCodeCheck.checked" mat-sort-header="tabCode"
         class="sortable-header">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+          (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">كود طب</mat-label>
           <input matInput #tabCodeInput>
           @if (tabCodeInput.value) {
@@ -136,7 +137,8 @@
     <ng-container matColumnDef="tegaraCode">
       <th mat-header-cell *matHeaderCellDef [hidden]="!tegaraCodeCheck.checked" mat-sort-header="tegaraCode"
         class="sortable-header">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+          (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">كود تجارة</mat-label>
           <input matInput #tegaraCodeInput>
           @if (tegaraCodeInput.value) {
@@ -153,8 +155,9 @@
 
     <!-- Name Column -->
     <ng-container matColumnDef="name">
-      <th mat-header-cell *matHeaderCellDef>
-        <mat-form-field apperance="outline" class="search" color="primary " style="width: 30vh !important;">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="name" class="sortable-header">
+        <mat-form-field apperance="outline" class="search" color="primary " style="width: 30vh !important;"
+          (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الاسم</mat-label>
           <input matInput #nameInput>
           @if (nameInput.value) {
@@ -186,7 +189,8 @@
     <ng-container matColumnDef="department">
       <th mat-header-cell *matHeaderCellDef [hidden]="!departmentCheck.checked" mat-sort-header="department"
         class="sortable-header">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 10vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 10vh !important;"
+          (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">القسم </mat-label>
           <input matInput #departmentInput>
           @if (departmentInput.value) {
@@ -205,7 +209,8 @@
     <ng-container matColumnDef="employeeId">
       <th mat-header-cell *matHeaderCellDef [hidden]="!employeeIdCheck.checked" mat-sort-header="employeeId"
         class="sortable-header">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+          (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الرقم القومى </mat-label>
           <input matInput #employeeIdInput>
           @if (employeeIdInput.value) {
@@ -221,7 +226,8 @@
     <!-- collage Column -->
     <ng-container matColumnDef="amount">
       <th mat-header-cell *matHeaderCellDef mat-sort-header="amount" class="sortable-header">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"
+          (click)="$event.stopPropagation()">
           <mat-label class="saerch-title"> المبلغ</mat-label>
           <input matInput #amountInput>
           @if (amountInput.value) {
