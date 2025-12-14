@@ -45,6 +45,35 @@ namespace Persistence.Specifications
             {
                 AddCriteries(x => x.DepartmentId.Equals(param.DepartmentId));
             }
+            if (!string.IsNullOrEmpty(param.SortBy))
+            {
+                var sortBy = param.SortBy.ToLower();
+                var isDesc = param.Direction != null && param.Direction.ToLower() == "desc";
+
+                switch (sortBy)
+                {
+                    case "tabcode":
+                        if (isDesc) AddOrderByDescending(x => x.TabCode); else AddOrderBy(x => x.TabCode);
+                        break;
+                    case "tegaracode":
+                        if (isDesc) AddOrderByDescending(x => x.TegaraCode); else AddOrderBy(x => x.TegaraCode);
+                        break;
+                    case "name":
+                        if (isDesc) AddOrderByDescending(x => x.Name); else AddOrderBy(x => x.Name);
+                        break;
+                    case "employeeid":
+                    case "id":
+                        if (isDesc) AddOrderByDescending(x => x.Id); else AddOrderBy(x => x.Id);
+                        break;
+                    case "department":
+                    case "departmentname":
+                        if (isDesc) AddOrderByDescending(x => x.Department.Name); else AddOrderBy(x => x.Department.Name);
+                        break;
+                    case "collage":
+                        if (isDesc) AddOrderByDescending(x => x.Collage); else AddOrderBy(x => x.Collage);
+                        break;
+                }
+            }
             if (PaginationEnabled)
             {
                 ApplyPaging(param.PageIndex, param.PageSize);

@@ -30,10 +30,10 @@
     </ng-container>
     <!-- tabCode Column -->
     <ng-container matColumnDef="tabCode">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!tabCodeCheck.checked">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="tabCode" [hidden]="!tabCodeCheck.checked">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
           <mat-label class="saerch-title">كود طب</mat-label>
-          <input matInput #tabCodeInput (search)="clear('tabCode')" type="number">
+          <input matInput #tabCodeInput (click)="$event.stopPropagation()" (search)="clear('tabCode')" type="number">
           @if (tabCodeInput.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('tabCode')">
             <mat-icon>close</mat-icon>
@@ -49,10 +49,10 @@
     </ng-container>
     <!-- tegaraCode Column -->
     <ng-container matColumnDef="tegaraCode">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!tegaraCodeCheck.checked">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="tegaraCode" [hidden]="!tegaraCodeCheck.checked">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
           <mat-label class="saerch-title">كود تجارة</mat-label>
-          <input matInput #tegaraCodeInput (search)="clear('tegaraCode')" type="number">
+          <input matInput #tegaraCodeInput (click)="$event.stopPropagation()" (search)="clear('tegaraCode')" type="number">
           @if (tegaraCodeInput.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('tegaraCode')">
             <mat-icon>close</mat-icon>
@@ -66,10 +66,10 @@
 
     <!-- Name Column -->
     <ng-container matColumnDef="name">
-      <th mat-header-cell *matHeaderCellDef>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="name">
         <mat-form-field apperance="outline" class="search" style="width: 40vh !important;">
           <mat-label class="saerch-title">الاسم</mat-label>
-          <input matInput #nameInput (search)="clear('name')">
+          <input matInput #nameInput (click)="$event.stopPropagation()" (search)="clear('name')">
           @if (nameInput.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('name')">
             <mat-icon>close</mat-icon>
@@ -90,10 +90,10 @@
 
     <!-- nationalId Column -->
     <ng-container matColumnDef="employeeId">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!nationalIdCheck.checked">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="employeeId" [hidden]="!nationalIdCheck.checked">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
           <mat-label class="saerch-title">الرقم القومى</mat-label>
-          <input matInput #employeeIdInput (search)="clear('employeeId')">
+          <input matInput #employeeIdInput (click)="$event.stopPropagation()" (search)="clear('employeeId')">
           @if (employeeIdInput.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('employeeId')">
             <mat-icon>close</mat-icon>
@@ -106,10 +106,10 @@
     <!-- department Column -->
 
     <ng-container matColumnDef="department">
-      <th mat-header-cell *matHeaderCellDef [hidden]="!departmentCheck.checked">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="department" [hidden]="!departmentCheck.checked">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
           <mat-label class="saerch-title">الرقم القومى</mat-label>
-          <input matInput #departmentInput (search)="clear('department')">
+          <input matInput #departmentInput (click)="$event.stopPropagation()" (search)="clear('department')">
           @if (departmentInput?.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('department')">
             <mat-icon>close</mat-icon>
@@ -123,10 +123,10 @@
     </ng-container>
     <!-- collage Column -->
     <ng-container matColumnDef="collage">
-      <th mat-header-cell *matHeaderCellDef>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header="collage">
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
           <mat-label class="saerch-title"> الكليه</mat-label>
-          <input matInput #collageInput (search)="clear('collage')">
+          <input matInput #collageInput (click)="$event.stopPropagation()" (search)="clear('collage')">
           @if (collageInput.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('collage')">
             <mat-icon>close</mat-icon>

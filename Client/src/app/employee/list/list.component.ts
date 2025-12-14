@@ -2,7 +2,7 @@ import { EmployeeParam } from '../../shared/models/IEmployee';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, OnInit, ViewChild, inject, OnDestroy } from '@angular/core';
 import { MatTableModule, MatTable } from '@angular/material/table';
 import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
-import { MatSortModule, MatSort } from '@angular/material/sort';
+import { MatSortModule, MatSort, Sort } from '@angular/material/sort';
 
 import { EmployeeService } from '../../shared/service/employee.service';
 import { IEmployee } from '../../shared/models/IEmployee';
@@ -57,6 +57,8 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
   ngAfterViewInit(): void {
     // create search subscriptions once after view init
     this.search();
+    const sortSub = this.sort.sortChange.subscribe((sort: Sort) => this.onSortChange(sort));
+    this._subs.push(sortSub);
   }
 
   ngOnDestroy(): void {
@@ -110,19 +112,39 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
 
     this.employeeService.GetEmployees(this.param).subscribe((x: any) => {
       this.dataSource = x.data
-      this.paginator.length = x.count;
+      if (this.paginator) {
+        this.paginator.length = x.count;
+      }
 
       //reset paramater
-      this.param.pageIndex = this.paginator.pageIndex;
-      this.param.pageSize = this.paginator.pageSize;
+      if (this.paginator) {
+        this.param.pageIndex = this.paginator.pageIndex;
+        this.param.pageSize = this.paginator.pageSize;
+      }
       //reset search
-      this.table.dataSource = this.dataSource;
-      this.table.renderRows();
+      if (this.table) {
+        this.table.dataSource = this.dataSource;
+        this.table.renderRows();
+      }
 
 
     });
 
 
+  }
+  onSortChange(sort: Sort) {
+    if (sort.direction === '') {
+      this.param.sortBy = null;
+      this.param.direction = null;
+    } else {
+      this.param.sortBy = sort.active;
+      this.param.direction = sort.direction;
+    }
+    this.param.pageIndex = 0;
+    if (this.paginator) {
+      this.paginator.firstPage();
+    }
+    this.loadData();
   }
   onChange(ev) {
     this.param.pageSize = ev.pageSize;
