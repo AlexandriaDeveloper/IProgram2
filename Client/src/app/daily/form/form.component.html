@@ -100,7 +100,8 @@
     </ng-container>
     <ng-container matColumnDef="index">
       <th mat-header-cell *matHeaderCellDef>
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 100px !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 100px !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الرقم</mat-label>
           <input matInput #indexInput class="search-field">
           <mat-icon style="color: #000;" *ngIf="indexInput.value" matSuffix (click)="clear('index')"
@@ -114,7 +115,8 @@
     <!-- Name Column -->
     <ng-container matColumnDef="name">
       <th mat-header-cell *matHeaderCellDef>
-        <mat-form-field apperance="outline" class="search" color="primary">
+        <mat-form-field apperance="outline" class="search" color="primary"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الاسم</mat-label>
           <input matInput #nameInput class="search-field">
           <mat-icon style="color: #000;" *ngIf="nameInput.value" matSuffix (click)="clear('name')"
@@ -128,7 +130,8 @@
 
     <ng-container matColumnDef="createdBy">
       <th mat-header-cell *matHeaderCellDef>
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 100px !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 100px !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الموظف</mat-label>
           <input matInput #createdByInput class="search-field">
           <mat-icon style="color: #000;" *ngIf="createdByInput.value" matSuffix style="cursor: pointer;"

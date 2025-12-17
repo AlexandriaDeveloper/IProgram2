@@ -31,7 +31,8 @@
     <!-- tabCode Column -->
     <ng-container matColumnDef="tabCode">
       <th mat-header-cell *matHeaderCellDef mat-sort-header="tabCode" [hidden]="!tabCodeCheck.checked">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">كود طب</mat-label>
           <input matInput #tabCodeInput (click)="$event.stopPropagation()" (search)="clear('tabCode')" type="number">
           @if (tabCodeInput.value) {
@@ -50,7 +51,8 @@
     <!-- tegaraCode Column -->
     <ng-container matColumnDef="tegaraCode">
       <th mat-header-cell *matHeaderCellDef mat-sort-header="tegaraCode" [hidden]="!tegaraCodeCheck.checked">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">كود تجارة</mat-label>
           <input matInput #tegaraCodeInput (click)="$event.stopPropagation()" (search)="clear('tegaraCode')" type="number">
           @if (tegaraCodeInput.value) {
@@ -67,7 +69,8 @@
     <!-- Name Column -->
     <ng-container matColumnDef="name">
       <th mat-header-cell *matHeaderCellDef mat-sort-header="name">
-        <mat-form-field apperance="outline" class="search" style="width: 40vh !important;">
+        <mat-form-field apperance="outline" class="search" style="width: 40vh !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الاسم</mat-label>
           <input matInput #nameInput (click)="$event.stopPropagation()" (search)="clear('name')">
           @if (nameInput.value) {
@@ -91,7 +94,8 @@
     <!-- nationalId Column -->
     <ng-container matColumnDef="employeeId">
       <th mat-header-cell *matHeaderCellDef mat-sort-header="employeeId" [hidden]="!nationalIdCheck.checked">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الرقم القومى</mat-label>
           <input matInput #employeeIdInput (click)="$event.stopPropagation()" (search)="clear('employeeId')">
           @if (employeeIdInput.value) {
@@ -107,7 +111,8 @@
 
     <ng-container matColumnDef="department">
       <th mat-header-cell *matHeaderCellDef mat-sort-header="department" [hidden]="!departmentCheck.checked">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الرقم القومى</mat-label>
           <input matInput #departmentInput (click)="$event.stopPropagation()" (search)="clear('department')">
           @if (departmentInput?.value) {
@@ -124,7 +129,8 @@
     <!-- collage Column -->
     <ng-container matColumnDef="collage">
       <th mat-header-cell *matHeaderCellDef mat-sort-header="collage">
-        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;">
+        <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"
+          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title"> الكليه</mat-label>
           <input matInput #collageInput (click)="$event.stopPropagation()" (search)="clear('collage')">
           @if (collageInput.value) {
