@@ -8,6 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthInterceptor } from './shared/interceptors/auth.interceptor';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { ErrorInterceptor } from './shared/interceptors/error.interceptor';
+import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { GALLERY_CONFIG as DEFAULT_GALLERY_CONFIG, GalleryConfig, GalleryModule } from 'ng-gallery';
 export const appConfig: ApplicationConfig = {
 
@@ -31,7 +32,8 @@ export const appConfig: ApplicationConfig = {
       [AuthInterceptor, ResponseInterceptor, ErrorInterceptor, loadingInterceptor]
     )),
     importProvidersFrom(MatProgressSpinnerModule)
-    , provideAnimations()
+    , provideAnimations(),
+    provideCharts(withDefaultRegisterables())
 
   ]
 };

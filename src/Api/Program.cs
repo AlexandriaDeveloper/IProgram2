@@ -39,7 +39,7 @@ builder.Services
 .AddIdentity(builder.Configuration)
 .AddInfrastructure(builder.Configuration)
 .AddPersistence()
-.AddApplication();
+.AddApplicationServices();
 
 
 // builder.Services.AddScoped<ITokenService, TokenService>();

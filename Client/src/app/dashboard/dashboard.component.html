@@ -1,0 +1,223 @@
+<div class="dashboard-container">
+    <!-- Header: Title & Filters -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <h2 class="m-0 fw-bold text-dark">لوحة المعلومات</h2>
+
+        <mat-form-field appearance="outline" class="date-filter-field">
+            <mat-label>تحديد الفترة</mat-label>
+            <mat-date-range-input [formGroup]="range" [rangePicker]="picker">
+                <input matStartDate formControlName="start" placeholder="البداية">
+                <input matEndDate formControlName="end" placeholder="النهاية" (dateChange)="loadDashboardData()">
+            </mat-date-range-input>
+            <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+            <mat-date-range-picker #picker></mat-date-range-picker>
+        </mat-form-field>
+    </div>
+
+    <!-- Loading State -->
+    <ng-container *ngIf="isLoading; else content">
+        <div class="loading-container">
+            <mat-spinner diameter="60"></mat-spinner>
+            <p class="mt-3 text-muted">جاري تحميل الإحصائيات...</p>
+        </div>
+    </ng-container>
+
+    <ng-template #content>
+        <ng-container *ngIf="dashboardData">
+            <!-- KPI Cards Row -->
+            <div class="row g-3 mb-4">
+                <!-- Total Employees -->
+                <div class="col-xl-3 col-lg-6 col-md-6 col-12">
+                    <div class="kpi-card card-primary">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="kpi-label">الموظفين</p>
+                                    <h3 class="kpi-value">{{ dashboardData.totalEmployees }}</h3>
+                                </div>
+                                <div class="icon-wrapper">
+                                    <i class="material-icons">people</i>
+                                </div>
+                            </div>
+                            <div class="trend-indicator" [class.positive]="dashboardData.employeeCountChange >= 0"
+                                [class.negative]="dashboardData.employeeCountChange < 0">
+                                <span class="material-icons small-icon">{{ dashboardData.employeeCountChange >= 0 ?
+                                    'arrow_upward' : 'arrow_downward' }}</span>
+                                <span>{{ dashboardData.employeeCountChange | number:'1.0-1' }}% مقارنة بالسابق</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total Amount -->
+                <div class="col-xl-3 col-lg-6 col-md-6 col-12">
+                    <div class="kpi-card card-success">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="kpi-label">الإجمالي</p>
+                                    <h3 class="kpi-value">{{ dashboardData.totalAmount | currency:'EGP':'symbol':'1.0-0'
+                                        }}</h3>
+                                </div>
+                                <div class="icon-wrapper">
+                                    <i class="material-icons">attach_money</i>
+                                </div>
+                            </div>
+                            <div class="trend-indicator" [class.positive]="dashboardData.totalAmountChange >= 0"
+                                [class.negative]="dashboardData.totalAmountChange < 0">
+                                <span class="material-icons small-icon">{{ dashboardData.totalAmountChange >= 0 ?
+                                    'arrow_upward' : 'arrow_downward' }}</span>
+                                <span>{{ dashboardData.totalAmountChange | number:'1.0-1' }}% مقارنة بالسابق</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Forms -->
+                <div class="col-xl-3 col-lg-6 col-md-6 col-12">
+                    <div class="kpi-card card-warning">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="kpi-label">الصرفيات النشطة</p>
+                                    <h3 class="kpi-value">{{ dashboardData.activeForms }}</h3>
+                                </div>
+                                <div class="icon-wrapper">
+                                    <i class="material-icons">assignment_late</i>
+                                </div>
+                            </div>
+                            <div class="trend-indicator" [class.positive]="dashboardData.formCountChange >= 0"
+                                [class.negative]="dashboardData.formCountChange < 0">
+                                <span class="material-icons small-icon">{{ dashboardData.formCountChange >= 0 ?
+                                    'arrow_upward' : 'arrow_downward' }}</span>
+                                <span>{{ dashboardData.formCountChange | number:'1.0-1' }}% نشاط</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total Forms (Lifetime) -->
+                <div class="col-xl-3 col-lg-6 col-md-6 col-12">
+                    <div class="kpi-card card-info">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <p class="kpi-label">إجمالي الصرفيات</p>
+                                    <h3 class="kpi-value">{{ dashboardData.totalForms }}</h3>
+                                </div>
+                                <div class="icon-wrapper">
+                                    <i class="material-icons">folder_copy</i>
+                                </div>
+                            </div>
+                            <div class="trend-indicator text-muted">
+                                <span>تراكمي</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts & Top Lists Row -->
+            <div class="row g-3 mb-4">
+                <!-- Main Chart (Bar) -->
+                <div class="col-lg-8 col-md-12">
+                    <div class="content-card">
+                        <h4 class="card-header-title mb-3">تحليل الصرفيات والعمالة</h4>
+                        <div style="height: 300px; display: block;">
+                            <canvas baseChart [datasets]="barChartData" [labels]="barChartLabels"
+                                [options]="barChartOptions" [legend]="true" [type]="barChartType">
+                            </canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pie Chart (Departments) -->
+                <div class="col-lg-4 col-md-12">
+                    <div class="content-card h-100">
+                        <h4 class="card-header-title mb-3">التوزيع حسب القسم</h4>
+                        <div style="height: 250px; display: flex; justify-content: center;">
+                            <canvas baseChart [datasets]="pieChartData" [labels]="pieChartLabels"
+                                [options]="pieChartOptions" [legend]="true" [type]="pieChartType">
+                            </canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tables Row -->
+            <div class="row g-3">
+                <!-- Recent Forms -->
+                <div class="col-lg-7 col-md-12">
+                    <div class="content-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="card-header-title m-0">آخر الصرفيات</h4>
+                            <button mat-button color="primary">عرض الكل</button>
+                        </div>
+                        <div class="table-container">
+                            <table mat-table [dataSource]="dashboardData.recentForms" class="w-100">
+                                <ng-container matColumnDef="description">
+                                    <th mat-header-cell *matHeaderCellDef> الوصف </th>
+                                    <td mat-cell *matCellDef="let element"> {{element.description}} </td>
+                                </ng-container>
+
+                                <ng-container matColumnDef="date">
+                                    <th mat-header-cell *matHeaderCellDef> التاريخ </th>
+                                    <td mat-cell *matCellDef="let element"> {{element.date | date:'dd/MM/yyyy'}} </td>
+                                </ng-container>
+
+                                <ng-container matColumnDef="employeeCount">
+                                    <th mat-header-cell *matHeaderCellDef> المستفيدين </th>
+                                    <td mat-cell *matCellDef="let element"> {{element.employeeCount}} </td>
+                                </ng-container>
+
+                                <ng-container matColumnDef="totalAmount">
+                                    <th mat-header-cell *matHeaderCellDef> القيمة </th>
+                                    <td mat-cell *matCellDef="let element" class="fw-bold text-success">
+                                        {{element.totalAmount | currency:'EGP':'symbol':'1.0-0'}} </td>
+                                </ng-container>
+
+                                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                                <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Employees -->
+                <div class="col-lg-5 col-md-12">
+                    <div class="content-card">
+                        <h4 class="card-header-title mb-3">أعلى الموظفين استحقاقاً</h4>
+                        <div class="table-container">
+                            <table mat-table [dataSource]="dashboardData.topEmployees" class="w-100">
+                                <ng-container matColumnDef="name">
+                                    <th mat-header-cell *matHeaderCellDef> الاسم </th>
+                                    <td mat-cell *matCellDef="let element" class="text-truncate"
+                                        style="max-width: 150px;"> {{element.name}} </td>
+                                </ng-container>
+
+                                <ng-container matColumnDef="department">
+                                    <th mat-header-cell *matHeaderCellDef> القسم </th>
+                                    <td mat-cell *matCellDef="let element"> {{element.department}} </td>
+                                </ng-container>
+
+                                <ng-container matColumnDef="formCount">
+                                    <th mat-header-cell *matHeaderCellDef> م </th>
+                                    <td mat-cell *matCellDef="let element"> {{element.formCount}} </td>
+                                </ng-container>
+
+                                <ng-container matColumnDef="totalAmount">
+                                    <th mat-header-cell *matHeaderCellDef> الإجمالي </th>
+                                    <td mat-cell *matCellDef="let element" class="fw-bold"> {{element.totalAmount |
+                                        number:'1.0-0'}} </td>
+                                </ng-container>
+
+                                <tr mat-header-row *matHeaderRowDef="topEmpColumns"></tr>
+                                <tr mat-row *matRowDef="let row; columns: topEmpColumns;"></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </ng-container>
+    </ng-template>
+</div>
