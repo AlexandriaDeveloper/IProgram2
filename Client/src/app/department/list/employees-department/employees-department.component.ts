@@ -1,4 +1,5 @@
 import { Ids } from './../../../shared/models/Department';
+import { trigger, transition, style, animate } from '@angular/animations';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
@@ -19,7 +20,18 @@ import { UploadEmployeesBottomSheetComponent } from './upload-employees-bottom-s
   standalone: false,
 
   templateUrl: './employees-department.component.html',
-  styleUrl: './employees-department.component.scss'
+  styleUrl: './employees-department.component.scss',
+  animations: [
+    trigger('rowAnimation', [
+      transition(':enter', [
+        style({ opacity: 0, transform: 'translateY(10px)' }),
+        animate('400ms cubic-bezier(0.35, 0, 0.25, 1)', style({ opacity: 1, transform: 'translateY(0)' }))
+      ]),
+      transition(':leave', [
+        animate('300ms ease-in', style({ opacity: 0, transform: 'translateY(-10px)' }))
+      ])
+    ])
+  ]
 })
 export class EmployeesDepartmentComponent implements AfterViewInit, OnInit {
   employeeService = inject(EmployeeService);
@@ -218,5 +230,8 @@ export class EmployeesDepartmentComponent implements AfterViewInit, OnInit {
         this.toaster.openSuccessToaster('تم رفع الملف  بنجاح', 'check_circle');
       }
     })
+  }
+  trackByKey(index: number, item: any): string {
+    return item.id;
   }
 }

@@ -10,7 +10,8 @@
   </mat-checkbox>
 </div>
 <div class="mat-elevation-z8">
-  <table [dataSource]="dataSource" mat-table class="full-width-table" matSort aria-label="Elements">
+  <table [dataSource]="dataSource" mat-table [trackBy]="trackByKey" class="full-width-table" matSort
+    aria-label="Elements">
     <!-- action Column -->
     <ng-container matColumnDef="action">
       <th mat-header-cell *matHeaderCellDef>
@@ -54,7 +55,8 @@
         <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"
           (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">كود تجارة</mat-label>
-          <input matInput #tegaraCodeInput (click)="$event.stopPropagation()" (search)="clear('tegaraCode')" type="number">
+          <input matInput #tegaraCodeInput (click)="$event.stopPropagation()" (search)="clear('tegaraCode')"
+            type="number">
           @if (tegaraCodeInput.value) {
           <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('tegaraCode')">
             <mat-icon>close</mat-icon>
@@ -143,16 +145,17 @@
       <td mat-cell *matCellDef="let row">{{row.collage}}</td>
     </ng-container>
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;" [@rowAnimation]></tr>
   </table>
   <div class="no-data" *ngIf="dataSource?.length===0">
     لا يوجد بيانات للعرض
   </div>
 
-</div>
+  <mat-paginator #paginator [length]="paginator.length" [pageIndex]="paginator.pageIndex"
+    [pageSize]="paginator.pageSize" [pageSizeOptions]="[30,5, 10]" (page)="onChange( $event)" aria-label="Select page">
+  </mat-paginator>
 
-<mat-paginator #paginator [length]="paginator.length" [pageIndex]="paginator.pageIndex" [pageSize]="paginator.pageSize"
-  [pageSizeOptions]="[30,5, 10]" (page)="onChange( $event)" aria-label="Select page">
-</mat-paginator>
+</div>
 
 <!--@@@-->

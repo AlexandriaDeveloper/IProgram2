@@ -1,5 +1,6 @@
 import { EmployeeParam } from '../../shared/models/IEmployee';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, OnInit, ViewChild, inject, OnDestroy } from '@angular/core';
+import { trigger, transition, style, animate } from '@angular/animations';
 import { MatTableModule, MatTable } from '@angular/material/table';
 import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatSortModule, MatSort, Sort } from '@angular/material/sort';
@@ -18,7 +19,17 @@ import { ToasterService } from '../../shared/components/toaster/toaster.service'
   templateUrl: './list.component.html',
   styleUrls: ['./list.component.scss'],
   standalone: false,
-
+  animations: [
+    trigger('rowAnimation', [
+      transition(':enter', [
+        style({ opacity: 0, transform: 'translateY(10px)' }),
+        animate('400ms cubic-bezier(0.35, 0, 0.25, 1)', style({ opacity: 1, transform: 'translateY(0)' }))
+      ]),
+      transition(':leave', [
+        animate('300ms ease-in', style({ opacity: 0, transform: 'translateY(-10px)' }))
+      ])
+    ])
+  ]
 })
 export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
   employeeService = inject(EmployeeService);
@@ -122,10 +133,10 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
         this.param.pageSize = this.paginator.pageSize;
       }
       //reset search
-      if (this.table) {
-        this.table.dataSource = this.dataSource;
-        this.table.renderRows();
-      }
+      // if (this.table) {
+      //   this.table.dataSource = this.dataSource;
+      //   this.table.renderRows();
+      // }
 
 
     });
@@ -240,6 +251,9 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
     this.param.departmentName = null;
 
     this.loadData();
+  }
 
+  trackByKey(index: number, item: any): string {
+    return item.id;
   }
 }

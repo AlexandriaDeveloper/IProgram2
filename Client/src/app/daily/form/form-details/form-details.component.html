@@ -70,8 +70,8 @@
 </div>
 
 <div class="mat-elevation-z8">
-  <table [dataSource]="dataSource" mat-table class="example-list full-width-table" matSort aria-label="Elements"
-    cdkDropList [cdkDropListData]="dataSource?.data" [cdkDropListDisabled]="daily?.closed"
+  <table [dataSource]="dataSource" mat-table [trackBy]="trackByKey" class="example-list full-width-table" matSort
+    aria-label="Elements" cdkDropList [cdkDropListData]="dataSource?.data" [cdkDropListDisabled]="daily?.closed"
     (cdkDropListDropped)="drop($event)">
     <!-- action Column -->
     <ng-container matColumnDef="action">
@@ -246,7 +246,7 @@
       'reviewed': row.isReviewed,
       'not-reviewed': !row.isReviewed,
       'selected': row.isSelected
-    }">
+    }" [@rowAnimation]>
     </tr>
 
 

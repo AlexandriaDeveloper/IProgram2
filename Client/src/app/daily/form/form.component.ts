@@ -1,5 +1,6 @@
 
 import { Param } from './../../shared/models/Param';
+import { trigger, transition, style, animate } from '@angular/animations';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ReportpdfService } from '../../shared/service/reportpdf.service';
@@ -28,7 +29,18 @@ import { DailyReferencesService } from '../../shared/service/daily-references.se
   standalone: false,
 
   templateUrl: './form.component.html',
-  styleUrl: './form.component.scss'
+  styleUrl: './form.component.scss',
+  animations: [
+    trigger('rowAnimation', [
+      transition(':enter', [
+        style({ opacity: 0, transform: 'translateY(10px)' }),
+        animate('400ms cubic-bezier(0.35, 0, 0.25, 1)', style({ opacity: 1, transform: 'translateY(0)' }))
+      ]),
+      transition(':leave', [
+        animate('300ms ease-in', style({ opacity: 0, transform: 'translateY(-10px)' }))
+      ])
+    ])
+  ]
 })
 export class FormComponent implements OnInit, AfterViewInit {
 
@@ -272,4 +284,7 @@ export class FormComponent implements OnInit, AfterViewInit {
     }
   }
 
+  trackByKey(index: number, item: any): string {
+    return item.id;
+  }
 }

@@ -1,5 +1,6 @@
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormDetailsService } from './../../../shared/service/form-details.service';
+import { trigger, transition, style, animate } from '@angular/animations';
 import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { DescriptionDialogComponent } from './description-dialog/description-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
@@ -27,7 +28,18 @@ import { UploadPdfBottomComponent } from './upload-pdf-bottom/upload-pdf-bottom.
   selector: 'app-form-details',
   standalone: false,
   templateUrl: './form-details.component.html',
-  styleUrl: './form-details.component.scss'
+  styleUrl: './form-details.component.scss',
+  animations: [
+    trigger('rowAnimation', [
+      transition(':enter', [
+        style({ opacity: 0, transform: 'translateY(10px)' }),
+        animate('400ms cubic-bezier(0.35, 0, 0.25, 1)', style({ opacity: 1, transform: 'translateY(0)' }))
+      ]),
+      transition(':leave', [
+        animate('300ms ease-in', style({ opacity: 0, transform: 'translateY(-10px)' }))
+      ])
+    ])
+  ]
 })
 export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
   private subscriptions: Subscription[] = [];
@@ -476,4 +488,7 @@ export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
 
+  trackByKey(index: number, item: any): string {
+    return item.id;
+  }
 }

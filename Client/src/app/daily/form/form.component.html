@@ -60,13 +60,15 @@
 
 
 
-  <table mat-table class="full-width-table" matSort aria-label="Elements">
+  <table mat-table [dataSource]="dataSource" [trackBy]="trackByKey" class="full-width-table" matSort
+    aria-label="Elements">
     <!-- action Column -->
     <ng-container matColumnDef="action">
       <th mat-header-cell *matHeaderCellDef>
 
         <div class="table-spacer" style="width: 10vh !important;">
-          <button mat-icon-button (click)="openEditDialog(null)" color="primary" class="add-button" *ngIf="!daily?.closed">
+          <button mat-icon-button (click)="openEditDialog(null)" color="primary" class="add-button"
+            *ngIf="!daily?.closed">
             <mat-icon style="color:#fff">add</mat-icon>
           </button>
         </div>
@@ -115,8 +117,8 @@
     <!-- Name Column -->
     <ng-container matColumnDef="name">
       <th mat-header-cell *matHeaderCellDef>
-        <mat-form-field apperance="outline" class="search" color="primary"
-          (keydown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
+        <mat-form-field apperance="outline" class="search" color="primary" (keydown)="$event.stopPropagation()"
+          (click)="$event.stopPropagation()">
           <mat-label class="saerch-title">الاسم</mat-label>
           <input matInput #nameInput class="search-field">
           <mat-icon style="color: #000;" *ngIf="nameInput.value" matSuffix (click)="clear('name')"
@@ -174,7 +176,8 @@
       </td>
     </ng-container>
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-    <tr mat-row *matRowDef="let row; columns: displayedColumns;" [ngClass]="row.isActive ? 'activeRow' : 'inactiveRow'">
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;" [ngClass]="row.isActive ? 'activeRow' : 'inactiveRow'"
+      [@rowAnimation]>
     </tr>
   </table>
   <div class="no-data" *ngIf="dataSource?.length===0">
