@@ -12,10 +12,10 @@ namespace Application.Features
     public class DailyReferenceService
     {
         private readonly IDailyReferencesRepository _dailyReferencesRepository;
-        private readonly IUniteOfWork _uow;
+        private readonly IUnitOfWork _uow;
         private readonly IWebHostEnvironment _hostEnvironment;
 
-        public DailyReferenceService(IDailyReferencesRepository dailyReferencesRepository, IUniteOfWork uow, IWebHostEnvironment hostEnvironment)
+        public DailyReferenceService(IDailyReferencesRepository dailyReferencesRepository, IUnitOfWork uow, IWebHostEnvironment hostEnvironment)
         {
             _dailyReferencesRepository = dailyReferencesRepository;
             _uow = uow;

@@ -13,9 +13,9 @@ namespace Application.Features
 {
     public class EmployeeBankService
     {
-        private readonly IUniteOfWork _uow;
+        private readonly IUnitOfWork _uow;
         private readonly IEmployeeBankRepository _employeeBankRepository;
-        public EmployeeBankService(IEmployeeBankRepository employeeBankRepository, IUniteOfWork uow)
+        public EmployeeBankService(IEmployeeBankRepository employeeBankRepository, IUnitOfWork uow)
         {
             this._employeeBankRepository = employeeBankRepository;
             this._uow = uow;

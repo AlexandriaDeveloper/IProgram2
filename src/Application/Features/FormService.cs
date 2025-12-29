@@ -32,14 +32,14 @@ namespace Application.Features
 
         private readonly IFormRepository _formRepository;
         private readonly IFormDetailsRepository _formDetailsRepository;
-        private readonly IUniteOfWork _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IEmployeeRepository _employeeRepository;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IDailyRepository _dailyRepository;
         private readonly IMemoryCache _cache;
 
-        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IDailyRepository dailyRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager, IMemoryCache cache)
+        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IDailyRepository dailyRepository, IEmployeeRepository employeeRepository, IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager, IMemoryCache cache)
         {
             this._dailyRepository = dailyRepository;
             this._userManager = userManager;
@@ -89,7 +89,7 @@ namespace Application.Features
             }
 
 
-            var result = await _formRepository.ListAllAsync(spec, withInactive: true);
+            var result = await _formRepository.ListAllAsync(spec, withInactive: true, trackChanges: false);
             var count = await _formRepository.CountAsync(specCount);
 
 
@@ -243,6 +243,7 @@ namespace Application.Features
             //Get Form Details By FormId Included Data
 
             var formDetails = _formDetailsRepository.GetQueryable()
+            .AsNoTracking()
             .Include(x => x.Employee)
             .ThenInclude(d => d.Department)
             .Where(x => x.FormId == formId && x.IsActive)

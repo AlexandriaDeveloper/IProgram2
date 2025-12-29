@@ -5,9 +5,11 @@ using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Persistence.Extensions;
+using System.Diagnostics;
 
 namespace Application.Features
 {
@@ -17,21 +19,24 @@ namespace Application.Features
         private readonly IFormRepository _formRepository;
         private readonly IFormReferencesRepository _formReferencesRepository;
         private readonly IFormDetailsRepository _formDetailsRepository;
-        private readonly IUniteOfWork _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IMemoryCache _cache;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly ILogger<FormDetailsService> _logger;
 
         public FormDetailsService(
             IFormRepository formRepository,
             IFormReferencesRepository formReferencesRepository,
          IFormDetailsRepository formDetailsRepository,
          IDailyRepository dailyRepository,
-         IUniteOfWork unitOfWork,
+         IUnitOfWork unitOfWork,
           IHttpContextAccessor httpContextAccessor,
           IMemoryCache cache,
-          UserManager<ApplicationUser> userManager)
+          UserManager<ApplicationUser> userManager,
+          ILogger<FormDetailsService> logger)
         {
+            this._logger = logger;
             this._unitOfWork = unitOfWork;
             this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
@@ -59,6 +64,9 @@ namespace Application.Features
             var cacheKey = $"FormDetails_{id}";
             if (!_cache.TryGetValue(cacheKey, out FormDto formDto))
             {
+                var sw = Stopwatch.StartNew();
+                _logger.LogInformation($"Starting GetFormDetails for ID {id}");
+
                 formDto = await _formRepository.GetQueryable()
                    .Where(f => f.Id == id)
                    .Select(f => new FormDto
@@ -89,9 +97,19 @@ namespace Application.Features
                 {
                     return Result.Failure<FormDto>(new Error("404", "Form not found"));
                 }
+                
+                var queryTime = sw.ElapsedMilliseconds;
+                _logger.LogInformation($"GetFormDetails Query Time for ID {id}: {queryTime}ms. Details Count: {formDto.FormDetails?.Count ?? 0}");
 
                 // Check references in separate async call (can't await inside Select query)
+                var swRef = Stopwatch.StartNew();
                 formDto.HasReferences = await _formReferencesRepository.CheckFomHaveReferences(id);
+                swRef.Stop();
+                _logger.LogInformation($"CheckFomHaveReferences Time for ID {id}: {swRef.ElapsedMilliseconds}ms");
+
+                sw.Stop();
+                _logger.LogInformation($"Total GetFormDetails Fetch Time for ID {id}: {sw.ElapsedMilliseconds}ms");
+
                 // Cache the result for future requests
                 var cacheEntryOptions = new MemoryCacheEntryOptions()
                 .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))

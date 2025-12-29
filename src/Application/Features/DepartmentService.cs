@@ -20,10 +20,10 @@ namespace Application.Features
     {
         private readonly IDepartmentRepository _departmentRepository;
         private readonly IEmployeeRepository _employeeRepository;
-        private readonly IUniteOfWork _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _cache;
 
-        public DepartmentService(IDepartmentRepository departmentRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IMemoryCache cache)
+        public DepartmentService(IDepartmentRepository departmentRepository, IEmployeeRepository employeeRepository, IUnitOfWork unitOfWork, IMemoryCache cache)
         {
             this._unitOfWork = unitOfWork;
             this._departmentRepository = departmentRepository;

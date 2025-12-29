@@ -19,7 +19,7 @@ namespace Application.Features
     {
         private readonly IDepartmentRepository _departmentRepository;
         private readonly IEmployeeRepository _employeeRepository;
-        private readonly IUniteOfWork _uow;
+        private readonly IUnitOfWork _uow;
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IConfiguration _config;
         private readonly IHttpContextAccessor _httpContextAccessor;
@@ -28,7 +28,7 @@ namespace Application.Features
         public EmployeeService(IEmployeeRepository employeeRepository,
          IFormDetailsRepository formDetailsRepository
         , IDepartmentRepository departmentRepository
-        , IUniteOfWork uow, IConfiguration config,
+        , IUnitOfWork uow, IConfiguration config,
         IHttpContextAccessor httpContextAccessor,
         IMemoryCache cache)
         {
@@ -45,7 +45,7 @@ namespace Application.Features
             var spec = new EmployeeSpecification(param);
             spec.PaginationEnabled = true;
 
-            var employeesFromDb = await _employeeRepository.ListAllAsync(spec);
+            var employeesFromDb = await _employeeRepository.ListAllAsync(spec, trackChanges: false);
             var employeeToReturn = employeesFromDb.Select(x => new EmployeeDto
             {
                 Collage = x.Collage,
@@ -68,7 +68,7 @@ namespace Application.Features
             var spec = new EmployeeSpecification(param);
             spec.PaginationEnabled = false;
 
-            var employee = await _employeeRepository.GetBySpec(spec);
+            var employee = await _employeeRepository.GetBySpec(spec, trackChanges: false);
             if (employee == null)
             {
                 return Result.Failure<EmployeeDto>(new Error("404", "عفوا الموظف غير موجود"));
@@ -659,7 +659,7 @@ namespace Application.Features
         {
             var spec = new DownloadAllEmployeeSpecification(employeeParam);
             spec.PaginationEnabled = false;
-            var employees = await _employeeRepository.ListAllAsync(spec);
+            var employees = await _employeeRepository.ListAllAsync(spec, trackChanges: false);
             // var departments = await _departmentRepository.ListAllAsync();
             var npoi = new NpoiServiceProvider();
             IWorkbook workbook = null;

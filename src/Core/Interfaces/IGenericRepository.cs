@@ -7,10 +7,10 @@ namespace Core.Interfaces
 {
     public interface IGenericRepository<TValue>
     {
-        Task<TValue> GetById(int id);
-        Task<TValue> GetBySpec(ISpecification<TValue> spec);
-        Task<List<TValue>> ListAllAsync();
-        Task<List<TValue>> ListAllAsync(ISpecification<TValue> spec, bool? withInactive = false);
+        Task<TValue> GetById(int id, bool trackChanges = true);
+        Task<TValue> GetBySpec(ISpecification<TValue> spec, bool trackChanges = true);
+        Task<List<TValue>> ListAllAsync(bool trackChanges = true);
+        Task<List<TValue>> ListAllAsync(ISpecification<TValue> spec, bool? withInactive = false, bool trackChanges = true);
 
 
 

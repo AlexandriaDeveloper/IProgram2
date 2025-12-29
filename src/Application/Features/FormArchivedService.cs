@@ -16,11 +16,11 @@ namespace Application.Features
     {
 
         private readonly IFormRepository _formRepository;
-        private readonly IUniteOfWork _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly UserManager<ApplicationUser> _usermanager;
 
-        public FormArchivedService(IFormRepository formRepository, IUniteOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> usermanager)
+        public FormArchivedService(IFormRepository formRepository, IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> usermanager)
         {
             this._usermanager = usermanager;
             this._unitOfWork = unitOfWork;

@@ -17,13 +17,13 @@ namespace Application.Features
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IEmployeeRefernceRepository _employeeRefernceRepository;
         private readonly IConfiguration _config;
-        private readonly IUniteOfWork _uow;
+        private readonly IUnitOfWork _uow;
         private readonly IWebHostEnvironment _hostEnvironment;
 
         public EmployeeRefernceService(
             IHttpContextAccessor httpContextAccessor,
             IEmployeeRefernceRepository employeeRefernceRepository,
-            IUniteOfWork uow,
+            IUnitOfWork uow,
              IConfiguration config,
              IWebHostEnvironment hostEnvironment)
         {

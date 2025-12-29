@@ -22,13 +22,13 @@ namespace Application.Features
     {
         private readonly IDailyRepository _dailyRepository;
         private readonly IDailyReferencesRepository _dailyReferenceRepository;
-        private readonly IUniteOfWork _unitOfWork;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IFormRepository _formRepository;
         private readonly ReportService _reportService;
         private readonly UserManager<ApplicationUser> _userManager;
         private IConfiguration _config;
 
-        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUniteOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config)
+        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config)
         {
             this._formRepository = formRepository;
             this._reportService = reportService;

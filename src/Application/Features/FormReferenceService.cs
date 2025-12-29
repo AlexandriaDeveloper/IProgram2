@@ -17,12 +17,12 @@ namespace Application.Features
     public class FormReferenceService
     {
         private readonly IFormReferencesRepository _formReferencesRepository;
-        private readonly IUniteOfWork _uow;
+        private readonly IUnitOfWork _uow;
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _hostEnvironment;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUniteOfWork uow, IHttpContextAccessor httpContextAccessor, IConfiguration config, IWebHostEnvironment hostEnvironment)
+        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUnitOfWork uow, IHttpContextAccessor httpContextAccessor, IConfiguration config, IWebHostEnvironment hostEnvironment)
         {
             this._httpContextAccessor = httpContextAccessor;
             this._hostEnvironment = hostEnvironment;

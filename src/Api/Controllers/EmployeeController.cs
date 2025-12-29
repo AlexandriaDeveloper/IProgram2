@@ -31,10 +31,7 @@ namespace Api.Controllers
         [HttpPost("Add")]
         public async Task<IActionResult> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+
 
             var result = await _employeeService.AddEmployee(employee, cancellationToken);
 
@@ -43,10 +40,7 @@ namespace Api.Controllers
         [HttpPut()]
         public async Task<IActionResult> PutEmployee(EmployeeDto employee)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+
             var result = await _employeeService.UpdateEmployee(employee);
 
             return HandleResult<EmployeeDto>(result);
@@ -55,10 +49,7 @@ namespace Api.Controllers
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
         public async Task<IActionResult> UploadEmployees(EmployeeFileUploadRequest model)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+
             try
             {
                 var result = await _employeeService.UploadTegaraFile(model);
@@ -74,10 +65,7 @@ namespace Api.Controllers
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
         public async Task<IActionResult> UploadTegaraFile(EmployeeFileUploadRequest model)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<EmployeeDto>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+
             try
             {
                 var result = await _employeeService.UploadTegaraFile(model);

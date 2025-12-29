@@ -20,9 +20,12 @@ namespace Persistence.Repository
             this._accessor = accessor;
         }
 
-        public virtual async Task<T> GetById(int id)
+        public virtual async Task<T> GetById(int id, bool trackChanges = true)
         {
-            return await this._context.Set<T>().FirstOrDefaultAsync(x => x.Id == id);
+            var query = _context.Set<T>().AsQueryable();
+            if (!trackChanges) query = query.AsNoTracking();
+
+            return await query.FirstOrDefaultAsync(x => x.Id == id);
         }
 
         public virtual async Task Delete(int id)
@@ -71,24 +74,31 @@ namespace Persistence.Repository
             _context.Set<T>().Update(entity);
         }
 
-        public Task<T> GetBySpec(ISpecification<T> spec)
+        public Task<T> GetBySpec(ISpecification<T> spec, bool trackChanges = true)
         {
-
-            return ApplyActiveSpecification(spec).FirstOrDefaultAsync();
+            var query = ApplyActiveSpecification(spec);
+            if (!trackChanges) query = query.AsNoTracking();
+            return query.FirstOrDefaultAsync();
         }
 
-        public async Task<List<T>> ListAllAsync()
+        public async Task<List<T>> ListAllAsync(bool trackChanges = true)
         {
-
-            return await _context.Set<T>().Where(t => t.IsActive).ToListAsync();
+            var query = _context.Set<T>().Where(t => t.IsActive);
+            if (!trackChanges) query = query.AsNoTracking();
+            return await query.ToListAsync();
         }
 
-        public async Task<List<T>> ListAllAsync(ISpecification<T> spec, bool? withInactive = false)
+        public async Task<List<T>> ListAllAsync(ISpecification<T> spec, bool? withInactive = false, bool trackChanges = true)
         {
+            IQueryable<T> query;
             if (withInactive == true)
-                return await ApplySpecification(spec).ToListAsync();
+                query = ApplySpecification(spec);
             else
-                return await ApplyActiveSpecification(spec).ToListAsync();
+                query = ApplyActiveSpecification(spec);
+
+            if (!trackChanges) query = query.AsNoTracking();
+
+            return await query.ToListAsync();
         }
         public async Task<int> CountAsync(ISpecification<T> spec)
         {

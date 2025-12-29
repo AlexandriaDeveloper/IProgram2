@@ -17,11 +17,11 @@ namespace Application.Features
     {
         private readonly IFormRepository formRepository;
         private readonly IFormDetailsRepository formDetailsRepository;
-        private readonly IUniteOfWork unitOfWork;
+        private readonly IUnitOfWork unitOfWork;
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IConfiguration _config;
 
-        public ReportService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUniteOfWork unitOfWork, IConfiguration config)
+        public ReportService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IEmployeeRepository employeeRepository, IUnitOfWork unitOfWork, IConfiguration config)
         {
             this._config = config;
             this._employeeRepository = employeeRepository;

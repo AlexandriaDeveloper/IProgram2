@@ -27,10 +27,7 @@ namespace Api.Controllers
         [HttpPost()]
         public async Task<IActionResult> AddForm([FromBody] FormDto form)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<FormDto>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+
             var result = await _formService.AddForm(form);
 
             return HandleResult(result);
@@ -38,10 +35,7 @@ namespace Api.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateForm(int id, [FromBody] FormDto form)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<FormDto>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+
             var result = await _formService.UpdateForm(id, form);
 
             return HandleResult(result);
@@ -108,10 +102,7 @@ namespace Api.Controllers
         [HttpPut("UpdateDescription/{id}")]
         public async Task<IActionResult> UpdateDescription(int id, [FromBody] UpdateFormDescriptonRequest request)
         {
-            if (!ModelState.IsValid)
-            {
-                return HandleResult(Result.ValidationErrors<UpdateFormDescriptonRequest>(ModelState.SelectMany(x => x.Value.Errors)));
-            }
+
 
             string decodedString = HttpUtility.HtmlDecode(request.Description);
             request.Description = decodedString;

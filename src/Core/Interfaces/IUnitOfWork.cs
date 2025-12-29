@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Core.Interfaces
 {
-    public interface IUniteOfWork
+    public interface IUnitOfWork
     {
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }

@@ -20,7 +20,7 @@ namespace Persistence.Extensions
     {
       services.AddHttpContextAccessor();
       services.AddScoped<ITokenService, TokenService>();
-      services.AddScoped<IUniteOfWork, UniteOfWork>();
+      services.AddScoped<IUnitOfWork, UnitOfWork>();
       services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
       // services.AddScoped<IAccountRepository, AccountRepository>();
       // services.AddScoped<IRoleRepository, RoleRepository>();
