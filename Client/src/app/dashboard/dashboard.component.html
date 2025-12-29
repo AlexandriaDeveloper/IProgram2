@@ -36,13 +36,13 @@
                                     <h3 class="kpi-value">{{ dashboardData.totalEmployees }}</h3>
                                 </div>
                                 <div class="icon-wrapper">
-                                    <i class="material-icons">people</i>
+                                    <mat-icon>people</mat-icon>
                                 </div>
                             </div>
                             <div class="trend-indicator" [class.positive]="dashboardData.employeeCountChange >= 0"
                                 [class.negative]="dashboardData.employeeCountChange < 0">
-                                <span class="material-icons small-icon">{{ dashboardData.employeeCountChange >= 0 ?
-                                    'arrow_upward' : 'arrow_downward' }}</span>
+                                <mat-icon class="small-icon">{{ dashboardData.employeeCountChange >= 0 ? 'arrow_upward'
+                                    : 'arrow_downward' }}</mat-icon>
                                 <span>{{ dashboardData.employeeCountChange | number:'1.0-1' }}% مقارنة بالسابق</span>
                             </div>
                         </div>
@@ -60,13 +60,13 @@
                                         }}</h3>
                                 </div>
                                 <div class="icon-wrapper">
-                                    <i class="material-icons">attach_money</i>
+                                    <mat-icon>attach_money</mat-icon>
                                 </div>
                             </div>
                             <div class="trend-indicator" [class.positive]="dashboardData.totalAmountChange >= 0"
                                 [class.negative]="dashboardData.totalAmountChange < 0">
-                                <span class="material-icons small-icon">{{ dashboardData.totalAmountChange >= 0 ?
-                                    'arrow_upward' : 'arrow_downward' }}</span>
+                                <mat-icon class="small-icon">{{ dashboardData.totalAmountChange >= 0 ? 'arrow_upward' :
+                                    'arrow_downward' }}</mat-icon>
                                 <span>{{ dashboardData.totalAmountChange | number:'1.0-1' }}% مقارنة بالسابق</span>
                             </div>
                         </div>
@@ -83,13 +83,13 @@
                                     <h3 class="kpi-value">{{ dashboardData.activeForms }}</h3>
                                 </div>
                                 <div class="icon-wrapper">
-                                    <i class="material-icons">assignment_late</i>
+                                    <mat-icon>assignment_late</mat-icon>
                                 </div>
                             </div>
                             <div class="trend-indicator" [class.positive]="dashboardData.formCountChange >= 0"
                                 [class.negative]="dashboardData.formCountChange < 0">
-                                <span class="material-icons small-icon">{{ dashboardData.formCountChange >= 0 ?
-                                    'arrow_upward' : 'arrow_downward' }}</span>
+                                <mat-icon class="small-icon">{{ dashboardData.formCountChange >= 0 ? 'arrow_upward' :
+                                    'arrow_downward' }}</mat-icon>
                                 <span>{{ dashboardData.formCountChange | number:'1.0-1' }}% نشاط</span>
                             </div>
                         </div>
@@ -106,7 +106,7 @@
                                     <h3 class="kpi-value">{{ dashboardData.totalForms }}</h3>
                                 </div>
                                 <div class="icon-wrapper">
-                                    <i class="material-icons">folder_copy</i>
+                                    <mat-icon>folder_copy</mat-icon>
                                 </div>
                             </div>
                             <div class="trend-indicator text-muted">

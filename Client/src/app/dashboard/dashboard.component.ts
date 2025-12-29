@@ -9,6 +9,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartOptions, ChartType } from 'chart.js';
@@ -28,6 +29,7 @@ import { DashboardDto, DashboardService, EmployeeSummaryDto, PieChartDto } from 
         MatFormFieldModule,
         MatInputModule,
         MatButtonModule,
+        MatIconModule,
         FormsModule,
         ReactiveFormsModule,
         BaseChartDirective
