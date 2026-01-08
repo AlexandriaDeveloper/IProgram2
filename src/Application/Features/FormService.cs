@@ -38,8 +38,18 @@ namespace Application.Features
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IDailyRepository _dailyRepository;
         private readonly IMemoryCache _cache;
+        private readonly ICurrentUserService _currentUserService;
 
-        public FormService(IFormRepository formRepository, IFormDetailsRepository formDetailsRepository, IDailyRepository dailyRepository, IEmployeeRepository employeeRepository, IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> userManager, IMemoryCache cache)
+        public FormService(
+            IFormRepository formRepository, 
+            IFormDetailsRepository formDetailsRepository, 
+            IDailyRepository dailyRepository, 
+            IEmployeeRepository employeeRepository, 
+            IUnitOfWork unitOfWork, 
+            IHttpContextAccessor httpContextAccessor, 
+            UserManager<ApplicationUser> userManager, 
+            IMemoryCache cache,
+            ICurrentUserService currentUserService)
         {
             this._dailyRepository = dailyRepository;
             this._userManager = userManager;
@@ -49,6 +59,7 @@ namespace Application.Features
             this._formRepository = formRepository;
             this._formDetailsRepository = formDetailsRepository;
             this._cache = cache;
+            this._currentUserService = currentUserService;
         }
 
         private void ClearFormCache()
@@ -64,7 +75,8 @@ namespace Application.Features
             // determine current user id; if current user is admin, leave user null to fetch all
             var user = _httpContextAccessor.HttpContext.User;
             bool isAdmin = user?.IsInRole("Admin") ?? false;
-            string userId = isAdmin ? null : ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(user);
+
+            string userId = isAdmin ? null : _currentUserService.UserId;
 
             var spec = new FormSpecification(id, param);
             var specCount = new FormCountSpecification(id, param);
@@ -321,7 +333,7 @@ namespace Application.Features
             daily.Name = json2Obj.Name;
             daily.DailyDate = json2Obj.DailyDate;
             daily.Forms = new List<Form>();
-            daily.CreatedBy = _httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
+            daily.CreatedBy = _currentUserService.UserId;
             daily.CreatedAt = DateTime.Now;
 
             foreach (var form in json2Obj.Forms)
@@ -332,7 +344,7 @@ namespace Application.Features
                     Name = form.Name,
                     Index = form.Index,
                     CreatedAt = DateTime.Now,
-                    CreatedBy = _httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value,
+                    CreatedBy = _currentUserService.UserId,
                     IsActive = true,
 
                 };
@@ -352,7 +364,7 @@ namespace Application.Features
                         EmployeeId = formDetail.EmployeeId,
                         OrderNum = formDetail.OrderNum,
                         CreatedAt = DateTime.Now,
-                        CreatedBy = _httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value,
+                        CreatedBy = _currentUserService.UserId,
                         IsActive = true
                     });
                 }

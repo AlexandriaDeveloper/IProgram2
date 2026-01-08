@@ -19,19 +19,21 @@ namespace Application.Features
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly UserManager<ApplicationUser> _usermanager;
+        private readonly ICurrentUserService _currentUserService;
 
-        public FormArchivedService(IFormRepository formRepository, IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> usermanager)
+        public FormArchivedService(IFormRepository formRepository, IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> usermanager, ICurrentUserService currentUserService)
         {
             this._usermanager = usermanager;
             this._unitOfWork = unitOfWork;
             this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
+            this._currentUserService = currentUserService;
         }
         public async Task<Result<PaginatedResult<FormArchivedDto>>> GetArchivedForms(FormArchivedParam param)
         {
 
             var user = _httpContextAccessor.HttpContext.User.IsInRole("Admin") ? null :
-           ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+           _currentUserService.UserId;
             var spec = new ArchivedFormsSpecification(param);
             spec.Includes.Add(x => x.FormDetails);
             var specCount = new ArchivedFormsCountSpecification(param);

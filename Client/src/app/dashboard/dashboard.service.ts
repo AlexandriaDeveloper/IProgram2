@@ -60,6 +60,9 @@ export class DashboardService {
         let params: any = {};
         if (startDate) params.startDate = startDate;
         if (endDate) params.endDate = endDate;
-        return this.http.get<DashboardDto>(this.baseUrl + 'dashboard', { params: params });
+        return this.http.get<DashboardDto>(this.baseUrl + 'dashboard', {
+            params: params,
+            headers: { 'x-skip-loading': 'true' }
+        });
     }
 }

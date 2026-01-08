@@ -19,19 +19,22 @@ namespace Application.Features
         private readonly IConfiguration _config;
         private readonly IUnitOfWork _uow;
         private readonly IWebHostEnvironment _hostEnvironment;
+        private readonly ICurrentUserService _currentUserService;
 
         public EmployeeRefernceService(
             IHttpContextAccessor httpContextAccessor,
             IEmployeeRefernceRepository employeeRefernceRepository,
             IUnitOfWork uow,
              IConfiguration config,
-             IWebHostEnvironment hostEnvironment)
+             IWebHostEnvironment hostEnvironment,
+             ICurrentUserService currentUserService)
         {
             this._hostEnvironment = hostEnvironment;
             this._uow = uow;
             this._config = config;
             this._httpContextAccessor = httpContextAccessor;
             this._employeeRefernceRepository = employeeRefernceRepository;
+            this._currentUserService = currentUserService;
 
         }
 
@@ -57,7 +60,7 @@ namespace Application.Features
             }
             employeeRefernce.IsActive = false;
             employeeRefernce.DeactivatedAt = DateTime.Now;
-            employeeRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+            employeeRefernce.DeactivatedBy = _currentUserService.UserId;
             _employeeRefernceRepository.Update(employeeRefernce);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)

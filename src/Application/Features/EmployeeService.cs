@@ -23,6 +23,7 @@ namespace Application.Features
         private readonly IFormDetailsRepository _formDetailsRepository;
         private readonly IConfiguration _config;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ICurrentUserService _currentUserService;
 
 
         public EmployeeService(IEmployeeRepository employeeRepository,
@@ -30,7 +31,8 @@ namespace Application.Features
         , IDepartmentRepository departmentRepository
         , IUnitOfWork uow, IConfiguration config,
         IHttpContextAccessor httpContextAccessor,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        ICurrentUserService currentUserService)
         {
             this._config = config;
             this._httpContextAccessor = httpContextAccessor;
@@ -38,7 +40,7 @@ namespace Application.Features
             this._uow = uow;
             this._employeeRepository = employeeRepository;
             this._departmentRepository = departmentRepository;
-
+            this._currentUserService = currentUserService;
         }
         public async Task<Result<PaginatedResult<EmployeeDto>>> getEmployees(EmployeeParam param)
         {
@@ -441,7 +443,7 @@ namespace Application.Features
                         employee.EmployeeBank = new EmployeeBank();
 
                     employee.EmployeeBank.BankName = row["البنك"].ToString();
-                    employee.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+                    employee.EmployeeBank.CreatedBy = _currentUserService.UserId;
                     employee.EmployeeBank.CreatedAt = DateTime.Now;
                 }
                 if (columns.Contains("الفرع") && row["الفرع"] != null)
@@ -540,7 +542,7 @@ namespace Application.Features
                     empExist.EmployeeBank = new EmployeeBank();
                     empExist.EmployeeBank.EmployeeId = empExist.Id;
                     empExist.EmployeeBank.CreatedAt = DateTime.Now;
-                    empExist.EmployeeBank.CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+                    empExist.EmployeeBank.CreatedBy = _currentUserService.UserId;
                     empExist.EmployeeBank.IsActive = true;
                     empExist.EmployeeBank.BankName = row["البنك"].ToString();
                     if (!string.IsNullOrWhiteSpace(row["الفرع"].ToString()))
@@ -626,7 +628,7 @@ namespace Application.Features
             }
             employee.IsActive = false;
             employee.DeactivatedAt = DateTime.Now;
-            employee.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+            employee.DeactivatedBy = _currentUserService.UserId;
             _employeeRepository.Update(employee);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)

@@ -8,7 +8,7 @@ using Persistence.Services;
 using Application.Extensions;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.FileProviders;
-using Application.Constant;
+
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -144,14 +144,7 @@ app.UseCors("CorsPolicy");
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.Use(async (context, next) =>
-{
-    if (UserId.UserIdentity == null)
-    {
-        UserId.UserIdentity = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    }
-    await next(context);
-});
+    // await next(context);
 //app.MapControllers();
 
 

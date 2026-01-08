@@ -24,6 +24,7 @@ namespace Application.Features
         private readonly IMemoryCache _cache;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<FormDetailsService> _logger;
+        private readonly ICurrentUserService _currentUserService;
 
         public FormDetailsService(
             IFormRepository formRepository,
@@ -34,7 +35,8 @@ namespace Application.Features
           IHttpContextAccessor httpContextAccessor,
           IMemoryCache cache,
           UserManager<ApplicationUser> userManager,
-          ILogger<FormDetailsService> logger)
+          ILogger<FormDetailsService> logger,
+          ICurrentUserService currentUserService)
         {
             this._logger = logger;
             this._unitOfWork = unitOfWork;
@@ -44,6 +46,7 @@ namespace Application.Features
             this._formDetailsRepository = formDetailsRepository;
             this._userManager = userManager;
             this._cache = cache;
+            this._currentUserService = currentUserService;
         }
 
         private void ClearFormDetailsCache(int formId)
@@ -174,7 +177,7 @@ namespace Application.Features
                     IsReviewedBy = x.IsReviewedBy,
                     OrderNum = x.OrderNum,
                     CreatedAt = DateTime.Now,
-                    CreatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User), //_httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value
+                    CreatedBy = _currentUserService.UserId,
                 }).ToList()
 
             };
@@ -289,7 +292,7 @@ namespace Application.Features
 
             // Get User Id 
             var user = _httpContextAccessor.HttpContext.User;
-            var userId = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(user);
+            var userId = _currentUserService.UserId;
             //check if current user not same id reviewdby and current user not admin return not authorizerd to check out
             if (!user.IsInRole("Admin") && formDetails.CreatedBy != userId)
             {

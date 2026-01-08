@@ -15,6 +15,12 @@ export function ResponseInterceptor(req: HttpRequest<unknown>, next: HttpHandler
   // console.log(req);
 
 
+  // Check for skip loading header
+  if (req.headers.has('x-skip-loading')) {
+    const copy = req.clone({ headers: req.headers.delete('x-skip-loading') });
+    return next(copy);
+  }
+
   loadingService.show();
 
   return next(req).pipe(map((event: HttpEvent<any>) => {

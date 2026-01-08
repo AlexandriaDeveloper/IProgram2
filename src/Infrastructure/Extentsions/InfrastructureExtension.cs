@@ -28,6 +28,9 @@ public static class InfrastructureExtension
             });
         });
 
+        services.AddHttpContextAccessor();
+        services.AddScoped<Core.Interfaces.ICurrentUserService, Services.CurrentUserService>();
+
         return services;
     }
 

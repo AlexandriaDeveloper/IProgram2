@@ -21,14 +21,16 @@ namespace Application.Features
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _hostEnvironment;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ICurrentUserService _currentUserService;
 
-        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUnitOfWork uow, IHttpContextAccessor httpContextAccessor, IConfiguration config, IWebHostEnvironment hostEnvironment)
+        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUnitOfWork uow, IHttpContextAccessor httpContextAccessor, IConfiguration config, IWebHostEnvironment hostEnvironment, ICurrentUserService currentUserService)
         {
             this._httpContextAccessor = httpContextAccessor;
             this._hostEnvironment = hostEnvironment;
             this._config = config;
             this._formReferencesRepository = formReferencesRepository;
             this._uow = uow;
+            this._currentUserService = currentUserService;
         }
 
         public async Task<Result<List<FormReferenceDto>>> GetFormReferences(int formId)
@@ -56,7 +58,7 @@ namespace Application.Features
             }
             formRefernce.IsActive = false;
             formRefernce.DeactivatedAt = DateTime.Now;
-            formRefernce.DeactivatedBy = ClaimPrincipalExtensions.RetriveAuthUserIdFromPrincipal(_httpContextAccessor.HttpContext.User);
+            formRefernce.DeactivatedBy = _currentUserService.UserId;
             _formReferencesRepository.Update(formRefernce);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)
