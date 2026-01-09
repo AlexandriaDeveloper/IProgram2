@@ -76,6 +76,7 @@ namespace Application.Features
                    {
                        Description = f.Description,
                        Id = f.Id,
+                       Index = f.Index,
                        Name = f.Name,
                        FormDetails = f.FormDetails
                            .Where(fd => fd.IsActive)
@@ -84,6 +85,7 @@ namespace Application.Features
                            {
                                Id = fd.Id,
                                FormId = fd.FormId,
+
                                Name = fd.Employee.Name,
                                TabCode = fd.Employee.TabCode,
                                TegaraCode = fd.Employee.TegaraCode,

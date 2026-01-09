@@ -460,6 +460,7 @@ namespace Application.Features
                 return Result.Success(new DailyDto
                 {
                     Id = daily.Id,
+                    
                     Name = daily.Name,
                     DailyDate = daily.DailyDate,
                     Closed = daily.Closed,

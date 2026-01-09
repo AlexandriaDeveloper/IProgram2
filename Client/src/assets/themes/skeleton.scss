@@ -1,0 +1,92 @@
+/* Skeleton Loading Styles */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton-box {
+  display: inline-block;
+  height: 1em;
+  position: relative;
+  overflow: hidden;
+  background-color: #DDDBDD;
+  margin-bottom: 5px;
+  border-radius: 4px;
+
+  &::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      rgba(#fff, 0) 0,
+      rgba(#fff, 0.2) 20%,
+      rgba(#fff, 0.5) 60%,
+      rgba(#fff, 0)
+    );
+    animation: shimmer 2s infinite;
+    content: '';
+  }
+}
+
+// Dark mode adjustment if needed
+@media (prefers-color-scheme: dark) {
+  .skeleton-box {
+    background-color: #3f3f3f;
+    &::after {
+        background-image: linear-gradient(
+            90deg,
+            rgba(#fff, 0) 0,
+            rgba(#fff, 0.05) 20%,
+            rgba(#fff, 0.1) 60%,
+            rgba(#fff, 0)
+          );
+    }
+  }
+}
+
+.skeleton-table-row {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    
+    .skeleton-cell {
+        flex: 1;
+        height: 24px;
+        @extend .skeleton-box;
+        margin-bottom: 0;
+    }
+}
+
+.skeleton-card {
+    padding: 20px;
+    background: #fff; // or var(--card-bg)
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    .skeleton-header {
+        width: 30%;
+        height: 30px;
+        @extend .skeleton-box;
+        margin-bottom: 20px;
+    }
+
+    .skeleton-text-line {
+        width: 100%;
+        height: 16px;
+        @extend .skeleton-box;
+        
+        &:last-child {
+            width: 80%;
+        }
+    }
+}

@@ -8,7 +8,7 @@
     <mat-icon>arrow_back</mat-icon>
 
   </a>
-  <strong>{{data?.name}}</strong>
+  <strong>{{data.index}} - {{data?.name}}</strong>
 
 
 
@@ -69,6 +69,29 @@
 
 </div>
 
+
+@if (isLoading) {
+<div class="skeleton-container mat-elevation-z8" style="background: white; padding: 20px; margin-top: 20px;">
+  <!-- Skeleton Header -->
+  <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+    <div class="skeleton-box" style="width: 100px; height: 32px;"></div> <!-- Search -->
+    <div class="skeleton-box" style="width: 100px; height: 32px;"></div> <!-- Search -->
+    <div class="skeleton-box" style="width: 150px; height: 32px;"></div> <!-- Search -->
+  </div>
+
+  <!-- Skeleton Rows -->
+  @for (item of [1,2,3,4,5]; track item) {
+  <div class="skeleton-table-row">
+    <div class="skeleton-cell" style="width: 50px; flex: 0.5;"></div>
+    <div class="skeleton-cell"></div>
+    <div class="skeleton-cell"></div>
+    <div class="skeleton-cell" style="flex: 2;"></div>
+    <div class="skeleton-cell"></div>
+    <div class="skeleton-cell"></div>
+  </div>
+  }
+</div>
+} @else {
 <div class="mat-elevation-z8">
   <table [dataSource]="dataSource" mat-table [trackBy]="trackByKey" class="example-list full-width-table" matSort
     aria-label="Elements" cdkDropList [cdkDropListData]="dataSource?.data" [cdkDropListDisabled]="daily?.closed"
@@ -255,3 +278,4 @@
     لا يوجد بيانات للعرض
   </div>
 </div>
+}
