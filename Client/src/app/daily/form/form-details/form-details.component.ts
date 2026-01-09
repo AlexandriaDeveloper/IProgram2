@@ -124,6 +124,7 @@ export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   }
   initElement(element: ElementRef, param): Subscription {
+    if (!element || !element.nativeElement) return new Subscription();
     const sub = fromEvent(element.nativeElement, 'keyup').pipe(debounceTime(600), distinctUntilChanged(),
       map((event: any) => {
         const value = (event.target.value || '').toString().trim();
@@ -190,6 +191,16 @@ export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
       },
       complete: () => {
         this.isLoading = false;
+        // Re-attach search listeners and Sort/Paginator after view updates (since inputs were hidden)
+        setTimeout(() => {
+          this.search();
+          if (this.sort && this.dataSource) {
+            this.dataSource.sort = this.sort;
+          }
+          if (this.paginator && this.dataSource) {
+            this.dataSource.paginator = this.paginator;
+          }
+        }, 100);
       }
     });
   }

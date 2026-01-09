@@ -13,7 +13,7 @@ import { DailyParam, IDaily } from '../../shared/models/IDaily';
 import { IEmployee } from '../../shared/models/IEmployee';
 import { DailyService } from '../../shared/service/daily.service';
 import { FormService } from '../../shared/service/form.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AddFormComponent } from './add-form/add-form.component';
 import { FormParam } from '../../shared/models/IForm';
 import { AddEmployeeDialogComponent } from './form-details/add-employee-dialog/add-employee-dialog.component';
@@ -52,6 +52,7 @@ export class FormComponent implements OnInit, AfterViewInit {
   dailyRefService = inject(DailyReferencesService);
   authService = inject(AuthService);
   dailyId = inject(ActivatedRoute).snapshot.params['id'];
+  router = inject(Router);
   daily: IDaily;
   public param: FormParam = new FormParam();
   dataSource;
@@ -135,8 +136,12 @@ export class FormComponent implements OnInit, AfterViewInit {
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      this.loadData();
-      // this.animal = result;
+      //this.loadData();
+      //redirect me to the form details http://localhost:4200/daily/81/form/2128
+      console.log(result);
+      this.router.navigate(['/daily/' + result.dailyId + '/form/' + result.id]);
+
+      // this.animal = result;ud
     });
   }
 

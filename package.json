@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@fontsource/cairo": "^5.2.7",
+    "@fontsource/roboto": "^5.2.9",
+    "material-icons": "^1.13.14"
+  }
+}

@@ -146,6 +146,7 @@ namespace Application.Features
             {
                 return Result.Failure<FormDto>(new Error("500", "Internal Server Error"));
             }
+            form.Id = formToDb.Id;
             return Result.Success<FormDto>(form);
 
         }
