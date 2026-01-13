@@ -1,7 +1,7 @@
 <div class="dashboard-container">
     <!-- Header: Title & Filters -->
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-        <h2 class="m-0 fw-bold text-dark">لوحة المعلومات</h2>
+        <h2 class="m-0 fw-bold text-white">لوحة المعلومات</h2>
 
         <mat-form-field appearance="outline" class="date-filter-field">
             <mat-label>تحديد الفترة</mat-label>
@@ -25,7 +25,7 @@
     <ng-template #content>
         <ng-container *ngIf="dashboardData">
             <!-- KPI Cards Row -->
-            <div class="row g-3 mb-4">
+            <div class="row g-3 mb-4" @fadeInStagger>
                 <!-- Total Employees -->
                 <div class="col-xl-3 col-lg-6 col-md-6 col-12">
                     <div class="kpi-card card-primary">

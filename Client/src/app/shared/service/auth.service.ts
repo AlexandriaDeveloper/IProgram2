@@ -15,7 +15,15 @@ export class AuthService {
   apiUrl = environment.apiUrl;
   currentUserSig = signal<any | undefined | null>(undefined);
   userRoles = signal<string[]>([]);
-  constructor() { }
+  constructor() {
+    const userString = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    if (userString && token) {
+      const user = JSON.parse(userString);
+      this.currentUserSig.set(user);
+      this.userRoles.set(this.getUserRoles(token));
+    }
+  }
   login(model) {
     this.http.post(environment.apiUrl + 'account/login', model).
       subscribe({

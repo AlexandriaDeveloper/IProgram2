@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
+import { trigger, style, animate, transition, query, stagger } from '@angular/animations';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -35,7 +36,19 @@ import { DashboardDto, DashboardService, EmployeeSummaryDto, PieChartDto } from 
         BaseChartDirective
     ],
     templateUrl: './dashboard.component.html',
-    styleUrls: ['./dashboard.component.scss']
+    styleUrls: ['./dashboard.component.scss'],
+    animations: [
+        trigger('fadeInStagger', [
+            transition(':enter', [
+                query('> *', [
+                    style({ opacity: 0, transform: 'translateY(20px)' }),
+                    stagger('100ms', [
+                        animate('500ms ease-out', style({ opacity: 1, transform: 'translateY(0)' }))
+                    ])
+                ], { optional: true })
+            ])
+        ])
+    ]
 })
 export class DashboardComponent implements OnInit {
     dashboardData: DashboardDto | null = null;
