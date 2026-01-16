@@ -54,13 +54,13 @@ export class NavbarComponent implements AfterViewInit {
 
   }
   async ngAfterViewInit(): Promise<void> {
-    this.setupBackgroundVideo();
     try {
       const url = await this.videoService.getVideoUrl();
       if (this.videoBg && this.videoBg.nativeElement) {
         const v = this.videoBg.nativeElement;
         v.src = url;
         v.load();
+        this.setupBackgroundVideo();
         v.play().catch(() => { /* autoplay may be blocked; keep muted */ });
       }
     } catch (err) {

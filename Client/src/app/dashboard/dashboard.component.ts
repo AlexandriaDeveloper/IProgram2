@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
+import { RouterModule } from '@angular/router';
 import { trigger, style, animate, transition, query, stagger } from '@angular/animations';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -20,6 +21,7 @@ import { DashboardDto, DashboardService, EmployeeSummaryDto, PieChartDto } from 
     selector: 'app-dashboard',
     standalone: true,
     imports: [
+        RouterModule,
         CommonModule,
         HttpClientModule,
         MatCardModule,
@@ -40,7 +42,7 @@ import { DashboardDto, DashboardService, EmployeeSummaryDto, PieChartDto } from 
     animations: [
         trigger('fadeInStagger', [
             transition(':enter', [
-                query('> *', [
+                query('.col-xl-3, .col-lg-8, .col-lg-4, .col-lg-7, .col-lg-5', [
                     style({ opacity: 0, transform: 'translateY(20px)' }),
                     stagger('100ms', [
                         animate('500ms ease-out', style({ opacity: 1, transform: 'translateY(0)' }))
