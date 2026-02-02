@@ -30,6 +30,7 @@ public static class InfrastructureExtension
 
         services.AddHttpContextAccessor();
         services.AddScoped<Core.Interfaces.ICurrentUserService, Services.CurrentUserService>();
+        services.AddScoped<Core.Interfaces.IFileStorageService, Services.CloudinaryService>();
 
         return services;
     }

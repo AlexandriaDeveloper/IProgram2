@@ -1,0 +1,9 @@
+02/02/2026 01:07:55 ص: Microsoft.Graph.Models.ODataErrors.ODataError: General exception while processing
+   at Microsoft.Kiota.Http.HttpClientLibrary.HttpClientRequestAdapter.ThrowIfFailedResponseAsync(HttpResponseMessage response, Dictionary`2 errorMapping, Activity activityForAttributes, CancellationToken cancellationToken)
+   at Microsoft.Kiota.Http.HttpClientLibrary.HttpClientRequestAdapter.SendAsync[ModelType](RequestInformation requestInfo, ParsableFactory`1 factory, Dictionary`2 errorMapping, CancellationToken cancellationToken)
+   at Microsoft.Kiota.Http.HttpClientLibrary.HttpClientRequestAdapter.SendAsync[ModelType](RequestInformation requestInfo, ParsableFactory`1 factory, Dictionary`2 errorMapping, CancellationToken cancellationToken)
+   at Microsoft.Graph.Users.Item.Drive.DriveRequestBuilder.GetAsync(Action`1 requestConfiguration, CancellationToken cancellationToken)
+   at Auth.Infrastructure.Services.OneDriveService.UploadFileAsync(Stream fileStream, String fileName, String folderName)
+02/02/2026 01:11:44 ص: OneDrive OData Error: Code=generalException, Message=General exception while processing
+02/02/2026 01:22:06 ص: Failed to get User [b82c57de-b06a-4e68-adc2-7b9f4f9257d4]: Insufficient privileges to complete the operation.
+02/02/2026 01:22:06 ص: OneDrive OData Error: Code=generalException, Message=General exception while processing

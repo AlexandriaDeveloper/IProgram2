@@ -6,6 +6,7 @@ using Application.Helpers;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Application.Features
 {
@@ -14,12 +15,16 @@ namespace Application.Features
         private readonly IDailyReferencesRepository _dailyReferencesRepository;
         private readonly IUnitOfWork _uow;
         private readonly IWebHostEnvironment _hostEnvironment;
+        private readonly IFileStorageService _fileStorageService;
+        private readonly Microsoft.Extensions.Logging.ILogger<DailyReferenceService> _logger;
 
-        public DailyReferenceService(IDailyReferencesRepository dailyReferencesRepository, IUnitOfWork uow, IWebHostEnvironment hostEnvironment)
+        public DailyReferenceService(IDailyReferencesRepository dailyReferencesRepository, IUnitOfWork uow, IWebHostEnvironment hostEnvironment, IFileStorageService fileStorageService, Microsoft.Extensions.Logging.ILogger<DailyReferenceService> logger)
         {
             _dailyReferencesRepository = dailyReferencesRepository;
             _uow = uow;
             _hostEnvironment = hostEnvironment;
+            _fileStorageService = fileStorageService;
+            _logger = logger;
         }
 
         public async Task<Result<object>> DeleteReference(int id)
@@ -40,11 +45,24 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "فشلت عملية حذف المرجع."));
             }
 
-            var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
-            var filePath = Path.Combine(directoryPath, dailyReference.ReferencePath);
-            if (File.Exists(filePath))
+            Console.WriteLine($"[DEBUG] Deleting Reference. Path: '{dailyReference.ReferencePath}'");
+
+            if (!string.IsNullOrEmpty(dailyReference.ReferencePath) && dailyReference.ReferencePath.Contains("cloudinary", StringComparison.OrdinalIgnoreCase))
             {
-                File.Delete(filePath);
+                 Console.WriteLine("[DEBUG] Detected Cloudinary path. Invoking DeleteFileAsync.");
+                 // Cloudinary File
+                 await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
+            }
+            else
+            {
+                // Local File (Legacy)
+                var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
+                var filePath = Path.Combine(directoryPath, dailyReference.ReferencePath);
+                
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
             }
 
 
@@ -68,10 +86,23 @@ namespace Application.Features
                 await request.File.CopyToAsync(fileStream);
             }
 
+            string savedPath = fileName;
+            try 
+            {
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
+                {
+                    savedPath = await _fileStorageService.UploadFileAsync(stream, fileName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Cloud Storage Upload Failed");
+            }
+
             var dailyReference = new DailyReference
             {
                 DailyId = request.DailyId,
-                ReferencePath = fileName,
+                ReferencePath = savedPath,
                 Description = request.Description,
                 //Name = request.File.FileName // This is a [NotMapped] property for display
             };
@@ -86,6 +117,22 @@ namespace Application.Features
             }
 
             return Result.Success("تم رفع الملف بنجاح.");
+        }
+        public async Task<string> TestCloudinaryConnection()
+        {
+            try
+            {
+                using (var memoryStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("Hello Cloudinary Test")))
+                {
+                    string testFileName = $"test_conn_{DateTime.Now.Ticks}.txt";
+                    return await _fileStorageService.UploadFileAsync(memoryStream, testFileName, "TestFolder");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Test Connection Failed");
+                return $"FAILED: {ex.Message}";
+            }
         }
     }
 }

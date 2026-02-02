@@ -7,73 +7,74 @@ import { LoadingService } from "../service/loading.service";
 
 export function ErrorInterceptor(req: HttpRequest<unknown>, next: HttpHandlerFn): Observable<HttpEvent<unknown>> {
   let toaster = inject(ToasterService);
-    let loadingService =inject(LoadingService);
-    let router = inject(Router);
+  let loadingService = inject(LoadingService);
+  let router = inject(Router);
 
 
- // console.log('intercept started');
-   return next(req).pipe(
+  console.log('ErrorInterceptor: Intercept started', req.url);
+  return next(req).pipe(
     catchError((error: any) => {
 
 
-       console.log(error);
+      console.log(error);
       // toaster.openErrorToaster(
       //  error.error.message,"error"
       // )
       if (error.status === 400) {
         // auto logout if 401 response returned from api
-         //location.reload();
+        //location.reload();
         // router.navigateByUrl('/account/login');
         toaster.openErrorToaster(
-          error.error,"error"
-          );
+          error.error, "error"
+        );
       }
 
-    if (error.status === 401) {
-      // auto logout if 401 response returned from api
-       //location.reload();
-      // router.navigateByUrl('/account/login');
-      toaster.openErrorToaster(
-        "عفوا يجب عليك دخول الحساب اولا ","error"
+      if (error.status === 401) {
+        // auto logout if 401 response returned from api
+        //location.reload();
+        // router.navigateByUrl('/account/login');
+        toaster.openErrorToaster(
+          "عفوا يجب عليك دخول الحساب اولا ", "error"
+        );
+        router.navigateByUrl('/account/login');
+      }
+      if (error.status === 403) {
+
+        // auto logout if 401 response returned from api
+        //location.reload();
+        // router.navigateByUrl('/account/login');
+        toaster.openErrorToaster(
+          "عفوا ليس لديك صلاحيه ", "error"
+        );
+        //  router.navigateByUrl('/');
+      }
+      if (error.status === 404) {
+        // auto logout if 401 response returned from api
+        //location.reload();
+        // router.navigateByUrl('/account/login');
+        toaster.openErrorToaster(
+          "عفوا الصفحة غير موجودة", "error"
+        );
+      }
+      if (error.status === 500) {
+
+        console.error('ErrorInterceptor: 500 Error received', error);
+        const message = error.error?.error?.message || error.message || 'Unknown error';
+        toaster.openErrorToaster(message, "error", 50000);
+      }
+      // if (error.error.code === "500") {
+      //   console.log(error);
+
+      //   toaster.openErrorToaster(
+      //   error.error.message,"error"
+      //   );
+      // }
+
+      //router.navigateByUrl('/account/login');
+      return throwError(() => error
       );
-      router.navigateByUrl('/account/login');
-    }
-    if (error.status === 403) {
 
-      // auto logout if 401 response returned from api
-       //location.reload();
-      // router.navigateByUrl('/account/login');
-      toaster.openErrorToaster(
-        "عفوا ليس لديك صلاحيه ","error"
-      );
-    //  router.navigateByUrl('/');
-    }
-    if (error.status === 404) {
-      // auto logout if 401 response returned from api
-       //location.reload();
-      // router.navigateByUrl('/account/login');
-      toaster.openErrorToaster(
-        "عفوا الصفحة غير موجودة","error"
-      );
-    }
-    if (error.status === 500) {
-
-      //console.log(error.error.error.message);
-        toaster.openErrorToaster(error.error.error.message,"error",50000)
-    }
-    // if (error.error.code === "500") {
-    //   console.log(error);
-
-    //   toaster.openErrorToaster(
-    //   error.error.message,"error"
-    //   );
-    // }
-
-   //router.navigateByUrl('/account/login');
-     return throwError(() =>  error
-     ) ;
-
-   }));
+    }));
 
 
- }
+}

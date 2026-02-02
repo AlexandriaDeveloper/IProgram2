@@ -261,8 +261,13 @@ export class FormComponent implements OnInit, AfterViewInit {
   }
   openReferenceDialog(dailyReference) {
     console.log(dailyReference);
+    if (dailyReference.referencePath.includes('localhost')) {
+      window.open(environment.apiContent + dailyReference.referencePath, '_blank');
+    }
+    if (dailyReference.referencePath.includes('cloudinary')) {
+      window.open(dailyReference.referencePath, '_blank');
+    }
 
-    window.open(environment.apiContent + dailyReference.referencePath, '_blank');
   }
   restoreForm(row) {
     if (confirm(` أنت على وشك استرجاع ملف ${row.name} هل انت متاكد ؟؟!`)) {

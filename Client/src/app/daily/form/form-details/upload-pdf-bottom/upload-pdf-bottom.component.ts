@@ -49,12 +49,15 @@ export class UploadPdfBottomComponent implements OnInit {
   }
 
   onUpload(): void {
+    console.log('UploadPdfBottom: onUpload clicked', this.selectedFile);
     if (!this.selectedFile) {
+      console.warn('UploadPdfBottom: No file selected');
       this.toaster.openErrorToaster('Please provide a description and select a file.');
       return;
     }
 
     this.onProgress = true;
+    console.log('UploadPdfBottom: Calling service upload...');
     this.dailyRefService.upload(this.dailyId, this.description, this.selectedFile).subscribe({
       next: (event) => {
         if (event.type === HttpEventType.UploadProgress) {
@@ -71,6 +74,14 @@ export class UploadPdfBottomComponent implements OnInit {
         this.toaster.openErrorToaster('An error occurred during upload.', err.message);
         console.error(err);
       }
+    });
+  }
+
+  testConnection() {
+    console.log('Testing connection...');
+    this.dailyRefService.testConnection().subscribe({
+      next: (res) => { console.log('Connection Success:', res); this.toaster.openSuccessToaster('Connection OK'); },
+      error: (err) => { console.error('Connection Failed:', err); this.toaster.openErrorToaster('Connection Failed'); }
     });
   }
 

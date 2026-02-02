@@ -18,8 +18,9 @@ export class FormReferencesService {
 
   UploadRefernceFile(id, file) {
     const formData = new FormData();
-    formData.append("file", file as Blob, file.name);
-    formData.append("formId", id);
+    formData.append("File", file as Blob, file.name);
+    formData.append("FormId", id);
+    console.log('FormReferencesService: Uploading file...', { id, fileName: file.name });
     return this.http.post(this.apiUrl + 'formReferences/UploadFormRefernce', formData, {
       responseType: "blob",
       reportProgress: true,

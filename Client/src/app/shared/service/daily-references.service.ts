@@ -23,7 +23,12 @@ export class DailyReferencesService {
     });
   }
 
+  testConnection() {
+    return this.http.get(this.apiUrl + 'dailyReferences/TestConnection');
+  }
+
   deleteDailyReference(id: number): Observable<any> {
+    debugger
     return this.http.delete(this.apiUrl + 'dailyReferences/' + id);
   }
 }

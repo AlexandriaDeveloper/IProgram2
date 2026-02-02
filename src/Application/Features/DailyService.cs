@@ -469,7 +469,7 @@ namespace Application.Features
                         Id = x.Id,
                         DailyId = x.DailyId,
                         Description = x.Description,
-                        ReferencePath = _config["ApiImageContent"] + "DailyReferences/" + x.ReferencePath
+                        ReferencePath = x.ReferencePath.StartsWith("http") ? x.ReferencePath : _config["ApiImageContent"] + "DailyReferences/" + x.ReferencePath
                     }).ToList()
 
 
