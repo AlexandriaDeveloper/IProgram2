@@ -229,6 +229,7 @@ namespace Application.Features
         {
 
             var daily = _dailyRepository.GetQueryable()
+            .AsSplitQuery()
             .Include(x => x.Forms)
             .ThenInclude(d => d.FormDetails.OrderBy(x => x.OrderNum))
             .ThenInclude(e => e.Employee)
@@ -272,6 +273,22 @@ namespace Application.Features
             // }
 
 
+            var reviewerIds = daily.SelectMany(x => x.FormDetails)
+                .Where(x => x.IsReviewed && !string.IsNullOrEmpty(x.IsReviewedBy))
+                .Select(x => x.IsReviewedBy)
+                .Distinct()
+                .ToList();
+
+            var reviewers = new Dictionary<string, string>();
+            foreach (var id in reviewerIds)
+            {
+                var user = await _userManager.FindByIdAsync(id);
+                if (user != null)
+                {
+                    reviewers[id] = user.UserName; // Or user.DisplayName if available
+                }
+            }
+
             var dailyToDataTable = daily.SelectMany(x => x.FormDetails).GroupBy(x => x.EmployeeId)
              .Select(g => new
              {
@@ -283,15 +300,11 @@ namespace Application.Features
                  Department = g.FirstOrDefault().Employee.Department,
 
                  Amount = g.Sum(x => x.Amount),
-                 //get all reviewers by name with amount in brackets
 
                  ReviewedBy = g.Select(x => x.IsReviewed).Any() ? g.Select(x => x.IsReviewed ? x.Form.Index.ToString() +
-                  " - " + _userManager.GetUserByIdAsync(x.IsReviewedBy).Result + " (" + x.Amount + ")" : x.Form.Index.ToString()
+                  " - " + (reviewers.ContainsKey(x.IsReviewedBy) ? reviewers[x.IsReviewedBy] : "مستخدم غير موجود") + " (" + x.Amount + ")" : x.Form.Index.ToString()
                   + " -  لم يتم مراجعته   " + " (" + x.Amount + ")").ToList()
                   : new List<string> { "لم يتم مراجعته   " }.ToList()
-
-
-                 //ReviewedBy = g.Select(x => x.IsReviewed).Any() ? g.Select(x => x.IsReviewedBy + " (" + x.Amount + ")").ToList() : new List<string> { "لم يتم مراجعته   " }
 
              });
 
@@ -356,6 +369,7 @@ namespace Application.Features
         {
 
             var daily = _dailyRepository.GetQueryable()
+            .AsSplitQuery()
             .Include(x => x.Forms)
             .ThenInclude(d => d.FormDetails.OrderBy(x => x.OrderNum))
             .ThenInclude(e => e.Employee)
