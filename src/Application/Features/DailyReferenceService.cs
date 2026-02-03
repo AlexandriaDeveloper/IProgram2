@@ -51,7 +51,11 @@ namespace Application.Features
             {
                  Console.WriteLine("[DEBUG] Detected Cloudinary path. Invoking DeleteFileAsync.");
                  // Cloudinary File
-                 await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
+            var delResult=    await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
+            if (!delResult)
+            {
+                return Result.Failure(new Error("500", "فشلت عملية حذف المرجع."));
+            }
             }
             else
             {

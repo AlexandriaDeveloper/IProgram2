@@ -15,3 +15,7 @@ Script-Migration -->
  dotnet ef migrations script  -s src/API -p src/Infrastructure 20240805172439_inital -o ./script.sql
 
  dotnet publish -c Release -o ./publish IProgram.sln EnvironmentName=Production
+subabase
+ Pass FNsGxA0IN0qzqSDC
+ https://iztxgikxmcpzoqowomtp.supabase.co
+ sb_publishable_r2O6Tr6XlFy3R7qbgTMKgg_Av5z7pTg
