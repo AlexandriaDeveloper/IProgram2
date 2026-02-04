@@ -1,0 +1,164 @@
+Using launch settings from F:\Prog-Projects\IProgram\src\Api\Properties\launchSettings.json...
+Building...
+F:\Prog-Projects\IProgram\src\Core\Auth.Core.csproj : warning NU1903: Package 'Microsoft.Extensions.Caching.Memory' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-qj66-m88j-hmgj [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj
+F:\Prog-Projects\IProgram\src\Core\Auth.Core.csproj : warning NU1903: Package 'Microsoft.Extensions.Caching.Memory' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-qj66-m88j-hmgj
+info: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[63]
+      User profile is available. Using 'C:\Users\seaag\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (98ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      SELECT count(*)::int
+      FROM "AspNetUsers" AS a
+[DIAGNOSTIC] SOURCE (SQL Server) -> Users: 2, Dailies: 21
+[DIAGNOSTIC] TARGET (Supabase) -> Users: 2, Dailies: 0
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5000
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: F:\Prog-Projects\IProgram\src\Api
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 OPTIONS http://localhost:5000/api/account - - -
+info: Microsoft.AspNetCore.Cors.Infrastructure.CorsService[4]
+      CORS policy execution successful.
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 OPTIONS http://localhost:5000/api/account - 204 - - 45.4764ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://localhost:5000/api/account - - -
+info: Microsoft.AspNetCore.Cors.Infrastructure.CorsService[4]
+      CORS policy execution successful.
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 OPTIONS http://localhost:5000/api/dashboard?startDate=2026-01-31T22:00:00.000Z&endDate=2026-02-27T22:00:00.000Z - - -
+info: Microsoft.AspNetCore.Cors.Infrastructure.CorsService[4]
+      CORS policy execution successful.
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 OPTIONS http://localhost:5000/api/dashboard?startDate=2026-01-31T22:00:00.000Z&endDate=2026-02-27T22:00:00.000Z - 204 - - 1.3678ms
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+      Request starting HTTP/1.1 GET http://localhost:5000/api/dashboard?startDate=2026-01-31T22:00:00.000Z&endDate=2026-02-27T22:00:00.000Z - - -
+info: Microsoft.AspNetCore.Cors.Infrastructure.CorsService[4]
+      CORS policy execution successful.
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'Api.Controllers.DashboardController.GetDashboardStats (Auth.Api)'
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+      Executing endpoint 'Api.Controllers.AccountController.GetCurrentUser (Auth.Api)'
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[102]
+      Route matched with {action = "GetCurrentUser", controller = "Account"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetCurrentUser() on controller Api.Controllers.AccountController (Auth.Api).
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[102]
+      Route matched with {action = "GetDashboardStats", controller = "Dashboard"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] GetDashboardStats(Application.DTOs.DashboardFilterRequest) on controller Api.Controllers.DashboardController (Auth.Api).
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (87ms) [Parameters=[@__p_0='?'], CommandType='Text', CommandTimeout='30']
+      SELECT a."Id", a."AccessFailedCount", a."ConcurrencyStamp", a."DisplayImage", a."DisplayName", a."Email", a."EmailConfirmed", a."LockoutEnabled", a."LockoutEnd", a."NormalizedEmail", a."NormalizedUserName", a."PasswordHash", a."PhoneNumber", a."PhoneNumberConfirmed", a."SecurityStamp", a."TwoFactorEnabled", a."UserName"
+      FROM "AspNetUsers" AS a
+      WHERE a."Id" = @__p_0
+      LIMIT 1
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (216ms) [Parameters=[@__userId_0='?'], CommandType='Text', CommandTimeout='30']
+      SELECT a0."Name"
+      FROM "AspNetUserRoles" AS a
+      INNER JOIN "AspNetRoles" AS a0 ON a."RoleId" = a0."Id"
+      WHERE a."UserId" = @__userId_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (228ms) [Parameters=[@__userId_0='?'], CommandType='Text', CommandTimeout='30']
+      SELECT a0."Name"
+      FROM "AspNetUserRoles" AS a
+      INNER JOIN "AspNetRoles" AS a0 ON a."RoleId" = a0."Id"
+      WHERE a."UserId" = @__userId_0
+eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IkJvYlNtaXRoQGVtYWlsLmNvbSIsImdpdmVuX25hbWUiOiLZhdit2YXYryDYudmE2Ykg2LTYsdmK2YEiLCJuYW1laWQiOiJhMTdiYjBhYi0xYThmLTQyMGMtYmNjNS1iOWVlZTY1NGYzNTIiLCJyb2xlIjoiQWRtaW4iLCJuYmYiOjE3NzAxNTUyMzYsImV4cCI6MTc3MDc2MDAzNiwiaWF0IjoxNzcwMTU1MjM2LCJpc3MiOiJodHRwczovL2xvY2FsaG9zdDo1MDAxIn0.S-xM-61dAkgjLO9YII115wuM6-_ya7AS-eyx6TXuyMFvaPe0p_Uq4S6eS6junkUcUnhkv6xGKVx926YJr7jPMw
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ObjectResultExecutor[1]
+      Executing OkObjectResult, writing value of type 'Application.Dtos.UserDto'.
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[105]
+      Executed action Api.Controllers.AccountController.GetCurrentUser (Auth.Api) in 795.1338ms
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'Api.Controllers.AccountController.GetCurrentUser (Auth.Api)'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://localhost:5000/api/account - 200 - application/json;+charset=utf-8 916.7447ms
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (187ms) [Parameters=[@__isActive_0='?' (DbType = Boolean), @__startDate_1='?' (DbType = DateTime), @__endDate_2='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT f."Id", f."CreatedAt", f."CreatedBy", f."DailyId", f."DeactivatedAt", f."DeactivatedBy", f."Description", f."Index", f."IsActive", f."Name", f."UpdatedAt", f."UpdatedBy", t."Id", t."Amount", t."CreatedAt", t."CreatedBy", t."DeactivatedAt", t."DeactivatedBy", t."EmployeeId", t."FormId", t."IsActive", t."IsReviewed", t."IsReviewedBy", t."OrderNum", t."ReviewComments", t."ReviewedAt", t."UpdatedAt", t."UpdatedBy", t."Id0", t."Collage", t."CreatedAt0", t."CreatedBy0", t."DeactivatedAt0", t."DeactivatedBy0", t."DepartmentId", t."Email", t."IsActive0", t."Name", t."Section", t."TabCode", t."TegaraCode", t."UpdatedAt0", t."UpdatedBy0", t."Id1", t."CreatedAt1", t."CreatedBy1", t."DeactivatedAt1", t."DeactivatedBy1", t."IsActive1", t."Name0", t."UpdatedAt1", t."UpdatedBy1"
+      FROM "Form" AS f
+      LEFT JOIN (
+          SELECT f0."Id", f0."Amount", f0."CreatedAt", f0."CreatedBy", f0."DeactivatedAt", f0."DeactivatedBy", f0."EmployeeId", f0."FormId", f0."IsActive", f0."IsReviewed", f0."IsReviewedBy", f0."OrderNum", f0."ReviewComments", f0."ReviewedAt", f0."UpdatedAt", f0."UpdatedBy", e."Id" AS "Id0", e."Collage", e."CreatedAt" AS "CreatedAt0", e."CreatedBy" AS "CreatedBy0", e."DeactivatedAt" AS "DeactivatedAt0", e."DeactivatedBy" AS "DeactivatedBy0", e."DepartmentId", e."Email", e."IsActive" AS "IsActive0", e."Name", e."Section", e."TabCode", e."TegaraCode", e."UpdatedAt" AS "UpdatedAt0", e."UpdatedBy" AS "UpdatedBy0", d."Id" AS "Id1", d."CreatedAt" AS "CreatedAt1", d."CreatedBy" AS "CreatedBy1", d."DeactivatedAt" AS "DeactivatedAt1", d."DeactivatedBy" AS "DeactivatedBy1", d."IsActive" AS "IsActive1", d."Name" AS "Name0", d."UpdatedAt" AS "UpdatedAt1", d."UpdatedBy" AS "UpdatedBy1"
+          FROM "FormDetails" AS f0
+          LEFT JOIN "Employees" AS e ON f0."EmployeeId" = e."Id"
+          LEFT JOIN "Departments" AS d ON e."DepartmentId" = d."Id"
+      ) AS t ON f."Id" = t."FormId"
+      WHERE f."IsActive" = @__isActive_0 AND f."CreatedAt" >= @__startDate_1 AND f."CreatedAt" <= @__endDate_2
+      ORDER BY f."Id", t."Id", t."Id0"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (168ms) [Parameters=[@__isActive_0='?' (DbType = Boolean), @__prevStartDate_1='?' (DbType = DateTime), @__prevEndDate_2='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT f."Id", f0."Amount", f0."EmployeeId", f0."Id"
+      FROM "Form" AS f
+      LEFT JOIN "FormDetails" AS f0 ON f."Id" = f0."FormId"
+      WHERE f."IsActive" = @__isActive_0 AND f."CreatedAt" >= @__prevStartDate_1 AND f."CreatedAt" <= @__prevEndDate_2
+      ORDER BY f."Id"
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (196ms) [Parameters=[@__isActive_0='?' (DbType = Boolean)], CommandType='Text', CommandTimeout='30']
+      SELECT count(*)::int
+      FROM "Employees" AS e
+      WHERE e."IsActive" = @__isActive_0
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (212ms) [Parameters=[@__isActive_0='?' (DbType = Boolean)], CommandType='Text', CommandTimeout='30']
+      SELECT count(*)::int
+      FROM "Form" AS f
+      WHERE f."IsActive" = @__isActive_0
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ObjectResultExecutor[1]
+      Executing OkObjectResult, writing value of type 'Application.DTOs.DashboardDto'.
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[105]
+      Executed action Api.Controllers.DashboardController.GetDashboardStats (Auth.Api) in 2170.9947ms
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[1]
+      Executed endpoint 'Api.Controllers.DashboardController.GetDashboardStats (Auth.Api)'
+info: Microsoft.AspNetCore.Hosting.Diagnostics[2]
+      Request finished HTTP/1.1 GET http://localhost:5000/api/dashboard?startDate=2026-01-31T22:00:00.000Z&endDate=2026-02-27T22:00:00.000Z - 200 - application/json;+charset=utf-8 2246.0624ms

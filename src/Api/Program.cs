@@ -12,6 +12,8 @@ using Microsoft.Extensions.FileProviders;
 using System.Security.Claims;
 
 using QuestPDF.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 QuestPDF.Settings.License = LicenseType.Community;
 
@@ -97,20 +99,40 @@ builder.Services.Configure<FormOptions>(o =>
 
 var app = builder.Build();
 
+// ========== AUTO MIGRATION DISABLED ==========
+// Migration is now triggered manually via API endpoint
+// try
+// {
+//     RunMigration.Execute();
+// }
+// catch (Exception ex)
+// {
+//     Console.WriteLine($"MIGRATION ERROR: {ex.Message}");
+// }
+// =============================================
 
 var scope = app.Services.CreateScope();
+// try 
+// { 
+//     ManualCleanup.Execute(app.Configuration); 
+// } 
+// catch (Exception ex) 
+// { 
+//     Console.WriteLine("Cleanup Error: " + ex.Message); 
+// }
+
 var context = scope.ServiceProvider.GetRequiredService<ApplicationContext>();
 
 var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-try
-{
-    if (userMgr.Users.Count() == 0)
-        SeedData.EnsureSeedData(context, userMgr, roleMgr);
-}
-catch (Exception ex)
-{
-    Console.WriteLine(ex);
+try 
+{ 
+    if (userMgr.Users.Count() == 0) 
+        SeedData.EnsureSeedData(context, userMgr, roleMgr); 
+} 
+catch (Exception ex) 
+{ 
+    Console.WriteLine(ex); 
 }
 
 
@@ -160,3 +182,5 @@ app.UseEndpoints(endpoints =>
 
 
 app.Run();
+
+// Trigger rebuild for MigrationController

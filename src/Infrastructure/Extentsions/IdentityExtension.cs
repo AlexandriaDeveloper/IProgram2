@@ -48,7 +48,8 @@ public static class IdentityExtension
                 ValidIssuer = configuration["Token:Issuer"],
                 ValidateAudience = false,
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
+                ClockSkew = TimeSpan.Zero,
+                RoleClaimType = "role"
 
             };
         }).AddCookie();

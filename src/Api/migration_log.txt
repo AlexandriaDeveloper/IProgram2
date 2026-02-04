@@ -1,0 +1,80 @@
+Using launch settings from F:\Prog-Projects\IProgram\src\Api\Properties\launchSettings.json...
+Building...
+F:\Prog-Projects\IProgram\src\Core\Auth.Core.csproj : warning NU1903: Package 'Microsoft.Extensions.Caching.Memory' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-qj66-m88j-hmgj [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23 [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23
+F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Persistence\Auth.Persistence.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-8xfc-gm6g-vgpv
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-m44j-cfrm-g8qc
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'BouncyCastle.Cryptography' 2.2.1 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-v435-xc8x-wvr9
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-5x7m-6737-26cr
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-63p8-c4ww-9cg7
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1903: Package 'SixLabors.ImageSharp' 3.1.2 has a known high severity vulnerability, https://github.com/advisories/GHSA-65x7-c272-7g7r
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-g85r-6x2q-45w7
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-qxrv-gp6x-rc23
+F:\Prog-Projects\IProgram\src\Application\Auth.Application.csproj : warning NU1902: Package 'SixLabors.ImageSharp' 3.1.2 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1903: Package 'Npgsql' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-x9vc-6hfv-hg8c
+F:\Prog-Projects\IProgram\src\infrastructure\Auth.Infrastructure.csproj : warning NU1902: Package 'System.Security.Cryptography.Xml' 4.5.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-vh55-786g-wjwj
+F:\Prog-Projects\IProgram\src\Core\Auth.Core.csproj : warning NU1903: Package 'Microsoft.Extensions.Caching.Memory' 8.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-qj66-m88j-hmgj
+F:\Prog-Projects\IProgram\src\Api\Filters\ExcludeRolesFilterAttribute.cs(23,28): warning CS8632: The annotation for nullable reference types should only be used in code within a '#nullable' annotations context. [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Api\Filters\IncludeRolesFilterAttribute.cs(18,28): warning CS8632: The annotation for nullable reference types should only be used in code within a '#nullable' annotations context. [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+F:\Prog-Projects\IProgram\src\Api\Program.cs(176,5): warning ASP0014: Suggest using top level route registrations instead of UseEndpoints (https://aka.ms/aspnet/analyzers) [F:\Prog-Projects\IProgram\src\Api\Auth.Api.csproj]
+=== Starting Data Migration: SQL Server -> Supabase ===
+Migrating AspNetRoles...
+  Found 2 records in SQL Server
+  Migrated 2 records to Supabase
+Migrating AspNetUsers...
+  Found 2 records in SQL Server
+  Migrated 2 records to Supabase
+Migrating AspNetUserRoles...
+  Found 2 records in SQL Server
+  Error inserting row: 23503: insert or update on table "AspNetUserRoles" violates foreign key constraint "FK_AspNetUserRoles_AspNetRoles_RoleId"
+
+DETAIL: Detail redacted as it may contain sensitive data. Specify 'Include Error Detail' in the connection string to include this information.
+  Error inserting row: 23503: insert or update on table "AspNetUserRoles" violates foreign key constraint "FK_AspNetUserRoles_AspNetRoles_RoleId"
+
+DETAIL: Detail redacted as it may contain sensitive data. Specify 'Include Error Detail' in the connection string to include this information.
+  Migrated 2 records to Supabase
+Migrating Departments...
+  Found 8 records in SQL Server
+  Migrated 8 records to Supabase
+Migrating Employees...
+  Found 12203 records in SQL Server

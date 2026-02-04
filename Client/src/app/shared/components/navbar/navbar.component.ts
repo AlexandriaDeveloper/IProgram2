@@ -1,4 +1,5 @@
 import { AuthService } from './../../service/auth.service';
+import { SyncService } from '../../service/sync.service';
 
 import { Component, ViewChild, NgModule, inject, AfterViewInit } from '@angular/core';
 import { AngularComponentsModule } from '../../angular-components.module';
@@ -32,9 +33,11 @@ import { VideoService } from '../../service/video.service';
 })
 export class NavbarComponent implements AfterViewInit {
   auth = inject(AuthService);
+  syncService = inject(SyncService);
   router = inject(Router);
   videoService = inject(VideoService);
   panelOpenState = false;
+  syncMessage = '';
   @ViewChild('drawer', { static: true }) drawer: MatSidenav;
   @ViewChild('videoBg') videoBg: any;
   isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
@@ -119,6 +122,28 @@ export class NavbarComponent implements AfterViewInit {
 
   logout() {
     this.auth.logout();
+  }
+
+  syncToCloud() {
+    if (this.syncService.isSyncing()) return;
+
+    this.syncMessage = '';
+    this.syncService.syncToCloud().subscribe({
+      next: (result) => {
+        this.syncService.isSyncing.set(false);
+        if (result.success) {
+          this.syncMessage = `✅ تم المزامنة في ${result.duration}`;
+          setTimeout(() => this.syncMessage = '', 5000);
+        } else {
+          this.syncMessage = `❌ ${result.message}`;
+        }
+      },
+      error: (err) => {
+        this.syncService.isSyncing.set(false);
+        this.syncMessage = `❌ فشل المزامنة: ${err.error?.message || err.message}`;
+      }
+    });
+    this.syncService.isSyncing.set(true);
   }
 
   navigateTo(url) {
