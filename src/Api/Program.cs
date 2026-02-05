@@ -45,7 +45,11 @@ builder.Services
 .AddIdentity(builder.Configuration)
 .AddInfrastructure(builder.Configuration)
 .AddPersistence()
+.AddInfrastructure(builder.Configuration)
+.AddPersistence()
 .AddApplicationServices();
+
+builder.Services.AddSignalR(); // Add SignalR Service
 
 
 // builder.Services.AddScoped<ITokenService, TokenService>();
@@ -172,6 +176,7 @@ app.UseAuthentication();
 app.UseAuthorization();
     // await next(context);
 //app.MapControllers();
+app.MapHub<Auth.Infrastructure.Hubs.MigrationHub>("/migrationHub"); // Map MigrationHub
 
 
 app.UseEndpoints(endpoints =>

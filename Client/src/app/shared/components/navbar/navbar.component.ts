@@ -124,15 +124,15 @@ export class NavbarComponent implements AfterViewInit {
     this.auth.logout();
   }
 
-  syncToCloud() {
+  syncToCloud(force: boolean = false) {
     if (this.syncService.isSyncing()) return;
 
     this.syncMessage = '';
-    this.syncService.syncToCloud().subscribe({
+    this.syncService.syncToCloud(force).subscribe({
       next: (result) => {
         this.syncService.isSyncing.set(false);
         if (result.success) {
-          this.syncMessage = `✅ تم المزامنة في ${result.duration}`;
+          this.syncMessage = `✅ تم الرفع في ${result.duration}`;
           setTimeout(() => this.syncMessage = '', 5000);
         } else {
           this.syncMessage = `❌ ${result.message}`;
@@ -140,7 +140,38 @@ export class NavbarComponent implements AfterViewInit {
       },
       error: (err) => {
         this.syncService.isSyncing.set(false);
-        this.syncMessage = `❌ فشل المزامنة: ${err.error?.message || err.message}`;
+        // Handle Version Conflict
+        if (err.status === 409) {
+          if (confirm('⚠️ تنبيه: يوجد بيانات أحدث على السحابة! \nهل أنت متأكد من الاستبدال؟ (سيتم حذف بيانات السحابة)')) {
+            this.syncToCloud(true); // Retry with force=true
+          } else {
+            this.syncMessage = '❌ تم إلغاء العملية';
+          }
+        } else {
+          this.syncMessage = `❌ فشل الرفع: ${err.error?.message || err.message}`;
+        }
+      }
+    });
+    this.syncService.isSyncing.set(true);
+  }
+
+  pullFromCloud() {
+    if (this.syncService.isSyncing()) return;
+
+    this.syncMessage = '';
+    this.syncService.pullFromCloud().subscribe({
+      next: (result) => {
+        this.syncService.isSyncing.set(false);
+        if (result.success) {
+          this.syncMessage = `✅ تم التنزيل في ${result.duration}`;
+          setTimeout(() => this.syncMessage = '', 5000);
+        } else {
+          this.syncMessage = `❌ ${result.message}`;
+        }
+      },
+      error: (err) => {
+        this.syncService.isSyncing.set(false);
+        this.syncMessage = `❌ فشل التنزيل: ${err.error?.message || err.message}`;
       }
     });
     this.syncService.isSyncing.set(true);

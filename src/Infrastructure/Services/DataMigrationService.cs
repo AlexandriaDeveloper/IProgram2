@@ -3,6 +3,8 @@ using Microsoft.Extensions.Configuration;
 using Npgsql;
 using NpgsqlTypes;
 using System.Text;
+using Microsoft.AspNetCore.SignalR;
+using Auth.Infrastructure.Hubs;
 
 namespace Auth.Infrastructure.Services
 {
@@ -10,23 +12,38 @@ namespace Auth.Infrastructure.Services
     {
         private readonly string _sqlServerConn;
         private readonly string _supabaseConn;
+        private readonly IHubContext<MigrationHub> _hubContext;
 
-        public DataMigrationService(Microsoft.Extensions.Configuration.IConfiguration configuration)
+        public DataMigrationService(Microsoft.Extensions.Configuration.IConfiguration configuration, IHubContext<MigrationHub> hubContext)
         {
+            _hubContext = hubContext;
             _sqlServerConn = configuration.GetConnectionString("DefaultConnection") 
                 ?? "Server=localhost,1433;Database=IProgramDb;User Id=sa;Password=123;TrustServerCertificate=True;Encrypt=False";
             _supabaseConn = configuration.GetConnectionString("SupabaseConnection") 
                 ?? "Host=aws-1-eu-west-3.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iztxgikxmcpzoqowomtp;Password=FNsGxA0IN0qzqSDC;SSL Mode=Require;Trust Server Certificate=true;";
         }
 
-        public async Task<SyncResult> FullSyncToSupabaseAsync()
+        public async Task<SyncResult> FullSyncToSupabaseAsync(bool force = false)
         {
             var result = new SyncResult();
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             try
             {
-                Console.WriteLine("=== Starting FULL SYNC: SQL Server -> Supabase ===");
+                Console.WriteLine($"=== Starting FULL SYNC: SQL Server -> Supabase (Force={force}) ===");
+
+                // 0. Check for version conflict
+                if (!force)
+                {
+                    var isNewer = await CheckSupabaseIsNewerAsync();
+                    if (isNewer)
+                    {
+                        result.Success = false;
+                        result.Error = "VERSION_CONFLICT"; // Special error code for frontend
+                        Console.WriteLine("SYNC ABORTED: Supabase has newer data.");
+                        return result;
+                    }
+                }
 
                 // Sync in order of dependencies
                 await SyncTableAsync("AspNetRoles", new[] { "Id", "Name", "NormalizedName", "ConcurrencyStamp" }, result);
@@ -219,6 +236,7 @@ namespace Auth.Infrastructure.Services
 
                         cmd.CommandText = sb.ToString();
                         upserted += await cmd.ExecuteNonQueryAsync();
+                        await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Uploading {upserted} of {sourceData.Count} records...");
                     }
 
                     tableResult.Upserted = upserted;
@@ -237,10 +255,268 @@ namespace Auth.Infrastructure.Services
             result.Tables.Add(tableResult);
         }
 
+        /// <summary>
+        /// Pull data from Supabase to SQL Server (Reverse Sync)
+        /// </summary>
+        public async Task<SyncResult> PullFromSupabaseAsync()
+        {
+            var result = new SyncResult();
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            try
+            {
+                Console.WriteLine("=== Starting PULL: Supabase -> SQL Server ===");
+
+                // Pull in order of dependencies
+                await PullTableAsync("AspNetRoles", new[] { "Id", "Name", "NormalizedName", "ConcurrencyStamp" }, result);
+                await PullTableAsync("AspNetUsers", new[] { 
+                    "Id", "UserName", "NormalizedUserName", "Email", "NormalizedEmail", 
+                    "EmailConfirmed", "PasswordHash", "SecurityStamp", "ConcurrencyStamp",
+                    "PhoneNumber", "PhoneNumberConfirmed", "TwoFactorEnabled", "LockoutEnd",
+                    "LockoutEnabled", "AccessFailedCount", "DisplayName", "DisplayImage"
+                }, result);
+                await PullTableAsync("AspNetUserRoles", new[] { "UserId", "RoleId" }, result, compositeKey: new[] { "UserId", "RoleId" });
+                await PullTableAsync("Departments", new[] { 
+                    "Id", "Name", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy" 
+                }, result);
+                await PullTableAsync("Employees", new[] { 
+                    "Id", "Name", "TabCode", "TegaraCode", "Section", "Email", "Collage", "DepartmentId",
+                    "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+                await PullTableAsync("Daily", new[] { 
+                    "Id", "Name", "DailyDate", "IsActive", "Closed", "CreatedAt", "CreatedBy", 
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+                await PullTableAsync("DailyReference", new[] { 
+                    "Id", "DailyId", "ReferencePath", "Description", "IsActive", "CreatedAt", "CreatedBy", 
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+                await PullTableAsync("Form", new[] { 
+                    "Id", "Name", "Description", "Index", "DailyId", "IsActive", "CreatedAt", "CreatedBy", 
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+                await PullTableAsync("FormDetails", new[] { 
+                    "Id", "FormId", "EmployeeId", "Amount", "OrderNum", "IsReviewed", "IsReviewedBy",
+                    "ReviewedAt", "ReviewComments", "IsActive", "CreatedAt", "CreatedBy", 
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+                await PullTableAsync("FormRefernce", new[] { 
+                    "Id", "FormId", "FilePath", "IsActive", "CreatedAt", "CreatedBy", 
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+
+                stopwatch.Stop();
+                result.Success = true;
+                result.Duration = stopwatch.Elapsed;
+                Console.WriteLine($"=== PULL Completed in {stopwatch.Elapsed.TotalSeconds:F2}s ===");
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                result.Success = false;
+                result.Error = ex.Message;
+                result.Duration = stopwatch.Elapsed;
+                Console.WriteLine($"PULL ERROR: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        private async Task PullTableAsync(string tableName, string[] columns, SyncResult result, string[]? compositeKey = null)
+        {
+            Console.WriteLine($"Pulling {tableName}...");
+            await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"Pulling {tableName}...");
+            var tableResult = new TableSyncResult { TableName = tableName };
+            var keyColumn = compositeKey ?? new[] { "Id" };
+
+            try
+            {
+                // 1. Read all data from Supabase (PostgreSQL)
+                var sourceData = new List<Dictionary<string, object?>>();
+                await using (var pgConn = new NpgsqlConnection(_supabaseConn))
+                {
+                    await pgConn.OpenAsync();
+                    var columnsQuoted = string.Join(", ", columns.Select(c => $"\"{c}\""));
+                    await using var cmd = new NpgsqlCommand($"SELECT {columnsQuoted} FROM \"{tableName}\"", pgConn);
+                    await using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        var row = new Dictionary<string, object?>();
+                        foreach (var col in columns)
+                        {
+                            var value = reader[col];
+                            row[col] = value == DBNull.Value ? null : value;
+                        }
+                        sourceData.Add(row);
+                    }
+                }
+
+                tableResult.SourceCount = sourceData.Count;
+                Console.WriteLine($"  Source (Supabase): {sourceData.Count} records");
+
+                if (sourceData.Count == 0)
+                {
+                    Console.WriteLine($"  No data to pull");
+                    tableResult.Success = true;
+                    result.Tables.Add(tableResult);
+                    return;
+                }
+
+                // 2. Upsert to SQL Server using MERGE
+                await using (var sqlConn = new SqlConnection(_sqlServerConn))
+                {
+                    await sqlConn.OpenAsync();
+
+                    int upserted = 0;
+                    foreach (var row in sourceData)
+                    {
+                        var sb = new StringBuilder();
+                        var columnList = string.Join(", ", columns.Select(c => $"[{c}]"));
+                        var paramList = string.Join(", ", columns.Select((c, i) => $"@p{i}"));
+                        var updateList = string.Join(", ", columns.Where(c => !keyColumn.Contains(c)).Select((c, i) => $"[{c}] = @p{columns.ToList().IndexOf(c)}"));
+                        var keyCondition = string.Join(" AND ", keyColumn.Select(k => $"target.[{k}] = source.[{k}]"));
+
+                        // Enable IDENTITY_INSERT if table has Identity column (Primary Key Id usually is identity)
+                        // Note: AspNet tables might not need it if using GUIDs, but business tables use Int Identity
+                        var hasIdentity = !tableName.StartsWith("AspNet"); 
+
+                        if (hasIdentity) sb.AppendLine($"SET IDENTITY_INSERT [{tableName}] ON;");
+                        
+                        sb.AppendLine($"MERGE [{tableName}] AS target");
+                        sb.AppendLine($"USING (SELECT {string.Join(", ", columns.Select((c, i) => $"@p{i} AS [{c}]"))}) AS source");
+                        sb.AppendLine($"ON {keyCondition}");
+                        
+                        if (!string.IsNullOrEmpty(updateList))
+                        {
+                            sb.AppendLine($"WHEN MATCHED THEN UPDATE SET {updateList}");
+                        }
+                        
+                        sb.AppendLine($"WHEN NOT MATCHED THEN INSERT ({columnList}) VALUES ({paramList});");
+
+                        if (hasIdentity) sb.AppendLine($"SET IDENTITY_INSERT [{tableName}] OFF;");
+
+                        await using var cmd = new SqlCommand(sb.ToString(), sqlConn);
+                        for (int i = 0; i < columns.Length; i++)
+                        {
+                            var value = row[columns[i]];
+                            // Convert UTC DateTime to Local for SQL Server
+                            if (value is DateTime dt && dt.Kind == DateTimeKind.Utc)
+                            {
+                                value = dt.ToLocalTime();
+                            }
+                            cmd.Parameters.AddWithValue($"@p{i}", value ?? DBNull.Value);
+                        }
+
+                        await cmd.ExecuteNonQueryAsync();
+                        upserted++;
+                        
+                        if (upserted % 50 == 0)
+                        {
+                             await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Downloading {upserted} of {sourceData.Count} records...");
+                        }
+                    }
+
+                    tableResult.Upserted = upserted;
+                    Console.WriteLine($"  Upserted: {upserted} records");
+                    await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Inserted/Updated {upserted} records");
+                }
+
+                tableResult.Success = true;
+            }
+            catch (Exception ex)
+            {
+                tableResult.Success = false;
+                tableResult.Error = ex.Message;
+                Console.WriteLine($"  ERROR: {ex.Message}");
+            }
+
+            result.Tables.Add(tableResult);
+        }
+
         // Legacy method for compatibility
         public async Task MigrateToSupabaseAsync()
         {
-            await FullSyncToSupabaseAsync();
+            await FullSyncToSupabaseAsync(true); // Always force for legacy calls
+        }
+
+        private async Task<bool> CheckSupabaseIsNewerAsync()
+        {
+            try
+            {
+                // Compare Max(UpdatedAt) AND Max(CreatedAt) for critical tables
+                var tables = new[] { "Daily", "Form" };
+                
+                foreach (var table in tables)
+                {
+                    DateTime? localMaxUpdate = null;
+                    DateTime? remoteMaxUpdate = null;
+                    DateTime? localMaxCreate = null;
+                    DateTime? remoteMaxCreate = null;
+
+                    // Get Local Max UpdatedAt & CreatedAt
+                    await using (var sqlConn = new SqlConnection(_sqlServerConn))
+                    {
+                        await sqlConn.OpenAsync();
+                        // Check UpdatedAt
+                        var cmdUpdate = new SqlCommand($"SELECT MAX(UpdatedAt) FROM [{table}]", sqlConn);
+                        var valUpdate = await cmdUpdate.ExecuteScalarAsync();
+                        if (valUpdate != DBNull.Value) localMaxUpdate = (DateTime)valUpdate;
+
+                        // Check CreatedAt
+                        var cmdCreate = new SqlCommand($"SELECT MAX(CreatedAt) FROM [{table}]", sqlConn);
+                        var valCreate = await cmdCreate.ExecuteScalarAsync();
+                        if (valCreate != DBNull.Value) localMaxCreate = (DateTime)valCreate;
+                    }
+
+                    // Get Remote Max UpdatedAt & CreatedAt
+                    await using (var pgConn = new NpgsqlConnection(_supabaseConn))
+                    {
+                        await pgConn.OpenAsync();
+                        // Check UpdatedAt
+                        var cmdUpdate = new NpgsqlCommand($"SELECT MAX(\"UpdatedAt\") FROM \"{table}\"", pgConn);
+                        var valUpdate = await cmdUpdate.ExecuteScalarAsync();
+                        if (valUpdate != DBNull.Value) remoteMaxUpdate = (DateTime)valUpdate;
+
+                        // Check CreatedAt
+                        var cmdCreate = new NpgsqlCommand($"SELECT MAX(\"CreatedAt\") FROM \"{table}\"", pgConn);
+                        var valCreate = await cmdCreate.ExecuteScalarAsync();
+                        if (valCreate != DBNull.Value) remoteMaxCreate = (DateTime)valCreate;
+                    }
+
+                    // 1. Check UpdatedAt Conflict
+                    if (localMaxUpdate.HasValue && remoteMaxUpdate.HasValue)
+                    {
+                        if (remoteMaxUpdate.Value > localMaxUpdate.Value.AddMinutes(1))
+                        {
+                            Console.WriteLine($"[VersionCheck] {table} UpdatedAt: Remote ({remoteMaxUpdate}) is newer than Local ({localMaxUpdate})");
+                            return true;
+                        }
+                    }
+
+                    // 2. Check CreatedAt Conflict (New records added remotely)
+                    if (localMaxCreate.HasValue && remoteMaxCreate.HasValue)
+                    {
+                        if (remoteMaxCreate.Value > localMaxCreate.Value.AddMinutes(1))
+                        {
+                            Console.WriteLine($"[VersionCheck] {table} CreatedAt: Remote ({remoteMaxCreate}) is newer than Local ({localMaxCreate})");
+                            return true;
+                        }
+                    }
+                    // Edge case: Remote has records but local has none (fresh local DB)
+                    else if (!localMaxCreate.HasValue && remoteMaxCreate.HasValue)
+                    {
+                         Console.WriteLine($"[VersionCheck] {table}: Remote has records but Local is empty.");
+                         return true;
+                    }
+                }
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VersionCheck] Error: {ex.Message}");
+                return false;
+            }
         }
     }
 

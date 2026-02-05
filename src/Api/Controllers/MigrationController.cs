@@ -20,11 +20,11 @@ namespace Api.Controllers
         /// </summary>
         // [Authorize(Roles = "Admin", AuthenticationSchemes = "Bearer")] // Temporarily disabled for debugging
         [HttpPost("sync")]
-        public async Task<IActionResult> FullSync()
+        public async Task<IActionResult> FullSync([FromQuery] bool force = false)
         {
             try
             {
-                var result = await _migrationService.FullSyncToSupabaseAsync();
+                var result = await _migrationService.FullSyncToSupabaseAsync(force);
                 
                 if (result.Success)
                 {
@@ -44,6 +44,15 @@ namespace Api.Controllers
                 }
                 else
                 {
+                    if (result.Error == "VERSION_CONFLICT")
+                    {
+                         return Conflict(new { 
+                            success = false,
+                            message = "VERSION_CONFLICT",
+                            error = "Supabase has newer data than local database. Please pull changes or force sync.",
+                        });
+                    }
+
                     return BadRequest(new { 
                         success = false,
                         message = "Sync failed",
@@ -72,6 +81,55 @@ namespace Api.Controllers
         public async Task<IActionResult> Migrate()
         {
             return await FullSync();
+        }
+
+        /// <summary>
+        /// Pull data from Supabase to SQL Server (Reverse Sync)
+        /// </summary>
+        // [Authorize(Roles = "Admin", AuthenticationSchemes = "Bearer")] // Temporarily disabled for debugging
+        [HttpPost("pull")]
+        public async Task<IActionResult> PullFromCloud()
+        {
+            try
+            {
+                var result = await _migrationService.PullFromSupabaseAsync();
+                
+                if (result.Success)
+                {
+                    return Ok(new { 
+                        success = true,
+                        message = "Pull from cloud completed successfully!",
+                        duration = $"{result.Duration.TotalSeconds:F2}s",
+                        tables = result.Tables.Select(t => new {
+                            table = t.TableName,
+                            source = t.SourceCount,
+                            upserted = t.Upserted,
+                            deleted = t.Deleted,
+                            success = t.Success,
+                            error = t.Error
+                        })
+                    });
+                }
+                else
+                {
+                    return BadRequest(new { 
+                        success = false,
+                        message = "Pull failed",
+                        error = result.Error,
+                        duration = $"{result.Duration.TotalSeconds:F2}s",
+                        tables = result.Tables
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { 
+                    success = false,
+                    message = "Pull failed", 
+                    error = ex.Message, 
+                    stackTrace = ex.StackTrace 
+                });
+            }
         }
     }
 }

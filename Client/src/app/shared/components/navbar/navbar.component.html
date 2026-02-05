@@ -34,18 +34,28 @@ document.createElement('video');
                   aria-label="Example icon-button with share icon" (click)="logout()">
                   <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
                 </button>
-                <!-- Sync to Cloud Button -->
-                <button *ngIf="auth?.isUserAdmin()" mat-icon-button class="sync-btn"
-                  aria-label="Sync to Cloud" (click)="syncToCloud()"
-                  [disabled]="syncService.isSyncing()"
-                  [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'مزامنة مع السحابة'">
-                  <mat-icon *ngIf="!syncService.isSyncing()" style="color: #4CAF50 !important">cloud_upload</mat-icon>
-                  <mat-spinner *ngIf="syncService.isSyncing()" diameter="24"></mat-spinner>
+                <!-- Sync to Cloud Button (Push) -->
+                <button *ngIf="auth?.isUserAdmin()" mat-icon-button class="sync-btn push-btn" aria-label="Push to Cloud"
+                  (click)="syncToCloud()" [disabled]="syncService.isSyncing()"
+                  [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'رفع للسحابة ☁️⬆️'">
+                  <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'push'"
+                    style="color: #4CAF50 !important">cloud_upload</mat-icon>
+                  <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'push'"
+                    diameter="24"></mat-spinner>
                 </button>
-                <span *ngIf="syncMessage" class="sync-message" 
-                  [class.success]="syncMessage.includes('✅')" 
-                  [class.error]="syncMessage.includes('❌')">
-                  {{syncMessage}}
+                <!-- Pull from Cloud Button -->
+                <button *ngIf="auth?.isUserAdmin()" mat-icon-button class="sync-btn pull-btn"
+                  aria-label="Pull from Cloud" (click)="pullFromCloud()" [disabled]="syncService.isSyncing()"
+                  [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'تنزيل من السحابة ☁️⬇️'">
+                  <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'pull'"
+                    style="color: #2196F3 !important">cloud_download</mat-icon>
+                  <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'pull'"
+                    diameter="24"></mat-spinner>
+                </button>
+                <span *ngIf="syncMessage || syncService.isSyncing()" class="sync-message"
+                  [class.success]="syncMessage.includes('✅')" [class.error]="syncMessage.includes('❌')">
+                  <span *ngIf="syncService.isSyncing()">🔄 {{syncService.syncLog() || 'جاري الاتصال...'}}</span>
+                  <span *ngIf="!syncService.isSyncing()">{{syncMessage}}</span>
                 </span>
                 <span class="welcome-msg">
                   مرحبا بك -
@@ -69,9 +79,15 @@ document.createElement('video');
 
     <div class="container">
       <!-- global loading overlay -->
-
-
-      <ng-content>
+      <div *ngIf="syncService.isSyncing()" class="sync-overlay">
+        <div class="overlay-content">
+          <mat-spinner diameter="60" color="accent"></mat-spinner>
+          <div class="sync-text">
+            <h2>{{syncService.syncDirection() === 'push' ? 'جاري الرفع للسحابة' : 'جاري التنزيل من السحابة'}}...</h2>
+            <p class="log-message">🔄 {{syncService.syncLog() || 'جاري الاتصال...'}}</p>
+          </div>
+        </div>
+      </div> <ng-content>
 
 
 

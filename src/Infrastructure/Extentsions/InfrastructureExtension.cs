@@ -13,21 +13,15 @@ public static class InfrastructureExtension
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<ApplicationContext>(options =>
-        //    options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-        options.UseNpgsql(configuration.GetConnectionString("SupabaseConnection")));
+           options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+       // options.UseNpgsql(configuration.GetConnectionString("SupabaseConnection")));
 
 
 
 
 
 
-        services.AddCors(opt =>
-        {
-            opt.AddPolicy("CorsPolicy", policy =>
-            {
-                policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:4200");
-            });
-        });
+
 
         services.AddHttpContextAccessor();
         services.AddScoped<Core.Interfaces.ICurrentUserService, Services.CurrentUserService>();

@@ -45,11 +45,11 @@
       .sync-btn {
         margin: 0 8px;
         transition: all 0.3s ease;
-        
+
         &:hover:not(:disabled) {
           transform: scale(1.1);
         }
-        
+
         &:disabled {
           opacity: 0.7;
         }
@@ -61,12 +61,12 @@
         border-radius: 4px;
         margin: 0 8px;
         animation: fadeIn 0.3s ease;
-        
+
         &.success {
           background: rgba(76, 175, 80, 0.3);
           color: #4CAF50;
         }
-        
+
         &.error {
           background: rgba(244, 67, 54, 0.3);
           color: #F44336;
@@ -74,8 +74,15 @@
       }
 
       @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
       .welcome-msg {
@@ -250,4 +257,57 @@ video {
 
 .mat-drawer {
   width: 180px;
+}
+
+// Sync Overlay Styles
+.sync-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.85); // Dark semi-transparent background
+  z-index: 9999; // Ensure it's on top of everything
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(5px); // Blur effect for focus
+
+  .overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    min-width: 300px;
+    text-align: center;
+
+    mat-spinner {
+      margin-bottom: 20px;
+    }
+
+    .sync-text {
+      color: #fff;
+
+      h2 {
+        font-size: 1.5rem;
+        margin-bottom: 10px;
+        font-weight: 500;
+        font-family: 'Cairo', sans-serif;
+      }
+
+      .log-message {
+        font-family: 'Consolas', 'Courier New', monospace; // Monospace for logs
+        font-size: 1.1rem;
+        color: #4CAF50; // Green for success/activity
+        min-height: 1.5em;
+        direction: ltr; // Logs are usually English
+        margin-top: 10px;
+      }
+    }
+  }
 }
