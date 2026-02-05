@@ -14,6 +14,7 @@ namespace Api.Controllers
         }
 
         [HttpGet]
+        
         public async Task<IActionResult> GetDashboardStats([FromQuery] DashboardFilterRequest request)
         {
             var stats = await _dashboardService.GetDashboardStatsAsync(request);

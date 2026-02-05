@@ -12,9 +12,22 @@ public static class InfrastructureExtension
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<ApplicationContext>(options =>
-           options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
-       // options.UseNpgsql(configuration.GetConnectionString("SupabaseConnection")));
+
+        var supabaseConnection = configuration.GetConnectionString("SupabaseConnection");
+        var defaultConnection = configuration.GetConnectionString("DefaultConnection");
+
+        // if (!string.IsNullOrEmpty(supabaseConnection))
+        // {
+        //     services.AddDbContext<SupabaseContext>(options =>
+        //         options.UseNpgsql(supabaseConnection));
+            
+        //     services.AddScoped<ApplicationContext>(provider => provider.GetRequiredService<SupabaseContext>());
+        // }
+         if (!string.IsNullOrEmpty(defaultConnection))
+        {
+            services.AddDbContext<ApplicationContext>(options =>
+               options.UseSqlServer(defaultConnection));
+        }
 
 
 

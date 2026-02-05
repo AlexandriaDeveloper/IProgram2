@@ -10,17 +10,17 @@ export const authGuard: CanActivateFn = (route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
   const toaster = inject(ToasterService);
-  if(!auth.isAuthenticated()){
+  if (!auth.isAuthenticated()) {
     router.navigate(['/account/login']);
     return false;
   }
-  if(auth.isUserAdmin()){
+  if (auth.isUserAdmin()) {
     return true;
   }
-  else{
-    toaster.openErrorToaster("عفوا ليس لديك الصلاحيه للدخول", 'info' )
+  else {
+    toaster.openErrorToaster("عفوا ليس لديك الصلاحيه للدخول", 'info')
   }
- //
+  //
   return false;
 
 };

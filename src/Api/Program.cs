@@ -45,8 +45,6 @@ builder.Services
 .AddIdentity(builder.Configuration)
 .AddInfrastructure(builder.Configuration)
 .AddPersistence()
-.AddInfrastructure(builder.Configuration)
-.AddPersistence()
 .AddApplicationServices();
 
 builder.Services.AddSignalR(); // Add SignalR Service

@@ -11,6 +11,7 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
     public DbSet<Department> Departments { get; set; }
 
     public ApplicationContext(DbContextOptions<ApplicationContext> options) : base(options) { }
+    protected ApplicationContext(DbContextOptions options) : base(options) { }
 
 
     protected override void OnModelCreating(ModelBuilder builder)

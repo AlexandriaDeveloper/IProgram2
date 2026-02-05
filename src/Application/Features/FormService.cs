@@ -137,7 +137,10 @@ namespace Application.Features
 
                 Name = form.Name,
                 Description = form.Description,
-                DailyId = form.DailyId.HasValue ? form.DailyId.Value : null
+                DailyId = form.DailyId.HasValue ? form.DailyId.Value : null,
+                CreatedBy = _currentUserService.UserId,
+                CreatedAt = DateTime.Now,
+                IsActive = true
 
             };
             await _formRepository.Insert(formToDb);
