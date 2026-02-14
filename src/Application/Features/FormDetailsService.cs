@@ -71,6 +71,7 @@ namespace Application.Features
                 _logger.LogInformation($"Starting GetFormDetails for ID {id}");
 
                 formDto = await _formRepository.GetQueryable()
+                   .AsNoTracking()
                    .Where(f => f.Id == id)
                    .Select(f => new FormDto
                    {
@@ -96,6 +97,7 @@ namespace Application.Features
                                ReviewComments = fd.ReviewComments
                            }).ToList()
                    })
+                   .AsSplitQuery()
                    .FirstOrDefaultAsync();
 
                 if (formDto == null)
