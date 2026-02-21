@@ -138,8 +138,14 @@ export class FormComponent implements OnInit, AfterViewInit {
     dialogRef.afterClosed().subscribe(result => {
       //this.loadData();
       //redirect me to the form details http://localhost:4200/daily/81/form/2128
-      console.log(result);
-      this.router.navigate(['/daily/' + result.dailyId + '/form/' + result.id]);
+      if (result.status == 'edit') {
+        this.loadData();
+      }
+      else {
+        console.log(result);
+        this.router.navigate(['/daily/' + result.data.dailyId + '/form/' + result.data.id]);
+      }
+
 
       // this.animal = result;ud
     });
