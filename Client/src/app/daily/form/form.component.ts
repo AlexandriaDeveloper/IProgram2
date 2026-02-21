@@ -139,7 +139,13 @@ export class FormComponent implements OnInit, AfterViewInit {
       //this.loadData();
       //redirect me to the form details http://localhost:4200/daily/81/form/2128
       console.log(result);
-      this.router.navigate(['/daily/' + result.dailyId + '/form/' + result.id]);
+      if (result.message == "Added") {
+        this.loadData();
+        this.router.navigate(['/daily/' + result.data.dailyId + '/form/' + result.data.id]);
+      }
+      else if (result.message == "Updated") {
+        this.loadData();
+      }
 
       // this.animal = result;ud
     });
