@@ -58,7 +58,7 @@ export class AddFormComponent implements OnInit {
       this.formService.addForm(this.form.value).subscribe({
         next: (res: any) => {
 
-          this.dialogRef.close({ data: res, status: 'add' });
+          this.dialogRef.close(res);
         },
         error: (err) => console.log(err)
       })
@@ -68,7 +68,7 @@ export class AddFormComponent implements OnInit {
       this.formService.editForm(this.form.value).subscribe({
         next: (res: any) => {
 
-          this.dialogRef.close({ data: res, status: 'edit' });
+          this.dialogRef.close(res);
         },
         error: (err) => console.log(err)
       })

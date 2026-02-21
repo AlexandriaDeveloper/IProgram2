@@ -79,7 +79,7 @@ namespace Auth.Infrastructure.Services
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
                 await SyncTableAsync("FormRefernce", new[] { 
-                    "Id", "FormId", "ReferencePath", "IsActive", "CreatedAt", "CreatedBy", 
+                    "Id", "FormId", "Name", "FilePath", "IsActive", "CreatedAt", "CreatedBy", 
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
 
@@ -301,7 +301,7 @@ namespace Auth.Infrastructure.Services
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
                 await PullTableAsync("FormRefernce", new[] { 
-                    "Id", "FormId", "ReferencePath", "IsActive", "CreatedAt", "CreatedBy", 
+                    "Id", "FormId", "FilePath", "IsActive", "CreatedAt", "CreatedBy", 
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
 
@@ -362,59 +362,28 @@ namespace Auth.Infrastructure.Services
                     return;
                 }
 
-                // 2. Upsert to SQL Server using Batch MERGE
+                // 2. Upsert to SQL Server using MERGE
                 await using (var sqlConn = new SqlConnection(_sqlServerConn))
                 {
                     await sqlConn.OpenAsync();
 
-                    // Check if table has Identity column
-                    // AspNet tables use strings, Employees uses string ID.
-                    // Business tables (Daily, Form, etc.) use Int Identity.
-                    var identityTables = new[] { "Departments", "Daily", "DailyReference", "Form", "FormDetails", "FormRefernce" };
-                    var hasIdentity = identityTables.Contains(tableName);
-
-                    int batchSize = 100;
-                    var batches = sourceData.Chunk(batchSize).ToList();
-                    int upsertedTotal = 0;
-
-                    foreach (var batch in batches)
+                    int upserted = 0;
+                    foreach (var row in sourceData)
                     {
                         var sb = new StringBuilder();
-                        if (hasIdentity) sb.AppendLine($"SET IDENTITY_INSERT [{tableName}] ON;");
-
                         var columnList = string.Join(", ", columns.Select(c => $"[{c}]"));
-                        var updateList = string.Join(", ", columns.Where(c => !keyColumn.Contains(c)).Select(c => $"target.[{c}] = source.[{c}]"));
+                        var paramList = string.Join(", ", columns.Select((c, i) => $"@p{i}"));
+                        var updateList = string.Join(", ", columns.Where(c => !keyColumn.Contains(c)).Select((c, i) => $"[{c}] = @p{columns.ToList().IndexOf(c)}"));
                         var keyCondition = string.Join(" AND ", keyColumn.Select(k => $"target.[{k}] = source.[{k}]"));
 
+                        // Enable IDENTITY_INSERT if table has Identity column (Primary Key Id usually is identity)
+                        // Note: AspNet tables might not need it if using GUIDs, but business tables use Int Identity
+                        var hasIdentity = !tableName.StartsWith("AspNet"); 
+
+                        if (hasIdentity) sb.AppendLine($"SET IDENTITY_INSERT [{tableName}] ON;");
+                        
                         sb.AppendLine($"MERGE [{tableName}] AS target");
-                        sb.AppendLine($"USING (VALUES");
-
-                        var cmd = new SqlCommand();
-                        cmd.Connection = sqlConn;
-                        cmd.CommandTimeout = 120; // Increase timeout for batch
-
-                        for (int i = 0; i < batch.Length; i++)
-                        {
-                            var row = batch[i];
-                            var rowParams = new List<string>();
-                            for (int j = 0; j < columns.Length; j++)
-                            {
-                                var col = columns[j];
-                                var paramName = $"@r{i}c{j}";
-                                rowParams.Add(paramName);
-                                
-                                var value = row[col];
-                                if (value is DateTime dt && dt.Kind == DateTimeKind.Utc)
-                                {
-                                    value = dt.ToLocalTime();
-                                }
-                                cmd.Parameters.AddWithValue(paramName, value ?? DBNull.Value);
-                            }
-                            sb.Append($"  ({string.Join(", ", rowParams)})");
-                            if (i < batch.Length - 1) sb.AppendLine(",");
-                        }
-
-                        sb.AppendLine($") AS source ({columnList})");
+                        sb.AppendLine($"USING (SELECT {string.Join(", ", columns.Select((c, i) => $"@p{i} AS [{c}]"))}) AS source");
                         sb.AppendLine($"ON {keyCondition}");
                         
                         if (!string.IsNullOrEmpty(updateList))
@@ -422,20 +391,34 @@ namespace Auth.Infrastructure.Services
                             sb.AppendLine($"WHEN MATCHED THEN UPDATE SET {updateList}");
                         }
                         
-                        sb.AppendLine($"WHEN NOT MATCHED THEN INSERT ({columnList}) VALUES ({columnList});");
+                        sb.AppendLine($"WHEN NOT MATCHED THEN INSERT ({columnList}) VALUES ({paramList});");
 
                         if (hasIdentity) sb.AppendLine($"SET IDENTITY_INSERT [{tableName}] OFF;");
 
-                        cmd.CommandText = sb.ToString();
+                        await using var cmd = new SqlCommand(sb.ToString(), sqlConn);
+                        for (int i = 0; i < columns.Length; i++)
+                        {
+                            var value = row[columns[i]];
+                            // Convert UTC DateTime to Local for SQL Server
+                            if (value is DateTime dt && dt.Kind == DateTimeKind.Utc)
+                            {
+                                value = dt.ToLocalTime();
+                            }
+                            cmd.Parameters.AddWithValue($"@p{i}", value ?? DBNull.Value);
+                        }
+
                         await cmd.ExecuteNonQueryAsync();
+                        upserted++;
                         
-                        upsertedTotal += batch.Length;
-                        await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Applied {upsertedTotal} of {sourceData.Count} records...");
+                        if (upserted % 50 == 0)
+                        {
+                             await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Downloading {upserted} of {sourceData.Count} records...");
+                        }
                     }
 
-                    tableResult.Upserted = upsertedTotal;
-                    Console.WriteLine($"  Upserted: {upsertedTotal} records");
-                    await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Successfully synced {upsertedTotal} records");
+                    tableResult.Upserted = upserted;
+                    Console.WriteLine($"  Upserted: {upserted} records");
+                    await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Inserted/Updated {upserted} records");
                 }
 
                 tableResult.Success = true;
