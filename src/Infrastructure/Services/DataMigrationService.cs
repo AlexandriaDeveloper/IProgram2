@@ -17,9 +17,9 @@ namespace Auth.Infrastructure.Services
         public DataMigrationService(Microsoft.Extensions.Configuration.IConfiguration configuration, IHubContext<MigrationHub> hubContext)
         {
             _hubContext = hubContext;
-            _sqlServerConn = configuration.GetConnectionString("DefaultConnection") 
+            _sqlServerConn = configuration.GetConnectionString("DefaultConnection")
                 ?? "Server=localhost,1433;Database=IProgramDb;User Id=sa;Password=123;TrustServerCertificate=True;Encrypt=False";
-            _supabaseConn = configuration.GetConnectionString("SupabaseConnection") 
+            _supabaseConn = configuration.GetConnectionString("SupabaseConnection")
                 ?? "Host=aws-1-eu-west-3.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iztxgikxmcpzoqowomtp;Password=FNsGxA0IN0qzqSDC;SSL Mode=Require;Trust Server Certificate=true;";
         }
 
@@ -47,39 +47,39 @@ namespace Auth.Infrastructure.Services
 
                 // Sync in order of dependencies
                 await SyncTableAsync("AspNetRoles", new[] { "Id", "Name", "NormalizedName", "ConcurrencyStamp" }, result);
-                await SyncTableAsync("AspNetUsers", new[] { 
-                    "Id", "UserName", "NormalizedUserName", "Email", "NormalizedEmail", 
+                await SyncTableAsync("AspNetUsers", new[] {
+                    "Id", "UserName", "NormalizedUserName", "Email", "NormalizedEmail",
                     "EmailConfirmed", "PasswordHash", "SecurityStamp", "ConcurrencyStamp",
                     "PhoneNumber", "PhoneNumberConfirmed", "TwoFactorEnabled", "LockoutEnd",
                     "LockoutEnabled", "AccessFailedCount", "DisplayName", "DisplayImage"
                 }, result);
                 await SyncTableAsync("AspNetUserRoles", new[] { "UserId", "RoleId" }, result, compositeKey: new[] { "UserId", "RoleId" });
-                await SyncTableAsync("Departments", new[] { 
-                    "Id", "Name", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy" 
+                await SyncTableAsync("Departments", new[] {
+                    "Id", "Name", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await SyncTableAsync("Employees", new[] { 
+                await SyncTableAsync("Employees", new[] {
                     "Id", "Name", "TabCode", "TegaraCode", "Section", "Email", "Collage", "DepartmentId",
                     "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await SyncTableAsync("Daily", new[] { 
-                    "Id", "Name", "DailyDate", "IsActive", "Closed", "CreatedAt", "CreatedBy", 
+                await SyncTableAsync("Daily", new[] {
+                    "Id", "Name", "DailyDate", "IsActive", "Closed", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await SyncTableAsync("DailyReference", new[] { 
-                    "Id", "DailyId", "ReferencePath", "Description", "IsActive", "CreatedAt", "CreatedBy", 
+                await SyncTableAsync("DailyReference", new[] {
+                    "Id", "DailyId", "ReferencePath", "Description", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await SyncTableAsync("Form", new[] { 
-                    "Id", "Name", "Description", "Index", "DailyId", "IsActive", "CreatedAt", "CreatedBy", 
+                await SyncTableAsync("Form", new[] {
+                    "Id", "Name", "Description", "Index", "DailyId", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await SyncTableAsync("FormDetails", new[] { 
+                await SyncTableAsync("FormDetails", new[] {
                     "Id", "FormId", "EmployeeId", "Amount", "OrderNum", "IsReviewed", "IsReviewedBy",
-                    "ReviewedAt", "ReviewComments", "IsActive", "CreatedAt", "CreatedBy", 
+                    "ReviewedAt", "ReviewComments", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await SyncTableAsync("FormRefernce", new[] { 
-                    "Id", "FormId", "Name", "FilePath", "IsActive", "CreatedAt", "CreatedBy", 
+                await SyncTableAsync("FormRefernce", new[] {
+                    "Id", "FormId", "Name", "FilePath", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
 
@@ -115,7 +115,7 @@ namespace Auth.Infrastructure.Services
                     await sqlConn.OpenAsync();
                     var selectCmd = new SqlCommand($"SELECT * FROM [{tableName}]", sqlConn);
                     await using var reader = await selectCmd.ExecuteReaderAsync();
-                    
+
                     while (await reader.ReadAsync())
                     {
                         var row = new Dictionary<string, object?>();
@@ -134,7 +134,7 @@ namespace Auth.Infrastructure.Services
                         sourceData.Add(row);
                     }
                 }
-                
+
                 tableResult.SourceCount = sourceData.Count;
                 Console.WriteLine($"  Source: {sourceData.Count} records");
 
@@ -205,7 +205,7 @@ namespace Auth.Infrastructure.Services
 
                         var sb = new StringBuilder();
                         sb.AppendLine($"INSERT INTO \"{tableName}\" ({colNames}) VALUES");
-                        
+
                         var values = new List<string>();
                         var paramIndex = 0;
                         var cmd = new NpgsqlCommand();
@@ -224,7 +224,7 @@ namespace Auth.Infrastructure.Services
                         }
 
                         sb.AppendLine(string.Join(",\n", values));
-                        
+
                         if (updateCols.Length > 0)
                         {
                             sb.AppendLine($"ON CONFLICT ({conflictCols}) DO UPDATE SET {updateCols}");
@@ -269,39 +269,39 @@ namespace Auth.Infrastructure.Services
 
                 // Pull in order of dependencies
                 await PullTableAsync("AspNetRoles", new[] { "Id", "Name", "NormalizedName", "ConcurrencyStamp" }, result);
-                await PullTableAsync("AspNetUsers", new[] { 
-                    "Id", "UserName", "NormalizedUserName", "Email", "NormalizedEmail", 
+                await PullTableAsync("AspNetUsers", new[] {
+                    "Id", "UserName", "NormalizedUserName", "Email", "NormalizedEmail",
                     "EmailConfirmed", "PasswordHash", "SecurityStamp", "ConcurrencyStamp",
                     "PhoneNumber", "PhoneNumberConfirmed", "TwoFactorEnabled", "LockoutEnd",
                     "LockoutEnabled", "AccessFailedCount", "DisplayName", "DisplayImage"
                 }, result);
                 await PullTableAsync("AspNetUserRoles", new[] { "UserId", "RoleId" }, result, compositeKey: new[] { "UserId", "RoleId" });
-                await PullTableAsync("Departments", new[] { 
-                    "Id", "Name", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy" 
+                await PullTableAsync("Departments", new[] {
+                    "Id", "Name", "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await PullTableAsync("Employees", new[] { 
+                await PullTableAsync("Employees", new[] {
                     "Id", "Name", "TabCode", "TegaraCode", "Section", "Email", "Collage", "DepartmentId",
                     "IsActive", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await PullTableAsync("Daily", new[] { 
-                    "Id", "Name", "DailyDate", "IsActive", "Closed", "CreatedAt", "CreatedBy", 
+                await PullTableAsync("Daily", new[] {
+                    "Id", "Name", "DailyDate", "IsActive", "Closed", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await PullTableAsync("DailyReference", new[] { 
-                    "Id", "DailyId", "ReferencePath", "Description", "IsActive", "CreatedAt", "CreatedBy", 
+                await PullTableAsync("DailyReference", new[] {
+                    "Id", "DailyId", "ReferencePath", "Description", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await PullTableAsync("Form", new[] { 
-                    "Id", "Name", "Description", "Index", "DailyId", "IsActive", "CreatedAt", "CreatedBy", 
+                await PullTableAsync("Form", new[] {
+                    "Id", "Name", "Description", "Index", "DailyId", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await PullTableAsync("FormDetails", new[] { 
+                await PullTableAsync("FormDetails", new[] {
                     "Id", "FormId", "EmployeeId", "Amount", "OrderNum", "IsReviewed", "IsReviewedBy",
-                    "ReviewedAt", "ReviewComments", "IsActive", "CreatedAt", "CreatedBy", 
+                    "ReviewedAt", "ReviewComments", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
-                await PullTableAsync("FormRefernce", new[] { 
-                    "Id", "FormId", "FilePath", "IsActive", "CreatedAt", "CreatedBy", 
+                await PullTableAsync("FormRefernce", new[] {
+                    "Id", "FormId", "FilePath", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
 
@@ -362,58 +362,77 @@ namespace Auth.Infrastructure.Services
                     return;
                 }
 
-                // 2. Upsert to SQL Server using MERGE
+                // 2. Upsert to SQL Server using batched MERGE with temp table
                 await using (var sqlConn = new SqlConnection(_sqlServerConn))
                 {
                     await sqlConn.OpenAsync();
 
+                    var hasIdentity = !tableName.StartsWith("AspNet");
+                    var columnList = string.Join(", ", columns.Select(c => $"[{c}]"));
+                    var updateList = string.Join(", ", columns.Where(c => !keyColumn.Contains(c)).Select(c => $"target.[{c}] = source.[{c}]"));
+                    var keyCondition = string.Join(" AND ", keyColumn.Select(k => $"target.[{k}] = source.[{k}]"));
+
                     int upserted = 0;
-                    foreach (var row in sourceData)
+                    var batchSize = 100;
+                    var batches = sourceData.Chunk(batchSize).ToArray();
+
+                    foreach (var batch in batches)
                     {
                         var sb = new StringBuilder();
-                        var columnList = string.Join(", ", columns.Select(c => $"[{c}]"));
-                        var paramList = string.Join(", ", columns.Select((c, i) => $"@p{i}"));
-                        var updateList = string.Join(", ", columns.Where(c => !keyColumn.Contains(c)).Select((c, i) => $"[{c}] = @p{columns.ToList().IndexOf(c)}"));
-                        var keyCondition = string.Join(" AND ", keyColumn.Select(k => $"target.[{k}] = source.[{k}]"));
 
-                        // Enable IDENTITY_INSERT if table has Identity column (Primary Key Id usually is identity)
-                        // Note: AspNet tables might not need it if using GUIDs, but business tables use Int Identity
-                        var hasIdentity = !tableName.StartsWith("AspNet"); 
+                        // Create temp table with same structure
+                        sb.AppendLine($"SELECT TOP 0 {columnList} INTO #TempPull FROM [{tableName}];");
 
+                        // Insert batch rows into temp table
+                        var paramIndex = 0;
+                        var cmd = new SqlCommand();
+                        cmd.Connection = sqlConn;
+
+                        var valueRows = new List<string>();
+                        foreach (var row in batch)
+                        {
+                            var rowParams = new List<string>();
+                            foreach (var col in columns)
+                            {
+                                var paramName = $"@p{paramIndex++}";
+                                rowParams.Add(paramName);
+                                var value = row[col];
+                                // Convert UTC DateTime to Local for SQL Server
+                                if (value is DateTime dt && dt.Kind == DateTimeKind.Utc)
+                                {
+                                    value = dt.ToLocalTime();
+                                }
+                                cmd.Parameters.AddWithValue(paramName, value ?? DBNull.Value);
+                            }
+                            valueRows.Add($"({string.Join(", ", rowParams)})");
+                        }
+
+                        sb.AppendLine($"INSERT INTO #TempPull ({columnList}) VALUES");
+                        sb.AppendLine(string.Join(",\n", valueRows) + ";");
+
+                        // MERGE from temp table
                         if (hasIdentity) sb.AppendLine($"SET IDENTITY_INSERT [{tableName}] ON;");
-                        
+
                         sb.AppendLine($"MERGE [{tableName}] AS target");
-                        sb.AppendLine($"USING (SELECT {string.Join(", ", columns.Select((c, i) => $"@p{i} AS [{c}]"))}) AS source");
+                        sb.AppendLine($"USING #TempPull AS source");
                         sb.AppendLine($"ON {keyCondition}");
-                        
+
                         if (!string.IsNullOrEmpty(updateList))
                         {
                             sb.AppendLine($"WHEN MATCHED THEN UPDATE SET {updateList}");
                         }
-                        
-                        sb.AppendLine($"WHEN NOT MATCHED THEN INSERT ({columnList}) VALUES ({paramList});");
+
+                        var paramListForInsert = string.Join(", ", columns.Select(c => $"source.[{c}]"));
+                        sb.AppendLine($"WHEN NOT MATCHED THEN INSERT ({columnList}) VALUES ({paramListForInsert});");
 
                         if (hasIdentity) sb.AppendLine($"SET IDENTITY_INSERT [{tableName}] OFF;");
 
-                        await using var cmd = new SqlCommand(sb.ToString(), sqlConn);
-                        for (int i = 0; i < columns.Length; i++)
-                        {
-                            var value = row[columns[i]];
-                            // Convert UTC DateTime to Local for SQL Server
-                            if (value is DateTime dt && dt.Kind == DateTimeKind.Utc)
-                            {
-                                value = dt.ToLocalTime();
-                            }
-                            cmd.Parameters.AddWithValue($"@p{i}", value ?? DBNull.Value);
-                        }
+                        sb.AppendLine("DROP TABLE #TempPull;");
 
-                        await cmd.ExecuteNonQueryAsync();
-                        upserted++;
-                        
-                        if (upserted % 50 == 0)
-                        {
-                             await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Downloading {upserted} of {sourceData.Count} records...");
-                        }
+                        cmd.CommandText = sb.ToString();
+                        upserted += await cmd.ExecuteNonQueryAsync();
+
+                        await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Downloading {upserted} of {sourceData.Count} records...");
                     }
 
                     tableResult.Upserted = upserted;
@@ -445,7 +464,7 @@ namespace Auth.Infrastructure.Services
             {
                 // Compare Max(UpdatedAt) AND Max(CreatedAt) for critical tables
                 var tables = new[] { "Daily", "Form" };
-                
+
                 foreach (var table in tables)
                 {
                     DateTime? localMaxUpdate = null;
@@ -505,11 +524,11 @@ namespace Auth.Infrastructure.Services
                     // Edge case: Remote has records but local has none (fresh local DB)
                     else if (!localMaxCreate.HasValue && remoteMaxCreate.HasValue)
                     {
-                         Console.WriteLine($"[VersionCheck] {table}: Remote has records but Local is empty.");
-                         return true;
+                        Console.WriteLine($"[VersionCheck] {table}: Remote has records but Local is empty.");
+                        return true;
                     }
                 }
-                
+
                 return false;
             }
             catch (Exception ex)
