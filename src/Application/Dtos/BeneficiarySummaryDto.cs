@@ -3,6 +3,7 @@ namespace Application.Dtos
     public class BeneficiaryDetailDto
     {
         public int FormDetailId { get; set; }
+        public int FormId { get; set; }
         public string FormName { get; set; }
         public int? FormIndex { get; set; }
         public double Amount { get; set; }

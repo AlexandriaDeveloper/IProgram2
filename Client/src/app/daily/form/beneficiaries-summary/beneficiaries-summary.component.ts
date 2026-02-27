@@ -31,6 +31,7 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
     formDetailsService = inject(FormDetailsService);
     toaster = inject(ToasterService);
     route = inject(ActivatedRoute);
+    router = inject(Router);
     dialog = inject(MatDialog);
 
     dailyId!: number;
@@ -206,6 +207,14 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
                 this.toaster.openSuccessToaster('تم حفظ التعليق بنجاح');
             }
         });
+    }
+
+    navigateToForm(formId: number) {
+        if (formId && this.dailyId) {
+            // Navigate to form details taking into account current routing hierarchy
+            // Example: /daily/1/form/5
+            this.router.navigate(['/daily', this.dailyId, 'form', formId]);
+        }
     }
 
     applyReviewToggle(value: string) {

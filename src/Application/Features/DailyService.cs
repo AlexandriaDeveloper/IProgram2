@@ -540,6 +540,7 @@ namespace Application.Features
                     Details = g.Select(x => new BeneficiaryDetailDto
                     {
                         FormDetailId = x.Detail.Id,
+                        FormId = x.Form.Id,
                         FormName = x.Form.Name,
                         FormIndex = x.Form.Index,
                         Amount = x.Detail.Amount,

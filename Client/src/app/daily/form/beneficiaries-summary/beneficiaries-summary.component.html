@@ -127,7 +127,7 @@
                     }
                 </mat-form-field>
             </th>
-            <td mat-cell *matCellDef="let element" style="font-weight: 600; font-size: 15px;">
+            <td mat-cell *matCellDef="let element" style="font-weight: normal; font-size: 15px;">
                 <div style="display: flex; align-items: center; justify-content: space-between;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         @if(element.comment) {
@@ -207,30 +207,31 @@
                         <table class="detail-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 80px;">رقم الملف</th>
+                                    <th style="width: 60px;">رقم الملف</th>
                                     <th>اسم الملف</th>
-                                    <th style="width: 150px;">المبلغ</th>
-                                    <th style="width: 100px;">المراجعة</th>
-                                    <th style="width: 150px;">تمت بواسطة</th>
-                                    <th style="width: 180px;">تاريخ المراجعة</th>
+                                    <th style="width: 100px;">المبلغ</th>
+                                    <th style="width: 90px;">مراجعة الاستمارة</th>
+                                    <th style="width: 120px;">الاستمارة بواسطة</th>
+                                    <th style="width: 140px;">تاريخ استمارة</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @for (detail of element.details; track detail.formDetailId) {
-                                <tr [class.reviewed-row]="detail.isSummaryReviewed">
+                                <tr [class.reviewed-row]="detail.isSummaryReviewed" class="inner-row"
+                                    (click)="navigateToForm(detail.formId)" title="الانتقال إلى الاستمارة">
                                     <td style="text-align: center;">{{detail.formIndex || '-'}}</td>
                                     <td>{{detail.formName}}</td>
                                     <td class="amount-cell">{{detail.amount | number:'1.2-2'}}</td>
+
+                                    <!-- Form Review Info -->
                                     <td style="text-align: center;">
-                                        <mat-checkbox [checked]="detail.isSummaryReviewed"
-                                            (change)="markAsReviewed(detail, $event.checked)" color="primary"
-                                            (click)="$event.stopPropagation()">
-                                        </mat-checkbox>
+                                        <mat-icon [color]="detail.isReviewed ? 'primary' : 'warn'">
+                                            {{detail.isReviewed ? 'check_circle' : 'cancel'}}
+                                        </mat-icon>
                                     </td>
-                                    <td style="text-align: center;">{{detail.isSummaryReviewedBy || '-'}}</td>
-                                    <td style="text-align: center;" dir="ltr">{{detail.summaryReviewedAt ?
-                                        (detail.summaryReviewedAt |
-                                        date:'yyyy/MM/dd HH:mm') : '-'}}</td>
+                                    <td style="text-align: center;">{{detail.isReviewedBy || '-'}}</td>
+                                    <td style="text-align: center;" dir="ltr">{{detail.reviewedAt ?
+                                        (detail.reviewedAt | date:'yyyy/MM/dd HH:mm') : '-'}}</td>
                                 </tr>
                                 }
                             </tbody>
