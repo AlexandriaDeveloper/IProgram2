@@ -98,4 +98,8 @@ export class FormDetailsService {
     return this.http.put<IApiResponse>(this.apiUrl + 'formDetails/markAsReviewed/' + id, isChecked);
   }
 
+  markAsSummaryReviewed(id: number, isChecked: boolean): Observable<IApiResponse> {
+    return this.http.put<IApiResponse>(this.apiUrl + 'formDetails/markAsSummaryReviewed/' + id, isChecked);
+  }
+
 }

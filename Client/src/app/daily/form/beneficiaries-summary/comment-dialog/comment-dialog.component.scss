@@ -1,0 +1,19 @@
+.mat-mdc-card-content {
+    height: 300px !important;
+    display: flex !important;
+    flex-direction: column;
+    padding-bottom: 20px !important;
+}
+
+.action-button {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: auto;
+    /* Push to bottom */
+}
+
+textarea {
+    color: #fff !important;
+    resize: none;
+}

@@ -90,6 +90,14 @@ export class DailyService {
     return this.http.put(this.apiUrl + 'daily/CloseDaily/' + dailyId, {})
   }
 
+  getBeneficiariesSummary(dailyId: number) {
+    return this.http.get<any>(this.apiUrl + 'daily/' + dailyId + '/beneficiaries-summary');
+  }
+
+  updateBeneficiaryComment(dailyId: number, body: { employeeId: string, comment: string }) {
+    return this.http.put(this.apiUrl + 'daily/' + dailyId + '/beneficiary-comment', body);
+  }
+
   uploadJsonFile(file) {
     // console.log(file);
     const formData = new FormData();

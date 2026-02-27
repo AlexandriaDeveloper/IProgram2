@@ -20,7 +20,10 @@ import { UploadExcelFileBottomComponent } from './form/form-details/upload-excel
 import { UploadReportDialogComponent } from './form/form-details/upload-excel-file-bottom/upload-report-dialog/upload-report-dialog.component';
 import { UploadJsonDialogComponent } from './daily/upload-json-dialog/upload-json-dialog.component';
 import { UploadPdfBottomComponent } from './form/form-details/upload-pdf-bottom/upload-pdf-bottom.component';
+import { BeneficiariesSummaryComponent } from './form/beneficiaries-summary/beneficiaries-summary.component';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { MatDialogModule } from '@angular/material/dialog';
+import { CommentDialogComponent } from './form/beneficiaries-summary/comment-dialog/comment-dialog.component';
 
 
 
@@ -41,7 +44,9 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
     UploadExcelFileBottomComponent,
     UploadReportDialogComponent,
     UploadJsonDialogComponent,
-    UploadPdfBottomComponent
+    UploadPdfBottomComponent,
+    BeneficiariesSummaryComponent,
+    CommentDialogComponent
 
 
   ],
@@ -54,7 +59,8 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
     DailyRoutingModule,
     SharedModule,
     InputTextComponent,
-    UploadComponent
+    UploadComponent,
+    MatDialogModule
   ]
 })
 export class DailyModule { }

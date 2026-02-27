@@ -160,5 +160,23 @@ namespace Api.Controllers
 
 
         }
+
+        [HttpGet("{dailyId}/beneficiaries-summary")]
+        public async Task<IActionResult> GetBeneficiariesSummary(int dailyId)
+        {
+            var result = await _dailyService.GetBeneficiariesSummary(dailyId);
+            return HandleResult(result);
+        }
+
+        [HttpPut("{dailyId}/beneficiary-comment")]
+        public async Task<IActionResult> UpdateBeneficiaryComment(int dailyId, [FromBody] Application.Dtos.Requests.UpdateBeneficiaryCommentRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<Application.Dtos.Requests.UpdateBeneficiaryCommentRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            var result = await _dailyService.UpdateBeneficiaryComment(dailyId, request);
+            return HandleResult(result);
+        }
     }
 }

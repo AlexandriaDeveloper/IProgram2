@@ -15,6 +15,7 @@ using Persistence.Helpers;
 using Persistence.Repository;
 using Persistence.Specifications;
 using Persistence.Extensions;
+using Application.Dtos.Requests;
 
 namespace Application.Features
 {
@@ -474,7 +475,7 @@ namespace Application.Features
                 return Result.Success(new DailyDto
                 {
                     Id = daily.Id,
-                    
+
                     Name = daily.Name,
                     DailyDate = daily.DailyDate,
                     Closed = daily.Closed,
@@ -490,6 +491,131 @@ namespace Application.Features
                 });
             }
 
+        }
+        public async Task<Result<DailyBeneficiarySummaryResponse>> GetBeneficiariesSummary(int dailyId)
+        {
+            var daily = await _dailyRepository.GetQueryable()
+                .Include(x => x.Forms.Where(f => f.IsActive))
+                    .ThenInclude(f => f.FormDetails)
+                    .ThenInclude(fd => fd.Employee)
+                .FirstOrDefaultAsync(x => x.Id == dailyId);
+
+            if (daily == null)
+            {
+                return Result.Failure<DailyBeneficiarySummaryResponse>(new Error("404", "اليومية غير موجودة"));
+            }
+
+            var allFormDetails = daily.Forms
+                .SelectMany(f => f.FormDetails.Select(fd => new { Form = f, Detail = fd }))
+                .ToList();
+
+            var reviewerIds = allFormDetails
+                .Select(x => x.Detail.IsSummaryReviewedBy)
+                .Concat(allFormDetails.Select(x => x.Detail.IsReviewedBy))
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct()
+                .ToList();
+
+            var reviewers = new Dictionary<string, string>();
+            foreach (var id in reviewerIds)
+            {
+                var user = await _userManager.FindByIdAsync(id);
+                if (user != null)
+                {
+                    reviewers[id] = user.DisplayName ?? user.UserName;
+                }
+            }
+
+            var grouped = allFormDetails
+                .GroupBy(x => x.Detail.EmployeeId)
+                .Select(g => new BeneficiarySummaryDto
+                {
+                    EmployeeId = g.Key,
+                    EmployeeName = g.First().Detail.Employee?.Name ?? "غير معروف",
+                    Department = g.First().Detail.Employee?.Department?.Name,
+                    TabCode = g.First().Detail.Employee?.TabCode?.ToString(),
+                    TegaraCode = g.First().Detail.Employee?.TegaraCode?.ToString(),
+                    TotalAmount = Math.Round(g.Sum(x => x.Detail.Amount), 2),
+                    IsFullyReviewed = g.All(x => x.Detail.IsSummaryReviewed),
+                    Details = g.Select(x => new BeneficiaryDetailDto
+                    {
+                        FormDetailId = x.Detail.Id,
+                        FormName = x.Form.Name,
+                        FormIndex = x.Form.Index,
+                        Amount = x.Detail.Amount,
+                        IsReviewed = x.Detail.IsReviewed,
+                        IsReviewedBy = string.IsNullOrEmpty(x.Detail.IsReviewedBy) ? null :
+                                      (reviewers.ContainsKey(x.Detail.IsReviewedBy) ? reviewers[x.Detail.IsReviewedBy] : x.Detail.IsReviewedBy),
+                        ReviewedAt = x.Detail.ReviewedAt,
+                        IsSummaryReviewed = x.Detail.IsSummaryReviewed,
+                        IsSummaryReviewedBy = string.IsNullOrEmpty(x.Detail.IsSummaryReviewedBy) ? null :
+                                              (reviewers.ContainsKey(x.Detail.IsSummaryReviewedBy) ? reviewers[x.Detail.IsSummaryReviewedBy] : x.Detail.IsSummaryReviewedBy),
+                        SummaryReviewedAt = x.Detail.SummaryReviewedAt,
+                        SummaryComment = x.Detail.SummaryComments
+                    }).ToList()
+                })
+                .Select(g =>
+                {
+                    g.Comment = g.Details.Select(x => x.SummaryComment).FirstOrDefault(c => !string.IsNullOrEmpty(c));
+                    return g;
+                })
+                .OrderBy(x => x.EmployeeName)
+                .ToList();
+
+            var response = new DailyBeneficiarySummaryResponse
+            {
+                DailyName = daily.Name,
+                DailyDate = daily.DailyDate,
+                TotalAmount = Math.Round(grouped.Sum(x => x.TotalAmount), 2),
+                TotalBeneficiaries = grouped.Count,
+                Beneficiaries = grouped
+            };
+
+            return Result.Success(response);
+        }
+
+        public async Task<Result> UpdateBeneficiaryComment(int dailyId, UpdateBeneficiaryCommentRequest request)
+        {
+            var daily = await _dailyRepository.GetQueryable()
+                .Include(x => x.Forms)
+                .ThenInclude(f => f.FormDetails)
+                .FirstOrDefaultAsync(x => x.Id == dailyId);
+
+            if (daily == null)
+            {
+                return Result.Failure(new Error("404", "اليومية غير موجودة"));
+            }
+
+            var formDetails = daily.Forms
+                .SelectMany(f => f.FormDetails)
+                .Where(fd => fd.EmployeeId == request.EmployeeId)
+                .ToList();
+
+            if (!formDetails.Any())
+            {
+                return Result.Failure(new Error("404", "الموظف غير موجود في هذه اليومية"));
+            }
+
+            bool hasChanges = false;
+            foreach (var details in formDetails)
+            {
+                if (details.SummaryComments != request.Comment)
+                {
+                    details.SummaryComments = request.Comment;
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges)
+            {
+                var result = await _unitOfWork.SaveChangesAsync(CancellationToken.None) > 0;
+                if (!result)
+                {
+                    return Result.Failure(new Error("500", "حدث خطأ أثناء حفظ التعليق"));
+                }
+            }
+
+            return Result.Success("تم حفظ التعليق بنجاح");
         }
     }
 }

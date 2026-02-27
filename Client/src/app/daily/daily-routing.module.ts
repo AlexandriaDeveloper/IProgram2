@@ -4,14 +4,16 @@ import { FormComponent } from './form/form.component';
 import { DailyComponent } from './daily/daily.component';
 import { FormDetailsComponent } from './form/form-details/form-details.component';
 import { ArchivedFormsComponent } from './archived-forms/archived-forms.component';
+import { BeneficiariesSummaryComponent } from './form/beneficiaries-summary/beneficiaries-summary.component';
 
 const routes: Routes = [
-  {path:'',component:DailyComponent},
+  { path: '', component: DailyComponent },
 
-  {path:':id/form',component:FormComponent},
-  {path:'archivedform',component:ArchivedFormsComponent,},
-  {path:':id/form/:formid',component:FormDetailsComponent},
-  {path:':form/:formid',component:FormDetailsComponent}
+  { path: ':id/form', component: FormComponent },
+  { path: ':dailyId/beneficiaries-summary', component: BeneficiariesSummaryComponent },
+  { path: 'archivedform', component: ArchivedFormsComponent, },
+  { path: ':id/form/:formid', component: FormDetailsComponent },
+  { path: ':form/:formid', component: FormDetailsComponent }
 ];
 
 @NgModule({

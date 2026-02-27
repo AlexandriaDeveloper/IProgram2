@@ -35,13 +35,13 @@ mat-sidenav-content {
 
 body {
   font-family: Roboto, "Helvetica Neue", sans-serif;
+  background-color: $primary-color; // Fallback background color
 }
 
 .container {
   width: 100%;
   margin-top: 50px;
 }
-
 
 .nav-bar {
   position: sticky;
@@ -53,46 +53,30 @@ body {
   justify-content: center;
 }
 
-
-
-
-
 .fileover {
   border: dotted 3px green !important;
 }
-
 
 //center form button
 .action-buttons {
   display: flex;
   justify-content: center;
-
-
 }
 
 :ng-deep {
-
   .mat-mdc-form-field {
     color: #fff !important;
   }
-
-
-
 }
 
 .mat-mdc-menu-content {
   width: 220px !important;
-  // padding: 10px 20px !important;
-
   & .mat-mdc-menu-item {
     padding: 10px 20px !important;
-
-
     &:hover {
       background-color: rgba($color: $hover-bg-color, $alpha: 0.8) !important;
       transition: all 0.6s ease-in-out;
       color: $hover-color !important;
-
     }
   }
 }
@@ -118,14 +102,12 @@ body {
   }
 }
 
-
 .bottomSheet {
   background-color: $primary-color !important;
   color: $white-color !important;
   min-height: 200px;
   overflow: hidden;
   transition: 0.4s ease-in-out;
-
 }
 
 .bottomSheet-button {
@@ -143,7 +125,6 @@ body {
     border: 1px solid $white-color !important;
     background-color: gray !important;
   }
-
 }
 
 // Sticky container for PDF actions
@@ -209,22 +190,6 @@ body {
   }
 }
 
-
-#video-bg {
-  position: relative;
-  width: auto;
-  min-width: 60%;
-  min-height: 100vh;
-  height: auto;
-  // background: transparent url(./../../../../assets/images/bg/Network.webm) no-repeat;
-  background-size: cover;
-
-}
-
-video {
-  display: block;
-}
-
 .video-container {
   position: fixed;
   top: 0;
@@ -233,13 +198,6 @@ video {
   height: 100%;
   z-index: -1;
   overflow: hidden;
-  // width: 100%;
-
-  // overflow: hidden;
-  // position: fixed;
-  // top: 0;
-  // right: 0;
-  // z-index: -100;
 }
 
 #video-bg {

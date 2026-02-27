@@ -30,6 +30,9 @@
   <button mat-menu-item (click)="exportIndexPdf()" *ngIf="authService.isUserAdmin()">
     <mat-icon>123</mat-icon>
     فهرسه اليوميه </button>
+  <button mat-menu-item (click)="openBeneficiariesSummary()" [disabled]="dataSource?.length===0">
+    <mat-icon>summarize</mat-icon>
+    ملخص المستحقين </button>
 </mat-menu>
 
 <div class="mat-elevation-z8">

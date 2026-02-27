@@ -104,7 +104,7 @@ namespace Application.Features
                 {
                     return Result.Failure<FormDto>(new Error("404", "Form not found"));
                 }
-                
+
                 var queryTime = sw.ElapsedMilliseconds;
                 _logger.LogInformation($"GetFormDetails Query Time for ID {id}: {queryTime}ms. Details Count: {formDto.FormDetails?.Count ?? 0}");
 
@@ -327,6 +327,46 @@ namespace Application.Features
             }
 
             // Clear cache after marking form details as reviewed
+            ClearFormDetailsCache(formDetails.FormId);
+
+            return Result.Success("تم وضع علامة المراجعة بنجاح");
+        }
+
+        public async Task<Result> MarkFormDetailsAsSummaryReviewed(int formDetailsId, bool isReviewed)
+        {
+            var formDetails = await _formDetailsRepository.GetById(formDetailsId);
+            if (formDetails == null)
+            {
+                return Result.Failure(new Error("404", "عفوا التفاصيل غير موجودة"));
+            }
+
+            var user = _httpContextAccessor.HttpContext.User;
+            var userId = _currentUserService.UserId;
+
+            if (!user.IsInRole("Admin") && formDetails.CreatedBy != userId)
+            {
+                return Result.Failure(new Error("403", "عفوا لا يمكنك التحقق من هذا الملف"));
+            }
+
+            formDetails.IsSummaryReviewed = isReviewed;
+            if (isReviewed)
+            {
+                formDetails.SummaryReviewedAt = DateTime.Now;
+                formDetails.IsSummaryReviewedBy = userId;
+            }
+            else
+            {
+                formDetails.SummaryReviewedAt = null;
+                formDetails.IsSummaryReviewedBy = null;
+            }
+
+            _formDetailsRepository.Update(formDetails);
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "Internal Server Error"));
+            }
+
             ClearFormDetailsCache(formDetails.FormId);
 
             return Result.Success("تم وضع علامة المراجعة بنجاح");

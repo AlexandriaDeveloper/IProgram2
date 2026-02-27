@@ -1,0 +1,32 @@
+<mat-card class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+    <mat-card-header cdkDragHandle style="cursor: move;">
+        <mat-card-title>
+            <div class="close" (click)="onNoClick()">
+                <mat-icon>close</mat-icon>
+            </div>
+            <span>تعليق المراجعة - {{ data.employeeName }}</span>
+        </mat-card-title>
+    </mat-card-header>
+
+    <mat-card-content style="display: flex; flex-direction: column; justify-content: space-between;">
+        <form [formGroup]="form" class="form-dialg" (ngSubmit)="onSubmit()" style="flex: 1;">
+
+            <mat-form-field appearance="outline" style="width: 100%;">
+                <mat-label>ملاحظات الاستحقاقات</mat-label>
+                <textarea matInput formControlName="comment" rows="6" style="resize: none;">
+                </textarea>
+            </mat-form-field>
+
+        </form>
+
+        <div class="action-button">
+            <button mat-raised-button color="primary" type="submit" (click)="onSubmit()"
+                [disabled]="form.invalid || isSaving">
+                {{ isSaving ? 'جاري الحفظ...' : 'حفظ' }}
+            </button>
+            <button mat-raised-button color="warn" (click)="onNoClick()">
+                الغاء
+            </button>
+        </div>
+    </mat-card-content>
+</mat-card>

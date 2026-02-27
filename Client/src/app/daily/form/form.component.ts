@@ -303,4 +303,8 @@ export class FormComponent implements OnInit, AfterViewInit {
   trackByKey(index: number, item: any): string {
     return item.id;
   }
+
+  openBeneficiariesSummary() {
+    this.router.navigate(['/daily', this.dailyId, 'beneficiaries-summary']);
+  }
 }

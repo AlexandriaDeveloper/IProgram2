@@ -1,0 +1,256 @@
+<div class="description-text">
+    <a mat-icon-button color="accent" [routerLink]="['/daily/', dailyId, 'form']" class="add-button"
+        title="رجوع لليومية">
+        <mat-icon>arrow_back</mat-icon>
+    </a>
+    <strong>ملخص المستحقين - {{dailyData?.name}}</strong>
+
+    <p class="multi-lines">
+        إجمالي المستحقين المجمع لجميع الملفات داخل هذه اليومية.
+    </p>
+</div>
+
+<div style="display: flex;justify-content: space-between;align-items: center;gap: 20px;margin-bottom: 20px;">
+    <!-- Stats -->
+    <div style="color: #fff; display: flex; gap: 20px; font-weight: bold; font-size: 16px;">
+        <span>العدد الإجمالي: {{dataSource.data.length}} مستحق</span>
+        <span>المبلغ الكلي: {{totalAmount | number:'1.2-2'}}</span>
+        <span style="color: #4CAF50;">تمت المراجعة: {{totalReviewed}} من {{dataSource.data.length}}</span>
+    </div>
+</div>
+
+<div style="margin-bottom: 10px;">
+    <mat-checkbox color="accent" #departmentCheck><span style="color: #fff !important">القسم</span></mat-checkbox>
+    <mat-checkbox color="accent" #tabCodeCheck><span style="color: #fff !important">كود طب</span></mat-checkbox>
+    <mat-checkbox color="accent" #tegaraCodeCheck><span style="color: #fff !important">كود تجارة</span></mat-checkbox>
+    <mat-checkbox color="accent" #employeeIdCheck><span style="color: #fff !important">الرقم
+            القومى</span></mat-checkbox>
+</div>
+
+@if (isLoading) {
+<div class="skeleton-container mat-elevation-z8" style="background: white; padding: 20px;">
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <div class="skeleton-box" style="width: 200px; height: 32px;"></div>
+    </div>
+    @for (item of [1,2,3,4,5]; track item) {
+    <div class="skeleton-table-row">
+        <div class="skeleton-cell" style="width: 50px; flex: 0.5;"></div>
+        <div class="skeleton-cell" style="flex: 3;"></div>
+        <div class="skeleton-cell" style="flex: 1;"></div>
+        <div class="skeleton-cell" style="flex: 1;"></div>
+    </div>
+    }
+</div>
+} @else {
+<div class="mat-elevation-z8">
+    <table mat-table [dataSource]="dataSource" matSort class="example-list full-width-table" multiTemplateDataRows
+        [trackBy]="trackByKey">
+
+        <!-- Expand Column -->
+        <ng-container matColumnDef="expand">
+            <th mat-header-cell *matHeaderCellDef style="width: 60px;">التفاصيل</th>
+            <td mat-cell *matCellDef="let element">
+                <button mat-icon-button (click)="toggleRow(element); $event.stopPropagation()">
+                    <mat-icon>{{expandedElement === element ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}}</mat-icon>
+                </button>
+            </td>
+        </ng-container>
+
+        <!-- Action Column (Review Checkbox + Toggle) -->
+        <ng-container matColumnDef="action">
+            <th mat-header-cell *matHeaderCellDef>
+                <div class="table-spacer" style="width: 20vh !important;">
+                    <!-- 3-state filter: All / Reviewed / Unreviewed -->
+                    <mat-button-toggle-group #reviewToggle="matButtonToggleGroup" appearance="legacy" value="all"
+                        (change)="applyReviewToggle($event.value)">
+                        <mat-button-toggle color="warn" value="all">الكل</mat-button-toggle>
+                        <mat-button-toggle value="reviewed">تمت المراجعه</mat-button-toggle>
+                        <mat-button-toggle value="unreviewed">لم تراجع</mat-button-toggle>
+                    </mat-button-toggle-group>
+                </div>
+            </th>
+            <td mat-cell *matCellDef="let element" style="text-align: right !important;">
+                <mat-checkbox color="primary" [checked]="element.isFullyReviewed"
+                    (change)="markAllAsReviewed(element, $event.checked)" (click)="$event.stopPropagation()">
+                </mat-checkbox>
+            </td>
+        </ng-container>
+
+        <!-- tabCode Column -->
+        <ng-container matColumnDef="tabCode">
+            <th mat-header-cell *matHeaderCellDef [hidden]="!tabCodeCheck.checked" mat-sort-header="tabCode"
+                class="sortable-header">
+                <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+                    (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                    <mat-label class="saerch-title">كود طب</mat-label>
+                    <input matInput #tabCodeInput>
+                    @if (tabCodeInput.value) {
+                    <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('tabCode')">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                    }
+                </mat-form-field>
+            </th>
+            <td mat-cell *matCellDef="let element" [hidden]="!tabCodeCheck.checked">{{element.tabCode || '-'}}</td>
+        </ng-container>
+
+        <!-- tegaraCode Column -->
+        <ng-container matColumnDef="tegaraCode">
+            <th mat-header-cell *matHeaderCellDef [hidden]="!tegaraCodeCheck.checked" mat-sort-header="tegaraCode"
+                class="sortable-header">
+                <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+                    (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                    <mat-label class="saerch-title">كود تجارة</mat-label>
+                    <input matInput #tegaraCodeInput>
+                    @if (tegaraCodeInput.value) {
+                    <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('tegaraCode')">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                    }
+                </mat-form-field>
+            </th>
+            <td mat-cell *matCellDef="let element" [hidden]="!tegaraCodeCheck.checked">{{element.tegaraCode || '-'}}
+            </td>
+        </ng-container>
+
+        <!-- Employee Name Column -->
+        <ng-container matColumnDef="employeeName">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="employeeName" class="sortable-header">
+                <mat-form-field apperance="outline" class="search" color="primary" style="width: 30vh !important;"
+                    (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                    <mat-label class="saerch-title">الاسم</mat-label>
+                    <input matInput #nameInput>
+                    @if (nameInput.value) {
+                    <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('employeeName')">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                    }
+                </mat-form-field>
+            </th>
+            <td mat-cell *matCellDef="let element" style="font-weight: 600; font-size: 15px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        @if(element.comment) {
+                        <mat-icon color="warn" title="{{element.comment}}"
+                            style="font-size: 20px; width: 20px; height: 20px; cursor: help;">warning</mat-icon>
+                        }
+                        <span>{{element.employeeName}}</span>
+                    </div>
+                    <button mat-icon-button (click)="openCommentDialog(element, $event)" color="primary"
+                        title="إضافة تعليق">
+                        <mat-icon>chat_bubble_outline</mat-icon>
+                    </button>
+                </div>
+            </td>
+        </ng-container>
+
+        <!-- Department Column -->
+        <ng-container matColumnDef="department">
+            <th mat-header-cell *matHeaderCellDef [hidden]="!departmentCheck.checked" mat-sort-header="department"
+                class="sortable-header">
+                <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"
+                    (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                    <mat-label class="saerch-title">القسم</mat-label>
+                    <input matInput #departmentInput>
+                    @if (departmentInput.value) {
+                    <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('department')">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                    }
+                </mat-form-field>
+            </th>
+            <td mat-cell *matCellDef="let element" [hidden]="!departmentCheck.checked">{{element.department || '-'}}
+            </td>
+        </ng-container>
+
+        <!-- employeeId Column -->
+        <ng-container matColumnDef="employeeId">
+            <th mat-header-cell *matHeaderCellDef [hidden]="!employeeIdCheck.checked" mat-sort-header="employeeId"
+                class="sortable-header">
+                <mat-form-field apperance="outline" class="search" color="primary" style="width: 20vh !important;"
+                    (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                    <mat-label class="saerch-title">الرقم القومى</mat-label>
+                    <input matInput #employeeIdInput>
+                    @if (employeeIdInput.value) {
+                    <button matSuffix mat-icon-button aria-label="Clear" (click)="clear('employeeId')">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                    }
+                </mat-form-field>
+            </th>
+            <td mat-cell *matCellDef="let element" [hidden]="!employeeIdCheck.checked">{{element.employeeId || '-'}}
+            </td>
+        </ng-container>
+
+        <!-- Total Amount Column -->
+        <ng-container matColumnDef="totalAmount">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="totalAmount" class="sortable-header">
+                <mat-form-field apperance="outline" class="search" color="primary" style="width: 15vh !important;"
+                    (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                    <mat-label class="saerch-title">المبلغ الكلي</mat-label>
+                    <input matInput disabled style="display: none;">
+                </mat-form-field>
+            </th>
+            <td mat-cell *matCellDef="let element" class="amount-cell" style="font-size: 16px;">
+                {{element.totalAmount | number:'1.2-2'}}
+            </td>
+        </ng-container>
+
+        <!-- Expanded Detail Row -->
+        <ng-container matColumnDef="expandedDetail">
+            <td mat-cell *matCellDef="let element" [attr.colspan]="displayedColumns.length"
+                style="padding: 0; border-bottom: none;">
+                <div class="element-detail" [@detailExpand]="element == expandedElement ? 'expanded' : 'collapsed'">
+                    <div class="detail-content">
+                        <h4 style="margin: 0 0 10px 0; color: #1976D2; font-family: 'Cairo';">تفاصيل الاستحقاقات عبر
+                            الملفات:</h4>
+                        <table class="detail-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 80px;">رقم الملف</th>
+                                    <th>اسم الملف</th>
+                                    <th style="width: 150px;">المبلغ</th>
+                                    <th style="width: 100px;">المراجعة</th>
+                                    <th style="width: 150px;">تمت بواسطة</th>
+                                    <th style="width: 180px;">تاريخ المراجعة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (detail of element.details; track detail.formDetailId) {
+                                <tr [class.reviewed-row]="detail.isSummaryReviewed">
+                                    <td style="text-align: center;">{{detail.formIndex || '-'}}</td>
+                                    <td>{{detail.formName}}</td>
+                                    <td class="amount-cell">{{detail.amount | number:'1.2-2'}}</td>
+                                    <td style="text-align: center;">
+                                        <mat-checkbox [checked]="detail.isSummaryReviewed"
+                                            (change)="markAsReviewed(detail, $event.checked)" color="primary"
+                                            (click)="$event.stopPropagation()">
+                                        </mat-checkbox>
+                                    </td>
+                                    <td style="text-align: center;">{{detail.isSummaryReviewedBy || '-'}}</td>
+                                    <td style="text-align: center;" dir="ltr">{{detail.summaryReviewedAt ?
+                                        (detail.summaryReviewedAt |
+                                        date:'yyyy/MM/dd HH:mm') : '-'}}</td>
+                                </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let element; columns: displayedColumns;" class="element-row"
+            [class.expanded-row]="expandedElement === element" [class.reviewed]="element.isFullyReviewed"
+            [class.not-reviewed]="!element.isFullyReviewed" (click)="toggleRow(element)">
+        </tr>
+        <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detail-row"></tr>
+    </table>
+
+    <!-- No Data -->
+    <div class="no-data" *ngIf="dataSource.data.length === 0 && !isLoading">
+        لا يوجد بيانات للعرض
+    </div>
+</div>
+}

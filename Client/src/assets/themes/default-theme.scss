@@ -4,36 +4,35 @@
 
 /* For use in src/lib/core/theming/_palette.scss */
 $md-dark-green-palette: (
-    50 : #e5eae3,
-    100 : #becab8,
-    200 : #93a789,
-    300 : #68835a,
-    400 : #476936,
-    500 : #274e13,
-    600 : #234711,
-    700 : #1d3d0e,
-    800 : #17350b,
-    900 : #0e2506,
-    A100 : #7dff61,
-    A200 : #53ff2e,
-    A400 : #2cfa00,
-    A700 : #27e100,
-    contrast: (
-        50 : #000000,
-        100 : #000000,
-        200 : #000000,
-        300 : #ffffff,
-        400 : #ffffff,
-        500 : #ffffff,
-        600 : #ffffff,
-        700 : #ffffff,
-        800 : #ffffff,
-        900 : #ffffff,
-        A100 : #000000,
-        A200 : #000000,
-        A400 : #000000,
-        A700 : #000000,
-    )
+  50 : #e5eae3,
+  100 : #becab8,
+  200 : #93a789,
+  300 : #68835a,
+  400 : #476936,
+  500 : #274e13,
+  600 : #234711,
+  700 : #1d3d0e,
+  800 : #17350b,
+  900 : #0e2506,
+  A100 : #7dff61,
+  A200 : #53ff2e,
+  A400 : #2cfa00,
+  A700 : #27e100,
+  contrast: (50 : #000000,
+    100 : #000000,
+    200 : #000000,
+    300 : #ffffff,
+    400 : #ffffff,
+    500 : #ffffff,
+    600 : #ffffff,
+    700 : #ffffff,
+    800 : #ffffff,
+    900 : #ffffff,
+    A100 : #000000,
+    A200 : #000000,
+    A400 : #000000,
+    A700 : #000000,
+  )
 );
 
 
@@ -41,70 +40,68 @@ $md-dark-green-palette: (
 /* For use in src/lib/core/theming/_palette.scss */
 /* For use in src/lib/core/theming/_palette.scss */
 $md-olive-palette: (
-    50 : #e6e9ea,
-    100 : #c1c7cb,
-    200 : #97a2a8,
-    300 : #6d7d85,
-    400 : #4e616a,
-    500 : #2f4550,
-    600 : #2a3e49,
-    700 : #233640,
-    800 : #1d2e37,
-    900 : #121f27,
-    A100 : #68c1ff,
-    A200 : #35acff,
-    A400 : #0297ff,
-    A700 : #0088e8,
-    contrast: (
-        50 : #000000,
-        100 : #000000,
-        200 : #000000,
-        300 : #ffffff,
-        400 : #ffffff,
-        500 : #ffffff,
-        600 : #ffffff,
-        700 : #ffffff,
-        800 : #ffffff,
-        900 : #ffffff,
-        A100 : #000000,
-        A200 : #000000,
-        A400 : #ffffff,
-        A700 : #ffffff,
-    )
+  50 : #e6e9ea,
+  100 : #c1c7cb,
+  200 : #97a2a8,
+  300 : #6d7d85,
+  400 : #4e616a,
+  500 : #2f4550,
+  600 : #2a3e49,
+  700 : #233640,
+  800 : #1d2e37,
+  900 : #121f27,
+  A100 : #68c1ff,
+  A200 : #35acff,
+  A400 : #0297ff,
+  A700 : #0088e8,
+  contrast: (50 : #000000,
+    100 : #000000,
+    200 : #000000,
+    300 : #ffffff,
+    400 : #ffffff,
+    500 : #ffffff,
+    600 : #ffffff,
+    700 : #ffffff,
+    800 : #ffffff,
+    900 : #ffffff,
+    A100 : #000000,
+    A200 : #000000,
+    A400 : #ffffff,
+    A700 : #ffffff,
+  )
 );
 
 /* For use in src/lib/core/theming/_palette.scss */
 $md-deep-orange-palette: (
-    50 : #ffede0,
-    100 : #ffd3b3,
-    200 : #ffb680,
-    300 : #ff994d,
-    400 : #ff8326,
-    500 : #ff6d00,
-    600 : #ff6500,
-    700 : #ff5a00,
-    800 : #ff5000,
-    900 : #ff3e00,
-    A100 : #ffffff,
-    A200 : #fff5f2,
-    A400 : #ffcbbf,
-    A700 : #ffb6a6,
-    contrast: (
-        50 : #000000,
-        100 : #000000,
-        200 : #000000,
-        300 : #000000,
-        400 : #000000,
-        500 : #000000,
-        600 : #000000,
-        700 : #000000,
-        800 : #ffffff,
-        900 : #ffffff,
-        A100 : #000000,
-        A200 : #000000,
-        A400 : #000000,
-        A700 : #000000,
-    )
+  50 : #ffede0,
+  100 : #ffd3b3,
+  200 : #ffb680,
+  300 : #ff994d,
+  400 : #ff8326,
+  500 : #ff6d00,
+  600 : #ff6500,
+  700 : #ff5a00,
+  800 : #ff5000,
+  900 : #ff3e00,
+  A100 : #ffffff,
+  A200 : #fff5f2,
+  A400 : #ffcbbf,
+  A700 : #ffb6a6,
+  contrast: (50 : #000000,
+    100 : #000000,
+    200 : #000000,
+    300 : #000000,
+    400 : #000000,
+    500 : #000000,
+    600 : #000000,
+    700 : #000000,
+    800 : #ffffff,
+    900 : #ffffff,
+    A100 : #000000,
+    A200 : #000000,
+    A400 : #000000,
+    A700 : #000000,
+  )
 );
 
 
@@ -113,51 +110,41 @@ $md-deep-orange-palette: (
 
 
 //Add Custome Font For Typography
-$my-app-typography: mat.define-typography-config(
-  $font-family: 'Cairo',
+$my-app-typography: mat.define-typography-config($font-family: 'Cairo',
 
-);
+  );
 
 $my-primary: mat.define-palette($md-dark-green-palette, 400, 100, 300);
 $my-accent: mat.define-palette($md-deep-orange-palette, 700, A200, A200);
 
 // The "warn" palette is optional and defaults to red if not specified.
-$my-warn: mat.define-palette(mat.$red-palette,300, 200, 200);
-$my-theme: mat.define-light-theme((
- color: (
-   primary: $my-primary,
-   accent: $my-accent,
-   warn: $my-warn,
- ),
- typography: $my-app-typography,
- density: 0,
-));
+$my-warn: mat.define-palette(mat.$red-palette, 300, 200, 200);
+$my-theme: mat.define-light-theme((color: (primary: $my-primary,
+        accent: $my-accent,
+        warn: $my-warn,
+      ),
+      typography: $my-app-typography,
+      density: 0,
+    ));
 
 
 
 
-.custom-theme{
-  // .mat-mdc-form-field{
-  //   color: rgba(179, 177, 177,0.6) !important;
-  //   input{
-  //     color: #000 !important;
-  //   }
-  //   .search-input{
-  //     color: #000 !important;
-  //   }
-  //   label{
-  //     color: rgba(179, 177, 177,0.4) !important;
-  //   }
-  // }
+.custom-theme {
 
-  .mat-datepicker{
-    background-color:  red !important;
+  .mat-datepicker {
+    background-color: red !important;
   }
 
-
-//  @include mat.core-theme($my-theme);
   @include mat.all-component-themes($my-theme);
-  // @include mat.button-theme($my-theme);
+
+  background-color: transparent !important;
+
+  mat-sidenav-container,
+  .mat-drawer-container,
+  mat-sidenav-content {
+    background-color: transparent !important;
+  }
 }
 
 
