@@ -1,9 +1,24 @@
 <div class="description-text">
-    <a mat-icon-button color="accent" [routerLink]="['/daily/', dailyId, 'form']" class="add-button"
-        title="رجوع لليومية">
-        <mat-icon>arrow_back</mat-icon>
-    </a>
-    <strong>ملخص المستحقين - {{dailyData?.name}}</strong>
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <a mat-icon-button color="accent" [routerLink]="['/daily/', dailyId, 'form']" class="add-button"
+            title="رجوع لليومية">
+            <mat-icon>arrow_back</mat-icon>
+        </a>
+        <button mat-icon-button color="primary" [matMenuTriggerFor]="menu" title="خيارات إضافية">
+            <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #menu="matMenu">
+            <button mat-menu-item (click)="exportPdf()" [disabled]="dataSource?.data?.length===0">
+                <mat-icon>picture_as_pdf</mat-icon>
+                استخراج تقرير (PDF)
+            </button>
+            <button mat-menu-item (click)="downloadExcel()" [disabled]="dataSource?.data?.length===0">
+                <mat-icon>insert_drive_file</mat-icon>
+                تنزيل ملف إكسيل
+            </button>
+        </mat-menu>
+        <strong>ملخص المستحقين - {{dailyData?.name}}</strong>
+    </div>
 
     <p class="multi-lines">
         إجمالي المستحقين المجمع لجميع الملفات داخل هذه اليومية.

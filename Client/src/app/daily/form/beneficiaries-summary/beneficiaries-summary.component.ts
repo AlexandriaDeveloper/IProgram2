@@ -262,7 +262,27 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
         return item.employeeId;
     }
 
-    ngOnDestroy() {
-        this.subscriptions.forEach(s => s.unsubscribe());
+    ngOnDestroy(): void {
+        this.subscriptions.forEach(sub => sub.unsubscribe());
+    }
+
+    exportPdf() {
+        if (!this.dailyId) return;
+        this.dailyService.exportSummaryPdf(this.dailyId).subscribe({
+            error: (err) => {
+                console.error('Export error:', err);
+                this.toaster.openErrorToaster('فشل في تصدير التقرير للطباعة');
+            }
+        });
+    }
+
+    downloadExcel() {
+        if (!this.dailyId) return;
+        this.dailyService.exportSummaryExcel(this.dailyId).subscribe({
+            error: (err) => {
+                console.error('Export error:', err);
+                this.toaster.openErrorToaster('فشل في تحميل ملف الإكسيل');
+            }
+        });
     }
 }

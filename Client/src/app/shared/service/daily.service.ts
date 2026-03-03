@@ -109,4 +109,31 @@ export class DailyService {
     });
   }
 
+  exportSummaryExcel(dailyId: number) {
+    return this.http.get(this.apiUrl + 'daily/exportSummaryExcel/' + dailyId, { observe: 'response', responseType: 'blob' }).pipe(
+      map((x: HttpResponse<any>) => {
+        let blob = new Blob([x.body], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const url = window.URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "BeneficiarySummary-" + dailyId + ".xlsx";
+        a.click();
+      })
+    );
+  }
+
+  exportSummaryPdf(dailyId: number) {
+    return this.http.get(this.apiUrl + 'reportPdf/PrintDailySummaryPdf/' + dailyId, { observe: 'response', responseType: 'blob' }).pipe(
+      map((x: HttpResponse<any>) => {
+        let blob = new Blob([x.body], {
+          type: 'application/pdf'
+        });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url);
+      })
+    );
+  }
+
 }

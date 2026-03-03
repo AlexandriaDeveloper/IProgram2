@@ -576,5 +576,140 @@ namespace Application.Features
              }).GeneratePdf();
             return await Task.FromResult(pdf);
         }
+
+        public async Task<byte[]> PrintBeneficiarySummaryPdf(DailyBeneficiarySummaryResponse summaryData)
+        {
+            var totalText = NumericToLiteral.Convert(summaryData.TotalAmount, false, "جنيه", "جنيهات");
+            totalText = totalText.Replace("(", "").Replace(")", "").Replace("،", "");
+            QuestPDF.Drawing.FontManager.RegisterFont(File.OpenRead(_config["ApiImageContent"] + "Fonts/Cairo-Regular.ttf"));
+
+            var pdf = QuestPDF.Fluent.Document.Create(c =>
+            {
+                c.Page(p =>
+                {
+                    p.Foreground().PaddingTop(10).PaddingBottom(10).PaddingRight(10).PaddingLeft(10).Border(3).BorderColor("#444444");
+                    p.ContentFromRightToLeft();
+                    p.DefaultTextStyle(TextStyle.Default.FontFamily("Arial"));
+                    p.Size(PageSizes.A4);
+                    p.Header().DefaultTextStyle(TextStyle.Default.FontFamily("Cairo-Regular"));
+                    p.Header().PaddingTop(0, Unit.Centimetre);
+                    p.Header().ScaleHorizontal(1.5f).ScaleVertical(.8f).AlignCenter().Column(col =>
+                    {
+                        col.Item().Row(r =>
+                        {
+                            r.AutoItem().AlignCenter().Width(8, Unit.Centimetre).Height(4, Unit.Centimetre).Image(_config["ApiImageContent"] + "images.png");
+                        });
+                    });
+                    
+                    p.Margin(15, QuestPDF.Infrastructure.Unit.Millimetre);
+                    p.PageColor(Colors.White);
+
+                    p.Content()
+                        .PaddingVertical(1, QuestPDF.Infrastructure.Unit.Millimetre)
+                        .ContentFromRightToLeft()
+                        .Column(x =>
+                        {
+                            x.Item().Row(r =>
+                            {
+                                r.RelativeItem().AlignCenter().Text(t =>
+                                {
+                                    t.Span($"ملخص يومية - {summaryData.DailyName}").FontSize(18).FontFamily("Andalus").Underline().ExtraBold();
+                                    t.EmptyLine();
+                                });
+                            });
+                            
+                            x.Item().Row(r =>
+                            {
+                                r.RelativeItem().AlignRight().Text(t =>
+                                {
+                                    t.Span($"تاريخ اليومية: {summaryData.DailyDate.ToShortDateString()}").FontSize(14).FontFamily("Cairo");
+                                    t.EmptyLine();
+                                    t.Span($"إجمالي المستفيدين: {summaryData.TotalBeneficiaries}").FontSize(14).FontFamily("Cairo");
+                                    t.EmptyLine();
+                                });
+                            });
+
+                            x.Item().Border(1).Table(t =>
+                            {
+                                t.ColumnsDefinition(h =>
+                                {
+                                    h.ConstantColumn(30);  // م
+                                    h.ConstantColumn(40);  // كود تجارة
+                                    h.ConstantColumn(40);  // كود طب
+                                    h.RelativeColumn(3);   // الرقم القومي
+                                    h.RelativeColumn(5);   // الاسم
+                                    h.RelativeColumn(3);   // القسم
+                                    h.ConstantColumn(60);  // المبلغ
+                                });
+                                
+                                t.Header(h =>
+                                {
+                                    string[] headers = { "م", "كود تجارة", "كود طب", "الرقم القومي", "الاسم", "القسم", "المبلغ" };
+                                    foreach (var header in headers)
+                                    {
+                                        h.Cell().Border(1).Background("#b8b8b8").AlignCenter().Height(1, Unit.Centimetre).AlignMiddle().Text(txt =>
+                                        {
+                                            txt.Span(header).Bold().FontFamily("Cairo").FontSize(10);
+                                        });
+                                    }
+                                });
+
+                                uint row = 0;
+                                foreach (var emp in summaryData.Beneficiaries)
+                                {
+                                    t.Cell().Row(row + 1).Column(1).Border(1).Padding(2).AlignMiddle().AlignCenter().Text((row + 1).ToString());
+                                    t.Cell().Row(row + 1).Column(2).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(emp.TegaraCode?.ToString() ?? "-");
+                                    t.Cell().Row(row + 1).Column(3).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(emp.TabCode?.ToString() ?? "-");
+                                    t.Cell().Row(row + 1).Column(4).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(emp.EmployeeId?.ToString() ?? "-");
+                                    t.Cell().Row(row + 1).Column(5).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(emp.EmployeeName ?? "");
+                                    t.Cell().Row(row + 1).Column(6).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(emp.Department ?? "");
+                                    t.Cell().Row(row + 1).Column(7).Border(1).Padding(2).AlignMiddle().AlignCenter().Text(emp.TotalAmount.ToString());
+                                    row++;
+                                }
+
+                                t.Cell().Row(row + 1).ColumnSpan(6).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(txt =>
+                                {
+                                    txt.Span(" إجمالي المبلغ: " + totalText + " فقط لا غير").Bold().FontSize(10).FontFamily("Cairo");
+                                });
+                                t.Cell().Row(row + 1).Column(7).Background("#b8b8b8").Border(1).AlignCenter().Padding(4).Text(summaryData.TotalAmount.ToString()).Bold().FontFamily("Cairo");
+                            });
+                        });
+
+                    p.Background()
+                        .AlignBottom()
+                        .Image(_config["ApiImageContent"] + "logo3.png");
+
+                    p.Footer()
+                        .Table(t =>
+                        {
+                            t.ColumnsDefinition(c =>
+                            {
+                                c.RelativeColumn();
+                                c.RelativeColumn();
+                                c.RelativeColumn();
+                            });
+                            t.Cell().Row(1).Column(1).AlignRight().Text("الموظف المختص").Bold();
+                            t.Cell().Row(1).Column(2).AlignCenter().Text("رئيس القسم").Bold();
+                            t.Cell().Row(1).Column(3).AlignLeft().Text("رئيس المصلحة").Bold();
+                            t.Cell().Row(2).Column(2).AlignCenter().Text(x =>
+                            {
+                                x.EmptyLine();
+                                x.EmptyLine();
+                                x.Span("-").FontSize(12).FontColor("#484848");
+                                x.CurrentPageNumber().FontSize(12).FontColor("#484848");
+                                x.Span("-").FontSize(12).FontColor("#484848");
+                            });
+                        });
+                });
+            }).WithMetadata(new DocumentMetadata()
+            {
+                Title = "Beneficiary Summary Report",
+                Author = "System",
+                Subject = "Beneficiary Summary",
+                Keywords = "Summary PDF"
+            }).GeneratePdf();
+
+            return await Task.FromResult(pdf);
+        }
     }
 }

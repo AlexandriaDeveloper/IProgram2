@@ -609,14 +609,65 @@ namespace Application.Features
 
             if (hasChanges)
             {
-                var result = await _unitOfWork.SaveChangesAsync(CancellationToken.None) > 0;
-                if (!result)
-                {
-                    return Result.Failure(new Error("500", "حدث خطأ أثناء حفظ التعليق"));
-                }
+                var result = await _unitOfWork.SaveChangesAsync() > 0;
+                if (!result) return Result.Failure(new Error("500", "حدث خطأ أثناء حفظ التعديلات"));
             }
 
             return Result.Success("تم حفظ التعليق بنجاح");
+        }
+
+        public async Task<MemoryStream> CreateBeneficiarySummaryExcelFile(int dailyId)
+        {
+            var summaryResult = await GetBeneficiariesSummary(dailyId);
+            if (summaryResult.IsFailure) return null;
+
+            var summaryData = summaryResult.Value;
+
+            DataTable dt = new DataTable();
+            dt.Columns.Add("م", typeof(int));
+            dt.Columns.Add("الرقم القومى", typeof(string));
+            dt.Columns.Add("كود طب", typeof(string));
+            dt.Columns.Add("كود تجارة", typeof(string));
+            dt.Columns.Add("القسم", typeof(string));
+            dt.Columns.Add("الاسم", typeof(string));
+            dt.Columns.Add("المبلغ", typeof(double));
+            dt.Columns.Add("تعليق", typeof(string));
+
+            int counter = 1;
+            foreach (var item in summaryData.Beneficiaries)
+            {
+                DataRow dr = dt.NewRow();
+                dr.SetField("م", counter++);
+                dr["الرقم القومى"] = item.EmployeeId ?? "";
+                dr["كود طب"] = item.TabCode ?? "";
+                dr["كود تجارة"] = item.TegaraCode ?? "";
+                dr["القسم"] = item.Department ?? "";
+                dr["الاسم"] = item.EmployeeName ?? "";
+                dr.SetField("المبلغ", Math.Round(item.TotalAmount, 2));
+                dr["تعليق"] = item.Comment ?? "";
+                
+                dt.Rows.Add(dr);
+            }
+
+            var npoi = new NpoiServiceProvider();
+            var workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ", "تعليق" }, dt, $"ملخص يومية - {summaryData.DailyName}");
+
+            string tempPath = Path.GetTempPath();
+            string filePath = Path.Combine(tempPath, $"DailySummary_{dailyId}.xlsx");
+            var memory = new MemoryStream();
+
+            using (var fs = new FileStream(filePath, System.IO.FileMode.Create))
+            {
+                workbook.Write(fs);
+            }
+
+            await using (var stream = new FileStream(filePath, FileMode.Open))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+
+            return memory;
         }
     }
 }

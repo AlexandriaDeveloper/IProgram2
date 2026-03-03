@@ -11,11 +11,13 @@ namespace Api.Controllers
     {
         private readonly ReportService _reportService;
         private readonly EmployeeService _employeeService;
+        private readonly DailyService _dailyService;
 
-        public ReportPdfController(ReportService reportService, EmployeeService employeeService)
+        public ReportPdfController(ReportService reportService, EmployeeService employeeService, DailyService dailyService)
         {
             this._reportService = reportService;
             this._employeeService = employeeService;
+            this._dailyService = dailyService;
         }
         // [HttpPost("PrintFormPdf")]
         // [AllowAnonymous]
@@ -69,6 +71,28 @@ namespace Api.Controllers
 
             var path = Path.GetTempPath() + "test.pdf";
 
+
+            var memory = new MemoryStream(pdf);
+            await using (var stream = new FileStream(path, FileMode.Create))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            memory.Position = 0;
+            return File(memory, "application/pdf", "test.pdf");
+        }
+
+        [HttpGet("PrintDailySummaryPdf/{dailyId}")]
+        public async Task<ActionResult> PrintDailySummaryPdf(int dailyId)
+        {
+            var summaryData = await _dailyService.GetBeneficiariesSummary(dailyId);
+            if (summaryData.IsFailure)
+            {
+                return BadRequest(summaryData.Error);
+            }
+
+            var pdf = await _reportService.PrintBeneficiarySummaryPdf(summaryData.Value);
+
+            var path = Path.GetTempPath() + "test.pdf";
 
             var memory = new MemoryStream(pdf);
             await using (var stream = new FileStream(path, FileMode.Create))

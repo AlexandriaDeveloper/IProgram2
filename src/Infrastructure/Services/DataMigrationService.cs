@@ -75,11 +75,20 @@ namespace Auth.Infrastructure.Services
                 }, result);
                 await SyncTableAsync("FormDetails", new[] {
                     "Id", "FormId", "EmployeeId", "Amount", "OrderNum", "IsReviewed", "IsReviewedBy",
-                    "ReviewedAt", "ReviewComments", "IsActive", "CreatedAt", "CreatedBy",
+                    "ReviewedAt", "ReviewComments", "IsSummaryReviewed", "IsSummaryReviewedBy",
+                    "SummaryReviewedAt", "SummaryComments", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
                 await SyncTableAsync("FormRefernce", new[] {
-                    "Id", "FormId", "Name", "FilePath", "IsActive", "CreatedAt", "CreatedBy",
+                    "Id", "FormId", "ReferencePath", "IsActive", "CreatedAt", "CreatedBy",
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+                await SyncTableAsync("EmployeeBank", new[] {
+                    "EmployeeId", "BankName", "BranchName", "AccountNumber", "IsActive", "CreatedAt", "CreatedBy",
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result, compositeKey: new[] { "EmployeeId" });
+                await SyncTableAsync("EmployeeRefernce", new[] {
+                    "Id", "EmployeeId", "ReferencePath", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
 
@@ -297,11 +306,20 @@ namespace Auth.Infrastructure.Services
                 }, result);
                 await PullTableAsync("FormDetails", new[] {
                     "Id", "FormId", "EmployeeId", "Amount", "OrderNum", "IsReviewed", "IsReviewedBy",
-                    "ReviewedAt", "ReviewComments", "IsActive", "CreatedAt", "CreatedBy",
+                    "ReviewedAt", "ReviewComments", "IsSummaryReviewed", "IsSummaryReviewedBy",
+                    "SummaryReviewedAt", "SummaryComments", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
                 await PullTableAsync("FormRefernce", new[] {
-                    "Id", "FormId", "FilePath", "IsActive", "CreatedAt", "CreatedBy",
+                    "Id", "FormId", "ReferencePath", "IsActive", "CreatedAt", "CreatedBy",
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result);
+                await PullTableAsync("EmployeeBank", new[] {
+                    "EmployeeId", "BankName", "BranchName", "AccountNumber", "IsActive", "CreatedAt", "CreatedBy",
+                    "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
+                }, result, compositeKey: new[] { "EmployeeId" });
+                await PullTableAsync("EmployeeRefernce", new[] {
+                    "Id", "EmployeeId", "ReferencePath", "IsActive", "CreatedAt", "CreatedBy",
                     "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy"
                 }, result);
 
@@ -362,16 +380,55 @@ namespace Auth.Infrastructure.Services
                     return;
                 }
 
-                // 2. Upsert to SQL Server using batched MERGE with temp table
+                // 2. Upsert to SQL Server using batched MERGE with temp table + Delete removed records
                 await using (var sqlConn = new SqlConnection(_sqlServerConn))
                 {
                     await sqlConn.OpenAsync();
 
-                    var hasIdentity = !tableName.StartsWith("AspNet");
+                    var hasIdentity = !tableName.StartsWith("AspNet") && keyColumn.Length == 1 && keyColumn[0] == "Id";
                     var columnList = string.Join(", ", columns.Select(c => $"[{c}]"));
                     var updateList = string.Join(", ", columns.Where(c => !keyColumn.Contains(c)).Select(c => $"target.[{c}] = source.[{c}]"));
                     var keyCondition = string.Join(" AND ", keyColumn.Select(k => $"target.[{k}] = source.[{k}]"));
 
+                    // 2a. Get existing IDs from SQL Server and delete records not in Supabase
+                    var existingIds = new HashSet<string>();
+                    var keySelect = string.Join(" + '|' + ", keyColumn.Select(k => $"ISNULL(CAST([{k}] AS NVARCHAR(MAX)), '')"));
+                    using (var selectCmd = new SqlCommand($"SELECT {keySelect} AS [key] FROM [{tableName}]", sqlConn))
+                    using (var reader = await selectCmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            existingIds.Add(reader.GetString(0));
+                        }
+                    }
+
+                    var sourceIds = new HashSet<string>();
+                    foreach (var row in sourceData)
+                    {
+                        var key = string.Join("|", keyColumn.Select(k => row[k]?.ToString() ?? ""));
+                        sourceIds.Add(key);
+                    }
+
+                    var toDelete = existingIds.Except(sourceIds).ToList();
+                    if (toDelete.Count > 0)
+                    {
+                        foreach (var idToDelete in toDelete)
+                        {
+                            var whereClauses = new List<string>();
+                            var idParts = idToDelete.Split('|');
+                            for (int i = 0; i < keyColumn.Length; i++)
+                            {
+                                whereClauses.Add($"[{keyColumn[i]}] = N'{idParts[i]}'");
+                            }
+                            var where = string.Join(" AND ", whereClauses);
+                            using var deleteCmd = new SqlCommand($"DELETE FROM [{tableName}] WHERE {where}", sqlConn);
+                            await deleteCmd.ExecuteNonQueryAsync();
+                        }
+                        tableResult.Deleted = toDelete.Count;
+                        Console.WriteLine($"  Deleted: {toDelete.Count} records from SQL Server");
+                    }
+
+                    // 2b. Upsert
                     int upserted = 0;
                     var batchSize = 100;
                     var batches = sourceData.Chunk(batchSize).ToArray();
@@ -437,7 +494,7 @@ namespace Auth.Infrastructure.Services
 
                     tableResult.Upserted = upserted;
                     Console.WriteLine($"  Upserted: {upserted} records");
-                    await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Inserted/Updated {upserted} records");
+                    await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"{tableName}: Inserted/Updated {upserted}, Deleted {tableResult.Deleted} records");
                 }
 
                 tableResult.Success = true;

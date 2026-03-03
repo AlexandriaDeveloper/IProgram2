@@ -49,7 +49,7 @@ public static class IdentityExtension
                 ValidateAudience = false,
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero,
-                RoleClaimType = "role"
+                RoleClaimType = System.Security.Claims.ClaimTypes.Role
 
             };
         }).AddCookie();

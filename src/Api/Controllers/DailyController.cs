@@ -178,5 +178,12 @@ namespace Api.Controllers
             var result = await _dailyService.UpdateBeneficiaryComment(dailyId, request);
             return HandleResult(result);
         }
+
+        [HttpGet("exportSummaryExcel/{dailyId}")]
+        public async Task<FileResult> ExportBeneficiariesSummaryExcel(int dailyId)
+        {
+            var ms = await _dailyService.CreateBeneficiarySummaryExcelFile(dailyId);
+            return File(ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"DailySummary_{dailyId}.xlsx");
+        }
     }
 }
