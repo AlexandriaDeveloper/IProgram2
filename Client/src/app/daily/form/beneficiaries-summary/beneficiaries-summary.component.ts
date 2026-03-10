@@ -39,7 +39,7 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
     isLoading = true;
 
     dataSource = new MatTableDataSource<any>([]);
-    displayedColumns = ['expand', 'action', 'tabCode', 'tegaraCode', 'employeeName', 'department', 'employeeId', 'totalAmount'];
+    displayedColumns = ['expand', 'action', 'tabCode', 'tegaraCode', 'employeeName', 'department', 'employeeId', 'totalAmount', 'netPay'];
     expandedElement: any = null;
 
     filterValues: { [key: string]: string } = {};
@@ -256,6 +256,10 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
 
     get totalAmount(): number {
         return this.dataSource.data.reduce((sum, current) => sum + current.totalAmount, 0);
+    }
+
+    get totalNetPay(): number {
+        return this.dataSource.data.reduce((sum, current) => sum + (current.netPay || 0), 0);
     }
 
     trackByKey(index: number, item: any): string {

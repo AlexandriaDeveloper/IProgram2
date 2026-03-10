@@ -733,7 +733,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+    WHERE [MigrationId] = N'20260310215854_AddEmployeeNetPay'
 )
 BEGIN
     CREATE TABLE [EmployeeNetPays] (
@@ -742,6 +742,14 @@ BEGIN
         [EmployeeId] nvarchar(14) NULL,
         [NetPay] float NOT NULL,
         [DailyReferenceId] int NULL,
+        [Name] nvarchar(max) NULL,
+        [CreatedBy] nvarchar(max) NULL,
+        [CreatedAt] datetime2 NOT NULL,
+        [UpdatedBy] nvarchar(max) NULL,
+        [UpdatedAt] datetime2 NULL,
+        [DeactivatedBy] nvarchar(max) NULL,
+        [DeactivatedAt] datetime2 NULL,
+        [IsActive] bit NOT NULL,
         CONSTRAINT [PK_EmployeeNetPays] PRIMARY KEY ([Id]),
         CONSTRAINT [FK_EmployeeNetPays_DailyReference_DailyReferenceId] FOREIGN KEY ([DailyReferenceId]) REFERENCES [DailyReference] ([Id]),
         CONSTRAINT [FK_EmployeeNetPays_Daily_DailyId] FOREIGN KEY ([DailyId]) REFERENCES [Daily] ([Id]) ON DELETE CASCADE,
@@ -752,7 +760,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+    WHERE [MigrationId] = N'20260310215854_AddEmployeeNetPay'
 )
 BEGIN
     EXEC(N'CREATE UNIQUE INDEX [IX_EmployeeNetPays_DailyId_EmployeeId] ON [EmployeeNetPays] ([DailyId], [EmployeeId]) WHERE [EmployeeId] IS NOT NULL');
@@ -761,7 +769,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+    WHERE [MigrationId] = N'20260310215854_AddEmployeeNetPay'
 )
 BEGIN
     CREATE INDEX [IX_EmployeeNetPays_DailyReferenceId] ON [EmployeeNetPays] ([DailyReferenceId]);
@@ -770,7 +778,7 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+    WHERE [MigrationId] = N'20260310215854_AddEmployeeNetPay'
 )
 BEGIN
     CREATE INDEX [IX_EmployeeNetPays_EmployeeId] ON [EmployeeNetPays] ([EmployeeId]);
@@ -779,11 +787,11 @@ GO
 
 IF NOT EXISTS (
     SELECT * FROM [__EFMigrationsHistory]
-    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+    WHERE [MigrationId] = N'20260310215854_AddEmployeeNetPay'
 )
 BEGIN
     INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
-    VALUES (N'20260310211359_AddEmployeeNetPay', N'8.0.0');
+    VALUES (N'20260310215854_AddEmployeeNetPay', N'8.0.0');
 END;
 GO
 

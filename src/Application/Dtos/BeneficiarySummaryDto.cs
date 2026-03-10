@@ -26,6 +26,7 @@ namespace Application.Dtos
         public double TotalAmount { get; set; }
         public bool IsFullyReviewed { get; set; }
         public string Comment { get; set; }
+        public double? NetPay { get; set; }
         public List<BeneficiaryDetailDto> Details { get; set; } = new List<BeneficiaryDetailDto>();
     }
 
@@ -35,6 +36,7 @@ namespace Application.Dtos
         public DateTime DailyDate { get; set; }
         public double TotalAmount { get; set; }
         public int TotalBeneficiaries { get; set; }
+        public double? TotalNetPay { get; set; }
         public List<BeneficiarySummaryDto> Beneficiaries { get; set; } = new List<BeneficiarySummaryDto>();
     }
 }

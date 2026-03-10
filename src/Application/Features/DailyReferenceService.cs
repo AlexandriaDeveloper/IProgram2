@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Application.Dtos.Requests;
 using Application.Helpers;
@@ -7,6 +8,7 @@ using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features
 {
@@ -17,14 +19,28 @@ namespace Application.Features
         private readonly IWebHostEnvironment _hostEnvironment;
         private readonly IFileStorageService _fileStorageService;
         private readonly Microsoft.Extensions.Logging.ILogger<DailyReferenceService> _logger;
+        private readonly PayrollPdfParserService _payrollPdfParserService;
+        private readonly IEmployeeRepository _employeeRepository;
+        private readonly IEmployeeNetPayRepository _employeeNetPayRepository;
 
-        public DailyReferenceService(IDailyReferencesRepository dailyReferencesRepository, IUnitOfWork uow, IWebHostEnvironment hostEnvironment, IFileStorageService fileStorageService, Microsoft.Extensions.Logging.ILogger<DailyReferenceService> logger)
+        public DailyReferenceService(
+            IDailyReferencesRepository dailyReferencesRepository, 
+            IUnitOfWork uow, 
+            IWebHostEnvironment hostEnvironment, 
+            IFileStorageService fileStorageService, 
+            Microsoft.Extensions.Logging.ILogger<DailyReferenceService> logger,
+            PayrollPdfParserService payrollPdfParserService,
+            IEmployeeRepository employeeRepository,
+            IEmployeeNetPayRepository employeeNetPayRepository)
         {
             _dailyReferencesRepository = dailyReferencesRepository;
             _uow = uow;
             _hostEnvironment = hostEnvironment;
             _fileStorageService = fileStorageService;
             _logger = logger;
+            _payrollPdfParserService = payrollPdfParserService;
+            _employeeRepository = employeeRepository;
+            _employeeNetPayRepository = employeeNetPayRepository;
         }
 
         public async Task<Result<object>> DeleteReference(int id)
@@ -36,6 +52,12 @@ namespace Application.Features
             if (dailyReference == null)
             {
                 return Result.Failure(new Error("404", "المرجع غير موجود."));
+            }
+
+            var relatedNetPays = await _employeeNetPayRepository.GetQueryable().Where(n => n.DailyReferenceId == id).ToListAsync();
+            foreach (var netPay in relatedNetPays)
+            {
+                await _employeeNetPayRepository.Delete(netPay.Id);
             }
 
             await _dailyReferencesRepository.Delete(dailyReference.Id);
@@ -118,6 +140,45 @@ namespace Application.Features
             {
                 if (File.Exists(path)) File.Delete(path);
                 return Result.Failure(new Error("500", "فشلت عملية حفظ المرجع فى قاعدة البيانات."));
+            }
+
+            // Check if file is PDF, then parse it for NetPay
+            if (path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
+                    {
+                        var netPayDict = _payrollPdfParserService.ParseNetPayFromPdf(stream);
+                        if (netPayDict.Any())
+                        {
+                            var nationalIds = netPayDict.Keys.ToList();
+                            var existingEmployees = await _employeeRepository.GetQueryable().Where(e => nationalIds.Contains(e.Id)).ToListAsync();
+                            var validEmployeeIds = existingEmployees.Select(e => e.Id).ToHashSet();
+
+                            foreach (var kvp in netPayDict)
+                            {
+                                if (validEmployeeIds.Contains(kvp.Key))
+                                {
+                                    var employeeNetPay = new EmployeeNetPay
+                                    {
+                                        DailyId = request.DailyId,
+                                        EmployeeId = kvp.Key,
+                                        NetPay = kvp.Value,
+                                        DailyReferenceId = dailyReference.Id
+                                    };
+                                    await _employeeNetPayRepository.Insert(employeeNetPay);
+                                }
+                            }
+                            
+                            await _uow.SaveChangesAsync();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to parse PDF and save NetPay records.");
+                }
             }
 
             return Result.Success("تم رفع الملف بنجاح.");

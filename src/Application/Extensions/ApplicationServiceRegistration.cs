@@ -25,6 +25,7 @@ namespace Application.Extensions
             services.AddScoped<FormService>();
             services.AddScoped<RoleService>();
             services.AddScoped<UserAuthService>();
+            services.AddScoped<PayrollPdfParserService>();
             return services;
         }
     }

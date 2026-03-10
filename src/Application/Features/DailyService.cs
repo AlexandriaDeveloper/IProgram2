@@ -27,9 +27,10 @@ namespace Application.Features
         private readonly IFormRepository _formRepository;
         private readonly ReportService _reportService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IEmployeeNetPayRepository _employeeNetPayRepository;
         private IConfiguration _config;
 
-        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config)
+        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository)
         {
             this._formRepository = formRepository;
             this._reportService = reportService;
@@ -37,6 +38,7 @@ namespace Application.Features
             this._dailyRepository = dailyRepository;
             this._config = config;
             this._userManager = userManager;
+            this._employeeNetPayRepository = employeeNetPayRepository;
         }
 
         public async Task<Result<DailyDto>> AddDaily(DailyDto dailyDto, CancellationToken cancellationToken)
@@ -526,6 +528,9 @@ namespace Application.Features
                 }
             }
 
+            var netPays = await _employeeNetPayRepository.GetQueryable().Where(n => n.DailyId == dailyId).ToListAsync();
+            var netPayDict = netPays.ToDictionary(n => n.EmployeeId, n => n.NetPay);
+
             var grouped = allFormDetails
                 .GroupBy(x => x.Detail.EmployeeId)
                 .Select(g => new BeneficiarySummaryDto
@@ -536,6 +541,7 @@ namespace Application.Features
                     TabCode = g.First().Detail.Employee?.TabCode?.ToString(),
                     TegaraCode = g.First().Detail.Employee?.TegaraCode?.ToString(),
                     TotalAmount = Math.Round(g.Sum(x => x.Detail.Amount), 2),
+                    NetPay = netPayDict.ContainsKey(g.Key) ? netPayDict[g.Key] : (double?)null,
                     IsFullyReviewed = g.All(x => x.Detail.IsSummaryReviewed),
                     Details = g.Select(x => new BeneficiaryDetailDto
                     {
@@ -569,6 +575,7 @@ namespace Application.Features
                 DailyDate = daily.DailyDate,
                 TotalAmount = Math.Round(grouped.Sum(x => x.TotalAmount), 2),
                 TotalBeneficiaries = grouped.Count,
+                TotalNetPay = grouped.Sum(x => x.NetPay),
                 Beneficiaries = grouped
             };
 

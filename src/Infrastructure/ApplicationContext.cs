@@ -9,6 +9,7 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<Employee> Employees { get; set; }
     public DbSet<Department> Departments { get; set; }
+    public DbSet<EmployeeNetPay> EmployeeNetPays { get; set; }
 
     public ApplicationContext(DbContextOptions<ApplicationContext> options) : base(options) { }
     protected ApplicationContext(DbContextOptions options) : base(options) { }
@@ -54,6 +55,10 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
             entity.HasIndex(fd => fd.FormId);
         });
 
+        builder.Entity<EmployeeNetPay>(entity =>
+        {
+            entity.HasIndex(e => new { e.DailyId, e.EmployeeId }).IsUnique();
+        });
 
         base.OnModelCreating(builder);
     }

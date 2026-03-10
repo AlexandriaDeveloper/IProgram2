@@ -728,3 +728,65 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+)
+BEGIN
+    CREATE TABLE [EmployeeNetPays] (
+        [Id] int NOT NULL IDENTITY,
+        [DailyId] int NOT NULL,
+        [EmployeeId] nvarchar(14) NULL,
+        [NetPay] float NOT NULL,
+        [DailyReferenceId] int NULL,
+        CONSTRAINT [PK_EmployeeNetPays] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_EmployeeNetPays_DailyReference_DailyReferenceId] FOREIGN KEY ([DailyReferenceId]) REFERENCES [DailyReference] ([Id]),
+        CONSTRAINT [FK_EmployeeNetPays_Daily_DailyId] FOREIGN KEY ([DailyId]) REFERENCES [Daily] ([Id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_EmployeeNetPays_Employees_EmployeeId] FOREIGN KEY ([EmployeeId]) REFERENCES [Employees] ([Id])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [IX_EmployeeNetPays_DailyId_EmployeeId] ON [EmployeeNetPays] ([DailyId], [EmployeeId]) WHERE [EmployeeId] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+)
+BEGIN
+    CREATE INDEX [IX_EmployeeNetPays_DailyReferenceId] ON [EmployeeNetPays] ([DailyReferenceId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+)
+BEGIN
+    CREATE INDEX [IX_EmployeeNetPays_EmployeeId] ON [EmployeeNetPays] ([EmployeeId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260310211359_AddEmployeeNetPay'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260310211359_AddEmployeeNetPay', N'8.0.0');
+END;
+GO
+
+COMMIT;
+GO
+
