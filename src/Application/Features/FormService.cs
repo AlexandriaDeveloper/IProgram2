@@ -41,13 +41,13 @@ namespace Application.Features
         private readonly ICurrentUserService _currentUserService;
 
         public FormService(
-            IFormRepository formRepository, 
-            IFormDetailsRepository formDetailsRepository, 
-            IDailyRepository dailyRepository, 
-            IEmployeeRepository employeeRepository, 
-            IUnitOfWork unitOfWork, 
-            IHttpContextAccessor httpContextAccessor, 
-            UserManager<ApplicationUser> userManager, 
+            IFormRepository formRepository,
+            IFormDetailsRepository formDetailsRepository,
+            IDailyRepository dailyRepository,
+            IEmployeeRepository employeeRepository,
+            IUnitOfWork unitOfWork,
+            IHttpContextAccessor httpContextAccessor,
+            UserManager<ApplicationUser> userManager,
             IMemoryCache cache,
             ICurrentUserService currentUserService)
         {
@@ -107,17 +107,21 @@ namespace Application.Features
 
             // Batch-load FormDetails aggregates (count, sum, all-reviewed) in a single grouped query
             var formIds = result.Select(x => x.Id).ToList();
-            var aggregates = await _formDetailsRepository.GetQueryable()
+            var rawDetails = await _formDetailsRepository.GetQueryable()
                 .Where(fd => formIds.Contains(fd.FormId))
+                .Select(fd => new { fd.FormId, fd.Amount, fd.IsReviewed })
+                .ToListAsync();
+
+            var aggregates = rawDetails
                 .GroupBy(fd => fd.FormId)
-                .Select(g => new
-                {
-                    FormId = g.Key,
-                    Count = g.Count(),
-                    TotalAmount = g.Sum(fd => fd.Amount),
-                    AllReviewed = g.All(fd => fd.IsReviewed)
-                })
-                .ToDictionaryAsync(a => a.FormId);
+                .ToDictionary(
+                    g => g.Key,
+                    g => new
+                    {
+                        Count = g.Count(),
+                        TotalAmount = g.Sum(fd => fd.Amount),
+                        AllReviewed = g.All(fd => fd.IsReviewed)
+                    });
 
             // Batch-load user display names to avoid N+1 blocking calls
             var userIds = result.Select(x => x.CreatedBy).Where(x => x != null).Distinct().ToList();

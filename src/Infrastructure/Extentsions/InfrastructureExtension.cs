@@ -20,13 +20,13 @@ public static class InfrastructureExtension
         // {
         //     services.AddDbContext<SupabaseContext>(options =>
         //         options.UseNpgsql(supabaseConnection));
-            
+
         //     services.AddScoped<ApplicationContext>(provider => provider.GetRequiredService<SupabaseContext>());
         // }
-         if (!string.IsNullOrEmpty(defaultConnection))
+        if (!string.IsNullOrEmpty(defaultConnection))
         {
             services.AddDbContext<ApplicationContext>(options =>
-               options.UseSqlServer(defaultConnection));
+               options.UseSqlServer(defaultConnection, o => o.UseCompatibilityLevel(120)));
         }
 
 
