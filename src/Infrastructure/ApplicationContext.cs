@@ -1,4 +1,4 @@
-﻿using Core.Models;
+using Core.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -47,6 +47,11 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Form>(entity =>
         {
             entity.HasOne(x => x.User).WithMany().HasForeignKey(k => k.CreatedBy);
+        });
+
+        builder.Entity<FormDetails>(entity =>
+        {
+            entity.HasIndex(fd => fd.FormId);
         });
 
 

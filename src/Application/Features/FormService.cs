@@ -101,22 +101,49 @@ namespace Application.Features
             }
 
 
+
             var result = await _formRepository.ListAllAsync(spec, withInactive: true, trackChanges: false);
             var count = await _formRepository.CountAsync(specCount);
 
+            // Batch-load FormDetails aggregates (count, sum, all-reviewed) in a single grouped query
+            var formIds = result.Select(x => x.Id).ToList();
+            var aggregates = await _formDetailsRepository.GetQueryable()
+                .Where(fd => formIds.Contains(fd.FormId))
+                .GroupBy(fd => fd.FormId)
+                .Select(g => new
+                {
+                    FormId = g.Key,
+                    Count = g.Count(),
+                    TotalAmount = g.Sum(fd => fd.Amount),
+                    AllReviewed = g.All(fd => fd.IsReviewed)
+                })
+                .ToDictionaryAsync(a => a.FormId);
 
-            var resultToReturn = result.Select(x => new FormDto
+            // Batch-load user display names to avoid N+1 blocking calls
+            var userIds = result.Select(x => x.CreatedBy).Where(x => x != null).Distinct().ToList();
+            var userDisplayNames = new Dictionary<string, string>();
+            foreach (var uid in userIds)
             {
-                Name = x.Name,
-                Id = x.Id,
-                Index = x.Index,
-                Description = x.Description,
-                DailyId = x.DailyId,
-                Count = x.FormDetails.Count,
-                TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
-                CreatedBy = _userManager.FindByIdAsync(x.CreatedBy).Result.DisplayName,
-                isReviewed = x.FormDetails.All(d => d.IsReviewed),
-                isActive = x.IsActive,
+                var u = await _userManager.FindByIdAsync(uid);
+                if (u != null) userDisplayNames[uid] = u.DisplayName;
+            }
+
+            var resultToReturn = result.Select(x =>
+            {
+                aggregates.TryGetValue(x.Id, out var agg);
+                return new FormDto
+                {
+                    Name = x.Name,
+                    Id = x.Id,
+                    Index = x.Index,
+                    Description = x.Description,
+                    DailyId = x.DailyId,
+                    Count = agg?.Count ?? 0,
+                    TotalAmount = Math.Round(agg?.TotalAmount ?? 0, 2),
+                    CreatedBy = x.CreatedBy != null && userDisplayNames.TryGetValue(x.CreatedBy, out var displayName) ? displayName : null,
+                    isReviewed = agg?.AllReviewed ?? true,
+                    isActive = x.IsActive,
+                };
             }).ToList();
             var pagedResult = PaginatedResult<FormDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormDto>>(pagedResult);

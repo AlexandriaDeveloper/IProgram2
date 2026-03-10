@@ -13,7 +13,6 @@ namespace Persistence.Specifications
         {
 
 
-            AddInclude(x => x.FormDetails);
             if (!string.IsNullOrEmpty(param.Name))
             {
                 AddCriteries(x => x.Name.Contains(param.Name));
