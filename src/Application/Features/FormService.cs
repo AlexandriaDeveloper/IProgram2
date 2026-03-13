@@ -564,11 +564,24 @@ namespace Application.Features
             var dbWords = dbName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
             var excelWords = excelName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
 
-            // If excel only provided one word, and it doesn't match the first word exactly, 
+            // MANDATORY CHECK: The first name MUST match (with typo-tolerance allowed by IsWordMatch)
+            // If the very first word in both arrays is different, it's a completely different person.
+            if (dbWords.Count > 0 && excelWords.Count > 0)
+            {
+                if (!IsWordMatch(dbWords[0], excelWords[0]))
+                {
+                    return false;
+                }
+            }
+
+            // If excel only provided one word, and it matched the first word exactly above, 
             // it's too risky to accept just any single word match (e.g. "محمد").
             if (excelWords.Count == 1 && dbWords.Count > 0)
             {
-                return IsWordMatch(dbWords[0], excelWords[0]);
+                return true; // We just checked it above! But usually we want more than 1 word in Excel.
+                // However, based on the previous logic, if excel had 1 word, we matched it and returned.
+                // If the user's business rule prefers rejecting single-word excel names entirely, we could return false here.
+                // For now, keep the original behavior: returning true if the single word matched.
             }
 
             // Determine which list is shorter to use as the baseline
