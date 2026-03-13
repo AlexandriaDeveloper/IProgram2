@@ -477,15 +477,9 @@ namespace Application.Features
                     string dbNameStr = empExist.Name ?? "";
                     string excelNameStr = row.ItemArray[5]?.ToString() ?? "";
 
-                    string dbFirstNameStr = dbNameStr.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-                    string excelFirstNameStr = excelNameStr.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-
-                    string dbNorm = NormalizeArabicText(dbFirstNameStr);
-                    string excelNorm = NormalizeArabicText(excelFirstNameStr);
-
-                    if (!IsNameMatch(dbNorm, excelNorm))
+                    if (!IsAdvancedNameMatch(dbNameStr, excelNameStr))
                     {
-                        messages.Add($@"يوجد اختلاف في الاسم الأول بالسطر رقم {counter}: مسجل لدينا ({dbFirstNameStr}) وفي الملف ({excelFirstNameStr}) للموظف ({message})");
+                        messages.Add($@"يوجد اختلاف في الاسم بالسطر رقم {counter}: مسجل لدينا ({dbNameStr}) وفي الملف ({excelNameStr}) للموظف ({message})");
                         counter++; // Need to increment counter here as well if we are skipping/recording error
                         continue;
                     }
@@ -553,38 +547,115 @@ namespace Application.Features
             _cache.Remove(cacheKey);
         }
 
-        private bool IsNameMatch(string dbNameNorm, string otherNameNorm)
+        private bool IsAdvancedNameMatch(string dbName, string excelName)
         {
-            // Exact match
-            if (dbNameNorm == otherNameNorm)
+            if (string.IsNullOrWhiteSpace(dbName) || string.IsNullOrWhiteSpace(excelName))
+                return false;
+
+            // 1. Normalize
+            dbName = NormalizeArabicText(dbName);
+            excelName = NormalizeArabicText(excelName);
+
+            // Exact match after normalization
+            if (dbName == excelName)
                 return true;
 
-            // Sometimes the PDF generator splits 'عبد ال-' into two words or joins them
-            // So 'عبدالرحمن' might become 'عبد'  in the first word.
-            // If one is 'عبد' and the other starts with 'عبد', it's highly likely the same person
-            if (dbNameNorm == "عبد" && otherNameNorm.StartsWith("عبد"))
-                return true;
-            if (otherNameNorm == "عبد" && dbNameNorm.StartsWith("عبد"))
-                return true;
+            // 2. Split into words
+            var dbWords = dbName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+            var excelWords = excelName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
 
-            // Abu / Abou
-            if (dbNameNorm == "ابو" && otherNameNorm.StartsWith("ابو"))
-                return true;
-            if (otherNameNorm == "ابو" && dbNameNorm.StartsWith("ابو"))
-                return true;
-
-            // Allow for a 1-character typo if the names are long enough (e.g., 4+ characters)
-            // Or if one is a substring of the other (like 'احمد' and 'احم')
-            if (dbNameNorm.Length >= 3 && otherNameNorm.Length >= 3)
+            // If excel only provided one word, and it doesn't match the first word exactly, 
+            // it's too risky to accept just any single word match (e.g. "محمد").
+            if (excelWords.Count == 1 && dbWords.Count > 0)
             {
-                if (dbNameNorm.StartsWith(otherNameNorm.Substring(0, 3)) ||
-                    otherNameNorm.StartsWith(dbNameNorm.Substring(0, 3)))
+                return IsWordMatch(dbWords[0], excelWords[0]);
+            }
+
+            // Determine which list is shorter to use as the baseline
+            var shorterList = dbWords.Count <= excelWords.Count ? dbWords : excelWords;
+            var longerList = dbWords.Count <= excelWords.Count ? excelWords : dbWords;
+
+            // 3. Count matching words (allowing out-of-order matches)
+            int matches = 0;
+            bool[] matchedIndices = new bool[longerList.Count];
+
+            foreach (var shortWord in shorterList)
+            {
+                for (int i = 0; i < longerList.Count; i++)
                 {
-                    return true;
+                    if (!matchedIndices[i] && IsWordMatch(longerList[i], shortWord))
+                    {
+                        matches++;
+                        matchedIndices[i] = true;
+                        break; // Move to the next word in the shorter list
+                    }
+                }
+            }
+
+            // 4. Threshold Logic:
+            if (shorterList.Count <= 2)
+            {
+                // For 1 or 2 words, we must match all of them
+                return matches == shorterList.Count;
+            }
+            else
+            {
+                // For 3+ words, we allow missing 1 word (e.g. matched 3 out of 4, or 2 out of 3)
+                // This covers cases where one name has an extra arbitrary 4th name, or is missing a name.
+                return matches >= (shorterList.Count - 1);
+            }
+        }
+
+        private bool IsWordMatch(string dbWord, string excelWord)
+        {
+            if (dbWord == excelWord) return true;
+
+            // "عبد" handling
+            if (dbWord == "عبد" && excelWord.StartsWith("عبد")) return true;
+            if (excelWord == "عبد" && dbWord.StartsWith("عبد")) return true;
+
+            if (dbWord == "ابو" && excelWord.StartsWith("ابو")) return true;
+            if (excelWord == "ابو" && dbWord.StartsWith("ابو")) return true;
+
+            // Prefix match for abbreviations
+            if (dbWord.Length >= 3 && excelWord.Length >= 3)
+            {
+                if (dbWord.StartsWith(excelWord) || excelWord.StartsWith(dbWord)) return true;
+
+                // Levenshtein Distance for typos (allow 1 mistake for words >= 4 chars)
+                if (dbWord.Length >= 4 && excelWord.Length >= 4)
+                {
+                    int distance = GetLevenshteinDistance(dbWord, excelWord);
+                    if (distance <= 1) return true;
                 }
             }
 
             return false;
+        }
+
+        private int GetLevenshteinDistance(string s, string t)
+        {
+            if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;
+            if (string.IsNullOrEmpty(t)) return s.Length;
+
+            int n = s.Length;
+            int m = t.Length;
+            int[,] d = new int[n + 1, m + 1];
+
+            for (int i = 0; i <= n; d[i, 0] = i++) { }
+            for (int j = 0; j <= m; d[0, j] = j++) { }
+
+            for (int i = 1; i <= n; i++)
+            {
+                for (int j = 1; j <= m; j++)
+                {
+                    int cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
+                    d[i, j] = Math.Min(
+                        Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                        d[i - 1, j - 1] + cost);
+                }
+            }
+            return d[n, m];
         }
 
         private string NormalizeArabicText(string input)

@@ -1,0 +1,28 @@
+# --- ملفات البيئة والنظام (تستهلك كوتا ضخمة) ---
+bin/
+obj/
+.vs/
+.vscode/
+node_modules/
+venv/
+.env
+__pycache__/
+
+# --- ملفات الداتا واللوجز ---
+*.log
+*.sqlite
+*.db
+*.csv
+*.xlsx
+App_Data/
+
+# --- ملفات الميديا والـ Assets ---
+wwwroot/lib/
+wwwroot/images/
+*.png
+*.jpg
+*.pdf
+
+# --- ملفات الـ Build والـ تارجت ---
+dist/
+publish/
