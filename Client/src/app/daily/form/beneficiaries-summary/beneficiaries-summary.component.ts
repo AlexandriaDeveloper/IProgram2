@@ -289,4 +289,39 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
             }
         });
     }
+
+    onVerifyPdfSelected(event: any) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        this.isLoading = true;
+        this.dailyService.verifyPdf(this.dailyId, file).subscribe({
+            next: (response: any) => {
+                this.toaster.openSuccessToaster('تمت مراجعة الملف بنجاح وتوليد التقرير');
+
+                // Download the report
+                let blob = new Blob([response.body], { type: 'text/plain;charset=utf-8' });
+                const url = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = `VerifyReport_${this.dailyId}_${new Date().getTime()}.txt`;
+                a.click();
+
+                // Reload data to show updated net pay and reviewed status
+                this.loadSummary();
+
+                // Reset file input
+                event.target.value = '';
+            },
+            error: (err) => {
+                this.isLoading = false;
+                console.error('Verify PDF error:', err);
+                if (err.error instanceof Blob) {
+                    err.error.text().then((text: string) => console.error('BLOB_TEXT:', text));
+                }
+                this.toaster.openErrorToaster('حدث خطأ أثناء مراجعة الملف');
+                event.target.value = '';
+            }
+        });
+    }
 }

@@ -8,6 +8,13 @@
             <mat-icon>more_vert</mat-icon>
         </button>
         <mat-menu #menu="matMenu">
+            <button mat-menu-item (click)="verifyPdfInput.click()">
+                <mat-icon>fact_check</mat-icon>
+                مراجعة PDF
+            </button>
+            <input type="file" #verifyPdfInput style="display: none;" accept="application/pdf"
+                (change)="onVerifyPdfSelected($event)">
+
             <button mat-menu-item (click)="exportPdf()" [disabled]="dataSource?.data?.length===0">
                 <mat-icon>picture_as_pdf</mat-icon>
                 استخراج تقرير (PDF)

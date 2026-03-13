@@ -1,0 +1,174 @@
+Left: 265.0, Bottom: 765.7, Text: ﺐﺗﺍﻭﺮﻠﻟ
+Left: 301.4, Bottom: 765.7, Text: ﻞﻛﺍﺭﻭﺃ
+Left: 333.1, Bottom: 765.7, Text: ﻡﺎﻈﻧ
+Left: 230.7, Bottom: 747.6, Text: ٢٠٢٦
+Left: 259.9, Bottom: 747.6, Text: ﺔــــــﻨﺳ
+Left: 304.6, Bottom: 747.6, Text: ﺱﺭﺎﻣ
+Left: 331.4, Bottom: 747.6, Text: :ﺮﻬﺷ
+Left: 356.6, Bottom: 747.6, Text: ﻦﻋ
+Left: 372.7, Bottom: 747.6, Text: ﺐﺗﺮﻤﻟﺍ
+Left: 247.8, Bottom: 731.5, Text: ﻲﺒﻄﻟﺍ
+Left: 275.8, Bottom: 731.5, Text: ﻊﻤﺠﻤﻠﻟ:
+Left: 314.3, Bottom: 731.5, Text: ﺐﺗﺍﻭﺭ
+Left: 344.0, Bottom: 731.5, Text: ﻒﺸﻛ
+Left: 157.6, Bottom: 716.5, Text: BR_٣٠٢٠٠١٠٥
+Left: 510.6, Bottom: 716.5, Text: ٠٥:٠٣
+Left: 540.5, Bottom: 716.5, Text: ١٢/٠٣/٢٠٢٦
+Left: 63.8, Bottom: 702.6, Text: ٢٩٥١١١٩١٨٠١١٦٨
+Left: 142.1, Bottom: 702.6, Text: :ﻰﻣﻮﻘﻟﺍ
+Left: 170.8, Bottom: 702.6, Text: ﻢﻗﺮﻟﺍ
+Left: 240.4, Bottom: 702.6, Text: ٣٠٢٠٠١٠٥-٤٤٠٠١
+Left: 316.3, Bottom: 702.6, Text: :ﻑﺮﺼﻟﺍ
+Left: 347.4, Bottom: 702.6, Text: ﻢﻗﺭ
+Left: 450.6, Bottom: 702.6, Text: ﻪﻠﻟﺍ
+Left: 465.7, Bottom: 702.6, Text: ﺐﺴﺣ
+Left: 490.7, Bottom: 702.6, Text: ﺪﻤﺤﻣ
+Left: 512.9, Bottom: 702.6, Text: ﺪﻤﺤﻣ
+Left: 535.1, Bottom: 702.6, Text: ﻥﺎﻤﻳﺍ
+Left: 555.6, Bottom: 702.6, Text: :ﻒﻇﻮﻤﻟﺍ
+Left: 589.0, Bottom: 702.6, Text: ﻢﺳﺍ
+Left: 241.1, Bottom: 686.2, Text: ﺕﺎﻗﺎﻄﺒﻟﺍ
+Left: 275.9, Bottom: 686.2, Text: ﺰﻛﺮﻣ
+Left: 295.3, Bottom: 686.2, Text: :ﻉﺮﻔﻟﺍ
+Left: 337.8, Bottom: 686.2, Text: ﻯﺮﺼﻤﻟﺍ
+Left: 368.2, Bottom: 686.2, Text: ﻰﻠﻫﻷﺍ
+Left: 393.1, Bottom: 686.2, Text: ﻚﻨﺒﻟﺍ
+Left: 414.4, Bottom: 686.2, Text: :ﻚﻨﺒﻟﺍ
+Left: 507.9, Bottom: 686.2, Text: ﻰﻧﻭﺮﺘﻜﻟﺍ
+Left: 541.8, Bottom: 686.2, Text: ﻊﻓﺩ
+Left: 558.6, Bottom: 686.2, Text: :ﻑﺮﺼﻟﺍ
+Left: 589.6, Bottom: 686.2, Text: ﻉﻮﻧ
+Left: 227.4, Bottom: 669.8, Text: ﺔﻧﻭﺎﻌﻤﻟﺍ
+Left: 257.5, Bottom: 669.8, Text: ﺔﺌﻴﻬﻟﺍﻭ
+Left: 285.5, Bottom: 669.8, Text: ﺲﻳﺭﺪﺘﻟﺍ
+Left: 317.3, Bottom: 669.8, Text: ﺔﺌﻴﻫ
+Left: 335.8, Bottom: 669.8, Text: -
+Left: 341.9, Bottom: 669.8, Text: ﺐﻄﻟﺍ
+Left: 364.4, Bottom: 669.8, Text: ﺔﻴﻠﻛ
+Left: 382.6, Bottom: 669.8, Text: :ﺓﺭﺍﺩﻻﺍ
+Left: 480.1, Bottom: 669.8, Text: ﺔﺜﻟﺎﺛ
+Left: 501.9, Bottom: 669.8, Text: :ﺔﺟﺭﺪﻟﺍ
+Left: 551.3, Bottom: 669.8, Text: :ﻰﻨﻴﻣﺎﺘﻟﺍ
+Left: 584.8, Bottom: 669.8, Text: ﻢﻗﺮﻟﺍ
+Left: 146.9, Bottom: 646.6, Text: ﺕﺎﻋﺎﻄﻘﺘﺳﻻﺍ
+Left: 445.4, Bottom: 646.6, Text: ﺕﺎﻗﺎﻘﺤﺘﺳﻻﺍ
+Left: 36.9, Bottom: 620.7, Text: ﻰﻟﺎﻤﺟﻹﺍ
+Left: 98.8, Bottom: 620.7, Text: ﺔﻤﻴﻘﻟﺍ
+Left: 185.6, Bottom: 620.7, Text: ﻢﺳﻻﺍ
+Left: 343.0, Bottom: 620.7, Text: ﻰﻟﺎﻤﺟﻹﺍ
+Left: 412.8, Bottom: 620.7, Text: ﺔﻤﻴﻘﻟﺍ
+Left: 495.1, Bottom: 620.7, Text: ﻢﺳﻻﺍ
+Left: 267.9, Bottom: 603.0, Text: ٤١١١٠٢٠١
+Left: 346.4, Bottom: 599.9, Text: ٢،٠٧٠
+Left: 462.9, Bottom: 599.9, Text: ﺕﺎﻓﺎﻜﻣ_ﺲﻳﺭﺪﺘﻟﺍ
+Left: 520.9, Bottom: 599.9, Text: ﺕﺎﻓﺎﻜﻣ
+Left: 101.8, Bottom: 598.9, Text: ٢٩٥
+Left: 155.4, Bottom: 598.9, Text: ﺔﻣﻮﻜﺤﻟﺍ
+Left: 184.7, Bottom: 598.9, Text: ﺔﺼﺣ
+Left: 204.1, Bottom: 598.9, Text: ﺕﺎﻨﻴﻣﺄﺘﻟﺍ
+Left: 569.4, Bottom: 598.7, Text: ٢١١١٠٣١٠
+Left: 267.9, Bottom: 578.4, Text: ٤١١١٠٢٠١
+Left: 100.7, Bottom: 574.4, Text: ٢٠٫٧
+Left: 161.7, Bottom: 574.4, Text: ﺓﺎﻓﺎﻜﻤﻟﺍ
+Left: 188.4, Bottom: 574.4, Text: ﻡﺎﻈﻧ
+Left: 204.7, Bottom: 574.4, Text: ١
+Left: 212.0, Bottom: 574.4, Text: ﻦﻣﺆﻣ
+Left: 346.4, Bottom: 572.7, Text: ٢،٠٧٠
+Left: 466.6, Bottom: 572.3, Text: ﺕﺎﻗﺎﻘﺤﺘﺳﻻﺍ
+Left: 515.9, Bottom: 572.3, Text: ﻰﻟﺎﻤﺟﺃ
+Left: 267.9, Bottom: 553.9, Text: ٤١١١٠٢٠١
+Left: 417.1, Bottom: 551.4, Text: ٥٫٢
+Left: 461.1, Bottom: 551.4, Text: ﻞﻤﻋ
+Left: 477.3, Bottom: 551.4, Text: ﺔﺑﺎﺻﺍ
+Left: 497.6, Bottom: 551.4, Text: ٠٫٢٥%
+Left: 524.9, Bottom: 551.4, Text: ﺔﻣﻮﻜﺣ
+Left: 569.4, Bottom: 550.2, Text: ٢١١٢٠٢٠٢
+Left: 98.3, Bottom: 549.8, Text: ١٨٦٫٣
+Left: 145.7, Bottom: 549.8, Text: ﺓﺎﻓﻭ
+Left: 160.4, Bottom: 549.8, Text: ﻭ
+Left: 166.3, Bottom: 549.8, Text: ﺰﺠﻋ
+Left: 183.4, Bottom: 549.8, Text: ﻭ
+Left: 189.3, Bottom: 549.8, Text: ﺔﺧﻮﺨﻴﺷ
+Left: 220.7, Bottom: 549.8, Text: ٩
+Left: 228.0, Bottom: 549.8, Text: ﻦﻣﺆﻣ
+Left: 267.9, Bottom: 529.3, Text: ٤١١١٠٢٠٢
+Left: 414.7, Bottom: 528.9, Text: ٢٠٫٧
+Left: 469.8, Bottom: 528.9, Text: ﻞﻤﻋ
+Left: 486.0, Bottom: 528.9, Text: ﺔﺑﺎﺻﺍ
+Left: 506.3, Bottom: 528.9, Text: ١
+Left: 516.2, Bottom: 528.9, Text: ﺔﻣﻮﻜﺣ
+Left: 569.4, Bottom: 527.7, Text: ٢١١٢٠٢٠٢
+Left: 100.7, Bottom: 525.2, Text: ٢٠٫٧
+Left: 162.8, Bottom: 525.2, Text: ﻰﺤﺻ
+Left: 184.2, Bottom: 525.2, Text: ﻦﻴﻣﺎﺗ
+Left: 203.5, Bottom: 525.2, Text: ١
+Left: 210.9, Bottom: 525.2, Text: ﻦﻣﺆﻣ
+Left: 149.3, Bottom: 503.7, Text: ﻦﻴﻣﺄﺗ
+Left: 168.6, Bottom: 503.7, Text: ﺔﻣﻮﻜﺤﻟﺍ
+Left: 197.9, Bottom: 503.7, Text: ﺔﺼﺣ
+Left: 217.3, Bottom: 503.7, Text: ﺕﺎﻨﻴﻣﺄﺗ
+Left: 350.1, Bottom: 502.3, Text: ٢٥٫٩
+Left: 463.2, Bottom: 502.3, Text: ﻞﻤﻌﻟﺍ
+Left: 483.2, Bottom: 502.3, Text: ﺔﺑﺎﺻﺍ
+Left: 503.6, Bottom: 502.3, Text: ﺪﺿ
+Left: 516.6, Bottom: 502.3, Text: ﻦﻴﻣﺄﺘﻟﺍ
+Left: 540.5, Bottom: 502.3, Text: x
+Left: 267.9, Bottom: 501.7, Text: ٤١١١٠٢٠٢
+Left: 100.7, Bottom: 497.7, Text: ٦٢٫١
+Left: 185.2, Bottom: 491.6, Text: ﻰﺤﺻ
+Left: 463.7, Bottom: 483.7, Text: ﺪﺿ
+Left: 476.7, Bottom: 483.7, Text: ﻰﺤﺻ
+Left: 498.1, Bottom: 483.7, Text: ﻦﻴﻣﺎﺗ
+Left: 517.4, Bottom: 483.7, Text: ٣
+Left: 524.8, Bottom: 483.7, Text: ﺔﻣﻮﻜﺣ
+Left: 350.1, Bottom: 477.7, Text: ٦٢٫١
+Left: 569.4, Bottom: 476.5, Text: ٢١١٢٠٢٠١
+Left: 267.9, Bottom: 474.1, Text: ٤١١١٠٣٠١
+Left: 493.5, Bottom: 471.7, Text: ﺽﺮﻤﻟﺍ
+Left: 39.2, Bottom: 470.1, Text: ٣٦٣٫٠٩
+Left: 173.2, Bottom: 470.1, Text: ﻞﺧﺪﻟﺍ
+Left: 196.2, Bottom: 470.1, Text: ﺔﺒﻳﺮﺿ
+Left: 350.1, Bottom: 451.1, Text: ٢٠٫٧
+Left: 467.9, Bottom: 451.1, Text: ﺓﺎﻓﺎﻜﻤﻟﺍ
+Left: 494.5, Bottom: 451.1, Text: ﻡﺎﻈﻧ
+Left: 510.8, Bottom: 451.1, Text: ١
+Left: 518.2, Bottom: 451.1, Text: ﺔﻣﻮﻜﺣ
+Left: 569.4, Bottom: 449.9, Text: ٢١١٢٠١٠٢
+Left: 267.9, Bottom: 449.6, Text: ٤١١١٠٣٠٤
+Left: 41.6, Bottom: 445.5, Text: ١٣٫٤٥
+Left: 173.5, Bottom: 445.5, Text: ﺔﻐﻣﺪﻟﺍ
+Left: 195.8, Bottom: 445.5, Text: ﺔﺒﻳﺮﺿ
+Left: 461.0, Bottom: 430.5, Text: ﺰﺠﻋ
+Left: 478.1, Bottom: 430.5, Text: ﻭ
+Left: 484.0, Bottom: 430.5, Text: ﺔﺧﻮﺨﻴﺷ
+Left: 515.3, Bottom: 430.5, Text: ١٢
+Left: 527.5, Bottom: 430.5, Text: ﺔﻣﻮﻜﺣ
+Left: 347.7, Bottom: 424.5, Text: ٢٤٨٫٤
+Left: 569.4, Bottom: 423.3, Text: ٢١١٢٠١٠١
+Left: 496.3, Bottom: 418.5, Text: ﺓﺎﻓﻭﻭ
+Left: 45.2, Bottom: 418.0, Text: ٥٠٢
+Left: 147.4, Bottom: 418.0, Text: ﺕﺎﺷﺎﻌﻣﻭ
+Left: 179.1, Bottom: 418.0, Text: ﻦﻴﻣﺄﺗ
+Left: 198.4, Bottom: 418.0, Text: -
+Left: 203.9, Bottom: 418.0, Text: ﺔﻨﺋﺍﺩ
+Left: 222.1, Bottom: 418.0, Text: /
+Left: 227.1, Bottom: 418.0, Text: ﺡ
+Left: 237.3, Bottom: 418.0, Text: x
+Left: 39.2, Bottom: 392.7, Text: ٩٦١٫٣٤
+Left: 154.6, Bottom: 392.3, Text: ﺕﺎﻋﺎﻄﻘﺘﺳﻻﺍ
+Left: 203.6, Bottom: 392.3, Text: ﻰﻟﺎﻤﺟﻷﺍ
+Left: 256.7, Bottom: 364.0, Text: ١،٤٦٥٫٧٦
+Left: 446.4, Bottom: 364.0, Text: :
+Left: 449.2, Bottom: 364.0, Text: ﻰﻓﺎﺼﻟﺍ
+Left: 307.8, Bottom: 338.7, Text: ﻑﺮﺼﻟﺍ
+Left: 341.8, Bottom: 338.7, Text: ﻻﻭ
+Left: 356.5, Bottom: 338.7, Text: ﺕﺎﻬﺠﻟﺍ
+Left: 394.8, Bottom: 338.7, Text: ﺔﺒﻃﺎﺨﻣ
+Left: 430.5, Bottom: 338.7, Text: ﻲﻓ
+Left: 446.0, Bottom: 338.7, Text: ﻪﺑ
+Left: 458.5, Bottom: 338.7, Text: ﺪﻤﺘﻌﻳ
+Left: 484.7, Bottom: 338.7, Text: ﻻﻭ
+Left: 499.4, Bottom: 338.7, Text: ﻂﻘﻓ
+Left: 519.5, Bottom: 338.7, Text: ﺔﻌﺟﺍﺮﻤﻠﻟ
+Left: 560.5, Bottom: 338.7, Text: ﻥﺎﻴﺒﻟﺍ
+Left: 587.6, Bottom: 338.7, Text: ﺍﺬﻫ

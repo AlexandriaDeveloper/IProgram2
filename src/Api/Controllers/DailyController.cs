@@ -13,10 +13,12 @@ namespace Api.Controllers
     public class DailyController : BaseApiController
     {
         private readonly DailyService _dailyService;
+        private readonly PdfVerificationService _pdfVerificationService;
 
-        public DailyController(DailyService dailyService)
+        public DailyController(DailyService dailyService, PdfVerificationService pdfVerificationService)
         {
             this._dailyService = dailyService;
+            this._pdfVerificationService = pdfVerificationService;
         }
 
         [HttpPost]
@@ -42,6 +44,13 @@ namespace Api.Controllers
             var result = await _dailyService.EditDaily(form, cancellationToken);
 
             return HandleResult<DailyDto>(result); ;
+        }
+
+        [HttpPost("copy/{dailyId}")]
+        public async Task<IActionResult> CopyDaily(int dailyId, CancellationToken cancellationToken)
+        {
+            var result = await _dailyService.CopyDaily(dailyId, cancellationToken);
+            return HandleResult(result);
         }
 
         [HttpPut("CloseDaily/{dailyId}")]
@@ -184,6 +193,28 @@ namespace Api.Controllers
         {
             var ms = await _dailyService.CreateBeneficiarySummaryExcelFile(dailyId);
             return File(ms, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"DailySummary_{dailyId}.xlsx");
+        }
+
+        [HttpPost("{dailyId}/verify-pdf")]
+        public async Task<IActionResult> VerifyPdfAgainstSummary([FromRoute] int dailyId, [FromForm] Application.Dtos.Requests.VerifyPdfRequest request)
+        {
+            var file = request?.File;
+            if (file == null || file.Length == 0)
+                return BadRequest("يجب اختيار ملف PDF");
+
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            using (var stream = file.OpenReadStream())
+            {
+                var result = await _pdfVerificationService.VerifyPdfAgainstSummary(dailyId, stream, currentUserId);
+
+                if (!result.IsSuccess)
+                {
+                    return HandleResult(result);
+                }
+
+                return File(result.Value.ReportFile, "text/plain", $"VerifyReport_{dailyId}_{DateTime.Now:yyyyMMdd_HHmm}.txt");
+            }
         }
     }
 }

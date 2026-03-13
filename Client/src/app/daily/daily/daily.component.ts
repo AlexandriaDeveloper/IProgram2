@@ -162,6 +162,20 @@ export class DailyComponent implements OnInit {
     }
   }
 
+  copyDaily(row) {
+    if (confirm(`انت على وشك نسخ يومية " ${row.name} " بجميع استماراتها، هل أنت متأكد؟`)) {
+      this.dailyService.copyDaily(row.id).subscribe({
+        next: (x: any) => {
+          this.loadData();
+          this.toaster.openSuccessToaster('تم نسخ اليومية بنجاح', 'check_circle');
+        },
+        error: (err) => {
+          this.toaster.openErrorToaster('حدث خطأ أثناء نسخ اليومية');
+        }
+      })
+    }
+  }
+
   uploadJson() {
     this.bottomSheet.open(UploadJsonDialogComponent, {
       panelClass: ['bottomSheet'],

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Application.Dtos;
@@ -469,6 +470,27 @@ namespace Application.Features
                     messages.Add(@"يوجد مشكلة بالبيانات الاتيه   بالسطر رقم " + counter++ + " " + message);
                     continue;
                 }
+
+                // Add optional name validation logic
+                if (request.ValidateName)
+                {
+                    string dbNameStr = empExist.Name ?? "";
+                    string excelNameStr = row.ItemArray[5]?.ToString() ?? "";
+
+                    string dbFirstNameStr = dbNameStr.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+                    string excelFirstNameStr = excelNameStr.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+
+                    string dbNorm = NormalizeArabicText(dbFirstNameStr);
+                    string excelNorm = NormalizeArabicText(excelFirstNameStr);
+
+                    if (!IsNameMatch(dbNorm, excelNorm))
+                    {
+                        messages.Add($@"يوجد اختلاف في الاسم الأول بالسطر رقم {counter}: مسجل لدينا ({dbFirstNameStr}) وفي الملف ({excelFirstNameStr}) للموظف ({message})");
+                        counter++; // Need to increment counter here as well if we are skipping/recording error
+                        continue;
+                    }
+                }
+
                 DataRow dr = dt2.NewRow();
                 dr.SetField("م", counter++);
                 dr["الرقم القومى"] = empExist.Id;
@@ -530,12 +552,171 @@ namespace Application.Features
             var cacheKey = $"FormDetails_{formId}";
             _cache.Remove(cacheKey);
         }
+
+        private bool IsNameMatch(string dbNameNorm, string otherNameNorm)
+        {
+            // Exact match
+            if (dbNameNorm == otherNameNorm)
+                return true;
+
+            // Sometimes the PDF generator splits 'عبد ال-' into two words or joins them
+            // So 'عبدالرحمن' might become 'عبد'  in the first word.
+            // If one is 'عبد' and the other starts with 'عبد', it's highly likely the same person
+            if (dbNameNorm == "عبد" && otherNameNorm.StartsWith("عبد"))
+                return true;
+            if (otherNameNorm == "عبد" && dbNameNorm.StartsWith("عبد"))
+                return true;
+
+            // Abu / Abou
+            if (dbNameNorm == "ابو" && otherNameNorm.StartsWith("ابو"))
+                return true;
+            if (otherNameNorm == "ابو" && dbNameNorm.StartsWith("ابو"))
+                return true;
+
+            // Allow for a 1-character typo if the names are long enough (e.g., 4+ characters)
+            // Or if one is a substring of the other (like 'احمد' and 'احم')
+            if (dbNameNorm.Length >= 3 && otherNameNorm.Length >= 3)
+            {
+                if (dbNameNorm.StartsWith(otherNameNorm.Substring(0, 3)) ||
+                    otherNameNorm.StartsWith(dbNameNorm.Substring(0, 3)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private string NormalizeArabicText(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            // Custom dictionary to map Arabic Presentation Forms (isolated, medial, final, initial) to base characters.
+            // This is necessary because some PDF extractors return these presentation forms instead of standard letters.
+            var ArabicPresentationFormsMap = new Dictionary<char, char>
+            {
+                // Alef Forms
+                { 'ﺂ', 'ا' }, { 'ﺎ', 'ا' }, { 'ﺄ', 'ا' }, { 'ﺃ', 'ا' },
+                { 'ﺈ', 'ا' }, { 'ﺇ', 'ا' }, { 'ﺁ', 'ا' }, { 'ﺍ', 'ا' },
+
+                // Baa Forms
+                { 'ﺐ', 'ب' }, { 'ﺒ', 'ب' }, { 'ﺑ', 'ب' }, { 'ﺏ', 'ب' },
+
+                // Taa Forms
+                { 'ﺖ', 'ت' }, { 'ﺘ', 'ت' }, { 'ﺗ', 'ت' }, { 'ﺕ', 'ت' },
+
+                // Thaa Forms
+                { 'ﺚ', 'ث' }, { 'ﺜ', 'ث' }, { 'ﺛ', 'ث' }, { 'ﺙ', 'ث' },
+
+                // Jeem Forms
+                { 'ﺞ', 'ج' }, { 'ﺠ', 'ج' }, { 'ﺟ', 'ج' }, { 'ﺝ', 'ج' },
+
+                // Haa Forms
+                { 'ﺢ', 'ح' }, { 'ﺤ', 'ح' }, { 'ﺣ', 'ح' }, { 'ﺡ', 'ح' },
+
+                // Khaa Forms
+                { 'ﺦ', 'خ' }, { 'ﺨ', 'خ' }, { 'ﺧ', 'خ' }, { 'ﺥ', 'خ' },
+
+                // Dal Forms
+                { 'ﺪ', 'د' }, { 'ﺩ', 'د' },
+
+                // Thal Forms
+                { 'ﺬ', 'ذ' }, { 'ﺫ', 'ذ' },
+
+                // Raa Forms
+                { 'ﺮ', 'ر' }, { 'ﺭ', 'ر' },
+
+                // Zay Forms
+                { 'ﺰ', 'ز' }, { 'ﺯ', 'ز' },
+
+                // Seen Forms
+                { 'ﺲ', 'س' }, { 'ﺴ', 'س' }, { 'ﺳ', 'س' }, { 'ﺱ', 'س' },
+
+                // Sheen Forms
+                { 'ﺶ', 'ش' }, { 'ﺸ', 'ش' }, { 'ﺷ', 'ش' }, { 'ﺵ', 'ش' },
+
+                // Saad Forms
+                { 'ﺺ', 'ص' }, { 'ﺼ', 'ص' }, { 'ﺻ', 'ص' }, { 'ﺹ', 'ص' },
+
+                // Daad Forms
+                { 'ﺾ', 'ض' }, { 'ﻀ', 'ض' }, { 'ﺿ', 'ض' }, { 'ﺽ', 'ض' },
+
+                // Taa Forms
+                { 'ﻂ', 'ط' }, { 'ﻄ', 'ط' }, { 'ﻃ', 'ط' }, { 'ﻁ', 'ط' },
+
+                // Zhaa Forms
+                { 'ﻆ', 'ظ' }, { 'ﻈ', 'ظ' }, { 'ﻇ', 'ظ' }, { 'ﻅ', 'ظ' },
+
+                // Ayn Forms
+                { 'ﻊ', 'ع' }, { 'ﻌ', 'ع' }, { 'ﻋ', 'ع' }, { 'ﻉ', 'ع' },
+
+                // Ghayn Forms
+                { 'ﻎ', 'غ' }, { 'ﻐ', 'غ' }, { 'ﻏ', 'غ' }, { 'ﻍ', 'غ' },
+
+                // Faa Forms
+                { 'ﻒ', 'ف' }, { 'ﻔ', 'ف' }, { 'ﻓ', 'ف' }, { 'ﻑ', 'ف' },
+
+                // Qaaf Forms
+                { 'ﻖ', 'ق' }, { 'ﻘ', 'ق' }, { 'ﻗ', 'ق' }, { 'ﻕ', 'ق' },
+
+                // Kaaf Forms
+                { 'ﻚ', 'ك' }, { 'ﻜ', 'ك' }, { 'ﻛ', 'ك' }, { 'ﻙ', 'ك' },
+
+                // Laam Forms
+                { 'ﻞ', 'ل' }, { 'ﻠ', 'ل' }, { 'ﻟ', 'ل' }, { 'ﻝ', 'ل' },
+
+                // Meem Forms
+                { 'ﻢ', 'م' }, { 'ﻤ', 'م' }, { 'ﻣ', 'م' }, { 'ﻡ', 'م' },
+
+                // Noon Forms
+                { 'ﻦ', 'ن' }, { 'ﻨ', 'ن' }, { 'ﻧ', 'ن' }, { 'ﻥ', 'ن' },
+
+                // Haa Forms
+                { 'ﻪ', 'ه' }, { 'ﻬ', 'ه' }, { 'ﻫ', 'ه' }, { 'ﻩ', 'ه' },
+
+                // Waw Forms
+                { 'ﻮ', 'و' }, { 'ﻭ', 'و' },
+
+                // Yaa Forms
+                { 'ﻲ', 'ي' }, { 'ﻴ', 'ي' }, { 'ﻳ', 'ي' }, { 'ﻱ', 'ي' },
+                { 'ﻰ', 'ي' }, { 'ﯨ', 'ي' }, { 'ﯩ', 'ي' },
+
+                // Hamza Forms
+                { 'ﺆ', 'و' }, { 'ﺅ', 'و' }, // Waw with hamza
+                { 'ﺊ', 'ي' }, { 'ﺌ', 'ي' }, { 'ﺋ', 'ي' }, { 'ﺉ', 'ي' }, // Yeh with hamza
+                { 'ﺀ', 'ا' }, // Lone hamza -> map to alef for simple comparison
+            };
+
+            var sb = new StringBuilder(input.Length);
+            foreach (char c in input)
+            {
+                if (ArabicPresentationFormsMap.TryGetValue(c, out char baseChar))
+                {
+                    sb.Append(baseChar);
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+
+            input = sb.ToString();
+
+            // Normalize Arabic letters based on User request: أ-ا-إ-ي-ى-ه-ة-ل-ا-أ
+            return input
+                .Replace("أ", "ا")
+                .Replace("إ", "ا")
+                .Replace("آ", "ا")
+                .Replace("ٱ", "ا")
+                .Replace("ى", "ي")  // Replace Alef Maksura with Yeh
+                .Replace("ة", "ه")  // Replace Teh Marbuta with Heh
+                .Replace("ؤ", "و")
+                .Replace("ئ", "ي")
+                .Replace("لا", "لا")
+                .Replace("ﻷ", "لا")
+                .Replace("ﻹ", "لا")
+                .Replace("ﻵ", "لا");
+        }
     }
 }
-/*
-
-messages
-
-
-messages
-*/

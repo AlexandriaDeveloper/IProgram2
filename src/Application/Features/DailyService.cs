@@ -61,6 +61,83 @@ namespace Application.Features
 
         }
 
+        public async Task<Result<DailyDto>> CopyDaily(int dailyId, CancellationToken cancellationToken)
+        {
+            var originalDaily = await _dailyRepository.GetQueryable(null)
+                .AsSplitQuery()
+                .Include(d => d.Forms)
+                    .ThenInclude(f => f.FormDetails)
+                .FirstOrDefaultAsync(d => d.Id == dailyId, cancellationToken);
+
+            if (originalDaily == null)
+            {
+                return Result.Failure<DailyDto>(new Error("404", "اليومية الأصلية غير موجودة"));
+            }
+
+            var newDaily = new Daily
+            {
+                Name = $"نسخة من - {originalDaily.Name}",
+                DailyDate = DateTime.Now,
+                Forms = new List<Form>()
+            };
+
+            if (originalDaily.Forms != null)
+            {
+                foreach (var form in originalDaily.Forms.Where(f => f.IsActive))
+                {
+                    var newForm = new Form
+                    {
+                        Name = form.Name,
+                        Description = form.Description,
+                        Index = form.Index,
+                        IsActive = true,
+                        FormDetails = new List<FormDetails>()
+                    };
+
+                    if (form.FormDetails != null)
+                    {
+                        foreach (var detail in form.FormDetails.Where(d => d.IsActive))
+                        {
+                            newForm.FormDetails.Add(new FormDetails
+                            {
+                                EmployeeId = detail.EmployeeId,
+                                Amount = detail.Amount,
+                                OrderNum = detail.OrderNum,
+                                IsActive = true,
+                                // explicitly resetting review fields (they are default false/null anyway, but just to be safe)
+                                IsReviewed = false,
+                                IsReviewedBy = null,
+                                ReviewedAt = null,
+                                ReviewComments = null,
+                                IsSummaryReviewed = false,
+                                IsSummaryReviewedBy = null,
+                                SummaryReviewedAt = null,
+                                SummaryComments = null
+                            });
+                        }
+                    }
+
+                    newDaily.Forms.Add(newForm);
+                }
+            }
+
+            await _dailyRepository.Insert(newDaily);
+            var result = await _unitOfWork.SaveChangesAsync(cancellationToken) > 0;
+
+            if (!result)
+            {
+                return Result.Failure<DailyDto>(new Error("500", "حدث خطأ أثناء نسخ اليومية"));
+            }
+
+            return Result.Success(new DailyDto
+            {
+                Id = newDaily.Id,
+                Name = newDaily.Name,
+                DailyDate = newDaily.DailyDate,
+                Closed = newDaily.Closed
+            });
+        }
+
         public async Task<Result<DailyDto>> EditDaily(DailyDto dailyDto, CancellationToken cancellationToken)
         {
 
@@ -652,7 +729,7 @@ namespace Application.Features
                 dr["الاسم"] = item.EmployeeName ?? "";
                 dr.SetField("المبلغ", Math.Round(item.TotalAmount, 2));
                 dr["تعليق"] = item.Comment ?? "";
-                
+
                 dt.Rows.Add(dr);
             }
 

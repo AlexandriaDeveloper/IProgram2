@@ -50,6 +50,10 @@ export class DailyService {
     return this.http.delete(this.apiUrl + 'daily/' + id)
   }
 
+  copyDaily(id: number) {
+    return this.http.post(this.apiUrl + 'daily/copy/' + id, {})
+  }
+
 
   downloadExcelDaily(dailyId) {
     return this.http.get(this.apiUrl + 'daily/download-daily/' + dailyId, { observe: 'response', responseType: 'blob' }).pipe(
@@ -134,6 +138,12 @@ export class DailyService {
         window.open(url);
       })
     );
+  }
+
+  verifyPdf(dailyId: number, file: File) {
+    const formData = new FormData();
+    formData.append('file', file as Blob, file.name);
+    return this.http.post(this.apiUrl + "Daily/" + dailyId + "/verify-pdf", formData, { observe: "response", responseType: "blob" });
   }
 
 }

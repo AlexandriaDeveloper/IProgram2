@@ -120,6 +120,11 @@ export class FormService {
     formData.append("file", file.file as Blob, file.file.name);
     formData.append("formId", file.formId);
 
+    // Add validateName to formData if provided
+    if (file.validateName !== undefined) {
+      formData.append("validateName", file.validateName.toString());
+    }
+
     return this.http.post(this.apiUrl + 'form/upload-excel-form', formData, {
       // responseType: "blob",
       // reportProgress: true,

@@ -6,5 +6,6 @@ namespace Application.Dtos
     {
         public int FormId { get; set; }
         public IFormFile File { get; set; }
+        public bool ValidateName { get; set; }
     }
 }

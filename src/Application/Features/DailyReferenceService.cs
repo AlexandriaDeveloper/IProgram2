@@ -18,79 +18,59 @@ namespace Application.Features
         private readonly IUnitOfWork _uow;
         private readonly IWebHostEnvironment _hostEnvironment;
         private readonly IFileStorageService _fileStorageService;
-        private readonly Microsoft.Extensions.Logging.ILogger<DailyReferenceService> _logger;
-        private readonly PayrollPdfParserService _payrollPdfParserService;
-        private readonly IEmployeeRepository _employeeRepository;
-        private readonly IEmployeeNetPayRepository _employeeNetPayRepository;
+        private readonly ILogger<DailyReferenceService> _logger;
 
         public DailyReferenceService(
-            IDailyReferencesRepository dailyReferencesRepository, 
-            IUnitOfWork uow, 
-            IWebHostEnvironment hostEnvironment, 
-            IFileStorageService fileStorageService, 
-            Microsoft.Extensions.Logging.ILogger<DailyReferenceService> logger,
-            PayrollPdfParserService payrollPdfParserService,
-            IEmployeeRepository employeeRepository,
-            IEmployeeNetPayRepository employeeNetPayRepository)
+            IDailyReferencesRepository dailyReferencesRepository,
+            IUnitOfWork uow,
+            IWebHostEnvironment hostEnvironment,
+            IFileStorageService fileStorageService,
+            ILogger<DailyReferenceService> logger)
         {
             _dailyReferencesRepository = dailyReferencesRepository;
             _uow = uow;
             _hostEnvironment = hostEnvironment;
             _fileStorageService = fileStorageService;
             _logger = logger;
-            _payrollPdfParserService = payrollPdfParserService;
-            _employeeRepository = employeeRepository;
-            _employeeNetPayRepository = employeeNetPayRepository;
         }
 
         public async Task<Result<object>> DeleteReference(int id)
         {
-
-
-
             var dailyReference = await _dailyReferencesRepository.GetById(id);
             if (dailyReference == null)
             {
                 return Result.Failure(new Error("404", "المرجع غير موجود."));
             }
 
-            var relatedNetPays = await _employeeNetPayRepository.GetQueryable().Where(n => n.DailyReferenceId == id).ToListAsync();
-            foreach (var netPay in relatedNetPays)
-            {
-                await _employeeNetPayRepository.Delete(netPay.Id);
-            }
-
             await _dailyReferencesRepository.Delete(dailyReference.Id);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)
             {
-                return Result.Failure(new Error("500", "فشلت عملية حذف المرجع."));
+                return Result.Failure(new Error("500", "فشلت عملية حذف المرجع من قاعدة البيانات."));
             }
 
             Console.WriteLine($"[DEBUG] Deleting Reference. Path: '{dailyReference.ReferencePath}'");
 
             if (!string.IsNullOrEmpty(dailyReference.ReferencePath) && dailyReference.ReferencePath.Contains("cloudinary", StringComparison.OrdinalIgnoreCase))
             {
-                 Console.WriteLine("[DEBUG] Detected Cloudinary path. Invoking DeleteFileAsync.");
-                 // Cloudinary File
-            var delResult=    await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
-            if (!delResult)
-            {
-                return Result.Failure(new Error("500", "فشلت عملية حذف المرجع."));
+                Console.WriteLine("[DEBUG] Detected Cloudinary path. Invoking DeleteFileAsync.");
+                var delResult = await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
+                if (!delResult)
+                {
+                    _logger.LogWarning("Failed to delete file from Cloudinary: {Path}", dailyReference.ReferencePath);
+                }
             }
-            }
-            else
+            else if (!string.IsNullOrEmpty(dailyReference.ReferencePath))
             {
                 // Local File (Legacy)
                 var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
                 var filePath = Path.Combine(directoryPath, dailyReference.ReferencePath);
-                
+
                 if (File.Exists(filePath))
                 {
                     File.Delete(filePath);
                 }
             }
-
 
             return Result.Success("تم حذف المرجع بنجاح.");
         }
@@ -113,7 +93,7 @@ namespace Application.Features
             }
 
             string savedPath = fileName;
-            try 
+            try
             {
                 using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
@@ -129,8 +109,7 @@ namespace Application.Features
             {
                 DailyId = request.DailyId,
                 ReferencePath = savedPath,
-                Description = request.Description,
-                //Name = request.File.FileName // This is a [NotMapped] property for display
+                Description = request.Description
             };
 
             await _dailyReferencesRepository.Insert(dailyReference);
@@ -142,47 +121,9 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "فشلت عملية حفظ المرجع فى قاعدة البيانات."));
             }
 
-            // Check if file is PDF, then parse it for NetPay
-            if (path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
-                    {
-                        var netPayDict = _payrollPdfParserService.ParseNetPayFromPdf(stream);
-                        if (netPayDict.Any())
-                        {
-                            var nationalIds = netPayDict.Keys.ToList();
-                            var existingEmployees = await _employeeRepository.GetQueryable().Where(e => nationalIds.Contains(e.Id)).ToListAsync();
-                            var validEmployeeIds = existingEmployees.Select(e => e.Id).ToHashSet();
-
-                            foreach (var kvp in netPayDict)
-                            {
-                                if (validEmployeeIds.Contains(kvp.Key))
-                                {
-                                    var employeeNetPay = new EmployeeNetPay
-                                    {
-                                        DailyId = request.DailyId,
-                                        EmployeeId = kvp.Key,
-                                        NetPay = kvp.Value,
-                                        DailyReferenceId = dailyReference.Id
-                                    };
-                                    await _employeeNetPayRepository.Insert(employeeNetPay);
-                                }
-                            }
-                            
-                            await _uow.SaveChangesAsync();
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to parse PDF and save NetPay records.");
-                }
-            }
-
             return Result.Success("تم رفع الملف بنجاح.");
         }
+
         public async Task<string> TestCloudinaryConnection()
         {
             try
