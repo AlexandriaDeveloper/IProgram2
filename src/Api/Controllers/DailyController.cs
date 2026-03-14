@@ -188,6 +188,17 @@ namespace Api.Controllers
             return HandleResult(result);
         }
 
+        [HttpPut("{dailyId}/beneficiary-netpay")]
+        public async Task<IActionResult> UpdateBeneficiaryNetPay(int dailyId, [FromBody] Application.Dtos.Requests.UpdateBeneficiaryNetPayRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return HandleResult(Result.ValidationErrors<Application.Dtos.Requests.UpdateBeneficiaryNetPayRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+            var result = await _dailyService.UpdateBeneficiaryNetPay(dailyId, request);
+            return HandleResult(result);
+        }
+
         [HttpGet("exportSummaryExcel/{dailyId}")]
         public async Task<FileResult> ExportBeneficiariesSummaryExcel(int dailyId)
         {

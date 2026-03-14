@@ -10,6 +10,7 @@ import { ToasterService } from '../../../shared/components/toaster/toaster.servi
 import { trigger, state, style, transition, animate } from '@angular/animations';
 import { MatDialog } from '@angular/material/dialog';
 import { CommentDialogComponent } from './comment-dialog/comment-dialog.component';
+import { NetPayDialogComponent } from './netpay-dialog/netpay-dialog.component';
 import { environment } from '../../../environment';
 
 @Component({
@@ -205,6 +206,26 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
                     element.details.forEach((d: any) => d.summaryComment = result.comment);
                 }
                 this.toaster.openSuccessToaster('تم حفظ التعليق بنجاح');
+            }
+        });
+    }
+
+    openNetPayDialog(element: any, event: Event) {
+        event.stopPropagation();
+        const dialogRef = this.dialog.open(NetPayDialogComponent, {
+            width: '400px',
+            data: {
+                dailyId: this.dailyId,
+                employeeId: element.employeeId,
+                employeeName: element.employeeName,
+                netPay: element.netPay
+            }
+        });
+
+        dialogRef.afterClosed().subscribe(result => {
+            if (result && result.saved) {
+                element.netPay = result.netPay;
+                this.toaster.openSuccessToaster('تم حفظ الصافي بنجاح');
             }
         });
     }

@@ -1,0 +1,30 @@
+<mat-card class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+    <mat-card-header cdkDragHandle style="cursor: move;">
+        <mat-card-title>
+            <div class="close" (click)="onCancel()">
+                <mat-icon>close</mat-icon>
+            </div>
+            <span>تعديل الصافي - {{ data.employeeName }}</span>
+        </mat-card-title>
+    </mat-card-header>
+
+    <mat-card-content style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div class="form-dialg" style="flex: 1; padding-top: 20px;">
+            <p style="margin-bottom: 20px; font-weight: bold;">الرقم القومي: {{data.employeeId}}</p>
+            <mat-form-field appearance="outline" style="width: 100%;">
+                <mat-label>المبلغ الصافي</mat-label>
+                <input matInput type="number" [(ngModel)]="netPayValue" placeholder="أدخل المبلغ..." autocomplete="off">
+                <mat-hint>اترك الحقل فارغاً لمسح المبلغ المسجل</mat-hint>
+            </mat-form-field>
+        </div>
+
+        <div class="action-button">
+            <button mat-raised-button color="primary" (click)="onSave()" [disabled]="isSaving">
+                {{ isSaving ? 'جاري الحفظ...' : 'حفظ' }}
+            </button>
+            <button mat-raised-button color="warn" (click)="onCancel()">
+                الغاء
+            </button>
+        </div>
+    </mat-card-content>
+</mat-card>

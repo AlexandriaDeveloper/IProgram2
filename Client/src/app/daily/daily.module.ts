@@ -24,7 +24,7 @@ import { BeneficiariesSummaryComponent } from './form/beneficiaries-summary/bene
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule } from '@angular/material/dialog';
 import { CommentDialogComponent } from './form/beneficiaries-summary/comment-dialog/comment-dialog.component';
-
+import { NetPayDialogComponent } from './form/beneficiaries-summary/netpay-dialog/netpay-dialog.component';
 
 
 
@@ -46,8 +46,8 @@ import { CommentDialogComponent } from './form/beneficiaries-summary/comment-dia
     UploadJsonDialogComponent,
     UploadPdfBottomComponent,
     BeneficiariesSummaryComponent,
-    CommentDialogComponent
-
+    CommentDialogComponent,
+    NetPayDialogComponent
 
   ],
   imports: [

@@ -700,6 +700,50 @@ namespace Application.Features
             return Result.Success("تم حفظ التعليق بنجاح");
         }
 
+        public async Task<Result> UpdateBeneficiaryNetPay(int dailyId, UpdateBeneficiaryNetPayRequest request)
+        {
+            var daily = await _dailyRepository.GetById(dailyId);
+            if (daily == null)
+            {
+                return Result.Failure(new Error("404", "اليومية غير موجودة"));
+            }
+
+            var netPayEntry = await _employeeNetPayRepository.GetQueryable()
+                .FirstOrDefaultAsync(x => x.DailyId == dailyId && x.EmployeeId == request.EmployeeId);
+
+            if (request.NetPay.HasValue)
+            {
+                if (netPayEntry == null)
+                {
+                    netPayEntry = new EmployeeNetPay
+                    {
+                        DailyId = dailyId,
+                        EmployeeId = request.EmployeeId,
+                        NetPay = request.NetPay.Value
+                    };
+                    await _employeeNetPayRepository.Insert(netPayEntry);
+                }
+                else
+                {
+                    netPayEntry.NetPay = request.NetPay.Value;
+                    _employeeNetPayRepository.Update(netPayEntry);
+                }
+            }
+            else
+            {
+                if (netPayEntry != null)
+                {
+                    await _employeeNetPayRepository.Delete(netPayEntry.Id);
+                }
+            }
+
+            // We must call SaveChangesAsync on UnitOfWork to persist the repository changes.
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            // It could be 0 if no changes were actually made (e.g. updating with same value)
+
+            return Result.Success("تم حفظ الصافي بنجاح");
+        }
+
         public async Task<MemoryStream> CreateBeneficiarySummaryExcelFile(int dailyId)
         {
             var summaryResult = await GetBeneficiariesSummary(dailyId);

@@ -102,6 +102,10 @@ export class DailyService {
     return this.http.put(this.apiUrl + 'daily/' + dailyId + '/beneficiary-comment', body);
   }
 
+  updateBeneficiaryNetPay(dailyId: number, body: { employeeId: string, netPay: number | null }) {
+    return this.http.put(this.apiUrl + 'daily/' + dailyId + '/beneficiary-netpay', body);
+  }
+
   uploadJsonFile(file) {
     // console.log(file);
     const formData = new FormData();
