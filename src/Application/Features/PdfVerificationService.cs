@@ -164,15 +164,27 @@ namespace Application.Features
                 .Where(fd => formDetailIds.Contains(fd.Id))
                 .ToDictionaryAsync(fd => fd.Id);
 
+            var missingFromDaily = new List<string>();
+
             foreach (var pdfRecord in pdfRecords)
             {
                 bool hasError = false;
                 var errorsForEmployee = new List<string>();
 
+                // 2. Extact Employee Code
+                string pdfCodeStr = pdfRecord.TegaraCode?.Trim() ?? "";
+                string originalPdfCodeStr = pdfCodeStr;
+
+                // Handle compound codes like "30200105-44001" (InstitutionalCode-EmployeeCode)
+                if (pdfCodeStr.Contains("-"))
+                {
+                    pdfCodeStr = pdfCodeStr.Split('-').Last().Trim();
+                }
+
                 // 1. Check National ID
                 if (!summaryDict.TryGetValue(pdfRecord.NationalId, out var dbRecord))
                 {
-                    reportBuilder.AppendLine($"[خطأ في الرقم القومي] الرقم القومي {pdfRecord.NationalId} (الاسم المستخرج من الملف: {pdfRecord.Name} | كود المؤسسة: {pdfRecord.TegaraCode}) موجود في الـ PDF ولكنه غير موجود في اليومية.");
+                    missingFromDaily.Add($"- الرقم القومي: {pdfRecord.NationalId} | الاسم: {pdfRecord.Name} | كود الموظف: {pdfCodeStr}");
                     errorCount++;
                     continue; // Skip further checks for this record
                 }
@@ -184,20 +196,11 @@ namespace Application.Features
                     continue;
                 }
 
-                // 2. Check Code (TegaraCode)
                 string dbCodeStr = dbRecord.TegaraCode?.Trim() ?? "";
-                string pdfCodeStr = pdfRecord.TegaraCode?.Trim() ?? "";
-                string originalPdfCodeStr = pdfCodeStr;
-
-                // Handle compound codes like "30200105-44001" (InstitutionalCode-EmployeeCode)
-                if (pdfCodeStr.Contains("-"))
-                {
-                    pdfCodeStr = pdfCodeStr.Split('-').Last().Trim();
-                }
 
                 if (dbCodeStr != pdfCodeStr && !string.IsNullOrEmpty(pdfCodeStr))
                 {
-                    errorsForEmployee.Add($"- اختلاف في الكود المؤسسي: موجود باليومية ({dbCodeStr}) وموجود بالملف ({originalPdfCodeStr}) المقتطع منه ({pdfCodeStr})");
+                    errorsForEmployee.Add($"- اختلاف الكود المؤسسي | باليومية: {dbCodeStr} | بالملف: {originalPdfCodeStr} | المقتطع: {pdfCodeStr}");
                     hasError = true;
                 }
 
@@ -205,13 +208,13 @@ namespace Application.Features
                 // Allow a small epsilon for floating point comparison (e.g., 0.01)
                 if (Math.Abs(dbRecord.TotalAmount - pdfRecord.TotalEntitlements) > 0.05)
                 {
-                    errorsForEmployee.Add($"- اختلاف في إجمالي الاستحقاقات: موجود باليومية ({dbRecord.TotalAmount}) وموجود بالملف ({pdfRecord.TotalEntitlements})");
+                    errorsForEmployee.Add($"- اختلاف إجمالي الاستحقاقات | باليومية: {dbRecord.TotalAmount} | بالملف: {pdfRecord.TotalEntitlements}");
                     hasError = true;
                 }
 
                 if (hasError)
                 {
-                    reportBuilder.AppendLine($"الموظف: {dbRecord.EmployeeName} (الرقم القومي: {pdfRecord.NationalId})");
+                    reportBuilder.AppendLine($"الموظف: {dbRecord.EmployeeName} | الرقم القومي: {pdfRecord.NationalId}");
                     foreach (var err in errorsForEmployee)
                     {
                         reportBuilder.AppendLine(err);
@@ -255,24 +258,18 @@ namespace Application.Features
                 }
             }
 
-            // Check if there are employees in the DB that weren't in the PDF
-            var pdfNationalIds = new HashSet<string>(pdfRecords.Select(r => r.NationalId));
+            // The user requested NOT to report employees that are in the Daily but missing from the PDF.
+            // We no longer check or list "missingFromPdf" in the report.
 
-            // Missing employees are those strictly not in the PDF, AND have not been already reviewed
-            var missingFromPdf = summary.Beneficiaries
-                .Where(b => !pdfNationalIds.Contains(b.EmployeeId)
-                            && !(b.Details.Any() && b.Details.All(d => d.IsSummaryReviewed)))
-                .ToList();
-
-            if (missingFromPdf.Any())
+            if (missingFromDaily.Any())
             {
                 reportBuilder.AppendLine();
-                reportBuilder.AppendLine("=== موظفون موجودون باليومية ولم يتم العثور عليهم في الـ PDF ===");
-                foreach (var missing in missingFromPdf)
+                reportBuilder.AppendLine("=== موظفون مسجلون في الملف وغير موجودين في اليومية ===");
+                foreach (var missing in missingFromDaily)
                 {
-                    reportBuilder.AppendLine($"- {missing.EmployeeName} (الرقم القومي: {missing.EmployeeId})");
-                    errorCount++;
+                    reportBuilder.AppendLine(missing);
                 }
+                reportBuilder.AppendLine();
             }
 
             if (errorCount == 0)
