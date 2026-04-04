@@ -467,7 +467,7 @@ namespace Application.Features
                 }
                 if (empExist == null)
                 {
-                    messages.Add(@"يوجد مشكلة بالبيانات الاتيه   بالسطر رقم " + counter++ + " " + message);
+                    messages.Add(@"يوجد مشكلة بالبيانات الاتيه   بالسطر رقم " + counter++ + " رقم قومي   " + row.ItemArray[1].ToString() + " كود طب " + row.ItemArray[2].ToString() + " كود تجارة " + row.ItemArray[3].ToString());
                     continue;
                 }
 
