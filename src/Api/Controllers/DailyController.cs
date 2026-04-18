@@ -207,6 +207,7 @@ namespace Api.Controllers
         }
 
         [HttpPost("{dailyId}/verify-pdf")]
+        [DisableRequestSizeLimit]
         public async Task<IActionResult> VerifyPdfAgainstSummary([FromRoute] int dailyId, [FromForm] Application.Dtos.Requests.VerifyPdfRequest request)
         {
             var file = request?.File;
@@ -224,8 +225,15 @@ namespace Api.Controllers
                     return HandleResult(result);
                 }
 
-                return File(result.Value.ReportFile, "text/plain", $"VerifyReport_{dailyId}_{DateTime.Now:yyyyMMdd_HHmm}.txt");
+                return Ok(result.Value);
             }
+        }
+
+        [HttpPost("{dailyId}/reset-reviews")]
+        public async Task<IActionResult> ResetDailyReviews(int dailyId)
+        {
+            var result = await _dailyService.ResetDailyReviews(dailyId);
+            return HandleResult(result);
         }
     }
 }

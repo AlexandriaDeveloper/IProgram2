@@ -16,6 +16,9 @@ namespace Application.Features
         public string Name { get; set; }
         public double NetPay { get; set; }
         public double TotalEntitlements { get; set; }
+        public int PageNumber { get; set; }
+        public double BoundingBoxBottom { get; set; }
+        public double BoundingBoxTop { get; set; }
     }
 
     public class PayrollPdfParserService
@@ -78,6 +81,9 @@ namespace Application.Features
                             if (idWord == null) continue;
 
                             record.NationalId = NormalizeArabicNumerals(idWord.Text);
+                            record.PageNumber = page.Number;
+                            record.BoundingBoxTop = idWord.BoundingBox.Top + 20;
+                            record.BoundingBoxBottom = idWord.BoundingBox.Bottom - 20;
                             double headerBottom = idWord.BoundingBox.Bottom;
 
                             // In Arabic PDFs, words are typically drawn Left-to-Right by the engine, 
@@ -212,9 +218,11 @@ namespace Application.Features
 
                             foreach (var idInfo in reconstructedIds)
                             {
-                                var record = new PdfEmployeeRecord { NationalId = idInfo.Id };
+                                var record = new PdfEmployeeRecord { NationalId = idInfo.Id, PageNumber = page.Number };
                                 double topBoundary = idInfo.Bottom + 25;
                                 double bottomBoundary = idInfo.Bottom - 45;
+                                record.BoundingBoxTop = topBoundary;
+                                record.BoundingBoxBottom = bottomBoundary;
 
                                 var blockNameWords = nameWordsNodes
                                     .Where(n => n.Bottom <= topBoundary && n.Bottom >= bottomBoundary)

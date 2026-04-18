@@ -797,6 +797,43 @@ namespace Application.Features
 
             return memory;
         }
+
+        public async Task<Result> ResetDailyReviews(int dailyId)
+        {
+            var daily = await _dailyRepository.GetQueryable()
+                .Include(x => x.Forms)
+                .ThenInclude(f => f.FormDetails)
+                .FirstOrDefaultAsync(x => x.Id == dailyId);
+
+            if (daily == null)
+            {
+                return Result.Failure(new Error("404", "اليومية غير موجودة"));
+            }
+
+            foreach (var form in daily.Forms)
+            {
+                foreach (var detail in form.FormDetails)
+                {
+                    detail.IsSummaryReviewed = false;
+                    detail.IsSummaryReviewedBy = null;
+                    detail.SummaryReviewedAt = null;
+                    detail.SummaryComments = null;
+                }
+            }
+
+            var netPays = await _employeeNetPayRepository.GetQueryable()
+                .Where(n => n.DailyId == dailyId)
+                .ToListAsync();
+
+            foreach (var np in netPays)
+            {
+                await _employeeNetPayRepository.Delete(np.Id);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            
+            return Result.Success("تم إلغاء جميع المراجعات بنجاح");
+        }
     }
 }
 //407-5224527-0026748

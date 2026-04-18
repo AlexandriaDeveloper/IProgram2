@@ -320,13 +320,26 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
             next: (response: any) => {
                 this.toaster.openSuccessToaster('تمت مراجعة الملف بنجاح وتوليد التقرير');
 
+                const data = response.body;
+
                 // Download the report
-                let blob = new Blob([response.body], { type: 'text/plain;charset=utf-8' });
-                const url = window.URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = `VerifyReport_${this.dailyId}_${new Date().getTime()}.txt`;
-                a.click();
+                if (data.reportFile) {
+                    const pdfBytes = this.base64ToArrayBuffer(data.reportFile);
+                    let blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    const url = window.URL.createObjectURL(blob);
+                    window.open(url);
+                }
+
+                // Download text report
+                if (data.textReportFile) {
+                    const txtBytes = this.base64ToArrayBuffer(data.textReportFile);
+                    let txtBlob = new Blob([txtBytes], { type: 'text/plain;charset=utf-8' });
+                    const txtUrl = window.URL.createObjectURL(txtBlob);
+                    const a = document.createElement('a');
+                    a.href = txtUrl;
+                    a.download = `VerifyReport_${this.dailyId}.txt`;
+                    a.click();
+                }
 
                 // Reload data to show updated net pay and reviewed status
                 this.loadSummary();
@@ -337,11 +350,40 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
             error: (err) => {
                 this.isLoading = false;
                 console.error('Verify PDF error:', err);
-                if (err.error instanceof Blob) {
-                    err.error.text().then((text: string) => console.error('BLOB_TEXT:', text));
+                if (err.error && err.error.detail) {
+                    this.toaster.openErrorToaster(err.error.detail);
+                } else {
+                    this.toaster.openErrorToaster('حدث خطأ أثناء مراجعة الملف');
                 }
-                this.toaster.openErrorToaster('حدث خطأ أثناء مراجعة الملف');
                 event.target.value = '';
+            }
+        });
+    }
+
+    base64ToArrayBuffer(base64: string): ArrayBuffer {
+        const binaryString = window.atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    resetReviews() {
+        if (!confirm('هل أنت متأكد من إلغاء جميع المراجعات لهذه اليومية؟ لا يمكن التراجع عن هذا الإجراء.')) {
+            return;
+        }
+
+        this.isLoading = true;
+        this.dailyService.resetReviews(this.dailyId).subscribe({
+            next: (res: any) => {
+                this.toaster.openSuccessToaster('تم إلغاء جميع المراجعات بنجاح');
+                this.loadSummary();
+            },
+            error: (err) => {
+                this.isLoading = false;
+                this.toaster.openErrorToaster('حدث خطأ أثناء إلغاء المراجعات');
             }
         });
     }

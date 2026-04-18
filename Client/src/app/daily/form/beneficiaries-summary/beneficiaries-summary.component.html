@@ -23,6 +23,11 @@
                 <mat-icon>insert_drive_file</mat-icon>
                 تنزيل ملف إكسيل
             </button>
+            <mat-divider></mat-divider>
+            <button mat-menu-item (click)="resetReviews()" [disabled]="totalReviewed === 0">
+                <mat-icon color="warn">delete_sweep</mat-icon>
+                إلغاء جميع المراجعات
+            </button>
         </mat-menu>
         <strong>ملخص المستحقين - {{dailyData?.name}}</strong>
     </div>

@@ -147,7 +147,11 @@ export class DailyService {
   verifyPdf(dailyId: number, file: File) {
     const formData = new FormData();
     formData.append('file', file as Blob, file.name);
-    return this.http.post(this.apiUrl + "Daily/" + dailyId + "/verify-pdf", formData, { observe: "response", responseType: "blob" });
+    return this.http.post(this.apiUrl + "Daily/" + dailyId + "/verify-pdf", formData, { observe: "response", responseType: "json" });
+  }
+
+  resetReviews(dailyId: number) {
+    return this.http.post(this.apiUrl + "Daily/" + dailyId + "/reset-reviews", {});
   }
 
 }

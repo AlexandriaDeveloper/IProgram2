@@ -11,6 +11,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Persistence.Helpers;
 using Application.Helpers;
+using iText.Kernel.Pdf;
+using iText.Kernel.Pdf.Canvas;
+using iText.Kernel.Colors;
+using iText.Kernel.Geom;
+using iText.Kernel.Pdf.Extgstate;
+using iText.IO.Font;
+using iText.Kernel.Font;
 
 namespace Application.Features
 {
@@ -18,8 +25,18 @@ namespace Application.Features
     {
         public bool Success { get; set; }
         public byte[] ReportFile { get; set; }
+        public byte[] TextReportFile { get; set; }
         public int MatchedCount { get; set; }
         public int ErrorCount { get; set; }
+    }
+
+    public class PdfAnnotation
+    {
+        public int PageNumber { get; set; }
+        public double Top { get; set; }
+        public double Bottom { get; set; }
+        public string State { get; set; }
+        public string Message { get; set; }
     }
 
     public class PdfVerificationService
@@ -57,7 +74,7 @@ namespace Application.Features
             {'ﺨ', "خ"}, {'ﺦ', "خ"}, {'ﺩ', "د"}, {'ﺪ', "د"}, {'ﺫ', "ذ"}, {'ﺬ', "ذ"},
             {'ﺭ', "ر"}, {'ﺮ', "ر"}, {'ﺯ', "ز"}, {'ﺰ', "ز"}, {'ﺱ', "س"}, {'ﺳ', "س"},
             {'ﺴ', "س"}, {'ﺲ', "س"}, {'ﺵ', "ش"}, {'ﺷ', "ش"}, {'ﺸ', "ش"}, {'ﺶ', "ش"},
-            {'ﺹ', "ص"}, {'ﺻ', "ص"}, {'ﺼ', "ص"}, {'ﺺ', "ص"}, {'ﺽ', "ض"}, {'ﺿ', "ض"},
+            {'ﺹ', "ص"}, {'ﺻ', "ص"}, {'ﺼ', "ص"}, {'ﺺ', "ص"}, {'ﺽ', "ض"}, {'ﺽ', "ض"},
             {'ﻀ', "ض"}, {'ﺾ', "ض"}, {'ﻁ', "ط"}, {'ﻃ', "ط"}, {'ﻄ', "ط"}, {'ﻂ', "ط"},
             {'ﻅ', "ظ"}, {'ﻇ', "ظ"}, {'ﻈ', "ظ"}, {'ﻆ', "ظ"}, {'ﻉ', "ع"}, {'ﻋ', "ع"},
             {'ﻌ', "ع"}, {'ﻊ', "ع"}, {'ﻍ', "غ"}, {'ﻏ', "غ"}, {'ﻐ', "غ"}, {'ﻎ', "غ"},
@@ -135,12 +152,20 @@ namespace Application.Features
             var summary = summaryResult.Value;
             var summaryDict = summary.Beneficiaries.ToDictionary(b => b.EmployeeId);
 
+            // Copy to byte array to avoid stream closure issues between libraries
+            using var initialMs = new MemoryStream();
+            await pdfStream.CopyToAsync(initialMs);
+            byte[] pdfBytes = initialMs.ToArray();
+
             // 2. Parse PDF
-            var pdfRecords = _pdfParserService.ParseFullEmployeeDataFromPdf(pdfStream);
+            using var parseStream = new MemoryStream(pdfBytes);
+            var pdfRecords = _pdfParserService.ParseFullEmployeeDataFromPdf(parseStream);
             if (!pdfRecords.Any())
             {
                 return Result.Failure<PdfVerificationResult>(new Error("400", "لم يتم العثور على أي بيانات في ملف الـ PDF"));
             }
+
+            var annotations = new List<PdfAnnotation>();
 
             var reportBuilder = new StringBuilder();
             reportBuilder.AppendLine("=== تقرير أخطاء مراجعة ملف الـ PDF ===");
@@ -185,6 +210,7 @@ namespace Application.Features
                 if (!summaryDict.TryGetValue(pdfRecord.NationalId, out var dbRecord))
                 {
                     missingFromDaily.Add($"- الرقم القومي: {pdfRecord.NationalId} | الاسم: {pdfRecord.Name} | كود الموظف: {pdfCodeStr}");
+                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "NotFound", Message = "ﺩﻮﺟﻮﻣ ﺮﻴﻏ" }); // غير موجود
                     errorCount++;
                     continue; // Skip further checks for this record
                 }
@@ -192,6 +218,7 @@ namespace Application.Features
                 // Skip if already reviewed by PDF or manually
                 if (dbRecord.Details.Any() && dbRecord.Details.All(d => d.IsSummaryReviewed))
                 {
+                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Matched", Message = "(ﺎﻘﺒﺴﻣ) ﺔﻘﺑﺎﻄﻤﻟﺍ ﺖﻤﺗ" }); // تمت المطابقة (مسبقا)
                     matchedCount++;
                     continue;
                 }
@@ -205,7 +232,7 @@ namespace Application.Features
                 }
 
                 // 4. Check Total Entitlements
-                // Allow a small epsilon for floating point comparison (e.g., 0.01)
+                // Allow a small epsilon for floating point comparison (e.g., 0.05)
                 if (Math.Abs(dbRecord.TotalAmount - pdfRecord.TotalEntitlements) > 0.05)
                 {
                     errorsForEmployee.Add($"- اختلاف إجمالي الاستحقاقات | باليومية: {dbRecord.TotalAmount} | بالملف: {pdfRecord.TotalEntitlements}");
@@ -220,10 +247,12 @@ namespace Application.Features
                         reportBuilder.AppendLine(err);
                     }
                     reportBuilder.AppendLine("--------------------------------------------------");
+                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Error", Message = "ﺔﻘﺑﺎﻄﻤﻟﺍ ﻢﺘﺗ ﻢﻟ" }); // لم تتم المطابقة
                     errorCount++;
                 }
                 else
                 {
+                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Matched", Message = "ﺔﻘﺑﺎﻄﻤﻟﺍ ﺖﻤﺗ" }); // تمت المطابقة
                     // Success!
                     matchedCount++;
 
@@ -235,7 +264,6 @@ namespace Application.Features
                             fdToUpdate.IsSummaryReviewed = true;
                             fdToUpdate.IsSummaryReviewedBy = currentUserId;
                             fdToUpdate.SummaryReviewedAt = DateTime.Now;
-                            // Adding to list isn't strictly necessary since it's tracked by EF, but good practice
                         }
                     }
 
@@ -257,9 +285,6 @@ namespace Application.Features
                     }
                 }
             }
-
-            // The user requested NOT to report employees that are in the Daily but missing from the PDF.
-            // We no longer check or list "missingFromPdf" in the report.
 
             if (missingFromDaily.Any())
             {
@@ -289,17 +314,103 @@ namespace Application.Features
             // Save all tracked changes
             await _unitOfWork.SaveChangesAsync();
 
+            byte[] annotatedPdfBytes;
+            try
+            {
+                using var itextInputStream = new MemoryStream(pdfBytes);
+                using var outStream = new MemoryStream();
+                using (var pdfReader = new PdfReader(itextInputStream))
+                using (var pdfWriter = new PdfWriter(outStream))
+                using (var pdfDoc = new PdfDocument(pdfReader, pdfWriter))
+                {
+                    var fontPath = @"C:\Windows\Fonts\arial.ttf";
+                    PdfFont font = null;
+                    if (File.Exists(fontPath))
+                    {
+                        font = PdfFontFactory.CreateFont(fontPath, PdfEncodings.IDENTITY_H);
+                    }
+
+                    var pageGroups = annotations.GroupBy(a => a.PageNumber);
+
+                    foreach (var group in pageGroups)
+                    {
+                        if (group.Key <= 0 || group.Key > pdfDoc.GetNumberOfPages()) continue;
+
+                        var page = pdfDoc.GetPage(group.Key);
+                        var canvas = new PdfCanvas(page);
+                        var rect = page.GetPageSize();
+                        
+                        float boxWidth = 250;
+                        float boxHeight = 40;
+                        float x = (rect.GetWidth() - boxWidth) / 2; // Center horizontally
+                        
+                        // Start near the bottom, moved up by 10 cm (10 cm = ~283.5 points)
+                        float yOffset = 30 + 283.5f;
+
+                        foreach (var ann in group)
+                        {
+                            var extGState = new PdfExtGState().SetFillOpacity(0.7f);
+                            canvas.SetExtGState(extGState);
+
+                            if (ann.State == "Matched")
+                                canvas.SetFillColor(ColorConstants.GREEN);
+                            else if (ann.State == "Error")
+                                canvas.SetFillColor(ColorConstants.RED);
+                            else
+                                canvas.SetFillColor(ColorConstants.YELLOW);
+
+                            // Draw centered box at the bottom
+                            canvas.Rectangle(x, yOffset, boxWidth, boxHeight);
+                            canvas.Fill();
+
+                            if (font != null) 
+                            {
+                                canvas.SetExtGState(new PdfExtGState().SetFillOpacity(1.0f));
+                                canvas.SetFillColor(ColorConstants.BLACK);
+                                canvas.BeginText();
+                                canvas.SetFontAndSize(font, 14);
+                                
+                                // Approximate centering for the text inside the box
+                                float textX = x + 70; 
+                                float textY = yOffset + (boxHeight / 2) - 5;
+                                canvas.MoveText(textX, textY);
+                                
+                                canvas.ShowText(ann.Message);
+                                canvas.EndText();
+                            }
+
+                            // Stack upwards if there are multiple annotations on the same page
+                            yOffset += boxHeight + 10;
+                        }
+                    }
+                    pdfDoc.Close();
+                }
+                annotatedPdfBytes = outStream.ToArray();
+
+                try 
+                {
+                    // Debug save
+                    System.IO.File.WriteAllBytes(@"f:\Prog-Projects\IProgram\test_debug.pdf", annotatedPdfBytes);
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to annotate PDF.");
+                return Result.Failure<PdfVerificationResult>(new Error("500", "حدث خطأ أثناء تعديل ملف الـ PDF: " + ex.Message));
+            }
+
             byte[] reportBytes = Encoding.UTF8.GetBytes(reportBuilder.ToString());
-            // Add UTF-8 BOM so Excel/Notepad open Arabic correctly
             byte[] bom = new byte[] { 0xEF, 0xBB, 0xBF };
-            var fullReportBytes = new byte[bom.Length + reportBytes.Length];
-            Buffer.BlockCopy(bom, 0, fullReportBytes, 0, bom.Length);
-            Buffer.BlockCopy(reportBytes, 0, fullReportBytes, bom.Length, reportBytes.Length);
+            byte[] fullTextBytes = new byte[bom.Length + reportBytes.Length];
+            Buffer.BlockCopy(bom, 0, fullTextBytes, 0, bom.Length);
+            Buffer.BlockCopy(reportBytes, 0, fullTextBytes, bom.Length, reportBytes.Length);
 
             return Result.Success(new PdfVerificationResult
             {
                 Success = true,
-                ReportFile = fullReportBytes,
+                ReportFile = annotatedPdfBytes,
+                TextReportFile = fullTextBytes,
                 MatchedCount = matchedCount,
                 ErrorCount = errorCount
             });
