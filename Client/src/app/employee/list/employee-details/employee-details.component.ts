@@ -11,6 +11,7 @@ import { UploadEmployeeReferncesDialogComponent } from './employee-references/up
 import { ThemePalette } from '@angular/material/core';
 import { AddBankDialogComponent } from './bank-info/add-bank-dialog/add-bank-dialog.component';
 import { EditEmployeeDialogComponent } from './edit-employee-dialog/edit-employee-dialog.component';
+import { ChangeNationalIdDialogComponent } from './change-national-id-dialog/change-national-id-dialog.component';
 import { MatMenu } from '@angular/material/menu';
 import { MatTab } from '@angular/material/tabs';
 import { fromEvent } from 'rxjs';
@@ -114,6 +115,24 @@ export class EmployeeDetailsComponent implements OnInit {
       this.ngOnInit();
       //TOASTER
       // this.toaster.openSuccessToaster('تم التعديل بنجاح', 'check');
+    });
+  }
+
+  openChangeNationalIdDialog() {
+    const dialogRef = this._dialog.open(ChangeNationalIdDialogComponent, {
+      width: '400px',
+      disableClose: true,
+      data: { employeeId: this.employeeId },
+      panelClass: ['dialog-container'],
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result && result.success) {
+        // Navigate to the new employee details page to reflect the new ID
+        this.router.navigate(['/employee/details', result.newId]).then(() => {
+          window.location.reload();
+        });
+      }
     });
   }
 

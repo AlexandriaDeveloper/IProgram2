@@ -13,6 +13,9 @@
        <button mat-menu-item  (click)="stopEmployee()">
         <mat-icon>pause</mat-icon>
          ايقاف الموظف </button>
+       <button mat-menu-item (click)="openChangeNationalIdDialog()">
+        <mat-icon>credit_card</mat-icon>
+         تعديل الرقم القومي </button>
 </mat-menu>
 <mat-tab-group #mattab color="accent" (selectedIndexChange)="onTabChange($event)">
   <mat-tab label="بيانات الموظف" >

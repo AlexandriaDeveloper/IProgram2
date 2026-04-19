@@ -117,5 +117,12 @@ namespace Api.Controllers
             var result = await _employeeService.Delete(id);
             return HandleResult(result);
         }
+
+        [HttpPut("ChangeNationalId")]
+        public async Task<IActionResult> ChangeNationalId([FromBody] ChangeNationalIdRequest request)
+        {
+            var result = await _employeeService.ChangeNationalId(request.OldNationalId, request.NewNationalId);
+            return HandleResult(result);
+        }
     }
 }

@@ -3,6 +3,7 @@ using Application.Dtos;
 using Application.Dtos.Requests;
 using Application.Helpers;
 using Application.Services;
+using Auth.Infrastructure;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
@@ -24,6 +25,7 @@ namespace Application.Features
         private readonly IConfiguration _config;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ApplicationContext _context;
 
 
         public EmployeeService(IEmployeeRepository employeeRepository,
@@ -32,7 +34,8 @@ namespace Application.Features
         , IUnitOfWork uow, IConfiguration config,
         IHttpContextAccessor httpContextAccessor,
         IMemoryCache cache,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        ApplicationContext context)
         {
             this._config = config;
             this._httpContextAccessor = httpContextAccessor;
@@ -41,6 +44,7 @@ namespace Application.Features
             this._employeeRepository = employeeRepository;
             this._departmentRepository = departmentRepository;
             this._currentUserService = currentUserService;
+            this._context = context;
         }
         public async Task<Result<PaginatedResult<EmployeeDto>>> getEmployees(EmployeeParam param)
         {
@@ -772,6 +776,76 @@ namespace Application.Features
 
 
 
+        }
+
+        public async Task<Result> ChangeNationalId(string oldNationalId, string newNationalId)
+        {
+            if (string.IsNullOrWhiteSpace(oldNationalId) || string.IsNullOrWhiteSpace(newNationalId))
+                return Result.Failure(new Error("400", "الرقم القومى القديم والجديد مطلوبين"));
+
+            if (oldNationalId == newNationalId)
+                return Result.Failure(new Error("400", "الرقم القومى الجديد هو نفسه القديم"));
+
+            if (newNationalId.Length != 14)
+                return Result.Failure(new Error("400", "الرقم القومى لابد ان يكون 14 رقم"));
+
+            // Check old employee exists
+            var oldEmployee = await _employeeRepository.GetById(oldNationalId);
+            if (oldEmployee == null)
+                return Result.Failure(new Error("404", "الموظف بالرقم القومى القديم غير موجود"));
+
+            // Check new national ID doesn't already exist
+            var existingEmployee = await _employeeRepository.CheckEmployeeByNationalId(newNationalId);
+            if (existingEmployee)
+                return Result.Failure(new Error("400", "الرقم القومى الجديد مسجل بالفعل لموظف آخر"));
+
+            // Use raw SQL in a transaction to update PK and all FKs
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Disable FK constraints temporarily
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE FormDetails NOCHECK CONSTRAINT ALL");
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeBank NOCHECK CONSTRAINT ALL");
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeNetPays NOCHECK CONSTRAINT ALL");
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeRefernce NOCHECK CONSTRAINT ALL");
+
+                // Update all child tables first
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE FormDetails SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                    newNationalId, oldNationalId);
+
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE EmployeeBank SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                    newNationalId, oldNationalId);
+
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE EmployeeNetPays SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                    newNationalId, oldNationalId);
+
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE EmployeeRefernce SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                    newNationalId, oldNationalId);
+
+                // Update the Employee PK itself
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE Employees SET Id = {0} WHERE Id = {1}",
+                    newNationalId, oldNationalId);
+
+                // Re-enable FK constraints
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE FormDetails WITH CHECK CHECK CONSTRAINT ALL");
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeBank WITH CHECK CHECK CONSTRAINT ALL");
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeNetPays WITH CHECK CHECK CONSTRAINT ALL");
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeRefernce WITH CHECK CHECK CONSTRAINT ALL");
+
+                await transaction.CommitAsync();
+
+                return Result.Success($"تم تغيير الرقم القومى من {oldNationalId} الى {newNationalId} بنجاح");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return Result.Failure(new Error("500", $"حدث خطأ أثناء تغيير الرقم القومى: {ex.Message}"));
+            }
         }
 
 

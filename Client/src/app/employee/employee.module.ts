@@ -20,6 +20,8 @@ import { EditEmployeeDialogComponent } from './list/employee-details/edit-employ
 
 
 
+import { ChangeNationalIdDialogComponent } from './list/employee-details/change-national-id-dialog/change-national-id-dialog.component';
+
 @NgModule({
   declarations: [
     AddEmployeeComponent,
@@ -33,7 +35,8 @@ import { EditEmployeeDialogComponent } from './list/employee-details/edit-employ
     EmployeeReferencesComponent,
     BankInfoComponent,
     UploadEmployeeReferncesDialogComponent,
-    AddBankDialogComponent,EditEmployeeDialogComponent
+    AddBankDialogComponent,EditEmployeeDialogComponent,
+    ChangeNationalIdDialogComponent
   ],
 
   imports: [

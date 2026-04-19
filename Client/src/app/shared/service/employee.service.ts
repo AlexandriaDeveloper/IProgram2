@@ -139,6 +139,10 @@ export class EmployeeService {
     return this.http.delete(this.apiUrl + 'employee/' + id)
   }
 
+  changeNationalId(oldNationalId: string, newNationalId: string) {
+    return this.http.put(this.apiUrl + 'employee/ChangeNationalId', { oldNationalId, newNationalId });
+  }
+
   GetCollages() {
     return this.http.get(this.apiUrl + 'employee/getCollages')
   }

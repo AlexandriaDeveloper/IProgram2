@@ -1,0 +1,26 @@
+<mat-card class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+  <mat-card-header>
+    <mat-card-title>
+        <div class="close" (click)="onNoClick()">
+          <mat-icon>close</mat-icon>
+        </div>
+        <span>تعديل الرقم القومي</span>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" class="form-dialg" (ngSubmit)="onSubmit()">
+      
+      <app-input-text [readonly]="true" formControlName="oldNationalId" label="الرقم القومي القديم" [matSuffix]="'credit_card'"></app-input-text>
+      <app-input-text formControlName="newNationalId" label="الرقم القومي الجديد" [matSuffix]="'credit_card'"></app-input-text>
+
+      <div class="action-buttons">
+          <button type="submit" mat-raised-button color="primary" [disabled]="form.invalid">
+              حفظ
+          </button>
+          <button type="button" (click)="onNoClick()" mat-raised-button color="warn">
+            الغاء
+        </button>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>
