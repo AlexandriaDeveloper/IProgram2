@@ -494,7 +494,14 @@ namespace Application.Features
                         Amount = x.Amount,
                         EmployeeId = x.EmployeeId,
                         OrderNum = x.OrderNum,
-
+                        IsReviewed = x.IsReviewed,
+                        IsReviewedBy = x.IsReviewedBy,
+                        ReviewedAt = x.ReviewedAt,
+                        ReviewComments = x.ReviewComments,
+                        IsSummaryReviewed = x.IsSummaryReviewed,
+                        IsSummaryReviewedBy = x.IsSummaryReviewedBy,
+                        SummaryReviewedAt = x.SummaryReviewedAt,
+                        SummaryComments = x.SummaryComments
                     }).ToList()
                 });
             }

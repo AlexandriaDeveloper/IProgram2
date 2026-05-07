@@ -31,6 +31,14 @@ namespace Application.Dtos
                 public string EmployeeId { get; set; }
                 public double Amount { get; set; }
                 public int OrderNum { get; set; }
+                public bool IsReviewed { get; set; }
+                public string IsReviewedBy { get; set; }
+                public DateTime? ReviewedAt { get; set; }
+                public string ReviewComments { get; set; }
+                public bool IsSummaryReviewed { get; set; }
+                public string IsSummaryReviewedBy { get; set; }
+                public DateTime? SummaryReviewedAt { get; set; }
+                public string SummaryComments { get; set; }
 
 
             }

@@ -401,7 +401,15 @@ namespace Application.Features
                         OrderNum = formDetail.OrderNum,
                         CreatedAt = DateTime.Now,
                         CreatedBy = _currentUserService.UserId,
-                        IsActive = true
+                        IsActive = true,
+                        IsReviewed = formDetail.IsReviewed,
+                        IsReviewedBy = formDetail.IsReviewedBy,
+                        ReviewedAt = formDetail.ReviewedAt,
+                        ReviewComments = formDetail.ReviewComments,
+                        IsSummaryReviewed = formDetail.IsSummaryReviewed,
+                        IsSummaryReviewedBy = formDetail.IsSummaryReviewedBy,
+                        SummaryReviewedAt = formDetail.SummaryReviewedAt,
+                        SummaryComments = formDetail.SummaryComments
                     });
                 }
                 daily.Forms.Add(formToAdd);
