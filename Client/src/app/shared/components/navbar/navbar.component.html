@@ -142,6 +142,8 @@ document.createElement('video');
             routerLinkActive="active"> <mat-icon>cloud_upload</mat-icon> تحميل ملف موظفين </a>
           <a mat-list-item [routerLink]="['/employee/list']" routerLinkActive="active"> <mat-icon>people</mat-icon>
             الموظفين </a>
+          <a *ngIf="auth.isUserAdmin()" mat-list-item [routerLink]="['/watchlist']" routerLinkActive="active"> <mat-icon>notification_important</mat-icon>
+            قائمة الانتباه </a>
         </mat-nav-list>
       </mat-expansion-panel>
       <mat-expansion-panel (opened)="panelOpenState = true" (closed)="panelOpenState = false">

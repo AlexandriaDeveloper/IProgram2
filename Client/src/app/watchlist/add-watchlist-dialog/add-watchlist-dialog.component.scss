@@ -1,0 +1,139 @@
+@import "./../../../assets/themes/varibale.scss";
+
+::ng-deep .custom-theme {
+  .mat-mdc-card-header {
+    background-color: $primary-color;
+    color: $white-color;
+    padding: 15px 20px;
+    
+    .close {
+      color: $white-color;
+      cursor: pointer;
+      &:hover { opacity: 0.8; }
+    }
+    
+    .mat-mdc-card-title {
+      font-family: 'Cairo', sans-serif;
+      font-size: 18px;
+      margin: 0;
+    }
+  }
+}
+
+.search-type-section {
+  margin-top: 10px;
+  margin-bottom: 25px;
+
+  .section-label {
+    display: block;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 12px;
+    font-family: 'Cairo', sans-serif;
+    font-weight: 500;
+  }
+
+  .search-toggle-group {
+    width: 100%;
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba($primary-color, 0.2);
+
+    ::ng-deep .mat-button-toggle {
+      flex: 1;
+      background-color: #fcfcfc;
+
+      .mat-button-toggle-label-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: 'Cairo', sans-serif;
+        font-size: 13px;
+        padding: 10px;
+      }
+
+      mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
+    }
+
+    ::ng-deep .mat-button-toggle-checked {
+      background-color: $primary-color !important;
+      color: $white-color !important;
+      box-shadow: 0 4px 10px rgba($primary-color, 0.3);
+
+      .mat-icon {
+        color: $white-color !important;
+      }
+    }
+  }
+}
+
+.form-dialg {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 20px 10px;
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.search-result-container {
+  min-height: 45px;
+  margin-top: -10px;
+  margin-bottom: 10px;
+
+  .searching-status, .found-status, .error-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Cairo', sans-serif;
+    font-size: 14px;
+    padding: 12px 18px;
+    border-radius: 8px;
+  }
+
+  .searching-status {
+    color: #444;
+    font-style: italic;
+    background-color: rgba(0,0,0,0.03);
+  }
+
+  .found-status {
+    background-color: rgba(76, 175, 80, 0.15);
+    color: #1b5e20;
+    border: 2px solid rgba(76, 175, 80, 0.3);
+
+    strong {
+      font-size: 17px;
+      color: #000; /* تغيير الاسم للأسود لسهولة القراءة */
+      font-weight: 800;
+    }
+
+    mat-icon {
+      color: #1b5e20;
+    }
+  }
+
+  .error-status {
+    background-color: rgba(211, 47, 47, 0.08);
+    color: #b71c1c;
+    border: 2px solid rgba(211, 47, 47, 0.2);
+    font-weight: bold;
+  }
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+  padding: 15px 0;
+  border-top: 1px solid #eee;
+}

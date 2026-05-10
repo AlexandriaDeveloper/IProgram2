@@ -12,6 +12,7 @@ import { ThemePalette } from '@angular/material/core';
 import { AddBankDialogComponent } from './bank-info/add-bank-dialog/add-bank-dialog.component';
 import { EditEmployeeDialogComponent } from './edit-employee-dialog/edit-employee-dialog.component';
 import { ChangeNationalIdDialogComponent } from './change-national-id-dialog/change-national-id-dialog.component';
+import { AddWatchlistDialogComponent } from '../../../watchlist/add-watchlist-dialog/add-watchlist-dialog.component';
 import { MatMenu } from '@angular/material/menu';
 import { MatTab } from '@angular/material/tabs';
 import { fromEvent } from 'rxjs';
@@ -132,6 +133,20 @@ export class EmployeeDetailsComponent implements OnInit {
         this.router.navigate(['/employee/details', result.newId]).then(() => {
           window.location.reload();
         });
+      }
+    });
+  }
+
+  addToWatchList() {
+    const dialogRef = this._dialog.open(AddWatchlistDialogComponent, {
+      width: '550px',
+      direction: 'rtl',
+      data: { searchType: 'nationalId', nationalId: this.employeeId }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.toaster.openSuccessToaster('تم إضافة الموظف لقائمة الانتباه', 'notification_important');
       }
     });
   }

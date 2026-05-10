@@ -16,6 +16,9 @@
        <button mat-menu-item (click)="openChangeNationalIdDialog()">
         <mat-icon>credit_card</mat-icon>
          تعديل الرقم القومي </button>
+       <button mat-menu-item (click)="addToWatchList()">
+        <mat-icon color="warn">notification_important</mat-icon>
+         إضافة لقائمة الانتباه </button>
 </mat-menu>
 <mat-tab-group #mattab color="accent" (selectedIndexChange)="onTabChange($event)">
   <mat-tab label="بيانات الموظف" >

@@ -98,9 +98,10 @@
                 </div>
             </th>
             <td mat-cell *matCellDef="let element" style="text-align: right !important;">
-                <mat-checkbox color="primary" [checked]="element.isFullyReviewed"
-                    (change)="markAllAsReviewed(element, $event.checked)" (click)="$event.stopPropagation()">
-                </mat-checkbox>
+                <div style="display: inline-block; cursor: pointer;" (click)="markAllAsReviewed(element, !element.isFullyReviewed); $event.stopPropagation()">
+                    <mat-checkbox color="primary" [checked]="element.isFullyReviewed" style="pointer-events: none;">
+                    </mat-checkbox>
+                </div>
             </td>
         </ng-container>
 
@@ -163,6 +164,14 @@
                             style="font-size: 20px; width: 20px; height: 20px; cursor: help;">warning</mat-icon>
                         }
                         <span>{{element.employeeName}}</span>
+                        <mat-icon *ngIf="element.watchListAlert" 
+                                  color="warn" 
+                                  class="watch-alert-icon pulse-animation"
+                                  [matTooltip]="element.watchListAlert.reason"
+                                  [matTooltipPosition]="'right'"
+                                  style="vertical-align: middle; margin-right: 5px; cursor: pointer;">
+                          notification_important
+                        </mat-icon>
                     </div>
                     <button mat-icon-button (click)="openCommentDialog(element, $event)" color="primary"
                         title="إضافة تعليق">

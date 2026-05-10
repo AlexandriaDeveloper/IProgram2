@@ -36,6 +36,7 @@ namespace Core.Models
         public EmployeeBank? EmployeeBank { get; set; } = null;
         public ICollection<FormDetails> FormDetails { get; set; }
         public ICollection<EmployeeRefernce> EmployeeRefernces { get; set; }
+        public ICollection<EmployeeWatchList> WatchListEntries { get; set; }
 
 
     }

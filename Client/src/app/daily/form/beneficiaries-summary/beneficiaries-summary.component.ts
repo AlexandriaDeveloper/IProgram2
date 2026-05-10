@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, OnDestroy, inject, AfterViewInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, OnDestroy, inject, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { fromEvent, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged, map } from 'rxjs/operators';
@@ -12,6 +12,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { CommentDialogComponent } from './comment-dialog/comment-dialog.component';
 import { NetPayDialogComponent } from './netpay-dialog/netpay-dialog.component';
 import { environment } from '../../../environment';
+import { WatchlistAlertDialogComponent } from './watchlist-alert-dialog/watchlist-alert-dialog.component';
+
 
 @Component({
     selector: 'app-beneficiaries-summary',
@@ -34,6 +36,7 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
     route = inject(ActivatedRoute);
     router = inject(Router);
     dialog = inject(MatDialog);
+    cdr = inject(ChangeDetectorRef);
 
     dailyId!: number;
     dailyData: any = null;
@@ -244,26 +247,76 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
     }
 
     markAllAsReviewed(element: any, isChecked: boolean) {
+        if (isChecked && element.watchListAlert) {
+            const dialogRef = this.dialog.open(WatchlistAlertDialogComponent, {
+                width: '500px',
+                data: {
+                    employeeName: element.employeeName,
+                    reason: element.watchListAlert.reason
+                },
+                direction: 'rtl'
+            });
+
+            dialogRef.afterClosed().subscribe(result => {
+                if (result === true) {
+                    this.executeMarkAllAsReviewed(element, isChecked);
+                }
+            });
+        } else {
+            this.executeMarkAllAsReviewed(element, isChecked);
+        }
+    }
+
+    private executeMarkAllAsReviewed(element: any, isChecked: boolean) {
         // Toggle review for all details within this beneficiary
         element.details.forEach((detail: any) => {
             if (detail.isSummaryReviewed !== isChecked) {
-                this.markAsReviewed(detail, isChecked);
+                this.executeMarkAsReviewed(detail, isChecked, element);
             }
         });
+        element.isFullyReviewed = isChecked;
+        this.dataSource.data = [...this.dataSource.data];
+        this.applyFilter();
+        this.cdr.detectChanges();
     }
 
     markAsReviewed(detail: any, isChecked: boolean) {
+        // Find parent to check for watchlist alert
+        const parent = this.dataSource.data.find(
+            (b: any) => b.details.some((d: any) => d.formDetailId === detail.formDetailId)
+        );
+
+        if (isChecked && parent?.watchListAlert) {
+            const dialogRef = this.dialog.open(WatchlistAlertDialogComponent, {
+                width: '500px',
+                data: {
+                    employeeName: parent.employeeName,
+                    reason: parent.watchListAlert.reason
+                },
+                direction: 'rtl'
+            });
+
+            dialogRef.afterClosed().subscribe(result => {
+                if (result === true) {
+                    this.executeMarkAsReviewed(detail, isChecked, parent);
+                }
+            });
+        } else {
+            this.executeMarkAsReviewed(detail, isChecked, parent);
+        }
+    }
+
+    private executeMarkAsReviewed(detail: any, isChecked: boolean, parent: any) {
         this.formDetailsService.markAsSummaryReviewed(detail.formDetailId, isChecked).subscribe({
             next: () => {
                 detail.isSummaryReviewed = isChecked;
                 // Update the parent row's fully reviewed status
-                const parent = this.dataSource.data.find(
-                    (b: any) => b.details.some((d: any) => d.formDetailId === detail.formDetailId)
-                );
                 if (parent) {
                     parent.isFullyReviewed = parent.details.every((d: any) => d.isSummaryReviewed);
                 }
+                this.dataSource.data = [...this.dataSource.data];
                 this.applyFilter();
+                this.cdr.detectChanges();
             },
             error: () => {
                 this.toaster.openErrorToaster('حدث خطأ في تحديث حالة المراجعة');

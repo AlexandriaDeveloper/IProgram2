@@ -25,9 +25,7 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule } from '@angular/material/dialog';
 import { CommentDialogComponent } from './form/beneficiaries-summary/comment-dialog/comment-dialog.component';
 import { NetPayDialogComponent } from './form/beneficiaries-summary/netpay-dialog/netpay-dialog.component';
-
-
-
+import { WatchlistAlertDialogComponent } from './form/beneficiaries-summary/watchlist-alert-dialog/watchlist-alert-dialog.component';
 
 @NgModule({
   declarations: [
@@ -60,7 +58,8 @@ import { NetPayDialogComponent } from './form/beneficiaries-summary/netpay-dialo
     SharedModule,
     InputTextComponent,
     UploadComponent,
-    MatDialogModule
+    MatDialogModule,
+    WatchlistAlertDialogComponent
   ]
 })
 export class DailyModule { }

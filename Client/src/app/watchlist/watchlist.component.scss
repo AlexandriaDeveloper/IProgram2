@@ -1,0 +1,141 @@
+@import "./../../assets/themes/varibale.scss";
+
+.description-text {
+  color: $white-color;
+  background-color: rgba($primary-color, 0.9);
+  padding: 20px;
+  font-size: 18px;
+  margin-bottom: 25px;
+  border-right: 6px solid $accent-color;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+
+  strong {
+    font-size: 24px;
+    display: block;
+    margin-bottom: 8px;
+    font-family: 'Cairo', sans-serif;
+  }
+
+  .add-button {
+    color: $white-color;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin-left: 15px;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+  }
+}
+
+.table-container {
+  padding: 0;
+  background: rgba($primary-color, 0.95);
+  backdrop-filter: blur(15px);
+  border-radius: 15px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+  margin-top: 20px;
+
+  .header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .full-width-table {
+    width: 100%;
+    background: transparent;
+
+    th.mat-header-cell {
+      background-color: rgba(0, 0, 0, 0.2);
+      color: $white-color;
+      font-weight: 800;
+      font-family: 'Cairo', sans-serif;
+      padding: 15px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      text-transform: uppercase;
+      font-size: 13px;
+    }
+
+    td.mat-cell {
+      padding: 15px 10px;
+      font-size: 15px;
+      color: $white-color;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .header-search {
+      width: 100%;
+      min-width: 130px;
+      
+      ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+        display: none;
+      }
+
+      ::ng-deep .mat-mdc-text-field-wrapper {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+      }
+
+      input {
+        font-size: 12px;
+        color: $white-color;
+      }
+
+      mat-label {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .mat-icon {
+        color: rgba(255, 255, 255, 0.7);
+      }
+    }
+
+    tr.mat-mdc-row:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .inactive-row {
+      background-color: rgba(0, 0, 0, 0.2);
+      opacity: 0.8;
+      
+      td {
+        color: rgba(255, 255, 255, 0.5);
+      }
+    }
+
+    .inactive-text {
+      color: rgba(255, 255, 255, 0.5);
+      text-decoration: line-through;
+    }
+
+    .status-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      vertical-align: middle;
+      margin-right: 8px;
+      color: $accent-color;
+    }
+
+    .no-data-cell {
+      text-align: center;
+      padding: 60px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 18px;
+      font-family: 'Cairo', sans-serif;
+    }
+  }
+}
+
+.mat-mdc-raised-button {
+  border-radius: 6px;
+  font-family: 'Cairo', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0;
+}

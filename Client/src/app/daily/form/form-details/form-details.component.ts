@@ -1,7 +1,7 @@
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormDetailsService } from './../../../shared/service/form-details.service';
 import { trigger, transition, style, animate } from '@angular/animations';
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { DescriptionDialogComponent } from './description-dialog/description-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { MatPaginator } from '@angular/material/paginator';
@@ -21,6 +21,8 @@ import { UploadExcelFileBottomComponent } from './upload-excel-file-bottom/uploa
 import { IDaily } from '../../../shared/models/IDaily';
 import { DailyService } from '../../../shared/service/daily.service';
 import { UploadPdfBottomComponent } from './upload-pdf-bottom/upload-pdf-bottom.component';
+import { WatchlistAlertDialogComponent } from '../beneficiaries-summary/watchlist-alert-dialog/watchlist-alert-dialog.component';
+
 
 
 
@@ -46,6 +48,7 @@ export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
 
   dialog = inject(MatDialog)
   toaster = inject(ToasterService);
+  cdr = inject(ChangeDetectorRef);
   formDetailsService = inject(FormDetailsService);
   formService = inject(FormService);
   dailyService = inject(DailyService);
@@ -377,50 +380,68 @@ export class FormDetailsComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     });
   }
+
   markAsReviewed(row: IEmployee, event: boolean) {
     if (this.daily?.closed) return;
 
-    row.isReviewed = event;
+    if (event && row.watchListAlert) {
+      const dialogRef = this.dialog.open(WatchlistAlertDialogComponent, {
+        width: '500px',
+        data: {
+          employeeName: row.name,
+          reason: row.watchListAlert.reason
+        },
+        direction: 'rtl'
+      });
 
+      dialogRef.afterClosed().subscribe(result => {
+        if (result === true) {
+          this.executeMarkAsReviewed(row, event);
+        }
+      });
+    } else {
+      this.executeMarkAsReviewed(row, event);
+    }
+  }
+
+  private executeMarkAsReviewed(row: IEmployee, event: boolean) {
     if (!event) {
       if (!confirm("انت على وشك الغاء مراجعة البيان هل انت متأكد ؟")) {
-        // this.loadData();
+        row.isReviewed = true;
+        this.dataSource.data = [...this.dataSource.data];
+        this.applyFilter();
+        this.cdr.detectChanges();
         return;
-
       }
+    }
 
-    }
-    this.formDetailsService.markAsReviewed(Number(row.id), event).subscribe(x => {
-      //this.loadData();
-    }, err => {
-      this.toasterService.openErrorToaster('حدث خطأ ما الرجاء المحاولة لاحقا')
-    })
+    this.formDetailsService.markAsReviewed(Number(row.id), event).subscribe({
+      next: x => {
+        row.isReviewed = event;
+        this.dataSource.data = [...this.dataSource.data];
+        this.applyFilter();
+        this.cdr.detectChanges();
+      },
+      error: err => {
+        console.error(err);
+        this.toasterService.openErrorToaster('حدث خطأ ما الرجاء المحاولة لاحقا');
+        row.isReviewed = !event;
+        this.dataSource.data = [...this.dataSource.data];
+        this.applyFilter();
+        this.cdr.detectChanges();
+      }
+    });
   }
-  clear(input) {
-    if (input == 'tabCode') {
-      this.tabCodeInput.nativeElement.value = ''
-    }
-    if (input == 'tegaraCode') {
-      this.tegaraCodeInput.nativeElement.value = ''
-    }
-    if (input == 'name') {
-      this.nameInput.nativeElement.value = ''
-    }
-    if (input == 'department') {
-      this.departmentInput.nativeElement.value = ''
-    }
-    if (input == 'employeeId') {
-      this.employeeIdInput.nativeElement.value = ''
-    }
-    if (input == 'amount') {
-      this.amountInput.nativeElement.value = ''
-    }
-    // reset the input element value and the corresponding filter value
+
+  clear(input: string) {
+    if (input == 'tabCode' && this.tabCodeInput) this.tabCodeInput.nativeElement.value = '';
+    if (input == 'tegaraCode' && this.tegaraCodeInput) this.tegaraCodeInput.nativeElement.value = '';
+    if (input == 'name' && this.nameInput) this.nameInput.nativeElement.value = '';
+    if (input == 'department' && this.departmentInput) this.departmentInput.nativeElement.value = '';
+    if (input == 'employeeId' && this.employeeIdInput) this.employeeIdInput.nativeElement.value = '';
+    if (input == 'amount' && this.amountInput) this.amountInput.nativeElement.value = '';
+
     this.filterValues[input] = '';
-    if (this[input + 'Input'] && this[input + 'Input'].nativeElement) {
-      try { this[input + 'Input'].nativeElement.value = ''; } catch { }
-    }
-    // reapply filters (this will show original data and keep multi-sort)
     this.applyFilter();
   }
 

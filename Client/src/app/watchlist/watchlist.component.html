@@ -1,0 +1,122 @@
+<div class="description-text">
+  <a mat-icon-button color="accent" [routerLink]="['/']" class="add-button" title="العودة للرئيسية">
+    <mat-icon>arrow_back</mat-icon>
+  </a>
+  <strong>إدارة قائمة الانتباه (Watch List)</strong>
+  <p class="multi-lines">
+    يمكنك إضافة الموظفين إلى هذه القائمة لتلقي تحذيرات بصرية عند مراجعة صرفياتهم.
+  </p>
+</div>
+
+<div class="table-container mat-elevation-z8">
+  <div class="header-actions">
+    <button mat-raised-button color="primary" (click)="openAddDialog()">
+      <mat-icon>add</mat-icon>
+      إضافة للقائمة
+    </button>
+    <div class="spacer"></div>
+  </div>
+
+  <table mat-table [dataSource]="dataSource" matSort class="full-width-table">
+    <!-- Action Column -->
+    <ng-container matColumnDef="action">
+      <th mat-header-cell *matHeaderCellDef style="width: 80px;">إجراءات</th>
+      <td mat-cell *matCellDef="let row">
+        <button mat-icon-button color="warn" (click)="deleteEntry(row.id)" title="حذف من القائمة">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </td>
+    </ng-container>
+
+    <!-- NationalId Column -->
+    <ng-container matColumnDef="employeeId">
+      <th mat-header-cell *matHeaderCellDef class="sortable-header" style="width: 180px; min-width: 150px; max-width: 200px;">
+        <mat-form-field appearance="outline" class="header-search" (click)="$event.stopPropagation()">
+          <mat-label>الرقم القومي</mat-label>
+          <input matInput (keyup)="applySpecificSearch($event, 'nationalId')" [value]="param.nationalId || ''">
+          @if (param.nationalId) {
+            <button matSuffix mat-icon-button (click)="clear('nationalId')"><mat-icon>close</mat-icon></button>
+          }
+        </mat-form-field>
+      </th>
+      <td mat-cell *matCellDef="let row">{{row.employeeId}}</td>
+    </ng-container>
+
+    <!-- Tab Code Column -->
+    <ng-container matColumnDef="tabCode">
+      <th mat-header-cell *matHeaderCellDef class="sortable-header" style="width: 100px; min-width: 90px; max-width: 110px;">
+        <mat-form-field appearance="outline" class="header-search" (click)="$event.stopPropagation()">
+          <mat-label>كود طب</mat-label>
+          <input matInput (keyup)="applySpecificSearch($event, 'tabCode')" [value]="param.tabCode || ''">
+          @if (param.tabCode) {
+            <button matSuffix mat-icon-button (click)="clear('tabCode')"><mat-icon>close</mat-icon></button>
+          }
+        </mat-form-field>
+      </th>
+      <td mat-cell *matCellDef="let row">{{row.tabCode || '-'}}</td>
+    </ng-container>
+
+    <!-- Tegara Code Column -->
+    <ng-container matColumnDef="tegaraCode">
+      <th mat-header-cell *matHeaderCellDef class="sortable-header" style="width: 100px; min-width: 90px; max-width: 110px;">
+        <mat-form-field appearance="outline" class="header-search" (click)="$event.stopPropagation()">
+          <mat-label>كود تجارة</mat-label>
+          <input matInput (keyup)="applySpecificSearch($event, 'tegaraCode')" [value]="param.tegaraCode || ''">
+          @if (param.tegaraCode) {
+            <button matSuffix mat-icon-button (click)="clear('tegaraCode')"><mat-icon>close</mat-icon></button>
+          }
+        </mat-form-field>
+      </th>
+      <td mat-cell *matCellDef="let row">{{row.tegaraCode || '-'}}</td>
+    </ng-container>
+
+    <!-- EmployeeName Column -->
+    <ng-container matColumnDef="employeeName">
+      <th mat-header-cell *matHeaderCellDef class="sortable-header" style="width: 250px; min-width: 200px;">
+        <mat-form-field appearance="outline" class="header-search" (click)="$event.stopPropagation()">
+          <mat-label>الاسم</mat-label>
+          <input matInput (keyup)="applySearch($event)" [value]="param.search || ''">
+          @if (param.search) {
+            <button matSuffix mat-icon-button (click)="clear('search')"><mat-icon>close</mat-icon></button>
+          }
+        </mat-form-field>
+      </th>
+      <td mat-cell *matCellDef="let row">
+        <span [class.inactive-text]="!row.isActive">{{row.employeeName}}</span>
+        <mat-icon *ngIf="!row.isActive" color="warn" class="status-icon" title="التحذير منتهي الصلاحية">timer_off</mat-icon>
+      </td>
+    </ng-container>
+
+    <!-- Reason Column -->
+    <ng-container matColumnDef="reason">
+      <th mat-header-cell *matHeaderCellDef style="min-width: 250px;">السبب</th>
+      <td mat-cell *matCellDef="let row">{{row.reason}}</td>
+    </ng-container>
+
+    <!-- ExpiresAt Column -->
+    <ng-container matColumnDef="expiresAt">
+      <th mat-header-cell *matHeaderCellDef>تاريخ الانتهاء</th>
+      <td mat-cell *matCellDef="let row">
+        {{row.expiresAt ? (row.expiresAt | date:'yyyy/MM/dd') : 'دائم'}}
+      </td>
+    </ng-container>
+
+    <!-- CreatedAt Column -->
+    <ng-container matColumnDef="createdAt">
+      <th mat-header-cell *matHeaderCellDef>تاريخ الإضافة</th>
+      <td mat-cell *matCellDef="let row">{{row.createdAt | date:'yyyy/MM/dd'}}</td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;" [class.inactive-row]="!row.isActive"></tr>
+
+    <tr class="mat-row" *matNoDataRow>
+      <td class="mat-cell no-data-cell" [attr.colspan]="displayedColumns.length">
+        لا توجد بيانات مطابقة للبحث
+      </td>
+    </tr>
+  </table>
+
+  <mat-paginator [length]="totalCount" [pageSize]="param.pageSize" [pageSizeOptions]="[10, 25, 50, 100]"
+    (page)="onPageChange($event)" showFirstLastButtons></mat-paginator>
+</div>

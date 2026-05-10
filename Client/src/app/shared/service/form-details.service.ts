@@ -24,6 +24,7 @@ export interface IFormDetail {
   isReviewed: boolean;
   reviewComments?: string;
   collage?: string; // Added to satisfy IEmployee interface compatibility
+  watchListAlert?: { reason: string };
 }
 
 export interface IFormDetailsRequest {

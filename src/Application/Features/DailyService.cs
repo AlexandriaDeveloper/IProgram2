@@ -28,9 +28,10 @@ namespace Application.Features
         private readonly ReportService _reportService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IEmployeeNetPayRepository _employeeNetPayRepository;
+        private readonly WatchListService _watchListService;
         private IConfiguration _config;
 
-        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository)
+        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository, WatchListService watchListService)
         {
             this._formRepository = formRepository;
             this._reportService = reportService;
@@ -39,6 +40,7 @@ namespace Application.Features
             this._config = config;
             this._userManager = userManager;
             this._employeeNetPayRepository = employeeNetPayRepository;
+            this._watchListService = watchListService;
         }
 
         public async Task<Result<DailyDto>> AddDaily(DailyDto dailyDto, CancellationToken cancellationToken)
@@ -662,6 +664,17 @@ namespace Application.Features
                 TotalNetPay = grouped.Sum(x => x.NetPay),
                 Beneficiaries = grouped
             };
+
+            var employeeIds = response.Beneficiaries.Select(x => x.EmployeeId).Where(id => id != null).Distinct().ToList();
+            var alerts = await _watchListService.GetActiveAlerts(employeeIds);
+
+            foreach (var beneficiary in response.Beneficiaries)
+            {
+                if (beneficiary.EmployeeId != null && alerts.TryGetValue(beneficiary.EmployeeId, out var alert))
+                {
+                    beneficiary.WatchListAlert = alert;
+                }
+            }
 
             return Result.Success(response);
         }

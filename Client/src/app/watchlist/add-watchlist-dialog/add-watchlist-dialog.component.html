@@ -1,0 +1,112 @@
+<mat-card class="custom-theme" cdkDrag cdkDragRootElement=".cdk-overlay-pane">
+  <mat-card-header cdkDragHandle style="cursor: move;">
+    <mat-card-title>
+      <div class="close" (click)="onCancel()">
+        <mat-icon>close</mat-icon>
+      </div>
+      <span>إضافة موظف لقائمة الانتباه</span>
+    </mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    <form [formGroup]="form" class="form-dialg" (ngSubmit)="onSubmit()">
+
+      <!-- Search Type Selection -->
+      <div class="search-type-section">
+        <label class="section-label">طريقة البحث عن الموظف</label>
+        <mat-button-toggle-group formControlName="searchType" class="search-toggle-group">
+          <mat-button-toggle value="nationalId">
+            <mat-icon>credit_card</mat-icon>
+            الرقم القومي
+          </mat-button-toggle>
+          <mat-button-toggle value="tabCode">
+            <mat-icon>local_hospital</mat-icon>
+            كود طب
+          </mat-button-toggle>
+          <mat-button-toggle value="tegaraCode">
+            <mat-icon>store</mat-icon>
+            كود تجارة
+          </mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      <!-- National ID Field -->
+      @if (form.get('searchType')?.value === 'nationalId') {
+        <mat-form-field appearance="outline" style="width: 100%;">
+          <mat-label>الرقم القومي</mat-label>
+          <input matInput formControlName="nationalId" placeholder="أدخل الرقم القومي (14 رقم)..." maxlength="14">
+          <mat-icon matSuffix>credit_card</mat-icon>
+          <mat-error *ngIf="form.get('nationalId')?.hasError('required')">هذا الحقل مطلوب</mat-error>
+        </mat-form-field>
+      }
+
+      <!-- Tab Code Field -->
+      @if (form.get('searchType')?.value === 'tabCode') {
+        <mat-form-field appearance="outline" style="width: 100%;">
+          <mat-label>كود طب</mat-label>
+          <input matInput type="number" formControlName="tabCode" placeholder="أدخل كود طب...">
+          <mat-icon matSuffix>local_hospital</mat-icon>
+          <mat-error *ngIf="form.get('tabCode')?.hasError('required')">هذا الحقل مطلوب</mat-error>
+        </mat-form-field>
+      }
+
+      <!-- Tegara Code Field -->
+      @if (form.get('searchType')?.value === 'tegaraCode') {
+        <mat-form-field appearance="outline" style="width: 100%;">
+          <mat-label>كود تجارة</mat-label>
+          <input matInput type="number" formControlName="tegaraCode" placeholder="أدخل كود تجارة...">
+          <mat-icon matSuffix>store</mat-icon>
+          <mat-error *ngIf="form.get('tegaraCode')?.hasError('required')">هذا الحقل مطلوب</mat-error>
+        </mat-form-field>
+      }
+
+      <!-- Search Results Display -->
+      <div class="search-result-container">
+        @if (isSearching) {
+          <div class="searching-status">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>جاري البحث عن الموظف...</span>
+          </div>
+        } @else if (foundEmployeeName) {
+          <div class="found-status">
+            <mat-icon color="primary">person</mat-icon>
+            <strong>{{ foundEmployeeName }}</strong>
+          </div>
+        } @else if (searchError) {
+          <div class="error-status">
+            <mat-icon color="warn">error_outline</mat-icon>
+            <span>{{ searchError }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- Reason -->
+      <mat-form-field appearance="outline" style="width: 100%;">
+        <mat-label>سبب الإضافة (يظهر للمراجعين كتحذير)</mat-label>
+        <textarea matInput formControlName="reason" rows="3" placeholder="اكتب سبب التحذير هنا..."></textarea>
+        <mat-icon matSuffix>warning</mat-icon>
+        <mat-error *ngIf="form.get('reason')?.hasError('required')">هذا الحقل مطلوب</mat-error>
+      </mat-form-field>
+
+      <!-- Expiry Date -->
+      <mat-form-field appearance="outline" style="width: 100%;">
+        <mat-label>تاريخ الانتهاء (اختياري)</mat-label>
+        <input matInput [matDatepicker]="picker" formControlName="expiresAt" placeholder="اختر تاريخ الانتهاء...">
+        <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-datepicker #picker></mat-datepicker>
+        <mat-hint>إذا تُرك فارغاً، سيظل التحذير دائماً.</mat-hint>
+      </mat-form-field>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button type="submit" mat-raised-button color="primary" [disabled]="form.invalid || isSubmitting">
+          {{ isSubmitting ? 'جاري الحفظ...' : 'حفظ' }}
+        </button>
+        <button type="button" (click)="onCancel()" mat-raised-button color="warn">
+          الغاء
+        </button>
+      </div>
+
+    </form>
+  </mat-card-content>
+</mat-card>

@@ -41,5 +41,10 @@ export const routes: Routes = [
     path: 'settings',
     loadChildren: () => import('./settings/settings.module').then(m => m.SettingsModule)
 
+  },
+  {
+    path: 'watchlist',
+    loadComponent: () => import('./watchlist/watchlist.component').then(m => m.WatchlistComponent),
+    canActivate: [authGuard]
   }
 ];

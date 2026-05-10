@@ -19,6 +19,7 @@ export interface IEmployee {
   employeeRefernces?: any[]
   hasReferences?: boolean
   bankInfo?: IEmployeeBanKInfo | null
+  watchListAlert?: any;
 }
 export interface IEmployeeBanKInfo {
   bankName?: string

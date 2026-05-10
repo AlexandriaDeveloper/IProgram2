@@ -27,6 +27,7 @@ namespace Application.Dtos
         public bool IsFullyReviewed { get; set; }
         public string Comment { get; set; }
         public double? NetPay { get; set; }
+        public WatchListAlertDto WatchListAlert { get; set; }
         public List<BeneficiaryDetailDto> Details { get; set; } = new List<BeneficiaryDetailDto>();
     }
 

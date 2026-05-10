@@ -25,6 +25,7 @@ namespace Application.Features
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<FormDetailsService> _logger;
         private readonly ICurrentUserService _currentUserService;
+        private readonly WatchListService _watchListService;
 
         public FormDetailsService(
             IFormRepository formRepository,
@@ -36,7 +37,8 @@ namespace Application.Features
           IMemoryCache cache,
           UserManager<ApplicationUser> userManager,
           ILogger<FormDetailsService> logger,
-          ICurrentUserService currentUserService)
+          ICurrentUserService currentUserService,
+          WatchListService watchListService)
         {
             this._logger = logger;
             this._unitOfWork = unitOfWork;
@@ -47,6 +49,7 @@ namespace Application.Features
             this._userManager = userManager;
             this._cache = cache;
             this._currentUserService = currentUserService;
+            this._watchListService = watchListService;
         }
 
         private void ClearFormDetailsCache(int formId)
@@ -126,6 +129,18 @@ namespace Application.Features
 
 
             }
+
+            var employeeIds = formDto.FormDetails.Select(x => x.EmployeeId).Distinct().ToList();
+            var alerts = await _watchListService.GetActiveAlerts(employeeIds);
+            
+            foreach(var detail in formDto.FormDetails)
+            {
+                if(alerts.TryGetValue(detail.EmployeeId, out var alert))
+                {
+                    detail.WatchListAlert = alert;
+                }
+            }
+
             return Result.Success<FormDto>(formDto);
 
         }
