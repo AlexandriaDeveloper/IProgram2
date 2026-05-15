@@ -780,6 +780,8 @@ namespace Application.Features
             dt.Columns.Add("الاسم", typeof(string));
             dt.Columns.Add("المبلغ", typeof(double));
             dt.Columns.Add("تعليق", typeof(string));
+            dt.Columns.Add("حالة المراجعة", typeof(string));
+            dt.Columns.Add("المراجع", typeof(string));
 
             int counter = 1;
             foreach (var item in summaryData.Beneficiaries)
@@ -793,12 +795,17 @@ namespace Application.Features
                 dr["الاسم"] = item.EmployeeName ?? "";
                 dr.SetField("المبلغ", Math.Round(item.TotalAmount, 2));
                 dr["تعليق"] = item.Comment ?? "";
+                dr["حالة المراجعة"] = item.IsFullyReviewed ? "تم المراجعة" : "لم يتم المراجعة";
+                
+                var reviewersList = item.Details.Where(d => d.IsSummaryReviewed && !string.IsNullOrEmpty(d.IsSummaryReviewedBy))
+                                                .Select(d => d.IsSummaryReviewedBy).Distinct().ToList();
+                dr["المراجع"] = reviewersList.Any() ? string.Join("، ", reviewersList) : "";
 
                 dt.Rows.Add(dr);
             }
 
             var npoi = new NpoiServiceProvider();
-            var workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ", "تعليق" }, dt, $"ملخص يومية - {summaryData.DailyName}");
+            var workbook = await npoi.CreateExcelFile("Sheet1", new string[] { "م", "الرقم القومى", "كود طب", "كود تجارة", "القسم", "الاسم", "المبلغ", "تعليق", "حالة المراجعة", "المراجع" }, dt, $"ملخص يومية - {summaryData.DailyName}");
 
             string tempPath = Path.GetTempPath();
             string filePath = Path.Combine(tempPath, $"DailySummary_{dailyId}.xlsx");
