@@ -276,29 +276,31 @@ namespace Application.Features
         }
         public async Task<byte[]> ExportIndexPdf(int dailyId)
         {
-            var formsInDaily = await _dailyRepository
-            .GetQueryable()
-            .Include(t => t.Forms.Where(x => x.IsActive))
-            .ThenInclude(t => t.FormDetails)
-            .FirstOrDefaultAsync(x => x.Id == dailyId)
-            ;
-
-            DailyDto daily = new DailyDto()
-            {
-                Name = formsInDaily.Name,
-                DailyDate = formsInDaily.DailyDate,
-                Id = formsInDaily.Id,
-
-                Forms = formsInDaily.Forms.Select(x => new FormDto()
+            var daily = await _dailyRepository.GetQueryable()
+                .AsSplitQuery()
+                .Where(x => x.Id == dailyId)
+                .Select(x => new DailyDto
                 {
-                    Index = x.Index,
                     Name = x.Name,
-                    TotalAmount = Math.Round(x.FormDetails.Sum(y => y.Amount), 2),
+                    DailyDate = x.DailyDate,
+                    Id = x.Id,
+                    Forms = x.Forms
+                        .Where(f => f.IsActive)
+                        .Select(f => new FormDto
+                        {
+                            Index = f.Index,
+                            Name = f.Name,
+                            TotalAmount = Math.Round(f.FormDetails.Sum(y => y.Amount), 2),
+                        })
+                        .OrderBy(f => f.Index)
+                        .ToList()
+                })
+                .FirstOrDefaultAsync();
 
-
-
-                }).OrderBy(x => x.Index).ToList()
-            };
+            if (daily == null)
+            {
+                throw new InvalidOperationException($"Daily with id {dailyId} was not found.");
+            }
 
 
 

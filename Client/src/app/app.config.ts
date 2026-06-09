@@ -29,7 +29,7 @@ export const appConfig: ApplicationConfig = {
 
     provideRouter(routes),
     provideHttpClient(withInterceptors(
-      [AuthInterceptor, ResponseInterceptor, ErrorInterceptor, loadingInterceptor]
+      [AuthInterceptor, ResponseInterceptor, ErrorInterceptor]
     )),
     importProvidersFrom(MatProgressSpinnerModule)
     , provideAnimations(),

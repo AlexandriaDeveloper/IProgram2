@@ -133,21 +133,8 @@ namespace Api.Controllers
 
         public async Task<IActionResult> ExportIndex(int dailyId)
         {
-            // return await _dailyService.ExportPdf(dailyId);
-
-
-            var pdf = await _dailyService.ExportIndexPdf(dailyId);//.PrintFormWithDetailsPdf(formId);
-
-            var path = Path.GetTempPath() + "test.pdf";
-
-
-            var memory = new MemoryStream(pdf);
-            await using (var stream = new FileStream(path, FileMode.Create))
-            {
-                await stream.CopyToAsync(memory);
-            }
-            memory.Position = 0;
-            return File(memory, "application/pdf", "test.pdf");
+            var pdf = await _dailyService.ExportIndexPdf(dailyId);
+            return File(pdf, "application/pdf", "exportIndex.pdf");
         }
 
 
