@@ -241,12 +241,23 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
         }
     }
 
+    navigateToEmployee(employeeId: string) {
+        if (employeeId) {
+            this.router.navigate(['/employee/details', employeeId]);
+        }
+    }
+
     applyReviewToggle(value: string) {
         this.currentReviewFilter = value;
         this.applyFilter();
     }
 
     markAllAsReviewed(element: any, isChecked: boolean) {
+        if (!isChecked) {
+            if (!confirm(`هل أنت متأكد من إلغاء مراجعة المستحق: ${element.employeeName}؟`)) {
+                return;
+            }
+        }
         if (isChecked && element.watchListAlert) {
             const dialogRef = this.dialog.open(WatchlistAlertDialogComponent, {
                 width: '500px',
