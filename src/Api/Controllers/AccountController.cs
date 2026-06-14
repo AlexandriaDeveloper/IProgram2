@@ -24,13 +24,15 @@ namespace Api.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly AccountService _accountService;
         private readonly ITokenService _tokenService;
+        private readonly IDbConnectionProvider _dbProvider;
         //private readonly IMapper _mapper;
         public AccountController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             ITokenService tokenService,
             RoleManager<IdentityRole> roleManager,
-            AccountService accountService
+            AccountService accountService,
+            IDbConnectionProvider dbProvider
              //  IMapper mapper
              )
         {
@@ -40,6 +42,14 @@ namespace Api.Controllers
             this._userManager = userManager;
             this._roleManager = roleManager;
             this._accountService = accountService;
+            this._dbProvider = dbProvider;
+        }
+
+        [AllowAnonymous]
+        [HttpGet("databases")]
+        public IActionResult GetDatabases()
+        {
+            return Ok(_dbProvider.GetAvailableDatabases());
         }
 
 

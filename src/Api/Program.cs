@@ -148,6 +148,8 @@ if (app.Environment.IsDevelopment())
 //app.UseHttpsRedirection();
 app.UseRouting();
 
+app.UseCors("CorsPolicy");
+
 // Add Response Caching middleware BEFORE static files
 app.UseResponseCaching();
 
@@ -166,8 +168,6 @@ app.UseStaticFiles(new StaticFileOptions
         ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=3600");
     }
 });
-
-app.UseCors("CorsPolicy");
 
 
 app.UseAuthentication();

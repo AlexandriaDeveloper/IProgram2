@@ -40,6 +40,9 @@ export class AuthService {
   signup(model) {
     return this.http.post(environment.apiUrl + 'account/register', model)
   }
+  getDatabases() {
+    return this.http.get(environment.apiUrl + 'account/databases');
+  }
   logout() {
     return this.http.get(environment.apiUrl + 'account/logout').subscribe({
       next: (res: any) => {

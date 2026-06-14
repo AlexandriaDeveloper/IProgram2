@@ -1,4 +1,4 @@
-﻿using Core.Models;
+using Core.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -23,11 +23,13 @@ public static class InfrastructureExtension
 
         //     services.AddScoped<ApplicationContext>(provider => provider.GetRequiredService<SupabaseContext>());
         // }
-        if (!string.IsNullOrEmpty(defaultConnection))
+        services.AddScoped<Core.Interfaces.IDbConnectionProvider, Services.DbConnectionProvider>();
+
+        services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
-            services.AddDbContext<ApplicationContext>(options =>
-               options.UseSqlServer(defaultConnection, o => o.UseCompatibilityLevel(120)));
-        }
+            var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();
+            options.UseSqlServer(dbProvider.GetConnectionString(), o => o.UseCompatibilityLevel(120));
+        });
 
 
 

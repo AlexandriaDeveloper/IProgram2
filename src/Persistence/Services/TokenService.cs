@@ -19,11 +19,14 @@ namespace Persistence.Services
         private readonly UserManager<ApplicationUser> _userManager;
 
         private readonly SymmetricSecurityKey _key;
-        public TokenService(IConfiguration config, UserManager<ApplicationUser> userManager)
+        private readonly IDbConnectionProvider _dbProvider;
+
+        public TokenService(IConfiguration config, UserManager<ApplicationUser> userManager, IDbConnectionProvider dbProvider)
         {
             this._userManager = userManager;
             this._config = config;
             this._key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Token:Key"]));
+            this._dbProvider = dbProvider;
         }
         public async Task<string> CreateToken(ApplicationUser user)
         {
@@ -31,7 +34,8 @@ namespace Persistence.Services
             var claims = new List<Claim>{
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.GivenName,user.DisplayName),
-                new Claim(ClaimTypes.NameIdentifier, user.Id)
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim("db", _dbProvider.GetSelectedDatabaseId())
                };
 
             var roles = await _userManager.GetRolesAsync(user);
