@@ -106,23 +106,19 @@ namespace Application.Features
             var result = await _formRepository.ListAllAsync(spec, withInactive: true, trackChanges: false);
             var count = await _formRepository.CountAsync(specCount);
 
-            // Batch-load FormDetails aggregates (count, sum, all-reviewed) in a single grouped query
+            // Batch-load FormDetails aggregates (count, sum, all-reviewed) in a single server-side grouped query
             var formIds = result.Select(x => x.Id).ToList();
-            var rawDetails = await _formDetailsRepository.GetQueryable()
+            var aggregates = await _formDetailsRepository.GetQueryable()
                 .Where(fd => formIds.Contains(fd.FormId))
-                .Select(fd => new { fd.FormId, fd.Amount, fd.IsReviewed })
-                .ToListAsync();
-
-            var aggregates = rawDetails
                 .GroupBy(fd => fd.FormId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => new
-                    {
-                        Count = g.Count(),
-                        TotalAmount = g.Sum(fd => fd.Amount),
-                        AllReviewed = g.All(fd => fd.IsReviewed)
-                    });
+                .Select(g => new
+                {
+                    FormId = g.Key,
+                    Count = g.Count(),
+                    TotalAmount = g.Sum(fd => fd.Amount),
+                    AllReviewed = g.All(fd => fd.IsReviewed)
+                })
+                .ToDictionaryAsync(x => x.FormId);
 
             // Batch-load user display names to avoid N+1 blocking calls
             var userIds = result.Select(x => x.CreatedBy).Where(x => x != null).Distinct().ToList();
