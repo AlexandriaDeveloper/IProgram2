@@ -20,5 +20,19 @@ div.mat-mdc-select-panel{
 }
 .mat-mdc-select-value {
   color: #fff !important;
+}
 
+.mat-mdc-autocomplete-panel, .mat-autocomplete-panel {
+  background-color: #263843 !important;
+  
+  mat-option, .mat-mdc-option, .mat-option {
+    span {
+      color: #fff !important;
+    }
+    &:hover {
+      background-color: rgba(65, 90, 93, 1) !important;
+      transition: .4s;
+    }
+    transition: .4s;
   }
+}

@@ -16,7 +16,12 @@
 
       <mat-form-field appearance="outline" class="form-dialog-input">
         <mat-label> البيان</mat-label>
-        <input matInput formControlName="name">
+        <input matInput formControlName="name" [matAutocomplete]="auto">
+        <mat-autocomplete #auto="matAutocomplete">
+          @for (name of filteredNames | async; track name) {
+            <mat-option [value]="name">{{name}}</mat-option>
+          }
+        </mat-autocomplete>
       </mat-form-field>
       <mat-form-field appearance="outline" class="form-dialog-input">
         <mat-label> ملاحظات</mat-label>

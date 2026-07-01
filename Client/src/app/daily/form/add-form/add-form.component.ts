@@ -5,6 +5,7 @@ import { IForm } from "../../../shared/models/IForm";
 import { DailyService } from '../../../shared/service/daily.service';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormService } from '../../../shared/service/form.service';
+import { Observable, startWith, map } from 'rxjs';
 
 @Component({
   selector: 'app-add-form',
@@ -14,7 +15,7 @@ import { FormService } from '../../../shared/service/form.service';
   styleUrl: './add-form.component.scss'
 })
 export class AddFormComponent implements OnInit {
-  form: FormGroup;
+  form!: FormGroup;
   fb = inject(FormBuilder);
   formService = inject(FormService);
   formData: IForm = {
@@ -25,6 +26,9 @@ export class AddFormComponent implements OnInit {
     dailyId: null
 
   };
+
+  formNames: string[] = [];
+  filteredNames!: Observable<string[]>;
 
   constructor(
     private dialogRef: MatDialogRef<AddFormComponent>,
@@ -43,6 +47,27 @@ export class AddFormComponent implements OnInit {
     }
 
     this.form = this.initForm();
+    this.setupFiltering();
+
+    this.formService.getDistinctFormNames().subscribe({
+      next: (names) => {
+        this.formNames = names || [];
+        this.form.get('name')!.updateValueAndValidity();
+      },
+      error: (err) => console.log(err)
+    });
+  }
+
+  private setupFiltering() {
+    this.filteredNames = this.form.get('name')!.valueChanges.pipe(
+      startWith(''),
+      map(value => this._filter(value || ''))
+    );
+  }
+
+  private _filter(value: string): string[] {
+    const filterValue = value.toLowerCase();
+    return this.formNames.filter(option => option.toLowerCase().includes(filterValue));
   }
   initForm() {
     return this.fb.group({

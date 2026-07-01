@@ -69,6 +69,17 @@ namespace Application.Features
             // Currently no service-level caching in FormService, but prepared for future use
         }
 
+        public async Task<Result<List<string>>> GetDistinctFormNames()
+        {
+            var names = await _formRepository.GetQueryable()
+                .Where(f => f.IsActive && f.Name != null && f.Name != "")
+                .Select(f => f.Name)
+                .Distinct()
+                .ToListAsync();
+
+            return Result.Success(names);
+        }
+
         public async Task<Result<PaginatedResult<FormDto>>> GetForms(int id, FormParam param)
         {
 

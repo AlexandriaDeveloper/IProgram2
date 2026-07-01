@@ -62,6 +62,13 @@ namespace Api.Controllers
             return HandleResult(result);
         }
 
+        [HttpGet("distinct-names")]
+        public async Task<IActionResult> GetDistinctFormNames()
+        {
+            var result = await _formService.GetDistinctFormNames();
+            return HandleResult(result);
+        }
+
         [HttpGet("{dailyId}")]
         // [ResponseCache(CacheProfileName = "Default")] // 5 minutes cache for forms listings
 

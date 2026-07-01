@@ -13,6 +13,10 @@ export class FormService {
     return this.http.put(this.apiUrl + 'form/restore-form/' + id, {});
   }
 
+  getDistinctFormNames() {
+    return this.http.get<string[]>(this.apiUrl + 'form/distinct-names');
+  }
+
   apiUrl = environment.apiUrl;
   http = inject(HttpClient);
   constructor() { }
