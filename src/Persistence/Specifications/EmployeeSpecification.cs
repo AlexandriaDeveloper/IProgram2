@@ -6,11 +6,14 @@ namespace Persistence.Specifications
 {
     public class EmployeeSpecification : Specification<Employee>
     {
-        public EmployeeSpecification(EmployeeParam param)
+        public EmployeeSpecification(EmployeeParam param, bool includeBank = false)
         {
 
             AddInclude(x => x.Department);
-            AddInclude(x => x.EmployeeBank);
+            if (includeBank)
+            {
+                AddInclude(x => x.EmployeeBank);
+            }
             //  AddInclude(x => x.EmployeeRefernces);
             if (!string.IsNullOrEmpty(param.EmployeeId))
             {
@@ -89,9 +92,8 @@ namespace Persistence.Specifications
     {
         public EmployeeCountSpecification(EmployeeParam param) : base(x => x.IsActive == true)
         {
-            AddInclude(x => x.Department);
-            AddInclude(x => x.EmployeeBank);
-            //  AddInclude(x => x.EmployeeRefernces);
+            // Includes are removed here because COUNT queries do not need loaded relational entities.
+            // EF Core will automatically join tables specified in criterias (e.g. Department) if needed.
             if (!string.IsNullOrEmpty(param.EmployeeId))
             {
                 AddCriteries(x => x.Id == param.EmployeeId);

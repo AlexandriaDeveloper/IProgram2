@@ -49,6 +49,7 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
   _dialog = inject(MatDialog)
   // hold subscriptions created by initElement so we can unsubscribe on destroy
   private _subs: Subscription[] = [];
+  private _loadDataSub?: Subscription;
 
   constructor(private cdref: ChangeDetectorRef) { }
   ngOnInit(): void {
@@ -76,6 +77,9 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
     // unsubscribe any subscriptions created by initElement
     this._subs.forEach(s => s.unsubscribe());
     this._subs = [];
+    if (this._loadDataSub) {
+      this._loadDataSub.unsubscribe();
+    }
   }
   search() {
     this.initElement(this.tabCodeInput, 'tabCode');
@@ -120,8 +124,10 @@ export class ListComponent implements AfterViewInit, OnInit, OnDestroy {
   loadData(): void {
 
 
-
-    this.employeeService.GetEmployees(this.param).subscribe((x: any) => {
+    if (this._loadDataSub) {
+      this._loadDataSub.unsubscribe();
+    }
+    this._loadDataSub = this.employeeService.GetEmployees(this.param).subscribe((x: any) => {
       this.dataSource = x.data
       if (this.paginator) {
         this.paginator.length = x.count;

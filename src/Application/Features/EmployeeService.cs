@@ -71,7 +71,7 @@ namespace Application.Features
 
         public async Task<Result<EmployeeDto>> getEmployee(EmployeeParam param)
         {
-            var spec = new EmployeeSpecification(param);
+            var spec = new EmployeeSpecification(param, includeBank: true);
             spec.PaginationEnabled = false;
 
             var employee = await _employeeRepository.GetBySpec(spec, trackChanges: false);
