@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features
 {
@@ -45,6 +46,12 @@ namespace Application.Features
 
             var result = await _formRepository.ListAllAsync(spec);
             var count = await _formRepository.CountAsync(new ArchivedFormsCountSpecification(param));
+
+            var creatorIds = result.Select(x => x.CreatedBy).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+            var creatorMap = await _usermanager.Users
+                .Where(u => creatorIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName);
+
             var resultToReturn = result.Select(x => new FormArchivedDto
             {
                 Name = x.Name,
@@ -52,7 +59,7 @@ namespace Application.Features
                 DailyId = x.DailyId,
                 Count = x.FormDetails.Count,
                 TotalAmount = Math.Round(x.FormDetails.Sum(x => x.Amount), 2),
-                CreatedBy = _usermanager.FindByIdAsync(x.CreatedBy).Result.DisplayName,
+                CreatedBy = x.CreatedBy != null && creatorMap.TryGetValue(x.CreatedBy, out var dName) ? dName : null,
             }).ToList();
             var pagedResult = PaginatedResult<FormArchivedDto>.Create(resultToReturn, param.PageIndex, param.PageSize, count);
             return Result.Success<PaginatedResult<FormArchivedDto>>(pagedResult);

@@ -133,12 +133,9 @@ namespace Application.Features
 
             // Batch-load user display names to avoid N+1 blocking calls
             var userIds = result.Select(x => x.CreatedBy).Where(x => x != null).Distinct().ToList();
-            var userDisplayNames = new Dictionary<string, string>();
-            foreach (var uid in userIds)
-            {
-                var u = await _userManager.FindByIdAsync(uid);
-                if (u != null) userDisplayNames[uid] = u.DisplayName;
-            }
+            var userDisplayNames = await _userManager.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName);
 
             var resultToReturn = result.Select(x =>
             {
@@ -317,6 +314,11 @@ namespace Application.Features
             dt.Columns.Add("المبلغ", typeof(double));
             dt.Columns.Add("المراجع");
 
+            var reviewerIds = formDetails.Where(x => x.IsReviewed && !string.IsNullOrEmpty(x.IsReviewedBy)).Select(x => x.IsReviewedBy).Distinct().ToList();
+            var reviewersMap = await _userManager.Users
+                .Where(u => reviewerIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName);
+
             int counter = 1;
             foreach (var item in formDetails)
             {
@@ -328,8 +330,8 @@ namespace Application.Features
                 dr["القسم"] = item.Employee.Department == null ? "" : item.Employee.Department.Name;
                 dr["الاسم"] = item.Employee.Name;
                 dr.SetField("المبلغ", Math.Round((double)item.Amount, 2));
-                //_userManager.FindByIdAsync(item.IsReviewedBy).Result.DisplayName + (item.IsReviewed ? " (تم المراجعة)" : " (لم يتم المراجعة)")
-                dr["المراجع"] = item.IsReviewed ? _userManager.FindByIdAsync(item.IsReviewedBy).Result.DisplayName + " ( تم المراجعة بواسطة)" : " (لم يتم المراجعة)";
+                string reviewerName = item.IsReviewedBy != null && reviewersMap.TryGetValue(item.IsReviewedBy, out var dName) ? dName : "";
+                dr["المراجع"] = item.IsReviewed ? reviewerName + " ( تم المراجعة بواسطة)" : " (لم يتم المراجعة)";
                 dt.Rows.Add(dr);
             }
 

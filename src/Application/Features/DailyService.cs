@@ -363,15 +363,9 @@ namespace Application.Features
                 .Distinct()
                 .ToList();
 
-            var reviewers = new Dictionary<string, string>();
-            foreach (var id in reviewerIds)
-            {
-                var user = await _userManager.FindByIdAsync(id);
-                if (user != null)
-                {
-                    reviewers[id] = user.UserName; // Or user.DisplayName if available
-                }
-            }
+            var reviewers = await _userManager.Users
+                .Where(u => reviewerIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.UserName);
 
             var dailyToDataTable = daily.SelectMany(x => x.FormDetails).GroupBy(x => x.EmployeeId)
              .Select(g => new
@@ -606,15 +600,9 @@ namespace Application.Features
                 .Distinct()
                 .ToList();
 
-            var reviewers = new Dictionary<string, string>();
-            foreach (var id in reviewerIds)
-            {
-                var user = await _userManager.FindByIdAsync(id);
-                if (user != null)
-                {
-                    reviewers[id] = user.DisplayName ?? user.UserName;
-                }
-            }
+            var reviewers = await _userManager.Users
+                .Where(u => reviewerIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName ?? u.UserName);
 
             var netPays = await _employeeNetPayRepository.GetQueryable().Where(n => n.DailyId == dailyId).ToListAsync();
             var netPayDict = netPays.ToDictionary(n => n.EmployeeId, n => n.NetPay);

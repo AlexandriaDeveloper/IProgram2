@@ -85,59 +85,67 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
         })
     }
 
+    trackByKey(index: number, item: any): any {
+        return item.employeeId || item.tabCode || item.tegaraCode || index;
+    }
+
     loadSummary() {
         this.isLoading = true;
         this.dailyService.getBeneficiariesSummary(this.dailyId).subscribe({
             next: (result: any) => {
-                this.dataSource.data = result.beneficiaries;
-                // set up sorting
-                this.dataSource.sortingDataAccessor = (item, property) => {
-                    switch (property) {
-                        case 'employeeName': return item.employeeName;
-                        case 'totalAmount': return item.totalAmount;
-                        case 'action': return item.isFullyReviewed ? 1 : 0;
-                        case 'tabCode': return item.tabCode;
-                        case 'tegaraCode': return item.tegaraCode;
-                        case 'department': return item.department;
-                        case 'employeeId': return item.employeeId;
-                        default: return item[property];
-                    }
-                };
-                setTimeout(() => {
-                    this.dataSource.sort = this.sort;
-                });
-
-                // Setup filter predicate for search - per-column contains
-                this.dataSource.filterPredicate = (data: any, filter: string) => {
-                    let filterObj: { [key: string]: string } = {};
-                    try {
-                        filterObj = JSON.parse(filter);
-                    } catch (e) {
-                        filterObj = {};
-                    }
-
-                    // Per-column contains matching (skip _review, it's for forcing re-trigger)
-                    const matchText = Object.keys(filterObj).every(key => {
-                        if (key.startsWith('_')) return true; // skip internal keys
-                        const val = (filterObj[key] || '').trim().toLowerCase();
-                        if (!val) return true; // empty filter = match all
-                        const dataVal = (data[key] || '').toString().toLowerCase();
-                        return dataVal.includes(val);
+                requestAnimationFrame(() => {
+                    this.dataSource.data = result.beneficiaries || [];
+                    // set up sorting
+                    this.dataSource.sortingDataAccessor = (item, property) => {
+                        switch (property) {
+                            case 'employeeName': return item.employeeName;
+                            case 'totalAmount': return item.totalAmount;
+                            case 'action': return item.isFullyReviewed ? 1 : 0;
+                            case 'tabCode': return item.tabCode;
+                            case 'tegaraCode': return item.tegaraCode;
+                            case 'department': return item.department;
+                            case 'employeeId': return item.employeeId;
+                            default: return item[property];
+                        }
+                    };
+                    setTimeout(() => {
+                        this.dataSource.sort = this.sort;
                     });
 
-                    const matchReview = this.currentReviewFilter === 'all' ||
-                        (this.currentReviewFilter === 'reviewed' && data.isFullyReviewed) ||
-                        (this.currentReviewFilter === 'unreviewed' && !data.isFullyReviewed);
+                    // Setup filter predicate for search - per-column contains
+                    this.dataSource.filterPredicate = (data: any, filter: string) => {
+                        let filterObj: { [key: string]: string } = {};
+                        try {
+                            filterObj = JSON.parse(filter);
+                        } catch (e) {
+                            filterObj = {};
+                        }
 
-                    return matchText && matchReview;
-                };
+                        // Per-column contains matching (skip _review, it's for forcing re-trigger)
+                        const matchText = Object.keys(filterObj).every(key => {
+                            if (key.startsWith('_')) return true; // skip internal keys
+                            const val = (filterObj[key] || '').trim().toLowerCase();
+                            if (!val) return true; // empty filter = match all
+                            const dataVal = (data[key] || '').toString().toLowerCase();
+                            return dataVal.includes(val);
+                        });
 
-                // Trigger initial filter explicitly so review filter applies
-                this.applyFilter();
-                this.isLoading = false;
+                        const matchReview = this.currentReviewFilter === 'all' ||
+                            (this.currentReviewFilter === 'reviewed' && data.isFullyReviewed) ||
+                            (this.currentReviewFilter === 'unreviewed' && !data.isFullyReviewed);
+
+                        return matchText && matchReview;
+                    };
+
+                    // Trigger initial filter explicitly so review filter applies
+                    this.applyFilter();
+                    this.isLoading = false;
+                    this.cdr.detectChanges();
+                });
             },
             error: (err) => {
                 this.isLoading = false;
+                this.cdr.detectChanges();
                 this.toaster.openErrorToaster('حدث خطأ في تحميل ملخص المستحقين');
             }
         });
