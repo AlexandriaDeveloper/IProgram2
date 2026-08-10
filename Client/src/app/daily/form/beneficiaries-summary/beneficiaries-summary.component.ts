@@ -355,9 +355,6 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
         return this.dataSource.data.reduce((sum, current) => sum + (current.netPay || 0), 0);
     }
 
-    trackByKey(index: number, item: any): string {
-        return item.employeeId;
-    }
 
     ngOnDestroy(): void {
         this.subscriptions.forEach(sub => sub.unsubscribe());
