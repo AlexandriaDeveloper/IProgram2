@@ -23,6 +23,7 @@ import { UploadPdfBottomComponent } from './form-details/upload-pdf-bottom/uploa
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { environment } from '../../environment';
 import { DailyReferencesService } from '../../shared/service/daily-references.service';
+import { ToasterService } from '../../shared/components/toaster/toaster.service';
 
 @Component({
   selector: 'app-form',
@@ -50,6 +51,7 @@ export class FormComponent implements OnInit, AfterViewInit {
   formService = inject(FormService);
   dailyService = inject(DailyService);
   dailyRefService = inject(DailyReferencesService);
+  toasterService = inject(ToasterService);
   authService = inject(AuthService);
   dailyId = inject(ActivatedRoute).snapshot.params['id'];
   router = inject(Router);
@@ -258,12 +260,35 @@ export class FormComponent implements OnInit, AfterViewInit {
 
   }
   closeDaily() {
+    if (!this.dailyId || this.daily?.closed) return;
 
-    this.dailyService.closeDaily(this.dailyId).subscribe({
-      next: (x: any) => {
-        this.loadData();
-      }
-    })
+    if (confirm('هل أنت متأكد من إغلاق اليومية؟ سيتم قفل التعديل على الاستمارات.')) {
+      this.dailyService.closeDaily(this.dailyId).subscribe({
+        next: (x: any) => {
+          this.toasterService.openSuccessToaster('تم إغلاق اليومية بنجاح');
+          this.loadData();
+        },
+        error: (err: any) => {
+          this.toasterService.openErrorToaster(err?.error?.message || err?.message || 'حدث خطأ أثناء إغلاق اليومية');
+        }
+      });
+    }
+  }
+
+  uncloseDaily() {
+    if (!this.dailyId || !this.daily?.closed) return;
+
+    if (confirm('هل أنت متأكد من إعادة فتح اليومية؟ سيتم إتاحة التعديل على الاستمارات.')) {
+      this.dailyService.uncloseDaily(this.dailyId).subscribe({
+        next: (x: any) => {
+          this.toasterService.openSuccessToaster('تم إعادة فتح اليومية بنجاح');
+          this.loadData();
+        },
+        error: (err: any) => {
+          this.toasterService.openErrorToaster(err?.error?.message || err?.message || 'حدث خطأ أثناء فتح اليومية');
+        }
+      });
+    }
   }
   openReferenceDialog(dailyReference) {
     console.log(dailyReference);

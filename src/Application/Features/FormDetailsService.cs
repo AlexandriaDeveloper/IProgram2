@@ -19,6 +19,7 @@ namespace Application.Features
         private readonly IFormRepository _formRepository;
         private readonly IFormReferencesRepository _formReferencesRepository;
         private readonly IFormDetailsRepository _formDetailsRepository;
+        private readonly IDailyRepository _dailyRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IMemoryCache _cache;
@@ -46,6 +47,7 @@ namespace Application.Features
             this._formRepository = formRepository;
             this._formReferencesRepository = formReferencesRepository;
             this._formDetailsRepository = formDetailsRepository;
+            this._dailyRepository = dailyRepository;
             this._userManager = userManager;
             this._cache = cache;
             this._currentUserService = currentUserService;
@@ -147,6 +149,12 @@ namespace Application.Features
 
         public async Task<Result> AddEmployeeToFormDetails(FormDetailsRequest form)
         {
+            var parentForm = await _formRepository.GetById(form.FormId);
+            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن الإضافة لاستمارة تابعة ليومية مغلقة"));
+            }
+
             //chceck employee exist
             var exist = await _formDetailsRepository.CheckEmployeeFormDetailsExist(form.EmployeeId, form.FormId);
             if (exist)
@@ -215,8 +223,15 @@ namespace Application.Features
 
             if (formDetailsFromDb == null)
             {
-                return Result.Failure(new Error("400", "عفوا الموظف مسجل بالفعل فى الملف"));
+                return Result.Failure(new Error("400", "عفوا الموظف غير مسجل بالفعل فى الملف"));
             }
+
+            var parentForm = await _formRepository.GetById(formDetailsFromDb.FormId);
+            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن التعديل على استمارة تابعة ليومية مغلقة"));
+            }
+
             formDetailsFromDb.Amount = form.Amount;
             if (formDetailsFromDb.EmployeeId != form.EmployeeId)
             {
@@ -264,6 +279,13 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("404", "عفوا الموظف غير موجود حتى يتم حذفة"));
             }
+
+            var parentForm = await _formRepository.GetById(formDetailsFromDb.FormId);
+            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن الحذف من استمارة تابعة ليومية مغلقة"));
+            }
+
             await _formDetailsRepository.Delete(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (!result)
@@ -279,11 +301,11 @@ namespace Application.Features
 
         public async Task<Result> ReOrderRows(int formId, int[] formOrderDetailsIds)
         {
-            // var form = _formRepository.GetQueryable().Include(x => x.Daily).FirstOrDefault(x => x.Id == formId);
-            // if (form.Daily.Closed)
-            // {
-            //     return Result.Failure(new Error("500", "اليوميه مغلقه"));
-            // }
+            var parentForm = await _formRepository.GetById(formId);
+            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن إعادة ترتيب بنود استمارة تابعة ليومية مغلقة"));
+            }
 
             var orderDetails = _formDetailsRepository.GetQueryable().Where(x => x.FormId == formId).ToList();
             for (int i = 0; i < formOrderDetailsIds.Length; i++)

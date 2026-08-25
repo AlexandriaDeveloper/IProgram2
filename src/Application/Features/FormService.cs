@@ -192,14 +192,20 @@ namespace Application.Features
 
         public async Task<Result> UpdateForm(int id, FormDto request)
         {
-            if (_dailyRepository.IsClosed(request.DailyId.Value))
-            {
-                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
-            }
-
             var form = await _formRepository.GetById(id);
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
+
+            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن تعديل استمارة تابعة ليومية مغلقة"));
+            }
+
+            if (request.DailyId.HasValue && request.DailyId != form.DailyId && _dailyRepository.IsClosed(request.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "اليومية المستهدفة مغلقة"));
+            }
+
             form.Name = request.Name;
             form.DailyId = request.DailyId;
             form.Index = request.Index;
@@ -215,14 +221,15 @@ namespace Application.Features
 
         public async Task<Result> UpdateDescription(int id, UpdateFormDescriptonRequest request)
         {
-
             var form = await _formRepository.GetById(id);
-            if (_dailyRepository.IsClosed(form.DailyId.Value))
-            {
-                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
-            }
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
+
+            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن تعديل استمارة تابعة ليومية مغلقة"));
+            }
+
             form.Description = request.Description;
             _formRepository.Update(form);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
@@ -233,14 +240,15 @@ namespace Application.Features
 
         public async Task<Result> MoveFormDailyToArchive(MoveFormRequest request)
         {
-
             var formFromDb = await _formRepository.GetById(request.FormId);
-            // if (_dailyRepository.IsClosed(formFromDb.DailyId.Value))
-            // {
-            //     return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
-            // }
             if (formFromDb == null)
                 return Result.Failure(new Error("404", "Not Found"));
+
+            if (formFromDb.DailyId.HasValue && _dailyRepository.IsClosed(formFromDb.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن نقل استمارة تابعة ليومية مغلقة"));
+            }
+
             formFromDb.DailyId = request.DailyId;
             _formRepository.Update(formFromDb);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
@@ -256,12 +264,13 @@ namespace Application.Features
         public async Task<Result> SoftDelete(int id)
         {
             var form = await _formRepository.GetById(id);
-            if (_dailyRepository.IsClosed(form.DailyId.Value))
-            {
-                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
-            }
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
+
+            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن حذف استمارة تابعة ليومية مغلقة"));
+            }
 
             await _formRepository.DeActive(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
@@ -273,12 +282,13 @@ namespace Application.Features
         public async Task<Result> Delete(int id)
         {
             var form = await _formRepository.GetById(id);
-            if (_dailyRepository.IsClosed(form.DailyId.Value))
-            {
-                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
-            }
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
+
+            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            {
+                return Result.Failure(new Error("400", "لا يمكن حذف استمارة تابعة ليومية مغلقة"));
+            }
 
             await _formRepository.Delete(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;

@@ -54,7 +54,6 @@ namespace Api.Controllers
         }
 
         [HttpPut("CloseDaily/{dailyId}")]
-
         public async Task<IActionResult> CloseDaily(int dailyId, CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
@@ -63,7 +62,14 @@ namespace Api.Controllers
             }
             var result = await _dailyService.CloseDaily(dailyId, cancellationToken);
 
-            return HandleResult(result); ;
+            return HandleResult(result);
+        }
+
+        [HttpPut("UncloseDaily/{dailyId}")]
+        public async Task<IActionResult> UncloseDaily(int dailyId, CancellationToken cancellationToken)
+        {
+            var result = await _dailyService.UncloseDaily(dailyId, cancellationToken);
+            return HandleResult(result);
         }
 
 

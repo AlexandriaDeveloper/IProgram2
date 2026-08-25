@@ -16,7 +16,7 @@ namespace Persistence.Repository
 
         public bool IsClosed(int id)
         {
-            return _context.Set<Daily>().FirstOrDefault(x => x.Id == id).Closed;
+            return _context.Set<Daily>().Where(x => x.Id == id).Select(x => x.Closed).FirstOrDefault();
         }
 
 

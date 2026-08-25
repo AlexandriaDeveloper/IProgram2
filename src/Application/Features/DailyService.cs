@@ -158,22 +158,13 @@ namespace Application.Features
         }
         public async Task<Result> CloseDaily(int dailyId, CancellationToken cancellationToken)
         {
+            var daily = await _dailyRepository.GetById(dailyId);
 
-            var daily = await _dailyRepository.GetQueryable().Include(x => x.Forms).FirstOrDefaultAsync(x => x.Id == dailyId);
             if (daily == null)
-                return Result.Failure(new Error("404", "Not Found"));
-            var lastDaily = await _formRepository.GetQueryable().MaxAsync(x => x.Index);
+                return Result.Failure(new Error("404", "اليومية غير موجودة"));
 
-            int maxIndex = lastDaily.HasValue ? lastDaily.Value + 1 : 1;
-
-
-
-            foreach (var form in daily.Forms)
-            {
-                if (form.IsActive)
-                    form.Index = maxIndex++;
-
-            }
+            if (daily.Closed)
+                return Result.Failure(new Error("400", "اليومية مغلقة بالفعل"));
 
             daily.Closed = true;
 
@@ -182,10 +173,31 @@ namespace Application.Features
             var result = await _unitOfWork.SaveChangesAsync(cancellationToken) > 0;
             if (!result)
             {
-                return Result.Failure(new Error("500", "Internal Server Error"));
+                return Result.Failure(new Error("500", "حدث خطأ أثناء حفظ حالة الإغلاق"));
             }
-            return Result.Success();
+            return Result.Success("تم إغلاق اليومية بنجاح");
+        }
 
+        public async Task<Result> UncloseDaily(int dailyId, CancellationToken cancellationToken)
+        {
+            var daily = await _dailyRepository.GetById(dailyId);
+
+            if (daily == null)
+                return Result.Failure(new Error("404", "اليومية غير موجودة"));
+
+            if (!daily.Closed)
+                return Result.Failure(new Error("400", "اليومية مفتوحة بالفعل"));
+
+            daily.Closed = false;
+
+            _dailyRepository.Update(daily);
+
+            var result = await _unitOfWork.SaveChangesAsync(cancellationToken) > 0;
+            if (!result)
+            {
+                return Result.Failure(new Error("500", "حدث خطأ أثناء فتح اليومية"));
+            }
+            return Result.Success("تم فتح اليومية بنجاح");
         }
         public async Task<Result> SoftDeleteDaily(int id, CancellationToken cancellationToken)
         {

@@ -24,9 +24,14 @@
   <button mat-menu-item (click)="uploadPdf()" *ngIf="authService.isUserAdmin()" [disabled]="dataSource?.length===0">
     <mat-icon>upload_file</mat-icon>
     رفع ملف pdf </button>
-  <button mat-menu-item (click)="closeDaily()" [disabled]="daily?.closed" *ngIf="authService.isUserAdmin()">
-    <mat-icon>close</mat-icon>
-    اغلاق اليوميه </button>
+  <button mat-menu-item (click)="closeDaily()" *ngIf="authService.isUserAdmin() && !daily?.closed">
+    <mat-icon>lock</mat-icon>
+    إغلاق اليومية
+  </button>
+  <button mat-menu-item (click)="uncloseDaily()" *ngIf="authService.isUserAdmin() && daily?.closed">
+    <mat-icon>lock_open</mat-icon>
+    إعادة فتح اليومية
+  </button>
   <button mat-menu-item (click)="exportIndexPdf()" *ngIf="authService.isUserAdmin()">
     <mat-icon>123</mat-icon>
     فهرسه اليوميه </button>

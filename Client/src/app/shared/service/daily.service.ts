@@ -91,7 +91,11 @@ export class DailyService {
   }
 
   closeDaily(dailyId: any) {
-    return this.http.put(this.apiUrl + 'daily/CloseDaily/' + dailyId, {})
+    return this.http.put(this.apiUrl + 'daily/CloseDaily/' + dailyId, {});
+  }
+
+  uncloseDaily(dailyId: any) {
+    return this.http.put(this.apiUrl + 'daily/UncloseDaily/' + dailyId, {});
   }
 
   getBeneficiariesSummary(dailyId: number) {
