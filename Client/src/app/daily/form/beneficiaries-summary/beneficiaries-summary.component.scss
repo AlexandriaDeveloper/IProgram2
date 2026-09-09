@@ -33,6 +33,57 @@
 
 .full-width-table {
     width: 100%;
+    min-width: 1100px;
+}
+
+.table-container {
+    max-height: calc(100vh - 230px);
+    overflow: auto;
+    position: relative;
+    cursor: grab;
+    user-select: none;
+    border-radius: 6px;
+
+    &:active {
+        cursor: grabbing;
+    }
+
+    // Ensure interactive children restore their normal cursor
+    button, a, input, select, mat-checkbox, mat-button-toggle, mat-icon-button {
+        cursor: pointer;
+    }
+    input {
+        cursor: text;
+        user-select: auto;
+    }
+
+    // Sticky header solid background to prevent transparency bleed
+    th.mat-mdc-header-cell {
+        background-color: #25393d !important;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    // Sleek custom scrollbars (horizontal & vertical)
+    &::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    &::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
+        &:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    }
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.25);
 }
 
 .element-row {

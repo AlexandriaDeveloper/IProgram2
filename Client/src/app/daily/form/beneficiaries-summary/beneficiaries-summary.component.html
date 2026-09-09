@@ -70,7 +70,7 @@
     }
 </div>
 } @else {
-<div class="mat-elevation-z8">
+<div class="mat-elevation-z8 table-container" appDragScroll>
     <table mat-table [dataSource]="dataSource" matSort class="example-list full-width-table" multiTemplateDataRows
         [trackBy]="trackByKey">
 
@@ -298,7 +298,7 @@
             </td>
         </ng-container>
 
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
         <tr mat-row *matRowDef="let element; columns: displayedColumns;" class="element-row"
             [class.expanded-row]="expandedElement === element" [class.reviewed]="element.isFullyReviewed"
             [class.not-reviewed]="!element.isFullyReviewed">

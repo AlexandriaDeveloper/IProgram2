@@ -7,18 +7,22 @@ import { GalleryModule } from 'ng-gallery';
 
 
 
-@NgModule({
-  imports: [
+import { DragScrollDirective } from './directives/drag-scroll.directive';
 
+@NgModule({
+  declarations: [
+    DragScrollDirective
+  ],
+  imports: [
     InputTextComponent,
-  ]
-  ,exports:[
+  ],
+  exports: [
     CommonModule,
     AngularComponentsModule,
     ReactiveFormsModule,
     InputTextComponent,
-    GalleryModule
-
+    GalleryModule,
+    DragScrollDirective
   ]
 })
 export class SharedModule { }
