@@ -1,7 +1,7 @@
-import { Component, OnInit, ViewChild, ElementRef, OnDestroy, inject, AfterViewInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ViewChild, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { fromEvent, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged, map } from 'rxjs/operators';
+import { Subscription, Subject } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatSort } from '@angular/material/sort';
 import { DailyService } from '../../../shared/service/daily.service';
@@ -28,7 +28,7 @@ import { WatchlistAlertDialogComponent } from './watchlist-alert-dialog/watchlis
         ]),
     ]
 })
-export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnDestroy {
+export class BeneficiariesSummaryComponent implements OnInit, OnDestroy {
 
     dailyService = inject(DailyService);
     formDetailsService = inject(FormDetailsService);
@@ -49,16 +49,29 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
     filterValues: { [key: string]: string } = {};
     currentReviewFilter: string = 'all';
 
-    @ViewChild(MatSort) sort!: MatSort;
-    @ViewChild("tabCodeInput") tabCodeInput!: ElementRef;
-    @ViewChild("tegaraCodeInput") tegaraCodeInput!: ElementRef;
-    @ViewChild("nameInput") nameInput!: ElementRef;
-    @ViewChild("departmentInput") departmentInput!: ElementRef;
-    @ViewChild("employeeIdInput") employeeIdInput!: ElementRef;
+    @ViewChild(MatSort) set matSort(sort: MatSort) {
+        if (sort) {
+            this.sort = sort;
+            if (this.dataSource) {
+                this.dataSource.sort = this.sort;
+            }
+        }
+    }
+    sort!: MatSort;
 
     private subscriptions: Subscription[] = [];
+    private searchSubject = new Subject<void>();
 
     ngOnInit(): void {
+        this.initDataSource();
+
+        const searchSub = this.searchSubject.pipe(
+            debounceTime(300)
+        ).subscribe(() => {
+            this.applyFilter();
+        });
+        this.subscriptions.push(searchSub);
+
         this.route.paramMap.subscribe((params: any) => {
             this.dailyId = Number(params.get('dailyId'));
             if (this.dailyId) {
@@ -68,13 +81,56 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
         });
     }
 
-    ngAfterViewInit(): void {
-        setTimeout(() => {
-            this.setupSearch();
-            if (this.sort && this.dataSource) {
-                this.dataSource.sort = this.sort;
+    private initDataSource() {
+        // Setup sorting accessor
+        this.dataSource.sortingDataAccessor = (item, property) => {
+            switch (property) {
+                case 'employeeName': return item.employeeName;
+                case 'totalAmount': return item.totalAmount;
+                case 'action': return item.isFullyReviewed ? 1 : 0;
+                case 'tabCode': return item.tabCode;
+                case 'tegaraCode': return item.tegaraCode;
+                case 'department': return item.department;
+                case 'employeeId': return item.employeeId;
+                default: return item[property];
             }
-        }, 500);
+        };
+
+        // Setup filter predicate for search - per-column contains with Arabic normalization
+        this.dataSource.filterPredicate = (data: any, filter: string) => {
+            let filterObj: { [key: string]: string } = {};
+            try {
+                filterObj = JSON.parse(filter);
+            } catch (e) {
+                filterObj = {};
+            }
+
+            const matchText = Object.keys(filterObj).every(key => {
+                if (key.startsWith('_')) return true; // skip internal keys
+                const val = this.normalizeArabic(filterObj[key] || '');
+                if (!val) return true; // empty filter = match all
+                const dataVal = this.normalizeArabic((data[key] || '').toString());
+                return dataVal.includes(val);
+            });
+
+            const matchReview = this.currentReviewFilter === 'all' ||
+                (this.currentReviewFilter === 'reviewed' && data.isFullyReviewed) ||
+                (this.currentReviewFilter === 'unreviewed' && !data.isFullyReviewed);
+
+            return matchText && matchReview;
+        };
+    }
+
+    normalizeArabic(text: string): string {
+        if (!text) return '';
+        return text
+            .toString()
+            .replace(/[أإآ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي')
+            .replace(/[\u064B-\u065F]/g, '')
+            .trim()
+            .toLowerCase();
     }
 
     loadDaily() {
@@ -95,49 +151,9 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
             next: (result: any) => {
                 requestAnimationFrame(() => {
                     this.dataSource.data = result.beneficiaries || [];
-                    // set up sorting
-                    this.dataSource.sortingDataAccessor = (item, property) => {
-                        switch (property) {
-                            case 'employeeName': return item.employeeName;
-                            case 'totalAmount': return item.totalAmount;
-                            case 'action': return item.isFullyReviewed ? 1 : 0;
-                            case 'tabCode': return item.tabCode;
-                            case 'tegaraCode': return item.tegaraCode;
-                            case 'department': return item.department;
-                            case 'employeeId': return item.employeeId;
-                            default: return item[property];
-                        }
-                    };
-                    setTimeout(() => {
+                    if (this.sort) {
                         this.dataSource.sort = this.sort;
-                    });
-
-                    // Setup filter predicate for search - per-column contains
-                    this.dataSource.filterPredicate = (data: any, filter: string) => {
-                        let filterObj: { [key: string]: string } = {};
-                        try {
-                            filterObj = JSON.parse(filter);
-                        } catch (e) {
-                            filterObj = {};
-                        }
-
-                        // Per-column contains matching (skip _review, it's for forcing re-trigger)
-                        const matchText = Object.keys(filterObj).every(key => {
-                            if (key.startsWith('_')) return true; // skip internal keys
-                            const val = (filterObj[key] || '').trim().toLowerCase();
-                            if (!val) return true; // empty filter = match all
-                            const dataVal = (data[key] || '').toString().toLowerCase();
-                            return dataVal.includes(val);
-                        });
-
-                        const matchReview = this.currentReviewFilter === 'all' ||
-                            (this.currentReviewFilter === 'reviewed' && data.isFullyReviewed) ||
-                            (this.currentReviewFilter === 'unreviewed' && !data.isFullyReviewed);
-
-                        return matchText && matchReview;
-                    };
-
-                    // Trigger initial filter explicitly so review filter applies
+                    }
                     this.applyFilter();
                     this.isLoading = false;
                     this.cdr.detectChanges();
@@ -151,28 +167,10 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
         });
     }
 
-    setupSearch() {
-        this.initElement(this.tabCodeInput, 'tabCode');
-        this.initElement(this.tegaraCodeInput, 'tegaraCode');
-        this.initElement(this.nameInput, 'employeeName');
-        this.initElement(this.employeeIdInput, 'employeeId');
-        this.initElement(this.departmentInput, 'department');
-    }
-
-    initElement(element: ElementRef, param: string): Subscription {
-        if (!element || !element.nativeElement) return new Subscription();
-        const sub = fromEvent(element.nativeElement, 'keyup').pipe(
-            debounceTime(600),
-            distinctUntilChanged(),
-            map((event: any) => {
-                const value = (event.target.value || '').toString().trim();
-                this.filterValues[param] = value;
-                this.applyFilter();
-                return event.target.value;
-            })
-        ).subscribe();
-        this.subscriptions.push(sub);
-        return sub;
+    onSearchInput(param: string, event: Event) {
+        const value = (event.target as HTMLInputElement)?.value || '';
+        this.filterValues[param] = value.trim();
+        this.searchSubject.next();
     }
 
     applyFilter() {
@@ -182,13 +180,10 @@ export class BeneficiariesSummaryComponent implements OnInit, AfterViewInit, OnD
         this.dataSource.filter = JSON.stringify(filterData);
     }
 
-    clear(input: string) {
-        if (input == 'tabCode' && this.tabCodeInput) this.tabCodeInput.nativeElement.value = '';
-        if (input == 'tegaraCode' && this.tegaraCodeInput) this.tegaraCodeInput.nativeElement.value = '';
-        if (input == 'employeeName' && this.nameInput) this.nameInput.nativeElement.value = '';
-        if (input == 'department' && this.departmentInput) this.departmentInput.nativeElement.value = '';
-        if (input == 'employeeId' && this.employeeIdInput) this.employeeIdInput.nativeElement.value = '';
-
+    clear(input: string, inputElement?: HTMLInputElement) {
+        if (inputElement) {
+            inputElement.value = '';
+        }
         this.filterValues[input] = '';
         this.applyFilter();
     }
