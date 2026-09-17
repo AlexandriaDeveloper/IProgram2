@@ -102,6 +102,7 @@ namespace Application.Features
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[DEBUG-CLOUDINARY-ERR] Attempt 1 Failed for {fileName}: {ex}");
                 _logger.LogError(ex, $"Cloud Storage Upload Attempt 1 Failed for {fileName}. Retrying...");
                 try
                 {
@@ -113,9 +114,11 @@ namespace Application.Features
                 }
                 catch (Exception retryEx)
                 {
+                    Console.WriteLine($"[DEBUG-CLOUDINARY-ERR] Retry Failed for {fileName}: {retryEx}");
                     _logger.LogError(retryEx, $"Cloud Storage Upload Retry Failed for {fileName}. Falling back to local storage.");
                 }
             }
+
 
             var dailyReference = new DailyReference
             {
@@ -149,9 +152,10 @@ namespace Application.Features
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Test Connection Failed");
-                return $"FAILED: {ex.Message}";
+                return $"FAILED: {ex}";
             }
         }
+
 
         public async Task<List<object>> SyncLocalReferencesToCloudinary(int? specificDailyId = null)
         {
