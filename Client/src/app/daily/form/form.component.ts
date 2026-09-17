@@ -290,15 +290,25 @@ export class FormComponent implements OnInit, AfterViewInit {
       });
     }
   }
-  openReferenceDialog(dailyReference) {
-    console.log(dailyReference);
-    if (dailyReference.referencePath.includes('localhost')) {
-      window.open(environment.apiContent + dailyReference.referencePath, '_blank');
-    }
-    if (dailyReference.referencePath.includes('cloudinary')) {
-      window.open(dailyReference.referencePath, '_blank');
+  openReferenceDialog(dailyReference: any) {
+    if (!dailyReference || !dailyReference.referencePath) return;
+
+    let path = String(dailyReference.referencePath).trim();
+
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      window.open(path, '_blank');
+      return;
     }
 
+    let base = environment.apiContent || 'http://localhost:5000/';
+    if (!base.endsWith('/')) {
+      base += '/';
+    }
+    if (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+
+    window.open(base + path, '_blank');
   }
   restoreForm(row) {
     if (confirm(` أنت على وشك استرجاع ملف ${row.name} هل انت متاكد ؟؟!`)) {
