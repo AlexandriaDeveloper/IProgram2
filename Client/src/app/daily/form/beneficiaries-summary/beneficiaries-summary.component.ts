@@ -87,7 +87,7 @@ export class BeneficiariesSummaryComponent implements OnInit, OnDestroy {
             switch (property) {
                 case 'employeeName': return item.employeeName;
                 case 'totalAmount': return item.totalAmount;
-                case 'action': return item.isFullyReviewed ? 1 : 0;
+                case 'action': return item.isFullyReviewed ? (item.reviewMethod === 'Auto' ? 2 : 1) : 0;
                 case 'tabCode': return item.tabCode;
                 case 'tegaraCode': return item.tegaraCode;
                 case 'department': return item.department;
@@ -113,8 +113,14 @@ export class BeneficiariesSummaryComponent implements OnInit, OnDestroy {
                 return dataVal.includes(val);
             });
 
+            const method = (data.reviewMethod || '').toLowerCase();
+            const isAuto = method === 'auto' || (!method && data.isFullyReviewed && data.netPay !== null && data.netPay !== undefined);
+            const isManual = method === 'manual' || (!method && data.isFullyReviewed && (data.netPay === null || data.netPay === undefined));
+
             const matchReview = this.currentReviewFilter === 'all' ||
                 (this.currentReviewFilter === 'reviewed' && data.isFullyReviewed) ||
+                (this.currentReviewFilter === 'auto' && data.isFullyReviewed && isAuto) ||
+                (this.currentReviewFilter === 'manual' && data.isFullyReviewed && isManual) ||
                 (this.currentReviewFilter === 'unreviewed' && !data.isFullyReviewed);
 
             return matchText && matchReview;
@@ -150,7 +156,12 @@ export class BeneficiariesSummaryComponent implements OnInit, OnDestroy {
         this.dailyService.getBeneficiariesSummary(this.dailyId).subscribe({
             next: (result: any) => {
                 requestAnimationFrame(() => {
-                    this.dataSource.data = result.beneficiaries || [];
+                    this.dataSource.data = (result.beneficiaries || []).map((b: any) => {
+                        if (!b.reviewMethod && b.isFullyReviewed) {
+                            b.reviewMethod = (b.netPay !== null && b.netPay !== undefined) ? 'Auto' : 'Manual';
+                        }
+                        return b;
+                    });
                     if (this.sort) {
                         this.dataSource.sort = this.sort;
                     }
@@ -289,6 +300,7 @@ export class BeneficiariesSummaryComponent implements OnInit, OnDestroy {
             }
         });
         element.isFullyReviewed = isChecked;
+        element.reviewMethod = isChecked ? 'Manual' : null;
         this.dataSource.data = [...this.dataSource.data];
         this.applyFilter();
         this.cdr.detectChanges();
@@ -324,9 +336,19 @@ export class BeneficiariesSummaryComponent implements OnInit, OnDestroy {
         this.formDetailsService.markAsSummaryReviewed(detail.formDetailId, isChecked).subscribe({
             next: () => {
                 detail.isSummaryReviewed = isChecked;
+                detail.summaryReviewMethod = isChecked ? 'Manual' : null;
                 // Update the parent row's fully reviewed status
                 if (parent) {
                     parent.isFullyReviewed = parent.details.every((d: any) => d.isSummaryReviewed);
+                    if (parent.isFullyReviewed) {
+                        const methods = parent.details.filter((d: any) => d.isSummaryReviewed && d.summaryReviewMethod).map((d: any) => d.summaryReviewMethod);
+                        const distinct = [...new Set(methods)];
+                        parent.reviewMethod = distinct.length === 1 ? distinct[0] : (distinct.length > 1 ? 'Mixed' : 'Manual');
+                    } else if (parent.details.some((d: any) => d.isSummaryReviewed)) {
+                        parent.reviewMethod = parent.details.find((d: any) => d.isSummaryReviewed)?.summaryReviewMethod;
+                    } else {
+                        parent.reviewMethod = null;
+                    }
                 }
                 this.dataSource.data = [...this.dataSource.data];
                 this.applyFilter();
@@ -340,6 +362,22 @@ export class BeneficiariesSummaryComponent implements OnInit, OnDestroy {
 
     get totalReviewed(): number {
         return this.dataSource.data.filter((b: any) => b.isFullyReviewed).length;
+    }
+
+    get totalAutoReviewed(): number {
+        return this.dataSource.data.filter((b: any) => {
+            if (!b.isFullyReviewed) return false;
+            const m = (b.reviewMethod || '').toLowerCase();
+            return m === 'auto' || (!m && b.netPay !== null && b.netPay !== undefined);
+        }).length;
+    }
+
+    get totalManualReviewed(): number {
+        return this.dataSource.data.filter((b: any) => {
+            if (!b.isFullyReviewed) return false;
+            const m = (b.reviewMethod || '').toLowerCase();
+            return m === 'manual' || (!m && (b.netPay === null || b.netPay === undefined));
+        }).length;
     }
 
     get totalAmount(): number {

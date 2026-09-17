@@ -24,6 +24,8 @@ namespace Core.Models
         public string IsSummaryReviewedBy { get; set; }
         public DateTime? SummaryReviewedAt { get; set; }
         public string SummaryComments { get; set; }
+        [MaxLength(20)]
+        public string SummaryReviewMethod { get; set; }
 
 
         public Form Form { get; set; }

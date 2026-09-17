@@ -39,11 +39,21 @@
 
 <div style="display: flex;justify-content: space-between;align-items: center;gap: 20px;margin-bottom: 20px;">
     <!-- Stats -->
-    <div style="color: #fff; display: flex; gap: 20px; font-weight: bold; font-size: 16px;">
+    <div style="color: #fff; display: flex; flex-wrap: wrap; gap: 20px; font-weight: bold; font-size: 16px; align-items: center;">
         <span>العدد الإجمالي: {{dataSource.data.length}} مستحق</span>
         <span>المبلغ الكلي: {{totalAmount | number:'1.2-2'}}</span>
         <span>إجمالي الصافى: {{totalNetPay | number:'1.2-2'}}</span>
         <span style="color: #4CAF50;">تمت المراجعة: {{totalReviewed}} من {{dataSource.data.length}}</span>
+        <div style="display: flex; gap: 8px; font-size: 13px; font-weight: normal;">
+            <span class="review-method-badge auto-badge" title="تمت المراجعة عبر ملف البيرول (PDF)">
+                <mat-icon class="review-badge-icon">auto_awesome</mat-icon>
+                بيرول: {{totalAutoReviewed}}
+            </span>
+            <span class="review-method-badge manual-badge" title="تمت المراجعة يدوياً">
+                <mat-icon class="review-badge-icon">touch_app</mat-icon>
+                يدوي: {{totalManualReviewed}}
+            </span>
+        </div>
     </div>
 </div>
 
@@ -86,21 +96,63 @@
 
         <!-- Action Column (Review Checkbox + Toggle) -->
         <ng-container matColumnDef="action">
-            <th mat-header-cell *matHeaderCellDef>
-                <div class="table-spacer" style="width: 20vh !important;">
-                    <!-- 3-state filter: All / Reviewed / Unreviewed -->
+            <th mat-header-cell *matHeaderCellDef class="action-header-cell">
+                <div class="review-toggle-container">
+                    <!-- 4-state filter: All / Payroll / Manual / Unreviewed -->
                     <mat-button-toggle-group #reviewToggle="matButtonToggleGroup" appearance="legacy" value="all"
+                        class="review-filter-toggle-group"
                         (change)="applyReviewToggle($event.value)">
-                        <mat-button-toggle color="warn" value="all">الكل</mat-button-toggle>
-                        <mat-button-toggle value="reviewed">تمت المراجعه</mat-button-toggle>
+                        <mat-button-toggle value="all">الكل</mat-button-toggle>
+                        <mat-button-toggle value="auto" title="مراجعة بيرول (PDF)">
+                            <div class="toggle-content">
+                                <mat-icon class="toggle-icon icon-auto">auto_awesome</mat-icon>
+                                <span>بيرول</span>
+                            </div>
+                        </mat-button-toggle>
+                        <mat-button-toggle value="manual" title="مراجعة يدوية">
+                            <div class="toggle-content">
+                                <mat-icon class="toggle-icon icon-manual">touch_app</mat-icon>
+                                <span>يدوي</span>
+                            </div>
+                        </mat-button-toggle>
                         <mat-button-toggle value="unreviewed">لم تراجع</mat-button-toggle>
                     </mat-button-toggle-group>
                 </div>
             </th>
-            <td mat-cell *matCellDef="let element" style="text-align: right !important;">
-                <div style="display: inline-block; cursor: pointer;" (click)="markAllAsReviewed(element, !element.isFullyReviewed); $event.stopPropagation()">
-                    <mat-checkbox color="primary" [checked]="element.isFullyReviewed" style="pointer-events: none;">
-                    </mat-checkbox>
+            <td mat-cell *matCellDef="let element" class="action-cell" style="text-align: right !important;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="display: inline-block; cursor: pointer;" (click)="markAllAsReviewed(element, !element.isFullyReviewed); $event.stopPropagation()"
+                        [title]="element.isFullyReviewed ? 'إلغاء المراجعة' : 'تحديد كمراجع يدوياً'">
+                        <mat-checkbox color="primary" [checked]="element.isFullyReviewed" style="pointer-events: none;">
+                        </mat-checkbox>
+                    </div>
+                    @if (element.isFullyReviewed) {
+                        @if (element.reviewMethod === 'Auto' || (!element.reviewMethod && element.netPay !== null && element.netPay !== undefined)) {
+                            <span class="review-method-badge auto-badge" title="تمت المراجعة عبر ملف البيرول (PDF)">
+                                <mat-icon class="review-badge-icon">auto_awesome</mat-icon>
+                                <span>بيرول</span>
+                            </span>
+                        } @else if (element.reviewMethod === 'Manual' || (!element.reviewMethod && (element.netPay === null || element.netPay === undefined))) {
+                            <span class="review-method-badge manual-badge" title="تمت المراجعة يدوياً">
+                                <mat-icon class="review-badge-icon">touch_app</mat-icon>
+                                <span>يدوي</span>
+                            </span>
+                        } @else if (element.reviewMethod === 'Mixed') {
+                            <span class="review-method-badge mixed-badge" title="مراجعة مختلطة (بعض الاستمارات بيرول وبعضها يدوي)">
+                                <mat-icon class="review-badge-icon">tune</mat-icon>
+                                <span>مختلط</span>
+                            </span>
+                        } @else {
+                            <span class="review-method-badge manual-badge" title="تمت المراجعة">
+                                <mat-icon class="review-badge-icon">done</mat-icon>
+                                <span>مُراجع</span>
+                            </span>
+                        }
+                    } @else {
+                        <span class="review-method-badge unreviewed-badge">
+                            <span>لم تراجع</span>
+                        </span>
+                    }
                 </div>
             </td>
         </ng-container>
@@ -270,6 +322,8 @@
                                     <th style="width: 90px;">مراجعة الاستمارة</th>
                                     <th style="width: 120px;">الاستمارة بواسطة</th>
                                     <th style="width: 140px;">تاريخ استمارة</th>
+                                    <th style="width: 90px;">مراجعة الملخص</th>
+                                    <th style="width: 100px;">طريقة المراجعة</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -289,6 +343,30 @@
                                     <td style="text-align: center;">{{detail.isReviewedBy || '-'}}</td>
                                     <td style="text-align: center;" dir="ltr">{{detail.reviewedAt ?
                                         (detail.reviewedAt | date:'yyyy/MM/dd HH:mm') : '-'}}</td>
+
+                                    <!-- Summary Review Info -->
+                                    <td style="text-align: center;">
+                                        <mat-icon [color]="detail.isSummaryReviewed ? 'primary' : 'warn'">
+                                            {{detail.isSummaryReviewed ? 'check_circle' : 'cancel'}}
+                                        </mat-icon>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        @if (detail.isSummaryReviewed) {
+                                            @if (detail.summaryReviewMethod === 'Auto') {
+                                                <span class="review-method-badge auto-badge mini" title="تمت المراجعة عبر ملف البيرول (PDF)">
+                                                    <mat-icon class="review-badge-icon">auto_awesome</mat-icon>
+                                                    <span>بيرول</span>
+                                                </span>
+                                            } @else {
+                                                <span class="review-method-badge manual-badge mini" title="تمت المراجعة يدوياً">
+                                                    <mat-icon class="review-badge-icon">touch_app</mat-icon>
+                                                    <span>يدوي</span>
+                                                </span>
+                                            }
+                                        } @else {
+                                            <span style="color: rgba(255,255,255,0.4);">-</span>
+                                        }
+                                    </td>
                                 </tr>
                                 }
                             </tbody>

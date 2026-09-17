@@ -646,12 +646,25 @@ namespace Application.Features
                         IsSummaryReviewedBy = string.IsNullOrEmpty(x.Detail.IsSummaryReviewedBy) ? null :
                                               (reviewers.ContainsKey(x.Detail.IsSummaryReviewedBy) ? reviewers[x.Detail.IsSummaryReviewedBy] : x.Detail.IsSummaryReviewedBy),
                         SummaryReviewedAt = x.Detail.SummaryReviewedAt,
-                        SummaryComment = x.Detail.SummaryComments
+                        SummaryComment = x.Detail.SummaryComments,
+                        SummaryReviewMethod = x.Detail.SummaryReviewMethod ?? (x.Detail.IsSummaryReviewed ? (netPayDict.ContainsKey(g.Key) ? "Auto" : "Manual") : null)
                     }).ToList()
                 })
                 .Select(g =>
                 {
                     g.Comment = g.Details.Select(x => x.SummaryComment).FirstOrDefault(c => !string.IsNullOrEmpty(c));
+                    if (g.IsFullyReviewed)
+                    {
+                        var methods = g.Details.Where(d => d.IsSummaryReviewed && !string.IsNullOrEmpty(d.SummaryReviewMethod))
+                                               .Select(d => d.SummaryReviewMethod).Distinct().ToList();
+                        if (methods.Count == 1) g.ReviewMethod = methods.First();
+                        else if (methods.Count > 1) g.ReviewMethod = "Mixed";
+                        else g.ReviewMethod = netPayDict.ContainsKey(g.EmployeeId) ? "Auto" : "Manual";
+                    }
+                    else if (g.Details.Any(d => d.IsSummaryReviewed))
+                    {
+                        g.ReviewMethod = g.Details.FirstOrDefault(d => d.IsSummaryReviewed)?.SummaryReviewMethod;
+                    }
                     return g;
                 })
                 .OrderBy(x => x.EmployeeName)
@@ -797,7 +810,14 @@ namespace Application.Features
                 dr["الاسم"] = item.EmployeeName ?? "";
                 dr.SetField("المبلغ", Math.Round(item.TotalAmount, 2));
                 dr["تعليق"] = item.Comment ?? "";
-                dr["حالة المراجعة"] = item.IsFullyReviewed ? "تم المراجعة" : "لم يتم المراجعة";
+                string reviewStatus = "لم يتم المراجعة";
+                if (item.IsFullyReviewed)
+                {
+                    if (item.ReviewMethod == "Auto") reviewStatus = "مراجعة بيرول (PDF)";
+                    else if (item.ReviewMethod == "Manual") reviewStatus = "مراجعة يدوية";
+                    else reviewStatus = "تمت المراجعة";
+                }
+                dr["حالة المراجعة"] = reviewStatus;
                 
                 var reviewersList = item.Details.Where(d => d.IsSummaryReviewed && !string.IsNullOrEmpty(d.IsSummaryReviewedBy))
                                                 .Select(d => d.IsSummaryReviewedBy).Distinct().ToList();
@@ -847,6 +867,7 @@ namespace Application.Features
                     detail.IsSummaryReviewedBy = null;
                     detail.SummaryReviewedAt = null;
                     detail.SummaryComments = null;
+                    detail.SummaryReviewMethod = null;
                 }
             }
 

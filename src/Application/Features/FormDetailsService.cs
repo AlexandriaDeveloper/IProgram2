@@ -390,11 +390,13 @@ namespace Application.Features
             {
                 formDetails.SummaryReviewedAt = DateTime.Now;
                 formDetails.IsSummaryReviewedBy = userId;
+                formDetails.SummaryReviewMethod = "Manual";
             }
             else
             {
                 formDetails.SummaryReviewedAt = null;
                 formDetails.IsSummaryReviewedBy = null;
+                formDetails.SummaryReviewMethod = null;
             }
 
             _formDetailsRepository.Update(formDetails);

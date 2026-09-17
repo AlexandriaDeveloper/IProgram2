@@ -264,6 +264,7 @@ namespace Application.Features
                             fdToUpdate.IsSummaryReviewed = true;
                             fdToUpdate.IsSummaryReviewedBy = currentUserId;
                             fdToUpdate.SummaryReviewedAt = DateTime.Now;
+                            fdToUpdate.SummaryReviewMethod = "Auto";
                         }
                     }
 

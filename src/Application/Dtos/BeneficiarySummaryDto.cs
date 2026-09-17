@@ -14,6 +14,7 @@ namespace Application.Dtos
         public string IsSummaryReviewedBy { get; set; }
         public DateTime? SummaryReviewedAt { get; set; }
         public string SummaryComment { get; set; }
+        public string SummaryReviewMethod { get; set; }
     }
 
     public class BeneficiarySummaryDto
@@ -25,6 +26,7 @@ namespace Application.Dtos
         public string TegaraCode { get; set; }
         public double TotalAmount { get; set; }
         public bool IsFullyReviewed { get; set; }
+        public string ReviewMethod { get; set; }
         public string Comment { get; set; }
         public double? NetPay { get; set; }
         public WatchListAlertDto WatchListAlert { get; set; }

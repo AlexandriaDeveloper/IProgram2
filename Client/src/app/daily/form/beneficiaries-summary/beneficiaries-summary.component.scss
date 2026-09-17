@@ -115,12 +115,197 @@
 }
 
 .reviewed {
-    opacity: 0.5;
+    opacity: 0.85;
     background-color: rgba($color: #000000, $alpha: 0.08) !important;
 }
 
 .not-reviewed {
     opacity: 1;
+}
+
+.review-method-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Cairo', sans-serif;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    transition: all 0.2s ease-in-out;
+    opacity: 1 !important;
+
+    .review-badge-icon {
+        font-size: 15px;
+        width: 15px;
+        height: 15px;
+        line-height: 15px;
+    }
+
+    &.auto-badge {
+        background: rgba(76, 175, 80, 0.22);
+        color: #a5d6a7;
+        border: 1px solid rgba(76, 175, 80, 0.5);
+        box-shadow: 0 1px 4px rgba(76, 175, 80, 0.2);
+
+        .review-badge-icon {
+            color: #81c784;
+        }
+    }
+
+    &.manual-badge {
+        background: rgba(33, 150, 243, 0.22);
+        color: #90caf9;
+        border: 1px solid rgba(33, 150, 243, 0.5);
+        box-shadow: 0 1px 4px rgba(33, 150, 243, 0.2);
+
+        .review-badge-icon {
+            color: #64b5f6;
+        }
+    }
+
+    &.mixed-badge {
+        background: rgba(255, 152, 0, 0.22);
+        color: #ffcc80;
+        border: 1px solid rgba(255, 152, 0, 0.5);
+
+        .review-badge-icon {
+            color: #ffa726;
+        }
+    }
+
+    &.unreviewed-badge {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        font-size: 11px;
+        padding: 2px 7px;
+    }
+
+    &.mini {
+        padding: 2px 6px;
+        font-size: 11px;
+        border-radius: 8px;
+        .review-badge-icon {
+            font-size: 13px;
+            width: 13px;
+            height: 13px;
+            line-height: 13px;
+        }
+    }
+}
+
+.action-header-cell {
+    width: 290px !important;
+    min-width: 290px !important;
+    max-width: 320px !important;
+    padding: 6px 10px !important;
+    overflow: visible !important;
+}
+
+.action-cell {
+    width: 290px !important;
+    min-width: 290px !important;
+    max-width: 320px !important;
+    padding: 6px 10px !important;
+}
+
+.review-toggle-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    overflow: visible !important;
+}
+
+.review-filter-toggle-group {
+    display: inline-flex !important;
+    width: 100% !important;
+    background: rgba(15, 23, 42, 0.65) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+
+    ::ng-deep .mat-button-toggle {
+        flex: 1 1 0 !important;
+        background: transparent !important;
+        border: none !important;
+        border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+        color: rgba(255, 255, 255, 0.85) !important;
+        font-family: 'Cairo', sans-serif !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease-in-out !important;
+
+        &:last-child {
+            border-left: none !important;
+        }
+
+        .mat-button-toggle-button {
+            height: 32px !important;
+        }
+
+        .mat-button-toggle-label-content {
+            padding: 0 6px !important;
+            line-height: 32px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            white-space: nowrap !important;
+        }
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: #ffffff !important;
+        }
+
+        &.mat-button-toggle-checked {
+            color: #ffffff !important;
+            font-weight: bold !important;
+
+            &[value="all"] {
+                background: #546e7a !important;
+            }
+
+            &[value="auto"] {
+                background: #2e7d32 !important;
+            }
+
+            &[value="manual"] {
+                background: #1565c0 !important;
+            }
+
+            &[value="unreviewed"] {
+                background: #c62828 !important;
+            }
+        }
+    }
+
+    .toggle-content {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+
+    .toggle-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        line-height: 14px;
+
+        &.icon-auto {
+            color: #81c784;
+        }
+        &.icon-manual {
+            color: #90caf9;
+        }
+    }
+
+    ::ng-deep .mat-button-toggle-checked .toggle-icon {
+        color: #ffffff !important;
+    }
 }
 
 .amount-cell {
