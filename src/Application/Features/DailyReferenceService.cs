@@ -102,7 +102,19 @@ namespace Application.Features
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Cloud Storage Upload Failed");
+                _logger.LogError(ex, $"Cloud Storage Upload Attempt 1 Failed for {fileName}. Retrying...");
+                try
+                {
+                    await Task.Delay(1500);
+                    using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
+                    {
+                        savedPath = await _fileStorageService.UploadFileAsync(stream, fileName);
+                    }
+                }
+                catch (Exception retryEx)
+                {
+                    _logger.LogError(retryEx, $"Cloud Storage Upload Retry Failed for {fileName}. Falling back to local storage.");
+                }
             }
 
             var dailyReference = new DailyReference
@@ -139,6 +151,58 @@ namespace Application.Features
                 _logger.LogError(ex, "Test Connection Failed");
                 return $"FAILED: {ex.Message}";
             }
+        }
+
+        public async Task<List<object>> SyncLocalReferencesToCloudinary(int? specificDailyId = null)
+        {
+            var results = new List<object>();
+            var allReferences = await _dailyReferencesRepository.ListAllAsync();
+            var localRefs = allReferences
+                .Where(r => (!specificDailyId.HasValue || r.DailyId == specificDailyId.Value) &&
+                            !string.IsNullOrEmpty(r.ReferencePath) &&
+                            !r.ReferencePath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
+
+            bool anyUpdated = false;
+            foreach (var r in localRefs)
+            {
+                var fileName = Path.GetFileName(r.ReferencePath);
+                var fullLocalPath = Path.Combine(directoryPath, fileName);
+
+                if (!File.Exists(fullLocalPath))
+                {
+                    results.Add(new { Id = r.Id, DailyId = r.DailyId, FileName = fileName, Status = "Local file not found" });
+                    continue;
+                }
+
+                try
+                {
+                    string cloudinaryUrl;
+                    using (var stream = new FileStream(fullLocalPath, FileMode.Open, FileAccess.Read))
+                    {
+                        cloudinaryUrl = await _fileStorageService.UploadFileAsync(stream, fileName);
+                    }
+
+                    r.ReferencePath = cloudinaryUrl;
+                    _dailyReferencesRepository.Update(r);
+                    anyUpdated = true;
+                    results.Add(new { Id = r.Id, DailyId = r.DailyId, FileName = fileName, Status = "Synced", CloudinaryUrl = cloudinaryUrl });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Failed to sync reference {r.Id} ({fileName}) to Cloudinary");
+                    results.Add(new { Id = r.Id, DailyId = r.DailyId, FileName = fileName, Status = "Failed", Error = ex.Message });
+                }
+            }
+
+            if (anyUpdated)
+            {
+                await _uow.SaveChangesAsync();
+            }
+
+            return results;
         }
     }
 }

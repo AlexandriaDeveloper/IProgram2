@@ -9,7 +9,6 @@ using Application.Extensions;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.FileProviders;
 
-using System.Security.Claims;
 
 using QuestPDF.Infrastructure;
 using Microsoft.EntityFrameworkCore;

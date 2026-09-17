@@ -44,6 +44,16 @@ namespace Auth.Infrastructure.Services
                         return dbId;
                     }
                 }
+
+                // 3. Query string (e.g. ?dbId=2027)
+                if (httpContext.Request.Query.TryGetValue("dbId", out var dbQuery))
+                {
+                    var dbId = dbQuery.ToString();
+                    if (!string.IsNullOrEmpty(dbId))
+                    {
+                        return dbId;
+                    }
+                }
             }
 
             // Fallback to default

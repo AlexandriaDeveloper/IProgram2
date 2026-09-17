@@ -54,7 +54,7 @@ namespace Persistence.Repository
             var entity = await GetById(id);
             entity.IsActive = false;
             entity.DeactivatedAt = DateTime.Now;
-            entity.DeactivatedBy = _accessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
+            entity.DeactivatedBy = _accessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "System";
             _context.Set<T>().Update(entity);
 
         }
@@ -63,14 +63,14 @@ namespace Persistence.Repository
         {
             entity.IsActive = true;
             entity.CreatedAt = DateTime.Now;
-            entity.CreatedBy = _accessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
+            entity.CreatedBy = _accessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "System";
             await _context.Set<T>().AddAsync(entity);
         }
 
         public virtual void Update(T entity)
         {
             entity.UpdatedAt = DateTime.Now;
-            entity.UpdatedBy = _accessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
+            entity.UpdatedBy = _accessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "System";
             _context.Set<T>().Update(entity);
         }
 

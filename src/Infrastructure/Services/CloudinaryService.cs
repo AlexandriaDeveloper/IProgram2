@@ -27,6 +27,7 @@ namespace Auth.Infrastructure.Services
                     var account = new Account(cloudName, apiKey, apiSecret);
                     _cloudinary = new Cloudinary(account);
                     _cloudinary.Api.Secure = true;
+                    _cloudinary.Api.Timeout = (int)TimeSpan.FromMinutes(10).TotalMilliseconds;
                 }
                 else
                 {
@@ -37,9 +38,6 @@ namespace Auth.Infrastructure.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"[CRITICAL] Failed to initialize CloudinaryService: {ex.Message}");
-                // We don't throw here to allow the service to be created, but methods will fail.
-                // Or we throw to see the 500. Let's log and rethrow or handle gracefully? 
-                // Better to throw but ensuring it's logged to Console is active.
                 throw;
             }
         }
@@ -51,11 +49,6 @@ namespace Auth.Infrastructure.Services
                 if (fileStream.Position > 0)
                     fileStream.Position = 0;
 
-                // Use RawUploadParams to allow any file type (PDF, TXT, etc.)
-                // Or ImageUploadParams with ResourceType = "auto" if we want Cloudinary to decide.
-                // For PDFs specifically, they can be treated as images (for thumbnails) or raw.
-                // Using RawUploadParams is safer for generic file storage.
-                
                 var uploadParams = new RawUploadParams()
                 {
                     File = new FileDescription(fileName, fileStream),
@@ -66,9 +59,15 @@ namespace Auth.Infrastructure.Services
                     UniqueFilename = false
                 };
 
-                // Note: UploadAsync is overloaded. We need to cast or use specific method if needed, 
-                // but Cloudinary .NET SDK handles params polymorphism.
-                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                RawUploadResult uploadResult;
+                if (fileStream.Length > 2 * 1024 * 1024)
+                {
+                    uploadResult = await _cloudinary.UploadLargeAsync(uploadParams);
+                }
+                else
+                {
+                    uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                }
 
                 if (uploadResult.Error != null)
                 {

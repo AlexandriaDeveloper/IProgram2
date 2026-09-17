@@ -32,6 +32,17 @@ namespace Api.Controllers
         }
 
         [AllowAnonymous]
+        [HttpPost("SyncLocalReferencesToCloudinary")]
+        [HttpGet("SyncLocalReferencesToCloudinary")]
+        [Microsoft.AspNetCore.OutputCaching.OutputCache(NoStore = true)]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> SyncLocalReferencesToCloudinary([FromQuery] int? dailyId = null)
+        {
+            var results = await _dailyReferenceService.SyncLocalReferencesToCloudinary(dailyId);
+            return Ok(new { message = "Sync process completed", details = results });
+        }
+
+        [AllowAnonymous]
         [HttpPost("UploadDailyReference")]
         public async Task<IActionResult> UploadDailyReference([FromForm] DailyReferenceFileUploadRequest request)
         {
