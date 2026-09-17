@@ -109,7 +109,7 @@ namespace Auth.Infrastructure.Services
             return result;
         }
 
-        private async Task SyncTableAsync(string tableName, string[] columns, SyncResult result, string[]? compositeKey = null)
+        private async Task SyncTableAsync(string tableName, string[] columns, SyncResult result, string[] compositeKey = null)
         {
             Console.WriteLine($"Syncing {tableName}...");
             var tableResult = new TableSyncResult { TableName = tableName };
@@ -118,7 +118,7 @@ namespace Auth.Infrastructure.Services
             try
             {
                 // 1. Read all data from SQL Server
-                var sourceData = new List<Dictionary<string, object?>>();
+                var sourceData = new List<Dictionary<string, object>>();
                 await using (var sqlConn = new SqlConnection(_sqlServerConn))
                 {
                     await sqlConn.OpenAsync();
@@ -127,7 +127,7 @@ namespace Auth.Infrastructure.Services
 
                     while (await reader.ReadAsync())
                     {
-                        var row = new Dictionary<string, object?>();
+                        var row = new Dictionary<string, object>();
                         foreach (var col in columns)
                         {
                             try
@@ -340,7 +340,7 @@ namespace Auth.Infrastructure.Services
             return result;
         }
 
-        private async Task PullTableAsync(string tableName, string[] columns, SyncResult result, string[]? compositeKey = null)
+        private async Task PullTableAsync(string tableName, string[] columns, SyncResult result, string[] compositeKey = null)
         {
             Console.WriteLine($"Pulling {tableName}...");
             await _hubContext.Clients.All.SendAsync("ReceiveProgress", $"Pulling {tableName}...");
@@ -350,7 +350,7 @@ namespace Auth.Infrastructure.Services
             try
             {
                 // 1. Read all data from Supabase (PostgreSQL)
-                var sourceData = new List<Dictionary<string, object?>>();
+                var sourceData = new List<Dictionary<string, object>>();
                 await using (var pgConn = new NpgsqlConnection(_supabaseConn))
                 {
                     await pgConn.OpenAsync();
@@ -359,7 +359,7 @@ namespace Auth.Infrastructure.Services
                     await using var reader = await cmd.ExecuteReaderAsync();
                     while (await reader.ReadAsync())
                     {
-                        var row = new Dictionary<string, object?>();
+                        var row = new Dictionary<string, object>();
                         foreach (var col in columns)
                         {
                             var value = reader[col];
@@ -599,7 +599,7 @@ namespace Auth.Infrastructure.Services
     public class SyncResult
     {
         public bool Success { get; set; }
-        public string? Error { get; set; }
+        public string Error { get; set; }
         public TimeSpan Duration { get; set; }
         public List<TableSyncResult> Tables { get; set; } = new();
     }
@@ -608,7 +608,7 @@ namespace Auth.Infrastructure.Services
     {
         public string TableName { get; set; } = "";
         public bool Success { get; set; }
-        public string? Error { get; set; }
+        public string Error { get; set; }
         public int SourceCount { get; set; }
         public int Upserted { get; set; }
         public int Deleted { get; set; }

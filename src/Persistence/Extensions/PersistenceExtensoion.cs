@@ -11,7 +11,6 @@ using NetCore.AutoRegisterDi;
 using Persistence.Helpers;
 using Persistence.Repository;
 using Persistence.Services;
-using Persistence.Services;
 
 namespace Persistence.Extensions
 {

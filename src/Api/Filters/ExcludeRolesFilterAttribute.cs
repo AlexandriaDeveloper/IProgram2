@@ -6,7 +6,6 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Org.BouncyCastle.Asn1.Cms;
 
 namespace Api.Filters
 {
@@ -20,7 +19,7 @@ namespace Api.Filters
         }
         public void OnAuthorization(AuthorizationFilterContext context)
         {
-            ClaimsPrincipal? user = context.HttpContext.User;
+            ClaimsPrincipal user = context.HttpContext.User;
             if (_roles.Any(role => user.IsInRole(role)))
                 context.Result = new StatusCodeResult((int)HttpStatusCode.Forbidden);
         }

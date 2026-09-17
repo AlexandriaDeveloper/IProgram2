@@ -177,11 +177,8 @@ app.UseAuthorization();
 app.MapHub<Auth.Infrastructure.Hubs.MigrationHub>("/migrationHub"); // Map MigrationHub
 
 
-app.UseEndpoints(endpoints =>
-         {
-             endpoints.MapControllers();
-             endpoints.MapFallbackToController("Index", "Fallback");
-         });
+app.MapControllers();
+app.MapFallbackToController("Index", "Fallback");
 
 
 app.Run();

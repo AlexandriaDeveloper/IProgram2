@@ -312,7 +312,6 @@ namespace Application.Features
                     continue;
                 }
                 Employee empExist = null;
-                EmployeeBank employeeBankExist = null;
                 if (row.ItemArray[colIndex] != null && !string.IsNullOrEmpty(row.ItemArray[colIndex].ToString()))
                     empExist = await _employeeRepository.GetById(row.ItemArray[colIndex].ToString(), true);
                 else if (tegaraIndex > -1 && !string.IsNullOrEmpty(row.ItemArray[tegaraIndex].ToString()))
@@ -669,7 +668,6 @@ namespace Application.Features
             // var departments = await _departmentRepository.ListAllAsync();
             var npoi = new NpoiServiceProvider();
             IWorkbook workbook = null;
-            int i = 1;
 
 
 

@@ -15,7 +15,7 @@ namespace Api.Filters
         }
         public void OnAuthorization(AuthorizationFilterContext context)
         {
-            ClaimsPrincipal? user = context.HttpContext.User;
+            ClaimsPrincipal user = context.HttpContext.User;
             if (!_roles.Any(role => user.IsInRole(role)))
                 context.Result = new StatusCodeResult((int)HttpStatusCode.Forbidden);
         }

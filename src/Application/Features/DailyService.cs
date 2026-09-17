@@ -22,7 +22,6 @@ namespace Application.Features
     public class DailyService
     {
         private readonly IDailyRepository _dailyRepository;
-        private readonly IDailyReferencesRepository _dailyReferenceRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFormRepository _formRepository;
         private readonly ReportService _reportService;
@@ -31,7 +30,7 @@ namespace Application.Features
         private readonly WatchListService _watchListService;
         private IConfiguration _config;
 
-        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IDailyReferencesRepository dailyReferenceRepository, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository, WatchListService watchListService)
+        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository, WatchListService watchListService)
         {
             this._formRepository = formRepository;
             this._reportService = reportService;
@@ -336,7 +335,6 @@ namespace Application.Features
 
             var npoi = new NpoiServiceProvider();
             IWorkbook workbook = null;
-            int i = 1;
             // foreach (var form in daily)
             // {
             //     var title = form.Name;

@@ -16,7 +16,7 @@ namespace Persistence.Repository
             _context = context;
         }
 
-        public new async Task Delete(string employeeId)
+        public async Task Delete(string employeeId)
         {
             var entity = _context.Set<EmployeeBank>().FirstOrDefault(x => x.EmployeeId == employeeId);
             _context.Set<EmployeeBank>().Remove(entity);

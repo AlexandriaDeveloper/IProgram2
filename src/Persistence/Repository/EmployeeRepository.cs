@@ -22,19 +22,19 @@ namespace Persistence.Repository
             this._context = context;
 
         }
-        public new async Task<Employee> GetById(string id, bool noTracking = false)
+        public async Task<Employee> GetById(string id, bool noTracking = false)
         {
             if (noTracking)
                 return await this._context.Set<Employee>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
             return await this._context.Set<Employee>().FirstOrDefaultAsync(x => x.Id == id);
         }
-        public new async Task Delete(string id)
+        public async Task Delete(string id)
         {
             var entity = await GetById(id);
             this._context.Set<Employee>().Remove(entity);
 
         }
-        public new async Task DeActive(string id)
+        public async Task DeActive(string id)
         {
             var entity = await GetById(id);
             entity.IsActive = false;

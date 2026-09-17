@@ -29,7 +29,7 @@ namespace Application.Helpers
 
 
 
-        public static Result<TValue> Create<TValue>(TValue value) =>
+        public static Result<TValue> Create(TValue value) =>
                       value is not null ? Success(value) : Failure<TValue>(Error.NullValue);
 
 
