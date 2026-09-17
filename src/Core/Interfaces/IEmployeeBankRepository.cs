@@ -6,7 +6,7 @@ namespace Core.Interfaces
     {
         Task<EmployeeBank> GetByEmployeeId(string employeeId);
 
-        new Task Delete(string employeeId);
+        Task Delete(string employeeId);
 
     }
 }
