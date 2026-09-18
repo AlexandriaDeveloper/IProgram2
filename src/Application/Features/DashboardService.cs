@@ -41,24 +41,28 @@ namespace Application.Features
             var totalEmployees = await _employeeRepository.GetQueryable().AsNoTracking().CountAsync();
             var totalForms = await _formRepository.GetQueryable().AsNoTracking().CountAsync();
 
-            // 4. Current Period Metrics (Direct SQL Aggregations)
+            // 4. Current Period Metrics (Direct SQL Aggregations on Active FormDetails only)
             var activeForms = await currentFormsQuery.CountAsync();
             var totalAmount = await currentFormsQuery
                 .SelectMany(f => f.FormDetails)
+                .Where(fd => fd.IsActive)
                 .SumAsync(fd => (double?)fd.Amount) ?? 0.0;
             var currentDistinctEmp = await currentFormsQuery
                 .SelectMany(f => f.FormDetails)
+                .Where(fd => fd.IsActive)
                 .Select(fd => fd.EmployeeId)
                 .Distinct()
                 .CountAsync();
 
-            // 5. Previous Period Metrics (Direct SQL Aggregations)
+            // 5. Previous Period Metrics (Direct SQL Aggregations on Active FormDetails only)
             var prevActiveForms = await prevFormsQuery.CountAsync();
             var prevTotalAmount = await prevFormsQuery
                 .SelectMany(f => f.FormDetails)
+                .Where(fd => fd.IsActive)
                 .SumAsync(fd => (double?)fd.Amount) ?? 0.0;
             var prevDistinctEmp = await prevFormsQuery
                 .SelectMany(f => f.FormDetails)
+                .Where(fd => fd.IsActive)
                 .Select(fd => fd.EmployeeId)
                 .Distinct()
                 .CountAsync();
@@ -66,10 +70,10 @@ namespace Application.Features
             // Trends
             double CalcTrend(double current, double prev) => prev == 0 ? 0 : ((current - prev) / prev) * 100;
 
-            // 6. Top Employees (SQL GroupBy + Aggregates + OrderByDescending + Take 5)
+            // 6. Top Employees (SQL GroupBy + Aggregates on Active FormDetails + OrderByDescending + Take 5)
             var topEmployees = await currentFormsQuery
                 .SelectMany(f => f.FormDetails)
-                .Where(fd => fd.Employee != null)
+                .Where(fd => fd.IsActive && fd.Employee != null)
                 .GroupBy(fd => new
                 {
                     fd.Employee.Id,
@@ -88,9 +92,10 @@ namespace Application.Features
                 .Take(5)
                 .ToListAsync();
 
-            // 7. Department Stats (SQL GroupBy + Sum)
+            // 7. Department Stats (SQL GroupBy + Sum on Active FormDetails)
             var formsByDept = await currentFormsQuery
                 .SelectMany(f => f.FormDetails)
+                .Where(fd => fd.IsActive)
                 .GroupBy(fd => fd.Employee != null && fd.Employee.Department != null ? fd.Employee.Department.Name : "غير محدد")
                 .Select(g => new PieChartDto
                 {
@@ -99,7 +104,7 @@ namespace Application.Features
                 })
                 .ToListAsync();
 
-            // 8. Recent Forms (SQL Top 5 Projected directly to FormSummaryDto)
+            // 8. Recent Forms (SQL Top 5 Projected with Active FormDetails counts and sums)
             var recentForms = await currentFormsQuery
                 .OrderByDescending(f => f.CreatedAt)
                 .Take(5)
@@ -108,12 +113,12 @@ namespace Application.Features
                     Id = f.Id,
                     Description = f.Description,
                     Date = f.CreatedAt,
-                    EmployeeCount = f.FormDetails.Count,
-                    TotalAmount = f.FormDetails.Sum(fd => (double?)fd.Amount) ?? 0.0
+                    EmployeeCount = f.FormDetails.Count(fd => fd.IsActive),
+                    TotalAmount = f.FormDetails.Where(fd => fd.IsActive).Sum(fd => (double?)fd.Amount) ?? 0.0
                 })
                 .ToListAsync();
 
-            // 9. Chart Data (SQL GroupBy + In-memory Label Formatting on Small Aggregated Result)
+            // 9. Chart Data (SQL GroupBy on Active FormDetails + In-memory Label Formatting on Small Aggregated Result)
             List<ChartDataDto> chartDataDtos;
             if (duration.TotalDays <= 35)
             {
@@ -123,8 +128,8 @@ namespace Application.Features
                     {
                         Date = g.Key,
                         FormCount = g.Count(),
-                        EmployeeCount = g.SelectMany(f => f.FormDetails).Select(fd => fd.EmployeeId).Distinct().Count(),
-                        TotalAmount = g.SelectMany(f => f.FormDetails).Sum(fd => (double?)fd.Amount) ?? 0.0
+                        EmployeeCount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Select(fd => fd.EmployeeId).Distinct().Count(),
+                        TotalAmount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Sum(fd => (double?)fd.Amount) ?? 0.0
                     })
                     .ToListAsync();
 
@@ -148,8 +153,8 @@ namespace Application.Features
                         g.Key.Year,
                         g.Key.Month,
                         FormCount = g.Count(),
-                        EmployeeCount = g.SelectMany(f => f.FormDetails).Select(fd => fd.EmployeeId).Distinct().Count(),
-                        TotalAmount = g.SelectMany(f => f.FormDetails).Sum(fd => (double?)fd.Amount) ?? 0.0
+                        EmployeeCount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Select(fd => fd.EmployeeId).Distinct().Count(),
+                        TotalAmount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Sum(fd => (double?)fd.Amount) ?? 0.0
                     })
                     .ToListAsync();
 
