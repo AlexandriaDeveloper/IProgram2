@@ -479,6 +479,60 @@ namespace Auth.UnitTests
             Assert.False(nullResult);
         }
 
+        [Theory]
+        [InlineData("https://res.cloudinary.com/cloud123/raw/authenticated/v12345/DailyReferences/report.pdf", "DailyReferences/report.pdf")]
+        [InlineData("https://res.cloudinary.com/cloud123/raw/authenticated/s--Sig123--/v12345/DailyReferences/report.pdf", "DailyReferences/report.pdf")]
+        [InlineData("https://res.cloudinary.com/cloud123/raw/authenticated/s--Sig123--/DailyReferences/report.pdf", "DailyReferences/report.pdf")]
+        [InlineData("https://res.cloudinary.com/cloud123/raw/authenticated/v12345/DailyReferences/legacy_no_ext", "DailyReferences/legacy_no_ext")]
+        [InlineData("https://res.cloudinary.com/cloud123/raw/authenticated/v12345/EmployeeReferences/emp_doc.pdf", "EmployeeReferences/emp_doc.pdf")]
+        [InlineData("https://res.cloudinary.com/cloud123/raw/upload/v12345/FormReferences/form.jpg", "FormReferences/form.jpg")]
+        [InlineData("DailyReferences/direct_id.pdf", "DailyReferences/direct_id.pdf")]
+        public void CloudinaryService_ExtractPublicIdFromUrl_ExtractsCorrectPublicId(string inputUrl, string expectedPublicId)
+        {
+            var result = CloudinaryService.ExtractPublicIdFromUrl(inputUrl, "DailyReferences");
+            Assert.Equal(expectedPublicId, result);
+        }
+
+        [Fact]
+        public void CloudinaryService_GetProtectedUrl_PreservesPublicDeliveryUrls()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                {"Cloudinary:CloudName", "dummy_cloud"},
+                {"Cloudinary:ApiKey", "123456789012345"},
+                {"Cloudinary:ApiSecret", "abcdefghijklmnopqrstuvwxyz1"}
+            };
+            IConfiguration config = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+            var service = new CloudinaryService(config);
+
+            var legacyRawUrl = "https://res.cloudinary.com/dummy_cloud/raw/upload/v12345/DailyReferences/old.pdf";
+            var result = service.GetProtectedUrl(legacyRawUrl, "DailyReferences");
+
+            Assert.Equal(legacyRawUrl, result);
+        }
+
+        [Fact]
+        public void CloudinaryService_GetProtectedUrl_GeneratesSignedUrl_ForAuthenticatedRawAssets()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                {"Cloudinary:CloudName", "dummy_cloud"},
+                {"Cloudinary:ApiKey", "123456789012345"},
+                {"Cloudinary:ApiSecret", "abcdefghijklmnopqrstuvwxyz1"}
+            };
+            IConfiguration config = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+            var service = new CloudinaryService(config);
+
+            var authenticatedRawUrl = "https://res.cloudinary.com/dummy_cloud/raw/authenticated/v12345/DailyReferences/file.pdf";
+            var result = service.GetProtectedUrl(authenticatedRawUrl, "DailyReferences");
+
+            Assert.Contains("/raw/authenticated/", result);
+            Assert.Contains("DailyReferences/file.pdf", result);
+            Assert.Contains("s--", result); // signature token
+        }
+
         #endregion
 
         #region 7. Angular Client Hygiene (No access_token in URLs)
@@ -487,17 +541,26 @@ namespace Auth.UnitTests
         public void AngularClient_DoesNotContain_AccessTokenInUrls()
         {
             var currentDir = AppContext.BaseDirectory;
-            var clientAppDir = Path.GetFullPath(Path.Combine(currentDir, "../../../../../client/src/app"));
+            var dir = new DirectoryInfo(currentDir);
 
-            if (Directory.Exists(clientAppDir))
+            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Client", "src", "app")))
             {
-                var tsFiles = Directory.GetFiles(clientAppDir, "*.ts", SearchOption.AllDirectories);
-                foreach (var file in tsFiles)
-                {
-                    var content = File.ReadAllText(file);
-                    Assert.DoesNotContain("access_token=", content);
-                    Assert.DoesNotContain("access_token}", content);
-                }
+                dir = dir.Parent;
+            }
+
+            Assert.True(dir != null, $"Expected Client source directory 'Client/src/app' not found. Searched upwards from: {currentDir}");
+
+            var clientAppDir = Path.Combine(dir.FullName, "Client", "src", "app");
+            Assert.True(Directory.Exists(clientAppDir), $"Expected Client source directory does not exist: {clientAppDir}");
+
+            var tsFiles = Directory.GetFiles(clientAppDir, "*.ts", SearchOption.AllDirectories);
+            Assert.NotEmpty(tsFiles);
+
+            foreach (var file in tsFiles)
+            {
+                var content = File.ReadAllText(file);
+                Assert.DoesNotContain("access_token=", content);
+                Assert.DoesNotContain("access_token}", content);
             }
         }
 
