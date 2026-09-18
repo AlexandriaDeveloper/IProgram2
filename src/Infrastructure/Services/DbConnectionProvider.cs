@@ -58,35 +58,42 @@ namespace Auth.Infrastructure.Services
 
             if (httpContext != null)
             {
-                // 1. Authenticated user JWT claim "db" (Highest Authority)
                 var user = httpContext.User;
                 if (user?.Identity?.IsAuthenticated == true)
                 {
+                    // 1. Authenticated user: JWT claim "db" is the SOLE and EXCLUSIVE authority
                     var dbClaim = user.FindFirst("db")?.Value;
-                    if (!string.IsNullOrWhiteSpace(dbClaim))
+                    if (string.IsNullOrWhiteSpace(dbClaim))
                     {
-                        rawSelector = dbClaim;
-                        selectorSource = "JwtClaim";
+                        throw new InvalidDatabaseSelectionException("Authenticated request is missing a valid 'db' claim.");
                     }
-                }
 
-                // 2. Custom header (for login / unauthenticated calls)
-                if (rawSelector == null && httpContext.Request.Headers.TryGetValue("X-Db-Selection", out var dbHeader))
+                    rawSelector = dbClaim;
+                    selectorSource = "JwtClaim";
+                }
+                else
                 {
-                    var headerVal = dbHeader.ToString();
-                    if (!string.IsNullOrWhiteSpace(headerVal))
+                    // 2. Unauthenticated request: Check explicit Header presence first
+                    if (httpContext.Request.Headers.ContainsKey("X-Db-Selection"))
                     {
+                        var headerVal = httpContext.Request.Headers["X-Db-Selection"].ToString();
+                        if (string.IsNullOrWhiteSpace(headerVal))
+                        {
+                            throw new InvalidDatabaseSelectionException("Explicit 'X-Db-Selection' header is empty or whitespace.");
+                        }
+
                         rawSelector = headerVal;
                         selectorSource = "Header";
                     }
-                }
-
-                // 3. Query string (e.g. ?dbId=2027)
-                if (rawSelector == null && httpContext.Request.Query.TryGetValue("dbId", out var dbQuery))
-                {
-                    var queryVal = dbQuery.ToString();
-                    if (!string.IsNullOrWhiteSpace(queryVal))
+                    // 3. Unauthenticated request: Check explicit Query presence only if Header key is absent
+                    else if (httpContext.Request.Query.ContainsKey("dbId"))
                     {
+                        var queryVal = httpContext.Request.Query["dbId"].ToString();
+                        if (string.IsNullOrWhiteSpace(queryVal))
+                        {
+                            throw new InvalidDatabaseSelectionException("Explicit 'dbId' query parameter is empty or whitespace.");
+                        }
+
                         rawSelector = queryVal;
                         selectorSource = "Query";
                     }

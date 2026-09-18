@@ -346,5 +346,177 @@ namespace Auth.UnitTests
             Assert.DoesNotContain("xyz", responseBody);
             Assert.DoesNotContain("InvalidDatabaseSelectionException", responseBody);
         }
+
+        [Fact]
+        public void Header_ExplicitEmpty_FailsClosed_ThrowsInvalidDatabaseSelectionException()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Db-Selection"] = "";
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Header_ExplicitWhitespace_FailsClosed_ThrowsInvalidDatabaseSelectionException()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Db-Selection"] = "   ";
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Header_ExplicitEmpty_WithValidQuery_FailsClosed_DueToHeaderPrecedence()
+        {
+            // Arrange: Header key is present but empty; query is valid 2027.
+            // Header precedence means it must fail closed and NOT fallback to Query.
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Db-Selection"] = "";
+            context.Request.QueryString = new QueryString("?dbId=2027");
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Query_ExplicitEmpty_FailsClosed_ThrowsInvalidDatabaseSelectionException()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Request.QueryString = new QueryString("?dbId=");
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Query_ExplicitWhitespace_FailsClosed_ThrowsInvalidDatabaseSelectionException()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Request.QueryString = new QueryString("?dbId=%20%20%20");
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Authenticated_MissingDbClaim_WithValidHeader_FailsClosed_ThrowsInvalidDatabaseSelectionException()
+        {
+            // Arrange: Authenticated request, NO 'db' claim, valid Header "2027"
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "TestUser") }, "TestAuth");
+            context.User = new ClaimsPrincipal(identity);
+            context.Request.Headers["X-Db-Selection"] = "2027";
+
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert: Must fail closed, never fallback to Header
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Authenticated_WhitespaceDbClaim_WithValidHeader_FailsClosed_ThrowsInvalidDatabaseSelectionException()
+        {
+            // Arrange: Authenticated request, 'db' claim is whitespace, valid Header "2027"
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(new[] { new Claim("db", "   ") }, "TestAuth");
+            context.User = new ClaimsPrincipal(identity);
+            context.Request.Headers["X-Db-Selection"] = "2027";
+
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert: Must fail closed, never fallback to Header
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Authenticated_MissingDbClaim_NoHeader_FailsClosed_ThrowsInvalidDatabaseSelectionException()
+        {
+            // Arrange: Authenticated request, NO 'db' claim, NO header, NO query
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "TestUser") }, "TestAuth");
+            context.User = new ClaimsPrincipal(identity);
+
+            var (provider, _, _) = CreateSystem(context: context);
+
+            // Act & Assert: Must fail closed, never fallback to default DB
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetSelectedDatabaseId());
+            Assert.Throws<InvalidDatabaseSelectionException>(() => provider.GetConnectionString());
+        }
+
+        [Fact]
+        public void Authenticated_ValidDb2026_WithHeader2027_ResolvesTo_2026()
+        {
+            // Arrange: Authenticated user with valid db=2026, header says 2027
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(new[] { new Claim("db", "2026") }, "TestAuth");
+            context.User = new ClaimsPrincipal(identity);
+            context.Request.Headers["X-Db-Selection"] = "2027";
+
+            var (provider, cacheKeyFactory, _) = CreateSystem(context: context);
+
+            // Act
+            var selectedId = provider.GetSelectedDatabaseId();
+            var connStr = provider.GetConnectionString();
+            var cacheKey = cacheKeyFactory.GetFormDetailsKey(42);
+
+            // Assert: Must strictly resolve to 2026
+            Assert.Equal("2026", selectedId);
+            Assert.Equal("Server=localhost;Database=IProgramDb2026;", connStr);
+            Assert.Equal("2026:FormDetails:42", cacheKey);
+        }
+
+        [Fact]
+        public async Task GlobalExceptionHandler_Maps_DatabaseConfigurationException_To_GenericHttp500_WithoutConfigDetails()
+        {
+            // Arrange
+            var loggerMock = new Mock<ILogger<GlobalExceptionHandler>>();
+            var handler = new GlobalExceptionHandler(loggerMock.Object);
+
+            var context = new DefaultHttpContext();
+            context.TraceIdentifier = "trace-config-error-500";
+            context.Response.Body = new MemoryStream();
+
+            var ex = new DatabaseConfigurationException("Missing connection string for database '2028' with ConnectionStringName 'CON2028'. Password=SuperSecretDbPassword123!");
+
+            // Act
+            var handled = await handler.TryHandleAsync(context, ex, CancellationToken.None);
+
+            // Assert
+            Assert.True(handled);
+            Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+
+            context.Response.Body.Seek(0, SeekOrigin.Begin);
+            using var reader = new StreamReader(context.Response.Body);
+            var responseBody = await reader.ReadToEndAsync();
+
+            var responseJson = JsonSerializer.Deserialize<ErrorResponseDto>(responseBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            Assert.NotNull(responseJson);
+            Assert.Equal(500, responseJson.StatusCode);
+            Assert.Equal("حدث خطأ غير متوقع أثناء تنفيذ الطلب.", responseJson.Message);
+            Assert.Equal("trace-config-error-500", responseJson.TraceId);
+
+            // Verify configuration details, credentials, and exception types are completely masked
+            Assert.DoesNotContain("SuperSecretDbPassword123", responseBody);
+            Assert.DoesNotContain("CON2028", responseBody);
+            Assert.DoesNotContain("DatabaseConfigurationException", responseBody);
+        }
     }
 }
