@@ -290,5 +290,37 @@ namespace Auth.UnitTests
             Assert.Equal("400", failureResult.Error.Code);
             Assert.Equal("البيانات المدخلة غير صحيحة", failureResult.Error.Message);
         }
+
+        [Fact]
+        public void AllManualTransactions_UseExecutionStrategyCompatiblePattern()
+        {
+            // Locate src directory
+            var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (currentDir != null && !Directory.Exists(Path.Combine(currentDir.FullName, "src")))
+            {
+                currentDir = currentDir.Parent;
+            }
+
+            Assert.NotNull(currentDir);
+            var srcDir = Path.Combine(currentDir.FullName, "src");
+            var csFiles = Directory.GetFiles(srcDir, "*.cs", SearchOption.AllDirectories);
+
+            var filesWithTransaction = new List<string>();
+            foreach (var file in csFiles)
+            {
+                var content = File.ReadAllText(file);
+                if (content.Contains("BeginTransactionAsync") || content.Contains("BeginTransaction("))
+                {
+                    filesWithTransaction.Add(Path.GetFileName(file));
+                    // Verify that the file uses EF Core execution strategy to wrap the transaction
+                    Assert.Contains("CreateExecutionStrategy", content);
+                    Assert.Contains("ExecuteAsync", content);
+                }
+            }
+
+            // Only EmployeeService.cs contains a manual transaction, and it is strictly wrapped in CreateExecutionStrategy
+            Assert.Single(filesWithTransaction);
+            Assert.Equal("EmployeeService.cs", filesWithTransaction[0]);
+        }
     }
 }
