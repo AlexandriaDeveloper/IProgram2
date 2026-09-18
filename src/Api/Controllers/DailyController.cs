@@ -153,7 +153,6 @@ namespace Api.Controllers
 
 
         }
-        [AllowAnonymous]
         [HttpGet("download-daily-json/{dailyId}")]
         public async Task<FileResult> DownloadJsonFile(int dailyId)
         {
@@ -200,12 +199,15 @@ namespace Api.Controllers
         }
 
         [HttpPost("{dailyId}/verify-pdf")]
-        [DisableRequestSizeLimit]
+        [RequestSizeLimit(52428800)] // 50 MB
         public async Task<IActionResult> VerifyPdfAgainstSummary([FromRoute] int dailyId, [FromForm] Application.Dtos.Requests.VerifyPdfRequest request)
         {
             var file = request?.File;
-            if (file == null || file.Length == 0)
-                return BadRequest("يجب اختيار ملف PDF");
+            var validation = FileSecurityValidator.ValidateFile(file, 52428800, new[] { ".pdf" });
+            if (!validation.IsSuccess)
+            {
+                return HandleResult(validation);
+            }
 
             var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 

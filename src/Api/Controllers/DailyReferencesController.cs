@@ -17,7 +17,7 @@ namespace Api.Controllers
         }
    
       
-        [AllowAnonymous]
+        [Authorize(Roles = "Admin")]
         [HttpGet("TestConnection")]
         public async Task<IActionResult> TestConnection()
         {
@@ -31,9 +31,8 @@ namespace Api.Controllers
             return Ok(new { message = "Connection Successful & Cloudinary Uploaded", url = result });
         }
 
-        [AllowAnonymous]
+        [Authorize(Roles = "Admin")]
         [HttpPost("SyncLocalReferencesToCloudinary")]
-        [HttpGet("SyncLocalReferencesToCloudinary")]
         [Microsoft.AspNetCore.OutputCaching.OutputCache(NoStore = true)]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> SyncLocalReferencesToCloudinary([FromQuery] int? dailyId = null)
@@ -42,24 +41,23 @@ namespace Api.Controllers
             return Ok(new { message = "Sync process completed", details = results });
         }
 
-        [AllowAnonymous]
         [HttpPost("UploadDailyReference")]
         public async Task<IActionResult> UploadDailyReference([FromForm] DailyReferenceFileUploadRequest request)
         {
-            Console.WriteLine($"[DEBUG] UploadDailyReference called. Files: {(request.File != null ? "1" : "0")}, DailyId: {request.DailyId}");
-            if (request.File == null || request.File.Length == 0)
+            var validation = FileSecurityValidator.ValidateFile(
+                request?.File,
+                30 * 1024 * 1024,
+                new[] { ".pdf", ".jpg", ".jpeg", ".png" });
+
+            if (!validation.IsSuccess)
             {
-                Console.WriteLine("[DEBUG] File is empty or null.");
-                return HandleResult(Result.Failure(new Error("400", "الملف فارغ.")));
+                return HandleResult(validation);
             }
 
             var result = await _dailyReferenceService.UploadReference(request);
-            Console.WriteLine($"[DEBUG] Service result: Success={result.IsSuccess}, Error={result.Error?.Message}");
-
             return HandleResult(result);
         }
 
-        [AllowAnonymous]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDailyReference(int id)
         {

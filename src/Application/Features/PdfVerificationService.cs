@@ -387,13 +387,6 @@ namespace Application.Features
                     pdfDoc.Close();
                 }
                 annotatedPdfBytes = outStream.ToArray();
-
-                try 
-                {
-                    // Debug save
-                    System.IO.File.WriteAllBytes(@"f:\Prog-Projects\IProgram\test_debug.pdf", annotatedPdfBytes);
-                }
-                catch { }
             }
             catch (Exception ex)
             {

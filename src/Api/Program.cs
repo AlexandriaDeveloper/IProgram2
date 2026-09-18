@@ -91,49 +91,29 @@ builder.Services.AddSwaggerGen(c =>
 
 });
 
+var maxUploadLimit = builder.Configuration.GetValue<long>("UploadLimits:DefaultMaxSizeBytes", 30 * 1024 * 1024);
 builder.Services.Configure<FormOptions>(o =>
 {
-    o.ValueLengthLimit = int.MaxValue;
-    o.MultipartBodyLengthLimit = int.MaxValue;
-    o.MemoryBufferThreshold = int.MaxValue;
+    o.ValueLengthLimit = 10 * 1024 * 1024;
+    o.MultipartBodyLengthLimit = maxUploadLimit;
+    o.MemoryBufferThreshold = 2 * 1024 * 1024;
 });
 
 var app = builder.Build();
 
-// ========== AUTO MIGRATION DISABLED ==========
-// Migration is now triggered manually via API endpoint
-// try
-// {
-//     RunMigration.Execute();
-// }
-// catch (Exception ex)
-// {
-//     Console.WriteLine($"MIGRATION ERROR: {ex.Message}");
-// }
-// =============================================
-
-var scope = app.Services.CreateScope();
-// try 
-// { 
-//     ManualCleanup.Execute(app.Configuration); 
-// } 
-// catch (Exception ex) 
-// { 
-//     Console.WriteLine("Cleanup Error: " + ex.Message); 
-// }
-
-var context = scope.ServiceProvider.GetRequiredService<ApplicationContext>();
-
-var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-try 
-{ 
-    if (userMgr.Users.Count() == 0) 
-        SeedData.EnsureSeedData(context, userMgr, roleMgr); 
-} 
-catch (Exception ex) 
-{ 
-    Console.WriteLine(ex); 
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationContext>();
+    var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try 
+    { 
+        await SeedData.EnsureSeedData(context, roleMgr); 
+    } 
+    catch (Exception ex) 
+    { 
+        logger.LogError(ex, "Database migration or role seeding failed during application startup.");
+    }
 }
 
 
@@ -171,10 +151,11 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
-    // await next(context);
-//app.MapControllers();
-app.MapHub<Auth.Infrastructure.Hubs.MigrationHub>("/migrationHub"); // Map MigrationHub
 
+if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
+{
+    app.MapHub<Auth.Infrastructure.Hubs.MigrationHub>("/migrationHub");
+}
 
 app.MapControllers();
 app.MapFallbackToController("Index", "Fallback");

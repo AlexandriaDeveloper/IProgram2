@@ -6,8 +6,8 @@ using System.Data;
 
 public static class RunMigration
 {
-    private static string SqlServerConn = "Server=localhost,1433;Database=IProgramDb;User Id=sa;Password=123;TrustServerCertificate=True;Encrypt=False";
-    private static string SupabaseConn = "Host=aws-1-eu-west-3.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iztxgikxmcpzoqowomtp;Password=FNsGxA0IN0qzqSDC;SSL Mode=Require;Trust Server Certificate=true;";
+    private static string SqlServerConn = "";
+    private static string SupabaseConn = "";
 
     public static void Execute()
     {
@@ -70,7 +70,6 @@ public static class RunMigration
         catch (Exception ex)
         {
             Console.WriteLine($"Migration Error: {ex.Message}");
-            Console.WriteLine(ex.StackTrace);
         }
     }
 

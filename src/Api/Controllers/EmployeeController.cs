@@ -12,10 +12,12 @@ namespace Api.Controllers
     public class EmployeeController : BaseApiController
     {
         private readonly EmployeeService _employeeService;
+        private readonly ILogger<EmployeeController> _logger;
 
-        public EmployeeController(EmployeeService employeeService)
+        public EmployeeController(EmployeeService employeeService, ILogger<EmployeeController> logger)
         {
             this._employeeService = employeeService;
+            this._logger = logger;
         }
         [HttpGet("GetEmployees")]
         // [ResponseCache(CacheProfileName = "Short")]
@@ -31,8 +33,6 @@ namespace Api.Controllers
         [HttpPost("Add")]
         public async Task<IActionResult> AddEmployee(EmployeeDto employee, CancellationToken cancellationToken)
         {
-
-
             var result = await _employeeService.AddEmployee(employee, cancellationToken);
 
             return HandleResult<EmployeeDto>(result);
@@ -40,7 +40,6 @@ namespace Api.Controllers
         [HttpPut()]
         public async Task<IActionResult> PutEmployee(EmployeeDto employee)
         {
-
             var result = await _employeeService.UpdateEmployee(employee);
 
             return HandleResult<EmployeeDto>(result);
@@ -49,6 +48,15 @@ namespace Api.Controllers
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
         public async Task<IActionResult> UploadEmployees(EmployeeFileUploadRequest model)
         {
+            var validation = FileSecurityValidator.ValidateFile(
+                model?.File,
+                10 * 1024 * 1024,
+                new[] { ".xlsx", ".xls" });
+
+            if (!validation.IsSuccess)
+            {
+                return HandleResult(validation);
+            }
 
             try
             {
@@ -57,7 +65,8 @@ namespace Api.Controllers
             }
             catch (Exception ex)
             {
-                return HandleResult(Result.Failure<EmployeeDto>(new Error("500", ex.Message)));
+                _logger.LogError(ex, "Error processing employee upload file.");
+                return HandleResult(Result.Failure<EmployeeDto>(new Error("500", "حدث خطأ أثناء معالجة ملف الموظفين.")));
             }
         }
 
@@ -65,6 +74,15 @@ namespace Api.Controllers
         [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
         public async Task<IActionResult> UploadTegaraFile(EmployeeFileUploadRequest model)
         {
+            var validation = FileSecurityValidator.ValidateFile(
+                model?.File,
+                10 * 1024 * 1024,
+                new[] { ".xlsx", ".xls" });
+
+            if (!validation.IsSuccess)
+            {
+                return HandleResult(validation);
+            }
 
             try
             {
@@ -73,7 +91,8 @@ namespace Api.Controllers
             }
             catch (Exception ex)
             {
-                return HandleResult(Result.Failure<EmployeeDto>(new Error("500", ex.Message)));
+                _logger.LogError(ex, "Error processing employee Tegara upload file.");
+                return HandleResult(Result.Failure<EmployeeDto>(new Error("500", "حدث خطأ أثناء معالجة ملف الموظفين.")));
             }
         }
         [HttpPost("EmployeeReport")]
@@ -91,7 +110,6 @@ namespace Api.Controllers
 
         }
         [HttpGet("GetCollages")]
-        [AllowAnonymous]
         [ResponseCache(Duration = 1800, Location = ResponseCacheLocation.Any, NoStore = false)] // 30 minutes cache for collages
         public async Task<IActionResult> GetCollages()
         {

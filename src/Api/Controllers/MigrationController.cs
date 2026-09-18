@@ -1,6 +1,8 @@
 using Auth.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Api.Controllers
 {
@@ -9,11 +11,20 @@ namespace Api.Controllers
     public class MigrationController : ControllerBase
     {
         private readonly DataMigrationService _migrationService;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<MigrationController> _logger;
 
-        public MigrationController(DataMigrationService migrationService)
+        public MigrationController(
+            DataMigrationService migrationService,
+            IConfiguration configuration,
+            ILogger<MigrationController> logger)
         {
             _migrationService = migrationService;
+            _configuration = configuration;
+            _logger = logger;
         }
+
+        private bool IsMigrationEnabled() => _configuration.GetValue<bool>("LegacyMigration:Enabled", false);
 
         /// <summary>
         /// Full sync from SQL Server to Supabase (Insert + Update + Delete)
@@ -22,6 +33,11 @@ namespace Api.Controllers
         [HttpPost("sync")]
         public async Task<IActionResult> FullSync([FromQuery] bool force = false)
         {
+            if (!IsMigrationEnabled())
+            {
+                return NotFound(new { success = false, message = "Legacy migration feature is disabled." });
+            }
+
             try
             {
                 var result = await _migrationService.FullSyncToSupabaseAsync(force);
@@ -68,12 +84,11 @@ namespace Api.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Full sync failed.");
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Sync failed",
-                    error = ex.Message,
-                    stackTrace = ex.StackTrace
+                    message = "Sync failed"
                 });
             }
         }
@@ -85,6 +100,11 @@ namespace Api.Controllers
         [HttpPost("migrate")]
         public async Task<IActionResult> Migrate()
         {
+            if (!IsMigrationEnabled())
+            {
+                return NotFound(new { success = false, message = "Legacy migration feature is disabled." });
+            }
+
             return await FullSync();
         }
 
@@ -95,6 +115,11 @@ namespace Api.Controllers
         [HttpPost("pull")]
         public async Task<IActionResult> PullFromCloud()
         {
+            if (!IsMigrationEnabled())
+            {
+                return NotFound(new { success = false, message = "Legacy migration feature is disabled." });
+            }
+
             try
             {
                 var result = await _migrationService.PullFromSupabaseAsync();
@@ -131,12 +156,11 @@ namespace Api.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Pull from cloud failed.");
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Pull failed",
-                    error = ex.Message,
-                    stackTrace = ex.StackTrace
+                    message = "Pull failed"
                 });
             }
         }
