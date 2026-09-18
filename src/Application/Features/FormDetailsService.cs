@@ -23,6 +23,7 @@ namespace Application.Features
         private readonly IUnitOfWork _unitOfWork;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IMemoryCache _cache;
+        private readonly IDbCacheKeyFactory _cacheKeyFactory;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<FormDetailsService> _logger;
         private readonly ICurrentUserService _currentUserService;
@@ -36,6 +37,7 @@ namespace Application.Features
          IUnitOfWork unitOfWork,
           IHttpContextAccessor httpContextAccessor,
           IMemoryCache cache,
+          IDbCacheKeyFactory cacheKeyFactory,
           UserManager<ApplicationUser> userManager,
           ILogger<FormDetailsService> logger,
           ICurrentUserService currentUserService,
@@ -50,13 +52,14 @@ namespace Application.Features
             this._dailyRepository = dailyRepository;
             this._userManager = userManager;
             this._cache = cache;
+            this._cacheKeyFactory = cacheKeyFactory;
             this._currentUserService = currentUserService;
             this._watchListService = watchListService;
         }
 
         private void ClearFormDetailsCache(int formId)
         {
-            var cacheKey = $"FormDetails_{formId}";
+            var cacheKey = _cacheKeyFactory.GetFormDetailsKey(formId);
             _cache.Remove(cacheKey);
         }
 
@@ -69,7 +72,7 @@ namespace Application.Features
         public async Task<Result<FormDto>> GetFormDetails(int id)
         {
             // Single optimized query: fetch form with active form details and includes
-            var cacheKey = $"FormDetails_{id}";
+            var cacheKey = _cacheKeyFactory.GetFormDetailsKey(id);
             if (!_cache.TryGetValue(cacheKey, out FormDto formDto))
             {
                 var sw = Stopwatch.StartNew();

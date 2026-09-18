@@ -39,6 +39,7 @@ namespace Application.Features
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IDailyRepository _dailyRepository;
         private readonly IMemoryCache _cache;
+        private readonly IDbCacheKeyFactory _cacheKeyFactory;
         private readonly ICurrentUserService _currentUserService;
 
         public FormService(
@@ -50,6 +51,7 @@ namespace Application.Features
             IHttpContextAccessor httpContextAccessor,
             UserManager<ApplicationUser> userManager,
             IMemoryCache cache,
+            IDbCacheKeyFactory cacheKeyFactory,
             ICurrentUserService currentUserService)
         {
             this._dailyRepository = dailyRepository;
@@ -60,6 +62,7 @@ namespace Application.Features
             this._formRepository = formRepository;
             this._formDetailsRepository = formDetailsRepository;
             this._cache = cache;
+            this._cacheKeyFactory = cacheKeyFactory;
             this._currentUserService = currentUserService;
         }
 
@@ -570,7 +573,7 @@ namespace Application.Features
         }
         private void ClearFormDetailsCache(int formId)
         {
-            var cacheKey = $"FormDetails_{formId}";
+            var cacheKey = _cacheKeyFactory.GetFormDetailsKey(formId);
             _cache.Remove(cacheKey);
         }
 

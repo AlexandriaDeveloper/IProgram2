@@ -22,13 +22,15 @@ namespace Application.Features
         private readonly IEmployeeRepository _employeeRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _cache;
+        private readonly IDbCacheKeyFactory _cacheKeyFactory;
 
-        public DepartmentService(IDepartmentRepository departmentRepository, IEmployeeRepository employeeRepository, IUnitOfWork unitOfWork, IMemoryCache cache)
+        public DepartmentService(IDepartmentRepository departmentRepository, IEmployeeRepository employeeRepository, IUnitOfWork unitOfWork, IMemoryCache cache, IDbCacheKeyFactory cacheKeyFactory)
         {
             this._unitOfWork = unitOfWork;
             this._departmentRepository = departmentRepository;
             this._employeeRepository = employeeRepository;
             this._cache = cache;
+            this._cacheKeyFactory = cacheKeyFactory;
         }
 
         public async Task<Result<PaginatedResult<DepartmentDto>>> getDepartments(DepartmentParam departmentParam)
@@ -259,7 +261,8 @@ namespace Application.Features
         private void ClearDepartmentCache()
         {
             // Clear the all departments cache when data changes
-            _cache.Remove("departments_all");
+            var cacheKey = _cacheKeyFactory.CreateKey("departments_all");
+            _cache.Remove(cacheKey);
         }
     }
 }

@@ -41,6 +41,7 @@ public static class InfrastructureExtension
         services.AddHttpContextAccessor();
         services.AddScoped<Core.Interfaces.ICurrentUserService, Services.CurrentUserService>();
         services.AddScoped<Core.Interfaces.IFileStorageService, Services.CloudinaryService>();
+        services.AddScoped<Core.Interfaces.IDbCacheKeyFactory, Services.DbCacheKeyFactory>();
         services.AddScoped<Services.DataMigrationService>();
 
         return services;
