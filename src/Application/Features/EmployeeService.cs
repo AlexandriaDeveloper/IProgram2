@@ -796,55 +796,62 @@ namespace Application.Features
 
             // Use EF Core execution strategy to wrap the transaction safely with EnableRetryOnFailure
             var strategy = _context.Database.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            try
             {
-                using var transaction = await _context.Database.BeginTransactionAsync();
-                try
+                return await strategy.ExecuteAsync(async () =>
                 {
-                    // Disable FK constraints temporarily
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE FormDetails NOCHECK CONSTRAINT ALL");
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeBank NOCHECK CONSTRAINT ALL");
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeNetPays NOCHECK CONSTRAINT ALL");
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeRefernce NOCHECK CONSTRAINT ALL");
+                    await using var transaction = await _context.Database.BeginTransactionAsync();
+                    try
+                    {
+                        // Disable FK constraints temporarily
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE FormDetails NOCHECK CONSTRAINT ALL");
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeBank NOCHECK CONSTRAINT ALL");
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeNetPays NOCHECK CONSTRAINT ALL");
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeRefernce NOCHECK CONSTRAINT ALL");
 
-                    // Update all child tables first
-                    await _context.Database.ExecuteSqlRawAsync(
-                        "UPDATE FormDetails SET EmployeeId = {0} WHERE EmployeeId = {1}",
-                        newNationalId, oldNationalId);
+                        // Update all child tables first
+                        await _context.Database.ExecuteSqlRawAsync(
+                            "UPDATE FormDetails SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                            newNationalId, oldNationalId);
 
-                    await _context.Database.ExecuteSqlRawAsync(
-                        "UPDATE EmployeeBank SET EmployeeId = {0} WHERE EmployeeId = {1}",
-                        newNationalId, oldNationalId);
+                        await _context.Database.ExecuteSqlRawAsync(
+                            "UPDATE EmployeeBank SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                            newNationalId, oldNationalId);
 
-                    await _context.Database.ExecuteSqlRawAsync(
-                        "UPDATE EmployeeNetPays SET EmployeeId = {0} WHERE EmployeeId = {1}",
-                        newNationalId, oldNationalId);
+                        await _context.Database.ExecuteSqlRawAsync(
+                            "UPDATE EmployeeNetPays SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                            newNationalId, oldNationalId);
 
-                    await _context.Database.ExecuteSqlRawAsync(
-                        "UPDATE EmployeeRefernce SET EmployeeId = {0} WHERE EmployeeId = {1}",
-                        newNationalId, oldNationalId);
+                        await _context.Database.ExecuteSqlRawAsync(
+                            "UPDATE EmployeeRefernce SET EmployeeId = {0} WHERE EmployeeId = {1}",
+                            newNationalId, oldNationalId);
 
-                    // Update the Employee PK itself
-                    await _context.Database.ExecuteSqlRawAsync(
-                        "UPDATE Employees SET Id = {0} WHERE Id = {1}",
-                        newNationalId, oldNationalId);
+                        // Update the Employee PK itself
+                        await _context.Database.ExecuteSqlRawAsync(
+                            "UPDATE Employees SET Id = {0} WHERE Id = {1}",
+                            newNationalId, oldNationalId);
 
-                    // Re-enable FK constraints
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE FormDetails WITH CHECK CHECK CONSTRAINT ALL");
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeBank WITH CHECK CHECK CONSTRAINT ALL");
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeNetPays WITH CHECK CHECK CONSTRAINT ALL");
-                    await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeRefernce WITH CHECK CHECK CONSTRAINT ALL");
+                        // Re-enable FK constraints
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE FormDetails WITH CHECK CHECK CONSTRAINT ALL");
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeBank WITH CHECK CHECK CONSTRAINT ALL");
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeNetPays WITH CHECK CHECK CONSTRAINT ALL");
+                        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE EmployeeRefernce WITH CHECK CHECK CONSTRAINT ALL");
 
-                    await transaction.CommitAsync();
+                        await transaction.CommitAsync();
 
-                    return Result.Success($"تم تغيير الرقم القومى من {oldNationalId} الى {newNationalId} بنجاح");
-                }
-                catch (Exception ex)
-                {
-                    await transaction.RollbackAsync();
-                    return Result.Failure(new Error("500", $"حدث خطأ أثناء تغيير الرقم القومى: {ex.Message}"));
-                }
-            });
+                        return Result.Success($"تم تغيير الرقم القومى من {oldNationalId} الى {newNationalId} بنجاح");
+                    }
+                    catch
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
+            }
+            catch (Exception)
+            {
+                return Result.Failure(new Error("500", "حدث خطأ أثناء تغيير الرقم القومى."));
+            }
         }
 
 

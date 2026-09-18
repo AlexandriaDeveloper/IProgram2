@@ -4,10 +4,15 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Application.Features;
 using Auth.Api.Middleware;
+using Auth.Infrastructure;
 using Auth.Infrastructure.Configuration;
 using Core.Interfaces;
+using Core.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -89,7 +94,6 @@ namespace Auth.UnitTests
             var minClamped = SqlServerOptions.FromConfiguration(zeroConfig);
 
             // Assert
-            // 0 falls back to default 5 for count and 10 for delay; command timeout clamps to min 5
             Assert.Equal(5, minClamped.MaxRetryCount);
             Assert.Equal(10, minClamped.MaxRetryDelaySeconds);
             Assert.Equal(5, minClamped.CommandTimeoutSeconds);
@@ -163,25 +167,24 @@ namespace Auth.UnitTests
         }
 
         [Fact]
-        public async Task GlobalExceptionHandler_Returns503_OnTransientDatabaseFailure()
+        public async Task GlobalExceptionHandler_GenericTimeoutException_Returns500_Not503()
         {
-            // Arrange
+            // Arrange: Generic TimeoutException without SQL evidence must NOT be classified as 503
             var loggerMock = new Mock<ILogger<GlobalExceptionHandler>>();
             var handler = new GlobalExceptionHandler(loggerMock.Object);
 
             var context = new DefaultHttpContext();
-            context.TraceIdentifier = "transient-trace-503";
+            context.TraceIdentifier = "timeout-trace-500";
             context.Response.Body = new MemoryStream();
 
-            // Wrapped TimeoutException simulating command timeout after transient retry exhaustion
-            var transientEx = new Exception("EF Core execution strategy failed", new TimeoutException("The command execution timeout expired."));
+            var timeoutEx = new TimeoutException("HTTP client connection timed out while calling third-party API.");
 
             // Act
-            var handled = await handler.TryHandleAsync(context, transientEx, CancellationToken.None);
+            var handled = await handler.TryHandleAsync(context, timeoutEx, CancellationToken.None);
 
             // Assert
             Assert.True(handled);
-            Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
+            Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
 
             context.Response.Body.Seek(0, SeekOrigin.Begin);
             using var reader = new StreamReader(context.Response.Body);
@@ -189,25 +192,58 @@ namespace Auth.UnitTests
 
             var responseJson = JsonSerializer.Deserialize<ErrorResponseDto>(responseBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             Assert.NotNull(responseJson);
-            Assert.Equal(503, responseJson.StatusCode);
-            Assert.Contains("الخدمة غير متوفرة مؤقتًا بسبب انقطاع الاتصال بقاعدة البيانات", responseJson.Message);
-            Assert.DoesNotContain("TimeoutException", responseBody);
+            Assert.Equal(500, responseJson.StatusCode);
+            Assert.Equal("حدث خطأ غير متوقع أثناء تنفيذ الطلب.", responseJson.Message);
+        }
+
+        [Theory]
+        [InlineData(-2, true)]     // Execution Timeout Expired
+        [InlineData(64, true)]     // Connection error during network write
+        [InlineData(233, true)]    // Connection initialization error / broken pipe
+        [InlineData(1205, true)]   // Deadlock victim
+        [InlineData(10053, true)]  // Connection aborted
+        [InlineData(10054, true)]  // Connection reset by peer
+        [InlineData(10060, true)]  // Network connection failed
+        [InlineData(10928, true)]  // Resource limit reached in Azure SQL
+        [InlineData(10929, true)]  // Resource governor queued request
+        [InlineData(40197, true)]  // Azure SQL transient error
+        [InlineData(40501, true)]  // Azure SQL service busy
+        [InlineData(40613, true)]  // Azure SQL database unavailable
+        [InlineData(49918, true)]  // Not enough resources
+        [InlineData(49919, true)]  // Service busy
+        [InlineData(49920, true)]  // Service busy
+        [InlineData(20, false)]    // Removed: encryption mismatch / configuration problem
+        [InlineData(4060, false)]  // Removed: invalid login / database missing
+        [InlineData(18456, false)] // Login failure
+        [InlineData(50000, false)] // Custom user raiseerror
+        public void TransientSqlClassification_IdentifiesTrueTransientCodes_AndExcludesLoginConfigErrors(int errorCode, bool expectedTransient)
+        {
+            // Act
+            var isTransient = GlobalExceptionHandler.IsTransientSqlErrorCode(errorCode);
+
+            // Assert
+            Assert.Equal(expectedTransient, isTransient);
         }
 
         [Fact]
-        public async Task GlobalExceptionHandler_LogsSelectedDatabaseId_WithoutLoggingConnectionString()
+        public async Task GlobalExceptionHandler_LogsStructuredFields_WithoutPassingRawExceptionObject_AndNoSecretsLeaked()
         {
             // Arrange
             string loggedMessage = string.Empty;
+            Exception? passedExceptionArg = new Exception("sentinel");
+
             var loggerMock = new Mock<ILogger<GlobalExceptionHandler>>();
             loggerMock.Setup(l => l.Log(
                 It.IsAny<LogLevel>(),
                 It.IsAny<EventId>(),
                 It.IsAny<It.IsAnyType>(),
-                It.IsAny<Exception>(),
+                It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
                 .Callback(new InvocationAction(invocation =>
                 {
+                    // Verify that the Exception argument passed to logger is NULL
+                    passedExceptionArg = invocation.Arguments[3] as Exception;
+
                     var formatter = invocation.Arguments[4];
                     var state = invocation.Arguments[2];
                     var ex = invocation.Arguments[3] as Exception;
@@ -234,21 +270,26 @@ namespace Auth.UnitTests
             context.TraceIdentifier = "trace-db-diag-1";
             context.Response.Body = new MemoryStream();
 
-            var dbEx = new TimeoutException("Database operation timed out");
+            var dangerousEx = new InvalidOperationException(
+                "Internal DB error. Connection string leaked: Server=tcp:azure-sql.database.windows.net;Password=P@ssw0rd9988!");
 
             // Act
-            await handler.TryHandleAsync(context, dbEx, CancellationToken.None);
+            await handler.TryHandleAsync(context, dangerousEx, CancellationToken.None);
 
-            // Assert
-            // Logged message must include DatabaseId "2027"
+            // Assert 1: The Exception parameter passed to ILogger MUST BE NULL (prevents raw object serialization)
+            Assert.Null(passedExceptionArg);
+
+            // Assert 2: Logged message must include structured diagnostics
             Assert.Contains("2027", loggedMessage);
             Assert.Contains("/api/daily/5", loggedMessage);
+            Assert.Contains("trace-db-diag-1", loggedMessage);
+            Assert.Contains(nameof(InvalidOperationException), loggedMessage);
 
-            // Logged message MUST NOT contain connection string or credentials
+            // Assert 3: Logged message MUST NOT contain connection string, password, or raw message
             Assert.DoesNotContain("Server=tcp:azure-sql", loggedMessage);
             Assert.DoesNotContain("dbadmin", loggedMessage);
             Assert.DoesNotContain("P@ssw0rd9988!", loggedMessage);
-            Assert.DoesNotContain("IProgramDb2027", loggedMessage);
+            Assert.DoesNotContain("Connection string leaked", loggedMessage);
         }
 
         [Fact]
@@ -261,7 +302,6 @@ namespace Auth.UnitTests
             var context = new DefaultHttpContext();
             context.Response.Body = new MemoryStream();
 
-            // Simulate raw exception containing connection string and credentials
             var leakedDbEx = new Exception("Cannot open database requested by login. Connection: Server=tcp:mycloud.database.windows.net;User Id=sa;Password=SuperSecretPassWord1!;");
 
             // Act
@@ -289,6 +329,86 @@ namespace Auth.UnitTests
             Assert.False(failureResult.IsSuccess);
             Assert.Equal("400", failureResult.Error.Code);
             Assert.Equal("البيانات المدخلة غير صحيحة", failureResult.Error.Message);
+        }
+
+        [Fact]
+        public void ChangeNationalId_SourceCode_EnsuresExecutionStrategyRethrowsAndOuterBlockCatches()
+        {
+            // Locate EmployeeService.cs source file
+            var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (currentDir != null && !Directory.Exists(Path.Combine(currentDir.FullName, "src")))
+            {
+                currentDir = currentDir.Parent;
+            }
+
+            Assert.NotNull(currentDir);
+            var empServicePath = Path.Combine(currentDir.FullName, "src", "Application", "Features", "EmployeeService.cs");
+            Assert.True(File.Exists(empServicePath));
+
+            var content = File.ReadAllText(empServicePath);
+
+            // 1. Must use CreateExecutionStrategy
+            Assert.Contains("var strategy = _context.Database.CreateExecutionStrategy();", content);
+
+            // 2. Transaction must be wrapped within strategy.ExecuteAsync
+            Assert.Contains("return await strategy.ExecuteAsync(async () =>", content);
+
+            // 3. Delegate must rethrow exceptions and not swallow them with Result.Failure
+            Assert.Contains("await transaction.RollbackAsync();", content);
+            Assert.Contains("throw;", content);
+
+            // 4. Outer try-catch must catch after retries are exhausted and return generic message
+            Assert.Contains("return Result.Failure(new Error(\"500\", \"حدث خطأ أثناء تغيير الرقم القومى.\"));", content);
+
+            // 5. Must NOT leak {ex.Message}
+            Assert.DoesNotContain("حدث خطأ أثناء تغيير الرقم القومى: {ex.Message}", content);
+        }
+
+        [Fact]
+        public async Task ChangeNationalId_WhenExecutionFails_ReturnsGenericFailureWithoutExMessage()
+        {
+            // Arrange: Setup EmployeeService with InMemory database (raw SQL throws in InMemory, testing full rollback & rethrow flow)
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var dbContext = new ApplicationContext(options);
+
+            var empRepoMock = new Mock<IEmployeeRepository>();
+            empRepoMock.Setup(r => r.GetById("11111111111111", It.IsAny<bool>()))
+                .ReturnsAsync(new Employee { Id = "11111111111111", Name = "اختبار" });
+            empRepoMock.Setup(r => r.CheckEmployeeByNationalId("22222222222222"))
+                .ReturnsAsync(false);
+
+            var formDetailsRepoMock = new Mock<IFormDetailsRepository>();
+            var deptRepoMock = new Mock<IDepartmentRepository>();
+            var uowMock = new Mock<IUnitOfWork>();
+            var configMock = new Mock<IConfiguration>();
+            var httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+            var memoryCache = new MemoryCache(new MemoryCacheOptions());
+            var currentUserServiceMock = new Mock<ICurrentUserService>();
+
+            var employeeService = new EmployeeService(
+                empRepoMock.Object,
+                formDetailsRepoMock.Object,
+                deptRepoMock.Object,
+                uowMock.Object,
+                configMock.Object,
+                httpContextAccessorMock.Object,
+                memoryCache,
+                currentUserServiceMock.Object,
+                dbContext);
+
+            // Act
+            var result = await employeeService.ChangeNationalId("11111111111111", "22222222222222");
+
+            // Assert
+            Assert.True(result.IsFailure);
+            Assert.Equal("500", result.Error.Code);
+            Assert.Equal("حدث خطأ أثناء تغيير الرقم القومى.", result.Error.Message);
+            Assert.DoesNotContain("Exception", result.Error.Message);
+            Assert.DoesNotContain("ExecuteSqlRawAsync", result.Error.Message);
+            Assert.DoesNotContain("not supported", result.Error.Message);
         }
 
         [Fact]
