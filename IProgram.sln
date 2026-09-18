@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auth.Application", "src\App
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auth.Infrastructure", "src\Infrastructure\Auth.Infrastructure.csproj", "{10C309A6-5AB6-4312-A5B1-571F1C49CF13}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auth.Api", "src\API\Auth.Api.csproj", "{A99F2E73-9947-489F-B8B8-EEF093F6781B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auth.Api", "src\Api\Auth.Api.csproj", "{A99F2E73-9947-489F-B8B8-EEF093F6781B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auth.Persistence", "src\Persistence\Auth.Persistence.csproj", "{D54A7C5D-D0D9-4E37-BEE0-4DE0B5B34E3F}"
 EndProject
