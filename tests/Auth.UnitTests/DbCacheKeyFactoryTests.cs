@@ -73,18 +73,15 @@ namespace Auth.UnitTests
         [InlineData(null)]
         [InlineData("")]
         [InlineData("   ")]
-        public void Fallback_To_Default_When_DatabaseId_Is_Empty_Or_Null(string? dbId)
+        public void Fails_Closed_When_DatabaseId_Is_Empty_Or_Null(string? dbId)
         {
             // Arrange
             var mockDbProvider = new Mock<IDbConnectionProvider>();
             mockDbProvider.Setup(p => p.GetSelectedDatabaseId()).Returns(dbId!);
             var factory = new DbCacheKeyFactory(mockDbProvider.Object);
 
-            // Act
-            var key = factory.GetFormDetailsKey(50);
-
-            // Assert
-            Assert.Equal("default:FormDetails:50", key);
+            // Act & Assert: Must fail closed instead of silently falling back to 'default'
+            Assert.Throws<InvalidOperationException>(() => factory.GetFormDetailsKey(50));
         }
 
         [Fact]
