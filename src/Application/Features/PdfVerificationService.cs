@@ -5,19 +5,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Application.Dtos;
+using Application.Helpers;
+using Application.Interfaces;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Persistence.Helpers;
-using Application.Helpers;
-using iText.Kernel.Pdf;
-using iText.Kernel.Pdf.Canvas;
-using iText.Kernel.Colors;
-using iText.Kernel.Geom;
-using iText.Kernel.Pdf.Extgstate;
-using iText.IO.Font;
-using iText.Kernel.Font;
 
 namespace Application.Features
 {
@@ -39,6 +32,23 @@ namespace Application.Features
         public string Message { get; set; }
     }
 
+    public class PdfVerificationPlan
+    {
+        public List<int> FormDetailIdsToReview { get; set; } = new();
+        public List<NetPayPlanItem> NetPaysToUpsert { get; set; } = new();
+        public List<PdfAnnotation> Annotations { get; set; } = new();
+        public int MatchedCount { get; set; }
+        public int ErrorCount { get; set; }
+        public StringBuilder ReportBuilder { get; set; } = new();
+        public List<string> MissingFromDaily { get; set; } = new();
+    }
+
+    public class NetPayPlanItem
+    {
+        public string EmployeeId { get; set; } = null!;
+        public double NetPay { get; set; }
+    }
+
     public class PdfVerificationService
     {
         private readonly PayrollPdfParserService _pdfParserService;
@@ -47,7 +57,8 @@ namespace Application.Features
         private readonly IGenericRepository<EmployeeNetPay> _netPayRepo;
         private readonly IGenericRepository<FormDetails> _formDetailsRepo;
         private readonly ILogger<PdfVerificationService> _logger;
-        private readonly Application.Interfaces.IDailyClosureGuard _dailyClosureGuard;
+        private readonly IDailyClosureGuard _dailyClosureGuard;
+        private readonly IPdfVerificationDocumentRenderer _documentRenderer;
 
         public PdfVerificationService(
             PayrollPdfParserService pdfParserService,
@@ -56,7 +67,8 @@ namespace Application.Features
             IGenericRepository<EmployeeNetPay> netPayRepo,
             IGenericRepository<FormDetails> formDetailsRepo,
             ILogger<PdfVerificationService> logger,
-            Application.Interfaces.IDailyClosureGuard dailyClosureGuard)
+            IDailyClosureGuard dailyClosureGuard,
+            IPdfVerificationDocumentRenderer documentRenderer)
         {
             _pdfParserService = pdfParserService;
             _dailyService = dailyService;
@@ -65,6 +77,7 @@ namespace Application.Features
             _formDetailsRepo = formDetailsRepo;
             _logger = logger;
             _dailyClosureGuard = dailyClosureGuard;
+            _documentRenderer = documentRenderer;
         }
 
         // Dictionary for mapping Arabic Presentation Forms (isolated, medial, final, initial) to base characters
@@ -145,13 +158,15 @@ namespace Application.Features
 
         public async Task<Result<PdfVerificationResult>> VerifyPdfAgainstSummary(int dailyId, Stream pdfStream, string currentUserId)
         {
+            // ==========================================
+            // Phase A: Validation & Read (No DB Mutations)
+            // ==========================================
             var guard = await _dailyClosureGuard.EnsureDailyOpenAsync(dailyId);
             if (guard.IsFailure)
             {
                 return Result.Failure<PdfVerificationResult>(guard.Error);
             }
 
-            // 1. Get Summary from DB
             var summaryResult = await _dailyService.GetBeneficiariesSummary(dailyId);
             if (!summaryResult.IsSuccess)
             {
@@ -166,7 +181,6 @@ namespace Application.Features
             await pdfStream.CopyToAsync(initialMs);
             byte[] pdfBytes = initialMs.ToArray();
 
-            // 2. Parse PDF
             using var parseStream = new MemoryStream(pdfBytes);
             var pdfRecords = _pdfParserService.ParseFullEmployeeDataFromPdf(parseStream);
             if (!pdfRecords.Any())
@@ -174,38 +188,22 @@ namespace Application.Features
                 return Result.Failure<PdfVerificationResult>(new Error("400", "لم يتم العثور على أي بيانات في ملف الـ PDF"));
             }
 
-            var annotations = new List<PdfAnnotation>();
-
-            var reportBuilder = new StringBuilder();
-            reportBuilder.AppendLine("=== تقرير أخطاء مراجعة ملف الـ PDF ===");
-            reportBuilder.AppendLine($"اليومية: {summary.DailyName}");
-            reportBuilder.AppendLine($"تاريخ المراجعة: {DateTime.Now:yyyy-MM-dd HH:mm}");
-            reportBuilder.AppendLine("==================================================");
-            reportBuilder.AppendLine();
-
-            int matchedCount = 0;
-            int errorCount = 0;
-            var detailsToUpdate = new List<FormDetails>();
-            var newNetPays = new List<EmployeeNetPay>();
-
-            // Clean up existing net pays before we add new ones for successfully matched
-            var existingNetPays = await _netPayRepo.GetQueryable()
-                .Where(n => n.DailyId == dailyId).ToListAsync();
-
-            // Load all form details into memory to update them efficiently
-            var formDetailIds = summary.Beneficiaries.SelectMany(b => b.Details.Select(d => d.FormDetailId)).ToList();
-            var dbFormDetails = await _formDetailsRepo.GetQueryable()
-                .Where(fd => formDetailIds.Contains(fd.Id))
-                .ToDictionaryAsync(fd => fd.Id);
-
-            var missingFromDaily = new List<string>();
+            // ==========================================
+            // Phase B: Build Verification Plan in Memory
+            // ==========================================
+            var plan = new PdfVerificationPlan();
+            plan.ReportBuilder.AppendLine("=== تقرير أخطاء مراجعة ملف الـ PDF ===");
+            plan.ReportBuilder.AppendLine($"اليومية: {summary.DailyName}");
+            plan.ReportBuilder.AppendLine($"تاريخ المراجعة: {DateTime.Now:yyyy-MM-dd HH:mm}");
+            plan.ReportBuilder.AppendLine("==================================================");
+            plan.ReportBuilder.AppendLine();
 
             foreach (var pdfRecord in pdfRecords)
             {
                 bool hasError = false;
                 var errorsForEmployee = new List<string>();
 
-                // 2. Extact Employee Code
+                // Extract Employee Code
                 string pdfCodeStr = pdfRecord.TegaraCode?.Trim() ?? "";
                 string originalPdfCodeStr = pdfCodeStr;
 
@@ -218,17 +216,17 @@ namespace Application.Features
                 // 1. Check National ID
                 if (!summaryDict.TryGetValue(pdfRecord.NationalId, out var dbRecord))
                 {
-                    missingFromDaily.Add($"- الرقم القومي: {pdfRecord.NationalId} | الاسم: {pdfRecord.Name} | كود الموظف: {pdfCodeStr}");
-                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "NotFound", Message = "ﺩﻮﺟﻮﻣ ﺮﻴﻏ" }); // غير موجود
-                    errorCount++;
+                    plan.MissingFromDaily.Add($"- الرقم القومي: {pdfRecord.NationalId} | الاسم: {pdfRecord.Name} | كود الموظف: {pdfCodeStr}");
+                    plan.Annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "NotFound", Message = "ﺩﻮﺟﻮﻣ ﺮﻴﻏ" }); // غير موجود
+                    plan.ErrorCount++;
                     continue; // Skip further checks for this record
                 }
 
                 // Skip if already reviewed by PDF or manually
                 if (dbRecord.Details.Any() && dbRecord.Details.All(d => d.IsSummaryReviewed))
                 {
-                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Matched", Message = "(ﺎﻘﺒﺴﻣ) ﺔﻘﺑﺎﻄﻤﻟﺍ ﺖﻤﺗ" }); // تمت المطابقة (مسبقا)
-                    matchedCount++;
+                    plan.Annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Matched", Message = "(ﺎﻘﺒﺴﻣ) ﺔﻘﺑﺎﻄﻤﻟﺍ ﺖﻤﺗ" }); // تمت المطابقة (مسبقا)
+                    plan.MatchedCount++;
                     continue;
                 }
 
@@ -240,7 +238,7 @@ namespace Application.Features
                     hasError = true;
                 }
 
-                // 4. Check Total Entitlements
+                // Check Total Entitlements
                 // Allow a small epsilon for floating point comparison (e.g., 0.05)
                 if (Math.Abs(dbRecord.TotalAmount - pdfRecord.TotalEntitlements) > 0.05)
                 {
@@ -250,172 +248,146 @@ namespace Application.Features
 
                 if (hasError)
                 {
-                    reportBuilder.AppendLine($"الموظف: {dbRecord.EmployeeName} | الرقم القومي: {pdfRecord.NationalId}");
+                    plan.ReportBuilder.AppendLine($"الموظف: {dbRecord.EmployeeName} | الرقم القومي: {pdfRecord.NationalId}");
                     foreach (var err in errorsForEmployee)
                     {
-                        reportBuilder.AppendLine(err);
+                        plan.ReportBuilder.AppendLine(err);
                     }
-                    reportBuilder.AppendLine("--------------------------------------------------");
-                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Error", Message = "ﺔﻘﺑﺎﻄﻤﻟﺍ ﻢﺘﺗ ﻢﻟ" }); // لم تتم المطابقة
-                    errorCount++;
+                    plan.ReportBuilder.AppendLine("--------------------------------------------------");
+                    plan.Annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Error", Message = "ﺔﻘﺑﺎﻄﻤﻟﺍ ﻢﺘﺗ ﻢﻟ" }); // لم تتم المطابقة
+                    plan.ErrorCount++;
                 }
                 else
                 {
-                    annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Matched", Message = "ﺔﻘﺑﺎﻄﻤﻟﺍ ﺖﻤﺗ" }); // تمت المطابقة
-                    // Success!
-                    matchedCount++;
+                    plan.Annotations.Add(new PdfAnnotation { PageNumber = pdfRecord.PageNumber, Top = pdfRecord.BoundingBoxTop, Bottom = pdfRecord.BoundingBoxBottom, State = "Matched", Message = "ﺔﻘﺑﺎﻄﻤﻟﺍ ﺖﻤﺗ" }); // تمت المطابقة
+                    plan.MatchedCount++;
 
                     // Mark related form details as Summary Reviewed
                     foreach (var det in dbRecord.Details)
                     {
-                        if (dbFormDetails.TryGetValue(det.FormDetailId, out var fdToUpdate))
-                        {
-                            fdToUpdate.IsSummaryReviewed = true;
-                            fdToUpdate.IsSummaryReviewedBy = currentUserId;
-                            fdToUpdate.SummaryReviewedAt = DateTime.Now;
-                            fdToUpdate.SummaryReviewMethod = "Auto";
-                        }
+                        plan.FormDetailIdsToReview.Add(det.FormDetailId);
                     }
 
-                    // Prepare NetPay for saving
-                    var existingNetPay = existingNetPays.FirstOrDefault(n => n.EmployeeId == pdfRecord.NationalId);
-                    if (existingNetPay != null)
+                    // Prepare NetPay for plan
+                    plan.NetPaysToUpsert.Add(new NetPayPlanItem
                     {
-                        existingNetPay.NetPay = pdfRecord.NetPay;
-                        _netPayRepo.Update(existingNetPay);
-                    }
-                    else
-                    {
-                        newNetPays.Add(new EmployeeNetPay
-                        {
-                            DailyId = dailyId,
-                            EmployeeId = pdfRecord.NationalId,
-                            NetPay = pdfRecord.NetPay
-                        });
-                    }
+                        EmployeeId = pdfRecord.NationalId,
+                        NetPay = pdfRecord.NetPay
+                    });
                 }
             }
 
-            if (missingFromDaily.Any())
+            if (plan.MissingFromDaily.Any())
             {
-                reportBuilder.AppendLine();
-                reportBuilder.AppendLine("=== موظفون مسجلون في الملف وغير موجودين في اليومية ===");
-                foreach (var missing in missingFromDaily)
+                plan.ReportBuilder.AppendLine();
+                plan.ReportBuilder.AppendLine("=== موظفون مسجلون في الملف وغير موجودين في اليومية ===");
+                foreach (var missing in plan.MissingFromDaily)
                 {
-                    reportBuilder.AppendLine(missing);
+                    plan.ReportBuilder.AppendLine(missing);
                 }
-                reportBuilder.AppendLine();
+                plan.ReportBuilder.AppendLine();
             }
 
-            if (errorCount == 0)
+            if (plan.ErrorCount == 0)
             {
-                reportBuilder.AppendLine("تمت المطابقة بنجاح بنسبة 100%. لا توجد أي أخطاء.");
+                plan.ReportBuilder.AppendLine("تمت المطابقة بنجاح بنسبة 100%. لا توجد أي أخطاء.");
             }
 
-            // Save new NetPays
-            if (newNetPays.Any())
-            {
-                foreach (var np in newNetPays)
-                {
-                    await _netPayRepo.Insert(np);
-                }
-            }
-
-            // Save all tracked changes
-            await _unitOfWork.SaveChangesAsync();
-
+            // ==========================================
+            // Phase C: Generate All Output in Memory (Before DB Commit)
+            // ==========================================
             byte[] annotatedPdfBytes;
             try
             {
-                using var itextInputStream = new MemoryStream(pdfBytes);
-                using var outStream = new MemoryStream();
-                using (var pdfReader = new PdfReader(itextInputStream))
-                using (var pdfWriter = new PdfWriter(outStream))
-                using (var pdfDoc = new PdfDocument(pdfReader, pdfWriter))
-                {
-                    var fontPath = @"C:\Windows\Fonts\arial.ttf";
-                    PdfFont font = null;
-                    if (File.Exists(fontPath))
-                    {
-                        font = PdfFontFactory.CreateFont(fontPath, PdfEncodings.IDENTITY_H);
-                    }
-
-                    var pageGroups = annotations.GroupBy(a => a.PageNumber);
-
-                    foreach (var group in pageGroups)
-                    {
-                        if (group.Key <= 0 || group.Key > pdfDoc.GetNumberOfPages()) continue;
-
-                        var page = pdfDoc.GetPage(group.Key);
-                        var canvas = new PdfCanvas(page);
-                        var rect = page.GetPageSize();
-                        
-                        float boxWidth = 250;
-                        float boxHeight = 40;
-                        float x = (rect.GetWidth() - boxWidth) / 2; // Center horizontally
-                        
-                        // Start near the bottom, moved up by 10 cm (10 cm = ~283.5 points)
-                        float yOffset = 30 + 283.5f;
-
-                        foreach (var ann in group)
-                        {
-                            var extGState = new PdfExtGState().SetFillOpacity(0.7f);
-                            canvas.SetExtGState(extGState);
-
-                            if (ann.State == "Matched")
-                                canvas.SetFillColor(ColorConstants.GREEN);
-                            else if (ann.State == "Error")
-                                canvas.SetFillColor(ColorConstants.RED);
-                            else
-                                canvas.SetFillColor(ColorConstants.YELLOW);
-
-                            // Draw centered box at the bottom
-                            canvas.Rectangle(x, yOffset, boxWidth, boxHeight);
-                            canvas.Fill();
-
-                            if (font != null) 
-                            {
-                                canvas.SetExtGState(new PdfExtGState().SetFillOpacity(1.0f));
-                                canvas.SetFillColor(ColorConstants.BLACK);
-                                canvas.BeginText();
-                                canvas.SetFontAndSize(font, 14);
-                                
-                                // Approximate centering for the text inside the box
-                                float textX = x + 70; 
-                                float textY = yOffset + (boxHeight / 2) - 5;
-                                canvas.MoveText(textX, textY);
-                                
-                                canvas.ShowText(ann.Message);
-                                canvas.EndText();
-                            }
-
-                            // Stack upwards if there are multiple annotations on the same page
-                            yOffset += boxHeight + 10;
-                        }
-                    }
-                    pdfDoc.Close();
-                }
-                annotatedPdfBytes = outStream.ToArray();
+                annotatedPdfBytes = _documentRenderer.RenderAnnotatedPdf(pdfBytes, plan.Annotations);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to annotate PDF.");
-                return Result.Failure<PdfVerificationResult>(new Error("500", "حدث خطأ أثناء تعديل ملف الـ PDF: " + ex.Message));
+                _logger.LogError(ex, "Failed to render annotated PDF for DailyId: {DailyId}", dailyId);
+                return Result.Failure<PdfVerificationResult>(new Error("500", "حدث خطأ أثناء إنشاء نتيجة مراجعة ملف الـ PDF."));
             }
 
-            byte[] reportBytes = Encoding.UTF8.GetBytes(reportBuilder.ToString());
+            byte[] reportBytes = Encoding.UTF8.GetBytes(plan.ReportBuilder.ToString());
             byte[] bom = new byte[] { 0xEF, 0xBB, 0xBF };
             byte[] fullTextBytes = new byte[bom.Length + reportBytes.Length];
             Buffer.BlockCopy(bom, 0, fullTextBytes, 0, bom.Length);
             Buffer.BlockCopy(reportBytes, 0, fullTextBytes, bom.Length, reportBytes.Length);
+
+            // ==========================================
+            // Phase D: Re-check Daily Closure Guard (Before Persistence)
+            // ==========================================
+            var recheckGuard = await _dailyClosureGuard.EnsureDailyOpenAsync(dailyId);
+            if (recheckGuard.IsFailure)
+            {
+                _logger.LogWarning("Daily {DailyId} was closed during verification processing. Persistence aborted.", dailyId);
+                return Result.Failure<PdfVerificationResult>(recheckGuard.Error);
+            }
+
+            // ==========================================
+            // Phase E: Atomic Database Persistence (Single SaveChanges)
+            // ==========================================
+            if (plan.FormDetailIdsToReview.Any() || plan.NetPaysToUpsert.Any())
+            {
+                if (plan.FormDetailIdsToReview.Any())
+                {
+                    var distinctDetailIds = plan.FormDetailIdsToReview.Distinct().ToList();
+                    var formDetailsToUpdate = await _formDetailsRepo.GetQueryable()
+                        .Where(fd => distinctDetailIds.Contains(fd.Id))
+                        .ToListAsync();
+
+                    foreach (var fd in formDetailsToUpdate)
+                    {
+                        fd.IsSummaryReviewed = true;
+                        fd.IsSummaryReviewedBy = currentUserId;
+                        fd.SummaryReviewedAt = DateTime.Now;
+                        fd.SummaryReviewMethod = "Auto";
+                    }
+                }
+
+                if (plan.NetPaysToUpsert.Any())
+                {
+                    var existingNetPays = await _netPayRepo.GetQueryable()
+                        .Where(n => n.DailyId == dailyId)
+                        .ToListAsync();
+
+                    foreach (var npItem in plan.NetPaysToUpsert)
+                    {
+                        var existing = existingNetPays.FirstOrDefault(n => n.EmployeeId == npItem.EmployeeId);
+                        if (existing != null)
+                        {
+                            existing.NetPay = npItem.NetPay;
+                            _netPayRepo.Update(existing);
+                        }
+                        else
+                        {
+                            await _netPayRepo.Insert(new EmployeeNetPay
+                            {
+                                DailyId = dailyId,
+                                EmployeeId = npItem.EmployeeId,
+                                NetPay = npItem.NetPay
+                            });
+                        }
+                    }
+                }
+
+                try
+                {
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to persist PDF verification changes for DailyId: {DailyId}", dailyId);
+                    return Result.Failure<PdfVerificationResult>(new Error("500", "حدث خطأ أثناء حفظ بيانات مراجعة اليومية."));
+                }
+            }
 
             return Result.Success(new PdfVerificationResult
             {
                 Success = true,
                 ReportFile = annotatedPdfBytes,
                 TextReportFile = fullTextBytes,
-                MatchedCount = matchedCount,
-                ErrorCount = errorCount
+                MatchedCount = plan.MatchedCount,
+                ErrorCount = plan.ErrorCount
             });
         }
     }
