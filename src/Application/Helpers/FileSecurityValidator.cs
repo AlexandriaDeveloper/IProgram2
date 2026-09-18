@@ -9,6 +9,11 @@ namespace Application.Helpers
 {
     public static class FileSecurityValidator
     {
+        public const long MaxPdfVerificationBytes = 52428800L; // 50 MB
+        public const long MaxDailyReferenceBytes = 31457280L;   // 30 MB
+        public const long MaxExcelJsonBytes = 20971520L;        // 20 MB
+        public const long MaxEmployeeUploadBytes = 10485760L;   // 10 MB
+
         private static readonly byte[] PdfMagic = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // %PDF
         private static readonly byte[] PngMagic = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
         private static readonly byte[] JpegMagic = new byte[] { 0xFF, 0xD8, 0xFF };

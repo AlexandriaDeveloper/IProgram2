@@ -46,7 +46,7 @@ namespace Api.Controllers
         {
             var validation = FileSecurityValidator.ValidateFile(
                 request?.File,
-                30 * 1024 * 1024,
+                FileSecurityValidator.MaxDailyReferenceBytes,
                 new[] { ".pdf", ".jpg", ".jpeg", ".png" });
 
             if (!validation.IsSuccess)

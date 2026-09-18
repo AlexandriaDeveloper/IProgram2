@@ -151,7 +151,7 @@ namespace Api.Controllers
         {
             var validation = FileSecurityValidator.ValidateFile(
                 model?.File,
-                20 * 1024 * 1024,
+                FileSecurityValidator.MaxExcelJsonBytes,
                 new[] { ".xlsx", ".xls" });
 
             if (!validation.IsSuccess)
@@ -168,7 +168,7 @@ namespace Api.Controllers
         {
             var validation = FileSecurityValidator.ValidateFile(
                 model?.File,
-                20 * 1024 * 1024,
+                FileSecurityValidator.MaxExcelJsonBytes,
                 new[] { ".json" });
 
             if (!validation.IsSuccess)

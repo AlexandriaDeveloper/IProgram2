@@ -1,4 +1,4 @@
-﻿using Core.Models;
+using Core.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +35,8 @@ public static class IdentityExtension
 
 
 
+        var signingKey = Auth.Infrastructure.Security.JwtKeyValidator.GetValidatedSigningKey(configuration);
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(opt =>
         {
             opt.SaveToken = true;
@@ -43,7 +45,7 @@ public static class IdentityExtension
             opt.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(configuration["Token:Key"])),
+                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(signingKey)),
                 ValidateIssuer = true,
                 ValidIssuer = configuration["Token:Issuer"],
                 ValidateAudience = false,

@@ -199,11 +199,11 @@ namespace Api.Controllers
         }
 
         [HttpPost("{dailyId}/verify-pdf")]
-        [RequestSizeLimit(52428800)] // 50 MB
+        [RequestSizeLimit(FileSecurityValidator.MaxPdfVerificationBytes)] // 50 MB
         public async Task<IActionResult> VerifyPdfAgainstSummary([FromRoute] int dailyId, [FromForm] Application.Dtos.Requests.VerifyPdfRequest request)
         {
             var file = request?.File;
-            var validation = FileSecurityValidator.ValidateFile(file, 52428800, new[] { ".pdf" });
+            var validation = FileSecurityValidator.ValidateFile(file, FileSecurityValidator.MaxPdfVerificationBytes, new[] { ".pdf" });
             if (!validation.IsSuccess)
             {
                 return HandleResult(validation);

@@ -45,12 +45,12 @@ namespace Api.Controllers
             return HandleResult<EmployeeDto>(result);
         }
         [HttpPost("Upload")]
-        [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+        [RequestSizeLimit(FileSecurityValidator.MaxEmployeeUploadBytes)] // 10 MB
         public async Task<IActionResult> UploadEmployees(EmployeeFileUploadRequest model)
         {
             var validation = FileSecurityValidator.ValidateFile(
                 model?.File,
-                10 * 1024 * 1024,
+                FileSecurityValidator.MaxEmployeeUploadBytes,
                 new[] { ".xlsx", ".xls" });
 
             if (!validation.IsSuccess)
@@ -71,12 +71,12 @@ namespace Api.Controllers
         }
 
         [HttpPost("UploadTegaraFile")]
-        [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+        [RequestSizeLimit(FileSecurityValidator.MaxEmployeeUploadBytes)] // 10 MB
         public async Task<IActionResult> UploadTegaraFile(EmployeeFileUploadRequest model)
         {
             var validation = FileSecurityValidator.ValidateFile(
                 model?.File,
-                10 * 1024 * 1024,
+                FileSecurityValidator.MaxEmployeeUploadBytes,
                 new[] { ".xlsx", ".xls" });
 
             if (!validation.IsSuccess)

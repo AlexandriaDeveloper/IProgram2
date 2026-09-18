@@ -47,12 +47,11 @@ namespace Auth.UnitTests
         [Fact]
         public async Task EnsureSeedData_SeedsAdminAndUserRoles_WhenMissing()
         {
-            using var context = CreateInMemoryContext();
             var existingRoles = new List<string>();
             var createdRoles = new List<string>();
             var mockRoleManager = CreateMockRoleManager(existingRoles, createdRoles);
 
-            await SeedData.EnsureSeedData(context, mockRoleManager.Object);
+            await SeedData.EnsureSeedData(mockRoleManager.Object);
 
             Assert.Contains("Admin", createdRoles);
             Assert.Contains("User", createdRoles);
@@ -62,12 +61,11 @@ namespace Auth.UnitTests
         [Fact]
         public async Task EnsureSeedData_DoesNotRecreateRoles_WhenAlreadyPresent()
         {
-            using var context = CreateInMemoryContext();
             var existingRoles = new List<string> { "Admin", "User" };
             var createdRoles = new List<string>();
             var mockRoleManager = CreateMockRoleManager(existingRoles, createdRoles);
 
-            await SeedData.EnsureSeedData(context, mockRoleManager.Object);
+            await SeedData.EnsureSeedData(mockRoleManager.Object);
 
             Assert.Empty(createdRoles);
         }

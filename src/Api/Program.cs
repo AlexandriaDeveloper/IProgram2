@@ -91,7 +91,7 @@ builder.Services.AddSwaggerGen(c =>
 
 });
 
-var maxUploadLimit = builder.Configuration.GetValue<long>("UploadLimits:DefaultMaxSizeBytes", 30 * 1024 * 1024);
+var maxUploadLimit = builder.Configuration.GetValue<long>("UploadLimits:GlobalMultipartBodyLengthLimit", 52428800L);
 builder.Services.Configure<FormOptions>(o =>
 {
     o.ValueLengthLimit = 10 * 1024 * 1024;
@@ -103,16 +103,15 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<ApplicationContext>();
     var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     try 
     { 
-        await SeedData.EnsureSeedData(context, roleMgr); 
+        await SeedData.EnsureSeedData(roleMgr); 
     } 
     catch (Exception ex) 
     { 
-        logger.LogError(ex, "Database migration or role seeding failed during application startup.");
+        logger.LogError(ex, "Role seeding failed during application startup.");
     }
 }
 
@@ -132,9 +131,6 @@ app.UseCors("CorsPolicy");
 // Add Response Caching middleware BEFORE static files
 app.UseResponseCaching();
 
-// Add Output Caching middleware
-app.UseOutputCache();
-
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -148,9 +144,11 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Output Cache MUST be placed after Authentication & Authorization
+app.UseOutputCache();
 
 if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
 {

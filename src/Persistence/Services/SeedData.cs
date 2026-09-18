@@ -1,20 +1,12 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Core.Models;
-using Auth.Infrastructure;
 
 namespace Persistence.Services
 {
     public static class SeedData
     {
-        public static async Task EnsureSeedData(ApplicationContext context, RoleManager<IdentityRole> roleMgr)
+        public static async Task EnsureSeedData(RoleManager<IdentityRole> roleMgr)
         {
-            if (context.Database.IsRelational())
-            {
-                await context.Database.MigrateAsync();
-            }
-
             string[] roles = { "Admin", "User" };
             foreach (var role in roles)
             {
