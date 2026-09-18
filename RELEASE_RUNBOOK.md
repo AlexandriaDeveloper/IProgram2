@@ -85,14 +85,28 @@ Review the generated SQL file prior to execution. For Sprint 4B, the script must
 - NO `ALTER COLUMN`
 - NO data transformation or DML mutations
 
-### Step 3.3: Preflight Inspection on Operational Databases (Read-Only)
+### Step 3.3: Backup & Point-in-Time Restore (PITR) Pre-Deployment Verification
+Before executing DDL on any operational database:
+1. **Verify Restore Capability:**
+   Verify that Azure SQL Database automated backup retention and Point-in-Time Restore (PITR) are available and healthy on the target server.
+2. **Record Pre-Migration Deployment Metadata:**
+   Record the following operational metadata in deployment audit records:
+   - Target database name (e.g., `IProgram_2026`, `IProgram_2027`)
+   - Azure SQL Logical Server name
+   - Pre-migration deployment timestamp in UTC (`YYYY-MM-DD HH:mm:ssZ`) and Local Time
+   - Available restore window (earliest and latest restore points)
+3. **Mandatory Pre-DDL Gate:**
+   > **DO NOT** begin DDL operations until the rollback/restore path is verified and deployment timestamp is logged.
+
+### Step 3.4: Preflight Inspection on Operational Databases (Read-Only)
 For each operational database (e.g. `2026`, `2027`):
 
 > [!WARNING]
 > In Azure SQL Database, **do NOT use `USE [DatabaseName]`** to switch databases.
 > Always open a direct database connection targeting the specific operational database, and verify the connection context (`SELECT DB_NAME()`) before executing any queries.
 
-Execute the following read-only preflight query:
+#### A. Migration History Preflight
+Execute the following read-only query:
 ```sql
 SELECT DB_NAME() AS CurrentDatabase;
 
@@ -106,27 +120,70 @@ WHERE MigrationId IN (
 ORDER BY MigrationId;
 ```
 
-**Preflight Validation Rules:**
+**Migration History Validation Rules:**
 1. `20260917213000_AddSummaryReviewMethod` **MUST** exist in the result.
 2. `20260918185849_OptimizeHotPathIndexesSprint4B` **MUST NOT** exist in the result.
-3. If rule 1 or 2 is violated: **STOP immediately**. Investigate the schema before proceeding.
+3. If rule 1 or 2 is violated: **STOP immediately**. Investigate history divergence before proceeding.
 
-### Step 3.4: Execute Targeted Script on Operational Databases
-Once preflight passes:
+#### B. Physical Index State Preflight (Read-Only Schema Inspection)
+Execute the following read-only query using `sys.indexes` and `sys.tables` to verify current physical index state:
+```sql
+SELECT 
+    t.name AS TableName,
+    i.name AS IndexName,
+    i.type_desc AS IndexType,
+    i.is_unique AS IsUnique
+FROM sys.indexes i
+JOIN sys.tables t ON i.object_id = t.object_id
+WHERE (t.name = 'FormDetails' AND i.name IN ('IX_FormDetails_FormId', 'IX_FormDetails_FormId_IsActive_EmployeeId'))
+   OR (t.name = 'Form' AND i.name IN ('IX_Form_DailyId', 'IX_Form_DailyId_IsActive_Index', 'IX_Form_IsActive_CreatedAt'))
+ORDER BY t.name, i.name;
+```
+
+**Physical Index Pre-Sprint 4B Validation Rules:**
+* **MUST EXIST physically:**
+  - `IX_FormDetails_FormId` on `[FormDetails]`
+  - `IX_Form_DailyId` on `[Form]`
+* **MUST NOT EXIST physically:**
+  - `IX_FormDetails_FormId_IsActive_EmployeeId` on `[FormDetails]`
+  - `IX_Form_DailyId_IsActive_Index` on `[Form]`
+  - `IX_Form_IsActive_CreatedAt` on `[Form]`
+
+> [!CAUTION]
+> If physical index state does NOT match these exact preconditions:
+> **STOP — investigate schema drift before executing the migration.**
+> Do NOT attempt automatic repair.
+
+### Step 3.5: Execute Targeted Script on Operational Databases
+Once both preflights pass:
 1. Open a direct connection to operational database `2026`.
 2. Execute the verified targeted script.
 3. Open a direct connection to operational database `2027`.
 4. Execute the verified targeted script.
 5. Repeat for any other operational databases.
 
-### Step 3.5: Post-Migration History Verification
-Run on each database to confirm registration:
+### Step 3.6: Post-Migration Verification
+Run on each database to confirm registration and physical index creation:
 ```sql
+-- 1. Migration History
 SELECT TOP 3 MigrationId, ProductVersion 
 FROM [__EFMigrationsHistory] 
 ORDER BY MigrationId DESC;
+
+-- 2. Physical Index State Post-Migration
+SELECT 
+    t.name AS TableName,
+    i.name AS IndexName
+FROM sys.indexes i
+JOIN sys.tables t ON i.object_id = t.object_id
+WHERE (t.name = 'FormDetails' AND i.name = 'IX_FormDetails_FormId_IsActive_EmployeeId')
+   OR (t.name = 'Form' AND i.name IN ('IX_Form_DailyId_IsActive_Index', 'IX_Form_IsActive_CreatedAt'))
+ORDER BY t.name, i.name;
 ```
-Expected top record: `20260918185849_OptimizeHotPathIndexesSprint4B`.
+Expected:
+- Top migration history record: `20260918185849_OptimizeHotPathIndexesSprint4B`.
+- All 3 new composite indexes exist physically on `[FormDetails]` and `[Form]`.
+- Old single-column indexes `IX_FormDetails_FormId` and `IX_Form_DailyId` no longer exist.
 
 ---
 
