@@ -561,7 +561,7 @@ namespace Application.Features
         public async Task<Result<DailyDto>> GetDaily(int dailyId, CancellationToken cancellationToken)
         {
             Daily daily = await _dailyRepository.GetQueryable(null)
-            .Include(x => x.DailyReferences)
+            .Include(x => x.DailyReferences.Where(r => r.IsActive))
             .FirstOrDefaultAsync(x => x.Id == dailyId);
 
 
@@ -580,13 +580,13 @@ namespace Application.Features
                     Name = daily.Name,
                     DailyDate = daily.DailyDate,
                     Closed = daily.Closed,
-                    DailyReferences = daily.DailyReferences.Select(x => new DailyReferenceDto
+                    DailyReferences = daily.DailyReferences?.Where(x => x.IsActive).Select(x => new DailyReferenceDto
                     {
                         Id = x.Id,
                         DailyId = x.DailyId,
                         Description = x.Description,
                         ReferencePath = $"api/DailyReferences/file/{x.Id}"
-                    }).ToList()
+                    }).ToList() ?? new List<DailyReferenceDto>()
 
 
                 });

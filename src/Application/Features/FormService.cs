@@ -122,7 +122,7 @@ namespace Application.Features
 
 
 
-            var result = await _formRepository.ListAllAsync(spec, withInactive: true, trackChanges: false);
+            var result = await _formRepository.ListAllAsync(spec, withInactive: false, trackChanges: false);
             var count = await _formRepository.CountAsync(specCount);
 
             // Batch-load FormDetails aggregates (count, sum, all-reviewed) in a single server-side grouped query

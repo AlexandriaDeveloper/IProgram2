@@ -132,7 +132,8 @@ namespace Api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
-            var result = await _employeeService.Delete(id);
+            // For backward compatibility and safety, normal DELETE route performs soft delete
+            var result = await _employeeService.SoftDelete(id);
             return HandleResult(result);
         }
 

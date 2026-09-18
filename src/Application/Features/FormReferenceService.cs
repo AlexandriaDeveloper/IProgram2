@@ -45,7 +45,7 @@ namespace Application.Features
 
         public async Task<Result<List<FormReferenceDto>>> GetFormReferences(int formId)
         {
-            var result = await _formReferencesRepository.GetQueryable().Where(x => x.FormId == formId).ToListAsync();
+            var result = await _formReferencesRepository.GetQueryable().Where(x => x.FormId == formId && x.IsActive).ToListAsync();
             if (result == null)
             {
                 return Result.Failure<List<FormReferenceDto>>(new Error("404", "Not Found"));
@@ -120,21 +120,6 @@ namespace Application.Features
             if (!result)
             {
                 return Result.Failure(new Error("500", "Internal Server Error"));
-            }
-            if (!string.IsNullOrEmpty(formRefernce.ReferencePath) && formRefernce.ReferencePath.Contains("cloudinary"))
-            {
-                 // Cloudinary File
-                 await _fileStorageService.DeleteFileAsync(formRefernce.ReferencePath, "FormReferences");
-            }
-            else
-            {
-                 // Local File (Legacy or previous implementation)
-                 var fileName = Path.GetFileName(formRefernce.ReferencePath);
-                 var path = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "FormReferences", fileName);
-                 if (File.Exists(path))
-                 {
-                     File.Delete(path);
-                 }
             }
             
             return Result.Success("تم الحذف بنجاح");

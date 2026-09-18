@@ -629,10 +629,7 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("404", "الموظف غير موجود"));
             }
-            employee.IsActive = false;
-            employee.DeactivatedAt = DateTime.Now;
-            employee.DeactivatedBy = _currentUserService.UserId;
-            _employeeRepository.Update(employee);
+            await _employeeRepository.DeActive(id);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)
             {
