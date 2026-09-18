@@ -76,6 +76,7 @@ namespace Application.Features
                 return targetGuard;
             }
 
+            var forms = new List<Form>();
             foreach (var formId in request.FormIds)
             {
                 var form = await _formRepository.GetById(formId);
@@ -88,6 +89,11 @@ namespace Application.Features
                 {
                     return guard;
                 }
+                forms.Add(form);
+            }
+
+            foreach (var form in forms)
+            {
                 form.DailyId = request.DailyId;
                 _formRepository.Update(form);
             }
@@ -121,11 +127,45 @@ namespace Application.Features
 
         public async Task<Result> SoftDeleteMultiForms(int[] ids)
         {
-            foreach (var id in ids)
+            if (ids == null || ids.Length == 0)
             {
-
-                await SoftDelete(id);
+                return Result.Failure(new Error("400", "لم يتم تحديد أي استمارات للحذف."));
             }
+
+            var distinctIds = ids.Distinct().ToList();
+            var forms = new List<Form>();
+
+            // Phase 1: All-or-nothing business validation before mutating anything
+            foreach (var id in distinctIds)
+            {
+                var form = await _formRepository.GetById(id);
+                if (form == null)
+                {
+                    return Result.Failure(new Error("404", $"الاستمارة رقم {id} غير موجودة."));
+                }
+
+                var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+                if (guard.IsFailure)
+                {
+                    return guard;
+                }
+
+                forms.Add(form);
+            }
+
+            // Phase 2: Execute soft delete on all forms
+            foreach (var form in forms)
+            {
+                await _formRepository.DeActive(form.Id);
+            }
+
+            // Phase 3: Single commit
+            var result = await _unitOfWork.SaveChangesAsync() > 0;
+            if (!result && forms.Count > 0)
+            {
+                return Result.Failure(new Error("500", "فشلت عملية حفظ الحذف في قاعدة البيانات."));
+            }
+
             return Result.Success("تم الحذف بنجاح");
         }
     }

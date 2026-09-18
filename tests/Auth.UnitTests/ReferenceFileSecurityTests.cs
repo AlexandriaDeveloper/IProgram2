@@ -23,6 +23,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Moq;
 using Xunit;
+using Application.Interfaces;
 
 namespace Auth.UnitTests
 {
@@ -280,12 +281,15 @@ namespace Auth.UnitTests
             fileStorageMock.Setup(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>()))
                 .ThrowsAsync(new InvalidOperationException("CRITICAL: Cloudinary api_secret=s3cr3t failed connection to host 10.0.0.1"));
 
+            var closureGuardMock = new Mock<IDailyClosureGuard>();
+
             var service = new DailyReferenceService(
                 repoMock.Object,
                 uowMock.Object,
                 hostEnvMock.Object,
                 fileStorageMock.Object,
-                loggerMock.Object);
+                loggerMock.Object,
+                closureGuardMock.Object);
 
             var result = await service.TestCloudinaryConnection();
 
@@ -318,12 +322,15 @@ namespace Auth.UnitTests
             fileStorageMock.Setup(s => s.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>()))
                 .ThrowsAsync(new Exception("Internal provider connection timeout"));
 
+            var closureGuardMock = new Mock<IDailyClosureGuard>();
+
             var service = new DailyReferenceService(
                 repoMock.Object,
                 uowMock.Object,
                 hostEnvMock.Object,
                 fileStorageMock.Object,
-                loggerMock.Object);
+                loggerMock.Object,
+                closureGuardMock.Object);
 
             var controller = new DailyReferencesController(service);
 
