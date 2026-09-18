@@ -76,6 +76,25 @@ namespace Persistence.Repository
             await _context.Set<T>().AddAsync(entity);
         }
 
+        public virtual async Task AddRange(IEnumerable<T> entities)
+        {
+            if (entities == null) return;
+            var list = entities.Where(e => e != null).ToList();
+            if (list.Count == 0) return;
+
+            var userId = _accessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "System";
+            var now = DateTime.Now;
+            foreach (var entity in list)
+            {
+                if (entity.CreatedAt == default)
+                    entity.CreatedAt = now;
+                if (string.IsNullOrEmpty(entity.CreatedBy))
+                    entity.CreatedBy = userId;
+                entity.IsActive = true;
+            }
+            await _context.Set<T>().AddRangeAsync(list);
+        }
+
         public virtual void Update(T entity)
         {
             entity.UpdatedAt = DateTime.Now;

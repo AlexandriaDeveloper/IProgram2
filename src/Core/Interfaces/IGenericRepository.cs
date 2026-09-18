@@ -21,6 +21,7 @@ namespace Core.Interfaces
 
 
         Task Insert(TValue entity);
+        Task AddRange(IEnumerable<TValue> entities);
         void Update(TValue entity);
         Task Delete(int id);
         void DeleteRange(IEnumerable<TValue> entities);

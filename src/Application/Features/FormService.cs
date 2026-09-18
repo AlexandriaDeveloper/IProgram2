@@ -472,6 +472,31 @@ namespace Application.Features
             return Result.Failure(new Error("500", "Internal Server Error"));
 
         }
+        private enum EmployeeResolutionType
+        {
+            None = 0,
+            NationalId = 1,
+            TabCode = 2,
+            TegaraCode = 3
+        }
+
+        private sealed class ParsedExcelRow
+        {
+            public int RowNumber { get; set; }
+            public string RawNationalId { get; set; } = "";
+            public string RawTabCode { get; set; } = "";
+            public string RawTegaraCode { get; set; } = "";
+            public string RawName { get; set; } = "";
+            public string RawAmount { get; set; } = "";
+            public EmployeeResolutionType ResolutionType { get; set; }
+            public string LookupNationalId { get; set; }
+            public int? LookupTabCode { get; set; }
+            public int? LookupTegaraCode { get; set; }
+            public string IdentifierMessage { get; set; } = "";
+            public double ParsedAmount { get; set; }
+            public bool IsAmountValid { get; set; }
+        }
+
         public async Task<Result> UploadExcelEmployeesToForm(UploadEmployeesToFormRequest request)
         {
             var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(request.FormId);
@@ -484,53 +509,216 @@ namespace Application.Features
             {
                 return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
             }
+
             UploadFile upload = new UploadFile(request.File);
             var path = await upload.UploadFileToTempPath();
-            NpoiServiceProvider npoi = new NpoiServiceProvider(path);
-            // Read Excel Sheet and convert it to DataTable
-            DataTable dt = npoi.ReadSheeByIndex(0, 1);
-            DataTable dt2 = new DataTable();
-            dt2.Columns.Add("م", typeof(int));
-            dt2.Columns.Add("الرقم القومى", typeof(string));
-            dt2.Columns.Add("كود طب", typeof(string));
-            dt2.Columns.Add("كود تجارة", typeof(string));
-            dt2.Columns.Add("القسم", typeof(string));
-            dt2.Columns.Add("الاسم", typeof(string));
-            dt2.Columns.Add("المبلغ", typeof(double));
-            dt2.Columns.Add("كود الموظف", typeof(string));
-            int counter = 1;
-            List<string> messages = new List<string>();
+            DataTable dt;
+            try
+            {
+                NpoiServiceProvider npoi = new NpoiServiceProvider(path);
+                dt = npoi.ReadSheeByIndex(0, 1);
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
+                }
+                catch
+                {
+                    // Ignore temp file cleanup failure
+                }
+            }
+
+            if (dt == null)
+            {
+                return Result.Failure(new Error("500", "تعذر قراءة بيانات الملف"));
+            }
+
+            // Step 1: Parse all rows in memory first (No DB calls)
+            var parsedRows = new List<ParsedExcelRow>(dt.Rows.Count);
+            var nationalIdsToFetch = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tabCodesToFetch = new HashSet<int>();
+            var tegaraCodesToFetch = new HashSet<int>();
+
+            int rowCounter = 1;
             foreach (DataRow row in dt.Rows)
             {
-                var message = "";
+                var parsedRow = new ParsedExcelRow { RowNumber = rowCounter++ };
 
+                string rawNatId = row.ItemArray.Length > 1 ? (row.ItemArray[1] == null || Convert.IsDBNull(row.ItemArray[1]) ? "" : row.ItemArray[1].ToString()) : "";
+                string rawTabCode = row.ItemArray.Length > 2 ? (row.ItemArray[2] == null || Convert.IsDBNull(row.ItemArray[2]) ? "" : row.ItemArray[2].ToString()) : "";
+                string rawTegaraCode = row.ItemArray.Length > 3 ? (row.ItemArray[3] == null || Convert.IsDBNull(row.ItemArray[3]) ? "" : row.ItemArray[3].ToString()) : "";
+                string rawName = row.ItemArray.Length > 5 ? (row.ItemArray[5] == null || Convert.IsDBNull(row.ItemArray[5]) ? "" : row.ItemArray[5].ToString()) : "";
+                string rawAmount = row.ItemArray.Length > 6 ? (row.ItemArray[6] == null || Convert.IsDBNull(row.ItemArray[6]) ? "" : row.ItemArray[6].ToString()) : "";
+
+                parsedRow.RawNationalId = rawNatId;
+                parsedRow.RawTabCode = rawTabCode;
+                parsedRow.RawTegaraCode = rawTegaraCode;
+                parsedRow.RawName = rawName;
+                parsedRow.RawAmount = rawAmount;
+
+                // Amount parsing
+                if (double.TryParse(rawAmount, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double parsedAmt)
+                    || double.TryParse(rawAmount, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.CurrentCulture, out parsedAmt))
+                {
+                    parsedRow.ParsedAmount = Math.Round(parsedAmt, 2);
+                    parsedRow.IsAmountValid = true;
+                }
+                else
+                {
+                    parsedRow.IsAmountValid = false;
+                }
+
+                // Precedence resolution type matching original logic:
+                // 1. If National ID is present
+                if (!string.IsNullOrEmpty(rawNatId))
+                {
+                    parsedRow.ResolutionType = EmployeeResolutionType.NationalId;
+                    parsedRow.LookupNationalId = rawNatId.Trim();
+                    parsedRow.IdentifierMessage = "الرقم القومى" + rawNatId;
+                    nationalIdsToFetch.Add(parsedRow.LookupNationalId);
+                    if (!string.Equals(rawNatId, parsedRow.LookupNationalId, StringComparison.Ordinal))
+                    {
+                        nationalIdsToFetch.Add(rawNatId);
+                    }
+                }
+                // 2. Else if TabCode is present
+                else if (!string.IsNullOrEmpty(rawTabCode))
+                {
+                    var result = int.TryParse(rawTabCode, out int id);
+                    if (result)
+                    {
+                        parsedRow.ResolutionType = EmployeeResolutionType.TabCode;
+                        parsedRow.LookupTabCode = id;
+                        parsedRow.IdentifierMessage = "كود طب رقم  " + rawTabCode;
+                        tabCodesToFetch.Add(id);
+                    }
+                    else
+                    {
+                        parsedRow.ResolutionType = EmployeeResolutionType.None;
+                    }
+                }
+                // 3. Else if TegaraCode is present
+                else if (!string.IsNullOrEmpty(rawTegaraCode))
+                {
+                    var result = int.TryParse(rawTegaraCode, out int id);
+                    if (result)
+                    {
+                        parsedRow.ResolutionType = EmployeeResolutionType.TegaraCode;
+                        parsedRow.LookupTegaraCode = id;
+                        parsedRow.IdentifierMessage = "كود تجارة رقم  " + rawTegaraCode;
+                        tegaraCodesToFetch.Add(id);
+                    }
+                    else
+                    {
+                        parsedRow.ResolutionType = EmployeeResolutionType.None;
+                    }
+                }
+                else
+                {
+                    parsedRow.ResolutionType = EmployeeResolutionType.None;
+                }
+
+                parsedRows.Add(parsedRow);
+            }
+
+            // Step 2: Batch Employee Resolution (Bounded SQL Queries with AsNoTracking)
+            var empsByNatId = new Dictionary<string, Employee>(StringComparer.OrdinalIgnoreCase);
+            if (nationalIdsToFetch.Count > 0)
+            {
+                foreach (var chunk in nationalIdsToFetch.Chunk(1000))
+                {
+                    var chunkKeys = chunk.ToList();
+                    var emps = await _employeeRepository.GetQueryable()
+                        .AsNoTracking()
+                        .Where(e => chunkKeys.Contains(e.Id))
+                        .ToListAsync();
+                    foreach (var emp in emps)
+                    {
+                        empsByNatId[emp.Id] = emp;
+                        if (emp.Id != null)
+                        {
+                            empsByNatId[emp.Id.Trim()] = emp;
+                        }
+                    }
+                }
+            }
+
+            var empsByTabCode = new Dictionary<int, Employee>();
+            if (tabCodesToFetch.Count > 0)
+            {
+                foreach (var chunk in tabCodesToFetch.Chunk(1000))
+                {
+                    var chunkKeys = chunk.ToList();
+                    var emps = await _employeeRepository.GetQueryable()
+                        .AsNoTracking()
+                        .Where(e => e.TabCode.HasValue && chunkKeys.Contains(e.TabCode.Value))
+                        .ToListAsync();
+                    foreach (var emp in emps)
+                    {
+                        if (emp.TabCode.HasValue)
+                        {
+                            empsByTabCode[emp.TabCode.Value] = emp;
+                        }
+                    }
+                }
+            }
+
+            var empsByTegaraCode = new Dictionary<int, Employee>();
+            if (tegaraCodesToFetch.Count > 0)
+            {
+                foreach (var chunk in tegaraCodesToFetch.Chunk(1000))
+                {
+                    var chunkKeys = chunk.ToList();
+                    var emps = await _employeeRepository.GetQueryable()
+                        .AsNoTracking()
+                        .Where(e => e.TegaraCode.HasValue && chunkKeys.Contains(e.TegaraCode.Value))
+                        .ToListAsync();
+                    foreach (var emp in emps)
+                    {
+                        if (emp.TegaraCode.HasValue)
+                        {
+                            empsByTegaraCode[emp.TegaraCode.Value] = emp;
+                        }
+                    }
+                }
+            }
+
+            // Step 3: In-Memory Validation & Building FormDetails
+            List<string> messages = new List<string>();
+            List<FormDetails> detailsToInsert = new List<FormDetails>(parsedRows.Count);
+
+            var currentUserId = _currentUserService?.UserId
+                ?? _httpContextAccessor?.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value
+                ?? "System";
+            var now = DateTime.Now;
+
+            foreach (var row in parsedRows)
+            {
                 Employee empExist = null;
-                if (!string.IsNullOrEmpty(row.ItemArray[1].ToString()))
+                if (row.ResolutionType == EmployeeResolutionType.NationalId)
                 {
-                    empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.Id == row.ItemArray[1].ToString());
-                    message = "الرقم القومى" + row.ItemArray[1].ToString();
-                }
-                else if (!string.IsNullOrEmpty(row.ItemArray[2].ToString()))
-                {
-                    var result = int.TryParse(row.ItemArray[2].ToString(), out int id);
-                    if (result)
+                    if (row.LookupNationalId != null && (empsByNatId.TryGetValue(row.LookupNationalId, out empExist) || empsByNatId.TryGetValue(row.RawNationalId, out empExist)))
                     {
-                        empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.TabCode == id);
-                        message = "كود طب رقم  " + row.ItemArray[2].ToString();
+                        // Match found
                     }
                 }
-                else if (!string.IsNullOrEmpty(row.ItemArray[3].ToString()))
+                else if (row.ResolutionType == EmployeeResolutionType.TabCode && row.LookupTabCode.HasValue)
                 {
-                    var result = int.TryParse(row.ItemArray[3].ToString(), out int id);
-                    if (result)
-                    {
-                        empExist = await _employeeRepository.GetQueryable().FirstOrDefaultAsync(x => x.TegaraCode == id);
-                        message = "كود تجارة رقم  " + row.ItemArray[3].ToString();
-                    }
+                    empsByTabCode.TryGetValue(row.LookupTabCode.Value, out empExist);
                 }
+                else if (row.ResolutionType == EmployeeResolutionType.TegaraCode && row.LookupTegaraCode.HasValue)
+                {
+                    empsByTegaraCode.TryGetValue(row.LookupTegaraCode.Value, out empExist);
+                }
+
                 if (empExist == null)
                 {
-                    messages.Add(@"يوجد مشكلة بالبيانات الاتيه   بالسطر رقم " + counter++ + " رقم قومي   " + row.ItemArray[1].ToString() + " كود طب " + row.ItemArray[2].ToString() + " كود تجارة " + row.ItemArray[3].ToString());
+                    messages.Add(@"يوجد مشكلة بالبيانات الاتيه   بالسطر رقم " + row.RowNumber + " رقم قومي   " + row.RawNationalId + " كود طب " + row.RawTabCode + " كود تجارة " + row.RawTegaraCode);
                     continue;
                 }
 
@@ -538,46 +726,53 @@ namespace Application.Features
                 if (request.ValidateName)
                 {
                     string dbNameStr = empExist.Name ?? "";
-                    string excelNameStr = row.ItemArray[5]?.ToString() ?? "";
+                    string excelNameStr = row.RawName ?? "";
 
                     if (!IsAdvancedNameMatch(dbNameStr, excelNameStr))
                     {
-                        messages.Add($@"يوجد اختلاف في الاسم بالسطر رقم {counter}: مسجل لدينا ({dbNameStr}) وفي الملف ({excelNameStr}) للموظف ({message})");
-                        counter++; // Need to increment counter here as well if we are skipping/recording error
+                        messages.Add($@"يوجد اختلاف في الاسم بالسطر رقم {row.RowNumber}: مسجل لدينا ({dbNameStr}) وفي الملف ({excelNameStr}) للموظف ({row.IdentifierMessage})");
                         continue;
                     }
                 }
 
-                DataRow dr = dt2.NewRow();
-                dr.SetField("م", counter++);
-                dr["الرقم القومى"] = empExist.Id;
-                dr["كود طب"] = empExist.TabCode;
-                dr["كود تجارة"] = empExist.TegaraCode;
-                dr["القسم"] = empExist.Department == null ? "" : empExist.Department.Name;
-                dr["الاسم"] = empExist.Name;
-                dr.SetField("المبلغ", Math.Round(double.Parse(row.ItemArray[6].ToString()), 2));
-                dr.SetField("كود الموظف", empExist.Id);
-                dt2.Rows.Add(dr);
+                if (!row.IsAmountValid)
+                {
+                    messages.Add($@"يوجد مشكلة في قيمة المبلغ بالسطر رقم {row.RowNumber}: القيمة ({row.RawAmount}) غير صحيحة");
+                    continue;
+                }
+
+                var empDetails = new FormDetails
+                {
+                    OrderNum = row.RowNumber,
+                    Amount = row.ParsedAmount,
+                    EmployeeId = empExist.Id,
+                    FormId = request.FormId,
+                    CreatedAt = now,
+                    CreatedBy = currentUserId,
+                    IsActive = true
+                };
+                detailsToInsert.Add(empDetails);
             }
+
+            // Step 4: If any validation errors exist, fail without modifying database
             if (messages.Count > 0)
             {
-                //   return Result.Failure(new Error("1500", " يوجد مشكلة بالبيانات الاتيه  " + string.Join(" |||", messages)));
                 return Result.Failure(new Error("1500", System.Text.Json.JsonSerializer.Serialize(messages)));
             }
+
+            // Step 5: Second Daily Closure Guard directly before DB mutation to prevent race conditions
+            var persistenceGuard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(request.FormId);
+            if (persistenceGuard.IsFailure)
+            {
+                return persistenceGuard;
+            }
+
+            // Step 6: Atomic Replacement in a Single SaveChangesAsync
             var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
             _formDetailsRepository.DeleteRange(deleteEntity);
+            await _formDetailsRepository.AddRange(detailsToInsert);
             await _unitOfWork.SaveChangesAsync();
-            foreach (DataRow row in dt2.Rows)
-            {
-                var empDetails = new FormDetails();
-                empDetails.OrderNum = int.Parse(row.ItemArray[0].ToString());
-                empDetails.Amount = Math.Round(double.Parse(row.ItemArray[6].ToString()), 2);
-                empDetails.EmployeeId = row.ItemArray[7].ToString();
-                empDetails.FormId = request.FormId;
-                await _formDetailsRepository.Insert(empDetails);
-            }
             ClearFormDetailsCache(request.FormId);
-            await _unitOfWork.SaveChangesAsync();
 
             return Result.Success("تم الرفع بنجاح");
         }
