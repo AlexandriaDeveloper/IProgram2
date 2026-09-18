@@ -13,6 +13,7 @@ using Application.Services;
 using Auth.Infrastructure;
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -47,6 +48,12 @@ namespace Auth.UnitTests
         private readonly Mock<IDbCacheKeyFactory> _mockCacheKeyFactory = new();
         private readonly Mock<ILogger<FormDetailsService>> _mockFormDetailsLogger = new();
         private readonly Mock<ILogger<FormService>> _mockFormLogger = new();
+        private readonly Mock<IWebHostEnvironment> _mockHostEnvironment = new();
+        private readonly Mock<IFileStorageService> _mockFileStorage = new();
+        private readonly Mock<IEmployeeRefernceRepository> _mockEmpRefRepo = new();
+        private readonly Mock<ILogger<DailyReferenceService>> _mockDailyRefLogger = new();
+        private readonly Mock<ILogger<FormReferenceService>> _mockFormRefLogger = new();
+        private readonly Mock<ILogger<EmployeeController>> _mockEmpControllerLogger = new();
         private readonly DailyClosureGuard _closureGuard;
 
         public HardDeleteSafetyTests()
@@ -69,9 +76,11 @@ namespace Auth.UnitTests
 
             _mockHttpAccessor.Setup(h => h.HttpContext).Returns(new DefaultHttpContext());
             _mockUserManager.Setup(m => m.Users).Returns(new List<ApplicationUser>().AsAsyncQueryable());
+            _mockHostEnvironment.Setup(h => h.ContentRootPath).Returns(AppDomain.CurrentDomain.BaseDirectory);
+            _mockCurrentUserService.Setup(u => u.UserId).Returns("test-user-id");
         }
 
-        private DailyService CreateDailyService()
+        private DailyService CreateDailyService(IDailyRepository? dailyRepo = null)
         {
             var watchListService = new WatchListService(
                 _mockWatchListRepo.Object,
@@ -80,7 +89,7 @@ namespace Auth.UnitTests
                 _mockCurrentUserService.Object);
 
             return new DailyService(
-                _mockDailyRepo.Object,
+                dailyRepo ?? _mockDailyRepo.Object,
                 _mockFormRepo.Object,
                 null!,
                 _mockUow.Object,
@@ -89,6 +98,59 @@ namespace Auth.UnitTests
                 _mockNetPayRepo.Object,
                 watchListService,
                 _closureGuard);
+        }
+
+        private EmployeeService CreateEmployeeService(ApplicationContext? context = null)
+        {
+            var dbContext = context ?? new ApplicationContext(new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+            return new EmployeeService(
+                _mockEmpRepo.Object,
+                _mockFormDetailsRepo.Object,
+                _mockDeptRepo.Object,
+                _mockUow.Object,
+                _mockConfig.Object,
+                _mockHttpAccessor.Object,
+                _mockCache.Object,
+                _mockCurrentUserService.Object,
+                dbContext);
+        }
+
+        private DailyReferenceService CreateDailyReferenceService()
+        {
+            return new DailyReferenceService(
+                _mockDailyRefRepo.Object,
+                _mockUow.Object,
+                _mockHostEnvironment.Object,
+                _mockFileStorage.Object,
+                _mockDailyRefLogger.Object,
+                _closureGuard);
+        }
+
+        private FormReferenceService CreateFormReferenceService()
+        {
+            return new FormReferenceService(
+                _mockFormRefRepo.Object,
+                _mockUow.Object,
+                _mockHttpAccessor.Object,
+                _mockConfig.Object,
+                _mockHostEnvironment.Object,
+                _mockCurrentUserService.Object,
+                _mockFileStorage.Object,
+                _mockFormRefLogger.Object,
+                _closureGuard);
+        }
+
+        private EmployeeRefernceService CreateEmployeeRefernceService()
+        {
+            return new EmployeeRefernceService(
+                _mockHttpAccessor.Object,
+                _mockEmpRefRepo.Object,
+                _mockUow.Object,
+                _mockConfig.Object,
+                _mockHostEnvironment.Object,
+                _mockCurrentUserService.Object);
         }
 
         private FormService CreateFormService()
@@ -395,6 +457,234 @@ namespace Auth.UnitTests
             // Act & Assert: Calling DeActive on a non-existent National ID must not throw NullReferenceException
             var exception = await Record.ExceptionAsync(() => repo.DeActive("00000000000000"));
             Assert.Null(exception);
+        }
+
+        // ==========================================
+        // 6. Sprint 2B Extended Safety Tests (Employee, DailyReference, FormReference, EmployeeReference)
+        // ==========================================
+
+        [Fact]
+        public async Task EmployeeController_Delete_RoutesToSoftDelete_AndCallsDeActiveOnly()
+        {
+            // Arrange
+            var empId = "12345678901234";
+            var employee = new Employee { Id = empId, Name = "Test Emp", IsActive = true };
+            _mockEmpRepo.Setup(r => r.GetById(empId, false)).ReturnsAsync(employee);
+            _mockEmpRepo.Setup(r => r.DeActive(empId)).Returns(Task.CompletedTask);
+            _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+            var employeeService = CreateEmployeeService();
+            var controller = new EmployeeController(employeeService, _mockEmpControllerLogger.Object);
+
+            // Act: Normal DELETE /api/employee/{id}
+            var result = await controller.Delete(empId);
+
+            // Assert
+            Assert.IsType<OkObjectResult>(result);
+            _mockEmpRepo.Verify(r => r.DeActive(empId), Times.Once);
+            _mockEmpRepo.Verify(r => r.Delete(It.IsAny<string>()), Times.Never);
+            _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task EmployeeService_SoftDelete_NeverCallsRepositoryHardDelete()
+        {
+            // Arrange
+            var empId = "12345678901234";
+            var employee = new Employee { Id = empId, Name = "Test Emp", IsActive = true };
+            _mockEmpRepo.Setup(r => r.GetById(empId, false)).ReturnsAsync(employee);
+            _mockEmpRepo.Setup(r => r.DeActive(empId)).Returns(Task.CompletedTask);
+            _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+            var employeeService = CreateEmployeeService();
+
+            // Act
+            var result = await employeeService.SoftDelete(empId);
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            _mockEmpRepo.Verify(r => r.Delete(It.IsAny<string>()), Times.Never);
+            _mockEmpRepo.Verify(r => r.DeActive(empId), Times.Once);
+        }
+
+        [Fact]
+        public async Task DailyReferenceService_DeleteReference_PerformsSoftDelete_AndNeverCallsHardDelete()
+        {
+            // Arrange
+            var refId = 10;
+            var dailyId = 1;
+            var dailyRef = new DailyReference { Id = refId, DailyId = dailyId, IsActive = true, ReferencePath = "https://res.cloudinary.com/test/ref.pdf" };
+            var daily = new Daily { Id = dailyId, Closed = false };
+
+            _mockDailyRefRepo.Setup(r => r.GetById(refId)).ReturnsAsync(dailyRef);
+            _mockDailyRepo.Setup(r => r.GetById(dailyId, It.IsAny<bool>())).ReturnsAsync(daily);
+            _mockDailyRefRepo.Setup(r => r.DeActive(refId)).Returns(Task.CompletedTask);
+            _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+            var service = CreateDailyReferenceService();
+
+            // Act
+            var result = await service.DeleteReference(refId);
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            _mockDailyRefRepo.Verify(r => r.DeActive(refId), Times.Once);
+            _mockDailyRefRepo.Verify(r => r.Delete(It.IsAny<int>()), Times.Never);
+            _mockUow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task DailyReferenceService_DeleteReference_DoesNotDeletePhysicalFileFromStorage()
+        {
+            // Arrange
+            var refId = 10;
+            var dailyId = 1;
+            var dailyRef = new DailyReference { Id = refId, DailyId = dailyId, IsActive = true, ReferencePath = "https://res.cloudinary.com/test/ref.pdf" };
+            var daily = new Daily { Id = dailyId, Closed = false };
+
+            _mockDailyRefRepo.Setup(r => r.GetById(refId)).ReturnsAsync(dailyRef);
+            _mockDailyRepo.Setup(r => r.GetById(dailyId, It.IsAny<bool>())).ReturnsAsync(daily);
+            _mockDailyRefRepo.Setup(r => r.DeActive(refId)).Returns(Task.CompletedTask);
+            _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+            var service = CreateDailyReferenceService();
+
+            // Act
+            var result = await service.DeleteReference(refId);
+
+            // Assert: Storage service must NEVER be called to delete file
+            Assert.True(result.IsSuccess);
+            _mockFileStorage.Verify(f => f.DeleteFileAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task FormReferenceService_DeleteFormReference_DoesNotDeletePhysicalFileFromStorage()
+        {
+            // Arrange
+            var refId = 20;
+            var formId = 2;
+            var dailyId = 1;
+            var formRef = new FormRefernce { Id = refId, FormId = formId, IsActive = true, ReferencePath = "https://res.cloudinary.com/test/formref.pdf" };
+            var form = new Form { Id = formId, DailyId = dailyId };
+            var daily = new Daily { Id = dailyId, Closed = false };
+
+            _mockFormRefRepo.Setup(r => r.GetById(refId)).ReturnsAsync(formRef);
+            _mockFormRepo.Setup(r => r.GetById(formId, It.IsAny<bool>())).ReturnsAsync(form);
+            _mockDailyRepo.Setup(r => r.GetById(dailyId, It.IsAny<bool>())).ReturnsAsync(daily);
+            _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+            var service = CreateFormReferenceService();
+
+            // Act
+            var result = await service.DeleteFormReference(refId);
+
+            // Assert: Soft-deleted in DB, but physical file deletion must NOT be invoked
+            Assert.True(result.IsSuccess);
+            Assert.False(formRef.IsActive);
+            _mockFormRefRepo.Verify(r => r.Update(It.Is<FormRefernce>(f => f.Id == refId && !f.IsActive)), Times.Once);
+            _mockFileStorage.Verify(f => f.DeleteFileAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task EmployeeReferenceService_DeleteEmployeeReference_PreservesSoftDelete_AndDoesNotDeleteFile()
+        {
+            // Arrange
+            var refId = 30;
+            var empRef = new EmployeeRefernce { Id = refId, EmployeeId = "123", IsActive = true, ReferencePath = "emp_ref.pdf" };
+
+            _mockEmpRefRepo.Setup(r => r.GetById(refId)).ReturnsAsync(empRef);
+            _mockUow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+            var service = CreateEmployeeRefernceService();
+
+            // Act
+            var result = await service.DeleteEmployeeReference(refId);
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            Assert.False(empRef.IsActive);
+            _mockEmpRefRepo.Verify(r => r.Update(It.Is<EmployeeRefernce>(e => e.Id == refId && !e.IsActive)), Times.Once);
+            _mockEmpRefRepo.Verify(r => r.Delete(It.IsAny<int>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task DailyService_GetDaily_ExcludesInactiveDailyReferences()
+        {
+            // Arrange
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new ApplicationContext(options);
+            var daily = new Daily { Id = 100, Name = "Test Daily References", DailyDate = DateTime.Today, Closed = false };
+            context.Set<Daily>().Add(daily);
+            context.Set<DailyReference>().AddRange(
+                new DailyReference { Id = 1001, DailyId = 100, ReferencePath = "active.pdf", IsActive = true },
+                new DailyReference { Id = 1002, DailyId = 100, ReferencePath = "inactive.pdf", IsActive = false }
+            );
+            await context.SaveChangesAsync();
+
+            var dailyRepo = new DailyRepository(context, _mockHttpAccessor.Object);
+            var dailyService = CreateDailyService(dailyRepo);
+
+            // Act
+            var result = await dailyService.GetDaily(100, CancellationToken.None);
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            Assert.NotNull(result.Value.DailyReferences);
+            Assert.Single(result.Value.DailyReferences);
+            Assert.Equal(1001, result.Value.DailyReferences[0].Id);
+        }
+
+        [Fact]
+        public async Task FormReferenceService_GetFormReferences_ExcludesInactiveFormReferences()
+        {
+            // Arrange
+            int formId = 55;
+            var references = new List<FormRefernce>
+            {
+                new() { Id = 501, FormId = formId, ReferencePath = "active_form.pdf", IsActive = true },
+                new() { Id = 502, FormId = formId, ReferencePath = "inactive_form.pdf", IsActive = false }
+            };
+
+            _mockFormRefRepo.Setup(r => r.GetQueryable())
+                .Returns(references.AsAsyncQueryable());
+
+            var service = CreateFormReferenceService();
+
+            // Act
+            var result = await service.GetFormReferences(formId);
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            Assert.Single(result.Value);
+            Assert.Equal(501, result.Value[0].Id);
+        }
+
+        [Fact]
+        public async Task EmployeeReferenceService_GetEmployeeRefernces_ExcludesInactiveEmployeeReferences()
+        {
+            // Arrange
+            var empId = "98765432101234";
+            var references = new List<EmployeeRefernce>
+            {
+                new() { Id = 601, EmployeeId = empId, ReferencePath = "active_emp.pdf", IsActive = true },
+                new() { Id = 602, EmployeeId = empId, ReferencePath = "inactive_emp.pdf", IsActive = false }
+            };
+
+            _mockEmpRefRepo.Setup(r => r.GetQueryable())
+                .Returns(references.AsAsyncQueryable());
+
+            var service = CreateEmployeeRefernceService();
+
+            // Act
+            var result = await service.GetEmployeeRefernces(empId);
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            Assert.Single(result.Value);
+            Assert.Equal(601, result.Value[0].Id);
         }
     }
 }

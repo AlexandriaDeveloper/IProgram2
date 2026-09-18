@@ -53,34 +53,11 @@ namespace Application.Features
                 return Result.Failure(new Error("404", "المرجع غير موجود."));
             }
 
-            await _dailyReferencesRepository.Delete(dailyReference.Id);
+            await _dailyReferencesRepository.DeActive(dailyReference.Id);
             var result = await _uow.SaveChangesAsync() > 0;
             if (!result)
             {
                 return Result.Failure(new Error("500", "فشلت عملية حذف المرجع من قاعدة البيانات."));
-            }
-
-            Console.WriteLine($"[DEBUG] Deleting Reference Id: {dailyReference.Id}");
-
-            if (!string.IsNullOrEmpty(dailyReference.ReferencePath) && dailyReference.ReferencePath.Contains("cloudinary", StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine("[DEBUG] Detected Cloudinary path. Invoking DeleteFileAsync.");
-                var delResult = await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
-                if (!delResult)
-                {
-                    _logger.LogWarning("Failed to delete file from Cloudinary for Reference Id: {Id}", dailyReference.Id);
-                }
-            }
-            else if (!string.IsNullOrEmpty(dailyReference.ReferencePath))
-            {
-                // Local File (Legacy)
-                var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
-                var filePath = Path.Combine(directoryPath, dailyReference.ReferencePath);
-
-                if (File.Exists(filePath))
-                {
-                    File.Delete(filePath);
-                }
             }
 
             return Result.Success("تم حذف المرجع بنجاح.");
@@ -219,7 +196,8 @@ namespace Application.Features
             var results = new List<object>();
             var allReferences = await _dailyReferencesRepository.ListAllAsync();
             var localRefs = allReferences
-                .Where(r => (!specificDailyId.HasValue || r.DailyId == specificDailyId.Value) &&
+                .Where(r => r.IsActive &&
+                            (!specificDailyId.HasValue || r.DailyId == specificDailyId.Value) &&
                             !string.IsNullOrEmpty(r.ReferencePath) &&
                             !r.ReferencePath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 .ToList();
