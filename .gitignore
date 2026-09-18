@@ -129,3 +129,8 @@ tests/pdf_debug.txt
 # PDF handling
 *.pdf
 !tests/PDF/*.pdf
+
+# Generated Migration SQL scripts (out-of-band execution artifacts)
+script/*.sql
+*.generated.sql
+

@@ -6,6 +6,9 @@ on:
   push:
     branches: [ master ]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -14,6 +17,7 @@ jobs:
   backend:
     name: Backend (.NET 10 Build & Test)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -36,6 +40,7 @@ jobs:
   frontend:
     name: Frontend (Angular 17 Build)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     defaults:
       run:

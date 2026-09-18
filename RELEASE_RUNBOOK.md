@@ -11,7 +11,7 @@ This runbook outlines the standard operating procedure for validating, preparing
 * **Database:** Azure SQL Database with dynamic database selection (`IDbConnectionProvider` for tenant databases such as `2026`, `2027`).
 * **Core Rule — Zero Automatic Startup Migrations:**
   > **NEVER** run `Database.Migrate()` or `Database.EnsureCreated()` on application startup.
-  > In a dynamic multi-database architecture, migrations must be deployed out-of-band using idempotent SQL scripts to ensure safety and auditability across all operational databases.
+  > In a dynamic multi-database architecture, migrations must be deployed out-of-band using controlled, targeted SQL scripts to ensure safety and auditability across all operational databases.
 
 ---
 
@@ -40,57 +40,93 @@ Before deploying any release to staging or production, verify that:
 
 ---
 
-## 3. Database Migration Deployment (Multi-Database)
+## 3. Database Migration Deployment (Multi-Database & Sprint 4B Targeted)
 
-When a release includes schema or index migrations (e.g., `OptimizeHotPathIndexesSprint4B`):
+> [!IMPORTANT]
+> **No Absolute Idempotency Guarantee:**
+> EF Core idempotent scripts rely strictly on the accuracy of the `[__EFMigrationsHistory]` table.
+> If the database history table is inconsistent with the physical schema:
+> **STOP — DO NOT run the script automatically.** Manual database administrator inspection is required.
 
-### Step 3.1: Generate the Idempotent SQL Script
-Run the automated script generator from the repository root:
+When deploying Sprint 4B index optimizations (`20260918185849_OptimizeHotPathIndexesSprint4B`):
+
+### Step 3.1: Sprint 4B Targeted Migration Command
+Do NOT generate or apply a full-history migration script to existing operational databases. Generate only the targeted delta between the preceding migration (`20260917213000_AddSummaryReviewMethod`) and Sprint 4B:
+
 ```powershell
-powershell -File script/generate-migration-script.ps1
+# Directly via dotnet ef CLI:
+dotnet ef migrations script `
+  20260917213000_AddSummaryReviewMethod `
+  20260918185849_OptimizeHotPathIndexesSprint4B `
+  --idempotent `
+  --context ApplicationContext `
+  --project src/Infrastructure `
+  --startup-project src/Api `
+  --output <operator-selected-path>
 ```
-* **Output:** `script/migration_idempotent.sql`
-* **Idempotency Guarantee:** Every migration block begins with:
-  ```sql
-  IF NOT EXISTS (
-      SELECT * FROM [__EFMigrationsHistory]
-      WHERE [MigrationId] = N'<MigrationId>'
-  )
-  BEGIN
-      ...
-      INSERT INTO [__EFMigrationsHistory] ...
-  END;
-  ```
-  This guarantees that applying the script multiple times or to databases at different migration levels is safe and will only execute unapplied migrations.
 
-### Step 3.2: Inspect the SQL Script
-Review `script/migration_idempotent.sql` to ensure:
-- Only expected DDL operations (e.g. `CREATE INDEX`, `DROP INDEX`) are executed.
-- No accidental `DROP TABLE` or destructive column alterations exist.
+Or using the automated repository helper script:
+```powershell
+powershell -File script/generate-migration-script.ps1 -OutputFile script/sprint4b_targeted_migration.sql
+```
 
-### Step 3.3: Execute on All Operational Databases
-Connect to the database server (via SQL Server Management Studio or Azure Data Studio) using deployment credentials:
-1. Target Database `2026`:
-   ```sql
-   USE [IProgram_2026]; -- Replace with actual database name
-   GO
-   -- Execute contents of script/migration_idempotent.sql
-   ```
-2. Target Database `2027`:
-   ```sql
-   USE [IProgram_2027]; -- Replace with actual database name
-   GO
-   -- Execute contents of script/migration_idempotent.sql
-   ```
-3. Repeat for any other operational databases.
+### Step 3.2: Inspect the Generated SQL Script
+Review the generated SQL file prior to execution. For Sprint 4B, the script must contain **ONLY**:
+1. `DROP INDEX [IX_FormDetails_FormId] ON [FormDetails];`
+2. `DROP INDEX [IX_Form_DailyId] ON [Form];`
+3. `CREATE INDEX [IX_FormDetails_FormId_IsActive_EmployeeId] ON [FormDetails] ([FormId], [IsActive], [EmployeeId]) INCLUDE ([Amount], [OrderNum]);`
+4. `CREATE INDEX [IX_Form_DailyId_IsActive_Index] ON [Form] ([DailyId], [IsActive], [Index]);`
+5. `CREATE INDEX [IX_Form_IsActive_CreatedAt] ON [Form] ([IsActive], [CreatedAt]);`
+6. `INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion]) VALUES (N'20260918185849_OptimizeHotPathIndexesSprint4B', N'8.0.11');`
 
-### Step 3.4: Verify Migration History
-Run on each database to verify the latest migration was recorded:
+**Verify Absence of Destructive Statements:**
+- NO `DROP TABLE`
+- NO `DROP COLUMN`
+- NO `ALTER COLUMN`
+- NO data transformation or DML mutations
+
+### Step 3.3: Preflight Inspection on Operational Databases (Read-Only)
+For each operational database (e.g. `2026`, `2027`):
+
+> [!WARNING]
+> In Azure SQL Database, **do NOT use `USE [DatabaseName]`** to switch databases.
+> Always open a direct database connection targeting the specific operational database, and verify the connection context (`SELECT DB_NAME()`) before executing any queries.
+
+Execute the following read-only preflight query:
 ```sql
-SELECT TOP 5 MigrationId, ProductVersion 
+SELECT DB_NAME() AS CurrentDatabase;
+
+-- Verify migration history state
+SELECT MigrationId, ProductVersion
+FROM [__EFMigrationsHistory]
+WHERE MigrationId IN (
+    '20260917213000_AddSummaryReviewMethod',
+    '20260918185849_OptimizeHotPathIndexesSprint4B'
+)
+ORDER BY MigrationId;
+```
+
+**Preflight Validation Rules:**
+1. `20260917213000_AddSummaryReviewMethod` **MUST** exist in the result.
+2. `20260918185849_OptimizeHotPathIndexesSprint4B` **MUST NOT** exist in the result.
+3. If rule 1 or 2 is violated: **STOP immediately**. Investigate the schema before proceeding.
+
+### Step 3.4: Execute Targeted Script on Operational Databases
+Once preflight passes:
+1. Open a direct connection to operational database `2026`.
+2. Execute the verified targeted script.
+3. Open a direct connection to operational database `2027`.
+4. Execute the verified targeted script.
+5. Repeat for any other operational databases.
+
+### Step 3.5: Post-Migration History Verification
+Run on each database to confirm registration:
+```sql
+SELECT TOP 3 MigrationId, ProductVersion 
 FROM [__EFMigrationsHistory] 
 ORDER BY MigrationId DESC;
 ```
+Expected top record: `20260918185849_OptimizeHotPathIndexesSprint4B`.
 
 ---
 
@@ -143,16 +179,18 @@ In the event of an unrecoverable failure during deployment:
 - **Frontend:** Revert static assets on CDN / storage to the previous deployment.
 
 ### Database Migration Rollback
-If a migration must be reverted:
-1. Identify the target migration to revert to.
-2. Generate the rollback script using `dotnet ef`:
+If Sprint 4B indexes must be reverted:
+1. Generate the targeted rollback script using `dotnet ef`:
    ```powershell
-   dotnet ef migrations script <TargetMigrationToRollbackTo> <CurrentMigration> `
+   dotnet ef migrations script `
+       20260918185849_OptimizeHotPathIndexesSprint4B `
+       20260917213000_AddSummaryReviewMethod `
+       --idempotent `
        --context ApplicationContext `
        --project src/Infrastructure `
        --startup-project src/Api `
-       --output script/rollback.sql
+       --output script/rollback_sprint4b.sql
    ```
-3. Inspect `script/rollback.sql` to verify the `Down()` operations.
-4. Execute `rollback.sql` on each affected operational database.
-5. Verify `__EFMigrationsHistory` reflects the rollback.
+2. Inspect `script/rollback_sprint4b.sql` to verify the `Down()` operations (drops new composite indexes and recreates original single-column indexes).
+3. Connect directly to each operational database and execute `rollback_sprint4b.sql`.
+4. Verify `__EFMigrationsHistory` reflects the removal of `20260918185849_OptimizeHotPathIndexesSprint4B`.
