@@ -131,6 +131,21 @@ app.UseCors("CorsPolicy");
 // Add Response Caching middleware BEFORE static files
 app.UseResponseCaching();
 
+// Block direct unauthenticated static access to sensitive reference directories
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value ?? string.Empty;
+    var normalizedPath = path.Replace('\\', '/');
+    if (normalizedPath.StartsWith("/content/DailyReferences", StringComparison.OrdinalIgnoreCase) ||
+        normalizedPath.StartsWith("/content/FormReferences", StringComparison.OrdinalIgnoreCase) ||
+        normalizedPath.StartsWith("/content/EmployeeReferences", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+    await next();
+});
+
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {

@@ -308,7 +308,11 @@ export class FormComponent implements OnInit, AfterViewInit {
       path = path.substring(1);
     }
 
-    window.open(base + path, '_blank');
+    const token = localStorage.getItem('token');
+    const separator = path.includes('?') ? '&' : '?';
+    const finalUrl = token ? `${base}${path}${separator}access_token=${token}` : `${base}${path}`;
+
+    window.open(finalUrl, '_blank');
   }
   restoreForm(row) {
     if (confirm(` أنت على وشك استرجاع ملف ${row.name} هل انت متاكد ؟؟!`)) {

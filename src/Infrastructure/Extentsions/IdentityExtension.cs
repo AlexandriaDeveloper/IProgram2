@@ -52,7 +52,19 @@ public static class IdentityExtension
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero,
                 RoleClaimType = System.Security.Claims.ClaimTypes.Role
+            };
 
+            opt.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    if (!string.IsNullOrEmpty(accessToken))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                }
             };
         }).AddCookie();
 

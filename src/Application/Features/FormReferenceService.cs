@@ -50,9 +50,49 @@ namespace Application.Features
             {
                 FormId = x.FormId,
                 Id = x.Id,
-                ReferencePath = x.ReferencePath.StartsWith("http") ? x.ReferencePath : _config["ApiImageContent"] + "FormReferences/" + x.ReferencePath
+                ReferencePath = $"api/FormReferences/file/{x.Id}"
             }).ToList();
             return Result.Success<List<FormReferenceDto>>(referencesDto);
+        }
+
+        public async Task<Result<(Stream stream, string contentType, string fileName)>> GetReferenceFile(int id)
+        {
+            var formReference = await _formReferencesRepository.GetById(id);
+            if (formReference == null || !formReference.IsActive)
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "المرجع غير موجود."));
+            }
+
+            if (string.IsNullOrEmpty(formReference.ReferencePath))
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "مسار المرجع غير صالح."));
+            }
+
+            // Cloudinary or External storage
+            if (formReference.ReferencePath.StartsWith("http", StringComparison.OrdinalIgnoreCase) ||
+                formReference.ReferencePath.Contains("cloudinary", StringComparison.OrdinalIgnoreCase))
+            {
+                var downloaded = await _fileStorageService.DownloadFileStreamAsync(formReference.ReferencePath, "FormReferences");
+                if (downloaded == null)
+                {
+                    return Result.Failure<(Stream, string, string)>(new Error("404", "تعذر جلب الملف من التخزين السحابي."));
+                }
+                return Result.Success(downloaded.Value);
+            }
+
+            // Local file (Legacy)
+            var safeFileName = Path.GetFileName(formReference.ReferencePath);
+            var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "FormReferences");
+            var filePath = Path.Combine(directoryPath, safeFileName);
+
+            if (!File.Exists(filePath))
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "الملف غير موجود على الخادم."));
+            }
+
+            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var contentType = GetContentType(safeFileName);
+            return Result.Success((fileStream as Stream, contentType, safeFileName));
         }
 
         public async Task<Result> DeleteFormReference(int id)
@@ -79,11 +119,7 @@ namespace Application.Features
             }
             else
             {
-                // Local File (Legacy or previous implementation)
-                 // Note: Logic for local deletion was missing in original code snippet above, 
-                 // but typically we should clean up if possible. 
-                 // The original code only did soft delete (IsActive=false). 
-                 // If we want physical delete:
+                 // Local File (Legacy or previous implementation)
                  var fileName = Path.GetFileName(formRefernce.ReferencePath);
                  var path = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "FormReferences", fileName);
                  if (File.Exists(path))
@@ -136,7 +172,20 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "Internal Server Error"));
             }
 
-            return Result.Success("تم الحذف بنجاح");
+            return Result.Success("تم رفع الملف بنجاح.");
+        }
+
+        private static string GetContentType(string fileName)
+        {
+            var ext = Path.GetExtension(fileName).ToLowerInvariant();
+            return ext switch
+            {
+                ".pdf" => "application/pdf",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream"
+            };
         }
 
 

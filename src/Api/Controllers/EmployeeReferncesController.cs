@@ -22,18 +22,43 @@ namespace Api.Controllers
         {
             return HandleResult<List<EmployeeRefernceDto>>(await _employeeRefernceService.GetEmployeeRefernces(employeeId));
         }
+
+        [HttpGet("file/{id}")]
+        public async Task<IActionResult> GetFile(int id)
+        {
+            var result = await _employeeRefernceService.GetReferenceFile(id);
+            if (result.IsFailure)
+            {
+                return HandleResult(result);
+            }
+
+            var (stream, contentType, fileName) = result.Value;
+            return File(stream, contentType, fileName, enableRangeProcessing: true);
+        }
+
         [HttpDelete("DeleteEmployeeReference/{id}")]
         public async Task<IActionResult> DeleteEmployeeReference(int id)
         {
-
             return HandleResult(await _employeeRefernceService.DeleteEmployeeReference(id));
         }
+
         [HttpPost("UploadRefernce")]
-        public async Task<IActionResult> UploadRefernce(EmployeeRefernceFileUploadRequest request)
+        [RequestSizeLimit(FileSecurityValidator.MaxEmployeeUploadBytes)]
+        public async Task<IActionResult> UploadRefernce([FromForm] EmployeeRefernceFileUploadRequest request)
         {
             if (!ModelState.IsValid)
             {
                 return HandleResult(Result.ValidationErrors<EmployeeRefernceFileUploadRequest>(ModelState.SelectMany(x => x.Value.Errors)));
+            }
+
+            var validation = FileSecurityValidator.ValidateFile(
+                request?.File,
+                FileSecurityValidator.MaxEmployeeUploadBytes,
+                new[] { ".pdf", ".jpg", ".jpeg", ".png" });
+
+            if (!validation.IsSuccess)
+            {
+                return HandleResult(validation);
             }
 
             return HandleResult(await _employeeRefernceService.UploadRefernce(request));

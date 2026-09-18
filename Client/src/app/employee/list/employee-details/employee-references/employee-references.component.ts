@@ -4,6 +4,7 @@ import { EmployeeReferencesService } from '../../../../shared/service/employee-r
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { UploadComponent } from '../../../../shared/components/upload/upload.component';
+import { environment } from '../../../../environment';
 
 @Component({
   selector: 'app-employee-references',
@@ -29,10 +30,21 @@ export class EmployeeReferencesComponent implements OnInit {
   loadRefernces() {
     this.employeeReferenceServices.getEmployeeReferences(this.employeeId).subscribe({
       next: (res: any) => {
-        console.log(res);
+        const token = localStorage.getItem('token');
+        let base = environment.apiContent || 'http://localhost:5000/';
+        if (!base.endsWith('/')) {
+          base += '/';
+        }
 
-        this.images = res.map(x => new ImageItem({ src: x.referencePath, thumb: x.referencePath, args: { id: x.id } }));
-        //this.galleryRef.load(this.images);
+        this.images = res.map((x: any) => {
+          let path = String(x.referencePath || '').trim();
+          let fullUrl = path.startsWith('http') ? path : base + (path.startsWith('/') ? path.substring(1) : path);
+          if (token && !fullUrl.includes('access_token')) {
+            const sep = fullUrl.includes('?') ? '&' : '?';
+            fullUrl = `${fullUrl}${sep}access_token=${token}`;
+          }
+          return new ImageItem({ src: fullUrl, thumb: fullUrl, args: { id: x.id } });
+        });
       }
     })
   }

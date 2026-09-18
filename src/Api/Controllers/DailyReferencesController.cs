@@ -21,14 +21,25 @@ namespace Api.Controllers
         [HttpGet("TestConnection")]
         public async Task<IActionResult> TestConnection()
         {
-            Console.WriteLine("[DEBUG] TestConnection hit! Testing Cloudinary...");
             var result = await _dailyReferenceService.TestCloudinaryConnection();
-            Console.WriteLine($"[DEBUG] Cloudinary Test Result: {result}");
             
-            if (result.StartsWith("FAILED"))
-                 return BadRequest(new { message = result });
+            if (result.StartsWith("FAILED", System.StringComparison.OrdinalIgnoreCase))
+                 return BadRequest(new { message = "فشل الاتصال بخدمة التخزين السحابي." });
 
             return Ok(new { message = "Connection Successful & Cloudinary Uploaded", url = result });
+        }
+
+        [HttpGet("file/{id}")]
+        public async Task<IActionResult> GetFile(int id)
+        {
+            var result = await _dailyReferenceService.GetReferenceFile(id);
+            if (result.IsFailure)
+            {
+                return HandleResult(result);
+            }
+
+            var (stream, contentType, fileName) = result.Value;
+            return File(stream, contentType, fileName, enableRangeProcessing: true);
         }
 
         [Authorize(Roles = "Admin")]

@@ -56,7 +56,8 @@ namespace Auth.Infrastructure.Services
                     PublicId = Path.GetFileNameWithoutExtension(fileName),
                     Overwrite = true,
                     UseFilename = true,
-                    UniqueFilename = false
+                    UniqueFilename = false,
+                    Type = "authenticated"
                 };
 
                 RawUploadResult uploadResult;
@@ -82,6 +83,82 @@ namespace Auth.Infrastructure.Services
                 throw new Exception($"Cloudinary Upload Failed: {ex.Message}", ex);
             }
         }
+
+        public string GetProtectedUrl(string fileUrl, string folderName = "DailyReferences")
+        {
+            if (string.IsNullOrEmpty(fileUrl)) return string.Empty;
+
+            if (!fileUrl.Contains("cloudinary.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return fileUrl;
+            }
+
+            try
+            {
+                var uri = new Uri(fileUrl);
+                // Backward compatibility: If asset was uploaded with legacy public delivery ('/raw/upload/'), return as is
+                if (uri.AbsolutePath.Contains("/raw/upload/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return fileUrl;
+                }
+
+                var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var fileNameWithExt = pathSegments[pathSegments.Length - 1];
+                var publicId = $"{folderName}/{fileNameWithExt}";
+
+                if (_cloudinary != null)
+                {
+                    var signedUrl = _cloudinary.Api.UrlImgUp
+                        .ResourceType("raw")
+                        .Action("authenticated")
+                        .Signed(true)
+                        .BuildUrl(publicId);
+
+                    return signedUrl;
+                }
+
+                return fileUrl;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Cloudinary GetProtectedUrl Failed: {ex.Message}");
+                return fileUrl;
+            }
+        }
+
+        public async Task<(Stream stream, string contentType, string fileName)?> DownloadFileStreamAsync(string fileUrl, string folderName = "DailyReferences")
+        {
+            if (string.IsNullOrEmpty(fileUrl)) return null;
+
+            try
+            {
+                var downloadUrl = GetProtectedUrl(fileUrl, folderName);
+                using var httpClient = new System.Net.Http.HttpClient();
+                var response = await httpClient.GetAsync(downloadUrl);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[ERROR] Cloudinary download failed with status {response.StatusCode} for URL: {downloadUrl}");
+                    return null;
+                }
+
+                var memoryStream = new MemoryStream();
+                await response.Content.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+                var uri = new Uri(fileUrl);
+                var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                var fileName = pathSegments[pathSegments.Length - 1];
+
+                return (memoryStream, contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Cloudinary DownloadFileStreamAsync Failed: {ex.Message}");
+                return null;
+            }
+        }
+
 
         public async Task<bool> DeleteFileAsync(string fileUrl, string folderName)
         {

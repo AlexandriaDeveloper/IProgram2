@@ -27,15 +27,39 @@ namespace Api.Controllers
         }
 
 
+        [HttpGet("file/{id}")]
+        public async Task<IActionResult> GetFile(int id)
+        {
+            var result = await _formReferenceService.GetReferenceFile(id);
+            if (result.IsFailure)
+            {
+                return HandleResult(result);
+            }
+
+            var (stream, contentType, fileName) = result.Value;
+            return File(stream, contentType, fileName, enableRangeProcessing: true);
+        }
+
         [HttpDelete("DeleteFormReference/{id}")]
         public async Task<IActionResult> DeleteFormReference(int id)
         {
-
             return HandleResult(await _formReferenceService.DeleteFormReference(id));
         }
+
         [HttpPost("UploadFormRefernce")]
-        public async Task<IActionResult> UploadRefernce(FormRefernceFileUploadRequest request)
+        [RequestSizeLimit(FileSecurityValidator.MaxDailyReferenceBytes)]
+        public async Task<IActionResult> UploadRefernce([FromForm] FormRefernceFileUploadRequest request)
         {
+            var validation = FileSecurityValidator.ValidateFile(
+                request?.File,
+                FileSecurityValidator.MaxDailyReferenceBytes,
+                new[] { ".pdf", ".jpg", ".jpeg", ".png" });
+
+            if (!validation.IsSuccess)
+            {
+                return HandleResult(validation);
+            }
+
             return HandleResult(await _formReferenceService.UploadRefernce(request));
         }
     }

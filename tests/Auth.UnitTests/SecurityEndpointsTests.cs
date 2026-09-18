@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using Api.Controllers;
+using Application.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
@@ -120,6 +121,40 @@ namespace Auth.UnitTests
             var cad = method.CustomAttributes.First(a => a.AttributeType == typeof(RequestSizeLimitAttribute));
             var limitValue = Convert.ToInt64(cad.ConstructorArguments[0].Value);
             Assert.Equal(52428800L, limitValue);
+        }
+
+        [Fact]
+        public void UploadFormRefernce_HasRequestSizeLimit_AndNoAllowAnonymous()
+        {
+            var method = typeof(FormReferencesController).GetMethod(nameof(FormReferencesController.UploadRefernce));
+            Assert.NotNull(method);
+
+            var allowAnonymous = method.GetCustomAttribute<AllowAnonymousAttribute>();
+            Assert.Null(allowAnonymous);
+
+            var limitAttr = method.GetCustomAttribute<RequestSizeLimitAttribute>();
+            Assert.NotNull(limitAttr);
+
+            var cad = method.CustomAttributes.First(a => a.AttributeType == typeof(RequestSizeLimitAttribute));
+            var limitValue = Convert.ToInt64(cad.ConstructorArguments[0].Value);
+            Assert.Equal(FileSecurityValidator.MaxDailyReferenceBytes, limitValue);
+        }
+
+        [Fact]
+        public void UploadEmployeeRefernce_HasRequestSizeLimit_AndNoAllowAnonymous()
+        {
+            var method = typeof(EmployeeReferncesController).GetMethod(nameof(EmployeeReferncesController.UploadRefernce));
+            Assert.NotNull(method);
+
+            var allowAnonymous = method.GetCustomAttribute<AllowAnonymousAttribute>();
+            Assert.Null(allowAnonymous);
+
+            var limitAttr = method.GetCustomAttribute<RequestSizeLimitAttribute>();
+            Assert.NotNull(limitAttr);
+
+            var cad = method.CustomAttributes.First(a => a.AttributeType == typeof(RequestSizeLimitAttribute));
+            var limitValue = Convert.ToInt64(cad.ConstructorArguments[0].Value);
+            Assert.Equal(FileSecurityValidator.MaxEmployeeUploadBytes, limitValue);
         }
 
         [Fact]
