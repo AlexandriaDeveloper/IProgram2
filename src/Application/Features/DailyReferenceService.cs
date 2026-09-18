@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 
+using Application.Interfaces;
+
 namespace Application.Features
 {
     public class DailyReferenceService
@@ -19,23 +21,32 @@ namespace Application.Features
         private readonly IWebHostEnvironment _hostEnvironment;
         private readonly IFileStorageService _fileStorageService;
         private readonly ILogger<DailyReferenceService> _logger;
+        private readonly IDailyClosureGuard _dailyClosureGuard;
 
         public DailyReferenceService(
             IDailyReferencesRepository dailyReferencesRepository,
             IUnitOfWork uow,
             IWebHostEnvironment hostEnvironment,
             IFileStorageService fileStorageService,
-            ILogger<DailyReferenceService> logger)
+            ILogger<DailyReferenceService> logger,
+            IDailyClosureGuard dailyClosureGuard)
         {
             _dailyReferencesRepository = dailyReferencesRepository;
             _uow = uow;
             _hostEnvironment = hostEnvironment;
             _fileStorageService = fileStorageService;
             _logger = logger;
+            _dailyClosureGuard = dailyClosureGuard;
         }
 
         public async Task<Result<object>> DeleteReference(int id)
         {
+            var guard = await _dailyClosureGuard.EnsureDailyReferenceDailyOpenAsync(id);
+            if (guard.IsFailure)
+            {
+                return Result.Failure<object>(guard.Error);
+            }
+
             var dailyReference = await _dailyReferencesRepository.GetById(id);
             if (dailyReference == null)
             {
@@ -77,6 +88,12 @@ namespace Application.Features
 
         public async Task<Result> UploadReference(DailyReferenceFileUploadRequest request)
         {
+            var guard = await _dailyClosureGuard.EnsureDailyOpenAsync(request.DailyId);
+            if (guard.IsFailure)
+            {
+                return guard;
+            }
+
             var fileName = $"{request.DailyId}_{DateTime.Now:yyyyMMddHHmmssfff}{Path.GetExtension(request.File.FileName.ToLower())}";
             var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
 

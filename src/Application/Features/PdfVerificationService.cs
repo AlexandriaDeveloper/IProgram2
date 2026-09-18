@@ -47,6 +47,7 @@ namespace Application.Features
         private readonly IGenericRepository<EmployeeNetPay> _netPayRepo;
         private readonly IGenericRepository<FormDetails> _formDetailsRepo;
         private readonly ILogger<PdfVerificationService> _logger;
+        private readonly Application.Interfaces.IDailyClosureGuard _dailyClosureGuard;
 
         public PdfVerificationService(
             PayrollPdfParserService pdfParserService,
@@ -54,7 +55,8 @@ namespace Application.Features
             IUnitOfWork unitOfWork,
             IGenericRepository<EmployeeNetPay> netPayRepo,
             IGenericRepository<FormDetails> formDetailsRepo,
-            ILogger<PdfVerificationService> logger)
+            ILogger<PdfVerificationService> logger,
+            Application.Interfaces.IDailyClosureGuard dailyClosureGuard)
         {
             _pdfParserService = pdfParserService;
             _dailyService = dailyService;
@@ -62,6 +64,7 @@ namespace Application.Features
             _netPayRepo = netPayRepo;
             _formDetailsRepo = formDetailsRepo;
             _logger = logger;
+            _dailyClosureGuard = dailyClosureGuard;
         }
 
         // Dictionary for mapping Arabic Presentation Forms (isolated, medial, final, initial) to base characters
@@ -142,6 +145,12 @@ namespace Application.Features
 
         public async Task<Result<PdfVerificationResult>> VerifyPdfAgainstSummary(int dailyId, Stream pdfStream, string currentUserId)
         {
+            var guard = await _dailyClosureGuard.EnsureDailyOpenAsync(dailyId);
+            if (guard.IsFailure)
+            {
+                return Result.Failure<PdfVerificationResult>(guard.Error);
+            }
+
             // 1. Get Summary from DB
             var summaryResult = await _dailyService.GetBeneficiariesSummary(dailyId);
             if (!summaryResult.IsSuccess)

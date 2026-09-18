@@ -11,6 +11,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Persistence.Extensions;
 using System.Diagnostics;
 
+using Application.Interfaces;
+
 namespace Application.Features
 {
     public class FormDetailsService
@@ -28,6 +30,7 @@ namespace Application.Features
         private readonly ILogger<FormDetailsService> _logger;
         private readonly ICurrentUserService _currentUserService;
         private readonly WatchListService _watchListService;
+        private readonly IDailyClosureGuard _dailyClosureGuard;
 
         public FormDetailsService(
             IFormRepository formRepository,
@@ -41,7 +44,8 @@ namespace Application.Features
           UserManager<ApplicationUser> userManager,
           ILogger<FormDetailsService> logger,
           ICurrentUserService currentUserService,
-          WatchListService watchListService)
+          WatchListService watchListService,
+          IDailyClosureGuard dailyClosureGuard)
         {
             this._logger = logger;
             this._unitOfWork = unitOfWork;
@@ -55,6 +59,7 @@ namespace Application.Features
             this._cacheKeyFactory = cacheKeyFactory;
             this._currentUserService = currentUserService;
             this._watchListService = watchListService;
+            this._dailyClosureGuard = dailyClosureGuard;
         }
 
         private void ClearFormDetailsCache(int formId)
@@ -152,10 +157,10 @@ namespace Application.Features
 
         public async Task<Result> AddEmployeeToFormDetails(FormDetailsRequest form)
         {
-            var parentForm = await _formRepository.GetById(form.FormId);
-            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(form.FormId);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن الإضافة لاستمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
             //chceck employee exist
@@ -226,13 +231,13 @@ namespace Application.Features
 
             if (formDetailsFromDb == null)
             {
-                return Result.Failure(new Error("400", "عفوا الموظف غير مسجل بالفعل فى الملف"));
+                return Result.Failure(new Error("404", "عفوا التفاصيل غير موجودة"));
             }
 
-            var parentForm = await _formRepository.GetById(formDetailsFromDb.FormId);
-            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(formDetailsFromDb.FormId);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن التعديل على استمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
             formDetailsFromDb.Amount = form.Amount;
@@ -283,10 +288,10 @@ namespace Application.Features
                 return Result.Failure(new Error("404", "عفوا الموظف غير موجود حتى يتم حذفة"));
             }
 
-            var parentForm = await _formRepository.GetById(formDetailsFromDb.FormId);
-            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(formDetailsFromDb.FormId);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن الحذف من استمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
             await _formDetailsRepository.Delete(id);
@@ -304,10 +309,10 @@ namespace Application.Features
 
         public async Task<Result> ReOrderRows(int formId, int[] formOrderDetailsIds)
         {
-            var parentForm = await _formRepository.GetById(formId);
-            if (parentForm != null && parentForm.DailyId.HasValue && _dailyRepository.IsClosed(parentForm.DailyId.Value))
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(formId);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن إعادة ترتيب بنود استمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
             var orderDetails = _formDetailsRepository.GetQueryable().Where(x => x.FormId == formId).ToList();
@@ -330,9 +335,17 @@ namespace Application.Features
         }
         public async Task<Result> MarkFormDetailsAsReviewed(int formDetailsId, bool isReviewed)
         {
-
-
             var formDetails = await _formDetailsRepository.GetById(formDetailsId);
+            if (formDetails == null)
+            {
+                return Result.Failure(new Error("404", "عفوا التفاصيل غير موجودة"));
+            }
+
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(formDetails.FormId);
+            if (guard.IsFailure)
+            {
+                return guard;
+            }
 
             // Get User Id 
             var user = _httpContextAccessor.HttpContext.User;
@@ -341,10 +354,6 @@ namespace Application.Features
             if (!user.IsInRole("Admin") && formDetails.CreatedBy != userId)
             {
                 return Result.Failure(new Error("403", "عفوا لا يمكنك التحقق من هذا الملف"));
-            }
-            if (formDetails == null)
-            {
-                return Result.Failure(new Error("404", "عفوا التفاصيل غير موجودة"));
             }
 
             formDetails.IsReviewed = isReviewed;
@@ -378,6 +387,12 @@ namespace Application.Features
             if (formDetails == null)
             {
                 return Result.Failure(new Error("404", "عفوا التفاصيل غير موجودة"));
+            }
+
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(formDetails.FormId);
+            if (guard.IsFailure)
+            {
+                return guard;
             }
 
             var user = _httpContextAccessor.HttpContext.User;
