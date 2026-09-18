@@ -25,6 +25,8 @@ namespace Application.Features
     {
         private readonly ILogger<PayrollPdfParserService> _logger;
 
+        protected PayrollPdfParserService() { }
+
         public PayrollPdfParserService(ILogger<PayrollPdfParserService> logger)
         {
             _logger = logger;
@@ -50,7 +52,7 @@ namespace Application.Features
             return dict;
         }
 
-        public List<PdfEmployeeRecord> ParseFullEmployeeDataFromPdf(Stream pdfStream)
+        public virtual List<PdfEmployeeRecord> ParseFullEmployeeDataFromPdf(Stream pdfStream)
         {
             var records = new List<PdfEmployeeRecord>();
             var debugLines = new List<string>();

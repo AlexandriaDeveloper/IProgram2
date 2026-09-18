@@ -33,6 +33,8 @@ namespace Application.Features
         private readonly IDailyClosureGuard _dailyClosureGuard;
         private IConfiguration _config;
 
+        protected DailyService() { }
+
         public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository, WatchListService watchListService, IDailyClosureGuard dailyClosureGuard)
         {
             this._formRepository = formRepository;
@@ -593,7 +595,7 @@ namespace Application.Features
             }
 
         }
-        public async Task<Result<DailyBeneficiarySummaryResponse>> GetBeneficiariesSummary(int dailyId)
+        public virtual async Task<Result<DailyBeneficiarySummaryResponse>> GetBeneficiariesSummary(int dailyId)
         {
             var daily = await _dailyRepository.GetQueryable()
                 .Include(x => x.Forms.Where(f => f.IsActive))

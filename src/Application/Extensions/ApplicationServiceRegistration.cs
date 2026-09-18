@@ -28,6 +28,7 @@ namespace Application.Extensions
             services.AddScoped<RoleService>();
             services.AddScoped<UserAuthService>();
             services.AddScoped<PayrollPdfParserService>();
+            services.AddScoped<IPdfVerificationDocumentRenderer, PdfVerificationDocumentRenderer>();
             services.AddScoped<PdfVerificationService>();
             services.AddScoped<WatchListService>();
             return services;
