@@ -50,6 +50,29 @@ namespace Auth.Api.Middleware
                 // Fallback silently if service resolution fails during error handling
             }
 
+            if (exception is Core.Exceptions.InvalidDatabaseSelectionException)
+            {
+                int badRequestCode = StatusCodes.Status400BadRequest;
+                string badRequestMessage = "قاعدة البيانات المحددة غير صالحة.";
+
+                _logger.LogWarning(
+                    "Invalid database selection at {RequestPath} with TraceId {TraceId}. StatusCode: {StatusCode}, ExceptionType: {ExceptionType}",
+                    requestPath, traceId, badRequestCode, exception.GetType().Name);
+
+                httpContext.Response.StatusCode = badRequestCode;
+                httpContext.Response.ContentType = "application/json; charset=utf-8";
+
+                var badRequestPayload = new ErrorResponseDto
+                {
+                    StatusCode = badRequestCode,
+                    Message = badRequestMessage,
+                    TraceId = traceId
+                };
+
+                await httpContext.Response.WriteAsJsonAsync(badRequestPayload, cancellationToken);
+                return true;
+            }
+
             bool isTransientDbFailure = IsTransientDatabaseFailure(exception);
             int statusCode = isTransientDbFailure
                 ? StatusCodes.Status503ServiceUnavailable

@@ -15,7 +15,11 @@ namespace Auth.Infrastructure.Services
         public string GetCurrentDatabaseId()
         {
             var dbId = _dbConnectionProvider.GetSelectedDatabaseId();
-            return string.IsNullOrWhiteSpace(dbId) ? "default" : dbId.Trim();
+            if (string.IsNullOrWhiteSpace(dbId))
+            {
+                throw new InvalidOperationException("Failed to resolve a valid canonical database identity for cache scoping.");
+            }
+            return dbId;
         }
 
         public string GetFormDetailsKey(int formId)
