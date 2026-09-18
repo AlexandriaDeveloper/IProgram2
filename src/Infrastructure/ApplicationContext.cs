@@ -49,11 +49,17 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
             builder.Entity<Form>(entity =>
             {
                 entity.HasOne(x => x.User).WithMany().HasForeignKey(k => k.CreatedBy);
+                entity.HasIndex(f => new { f.DailyId, f.IsActive, f.Index })
+                    .HasDatabaseName("IX_Form_DailyId_IsActive_Index");
+                entity.HasIndex(f => new { f.IsActive, f.CreatedAt })
+                    .HasDatabaseName("IX_Form_IsActive_CreatedAt");
             });
 
             builder.Entity<FormDetails>(entity =>
             {
-                entity.HasIndex(fd => fd.FormId);
+                var indexBuilder = entity.HasIndex(fd => new { fd.FormId, fd.IsActive, fd.EmployeeId })
+                    .HasDatabaseName("IX_FormDetails_FormId_IsActive_EmployeeId");
+                SqlServerIndexBuilderExtensions.IncludeProperties(indexBuilder, fd => new { fd.Amount, fd.OrderNum });
             });
 
             builder.Entity<EmployeeNetPay>(entity =>
