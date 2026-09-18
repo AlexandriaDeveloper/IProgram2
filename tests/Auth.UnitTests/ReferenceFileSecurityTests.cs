@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -8,13 +9,18 @@ using Api.Controllers;
 using Application.Dtos.Requests;
 using Application.Features;
 using Application.Helpers;
+using Auth.Infrastructure.Services;
 using Core.Interfaces;
 using Core.Models;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using Moq;
 using Xunit;
 
@@ -331,6 +337,168 @@ namespace Auth.UnitTests
 
             Assert.Contains("فشل الاتصال بخدمة التخزين السحابي", messageValue);
             Assert.DoesNotContain("Internal provider connection timeout", messageValue);
+        }
+
+        #endregion
+
+        #region 5. Query Token Security (Rejected for Normal API Endpoints, Only for /migrationHub)
+
+        [Theory]
+        [InlineData("/api/DailyReferences/file/1")]
+        [InlineData("/api/DailyReferences/file/999")]
+        [InlineData("/api/FormReferences/file/2")]
+        [InlineData("/api/EmployeeRefernces/file/3")]
+        [InlineData("/api/Account/Login")]
+        [InlineData("/api/Daily/1")]
+        [InlineData("/content/DailyReferences/file.pdf")]
+        public async Task JwtBearer_DoesNotAccept_AccessTokenQueryParam_ForApiEndpoints(string requestPath)
+        {
+            var httpContext = new DefaultHttpContext();
+            httpContext.Request.Path = requestPath;
+            httpContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+            {
+                { "access_token", "super-secret-jwt-token" }
+            });
+
+            var options = new JwtBearerOptions();
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/migrationHub"))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                }
+            };
+
+            var context = new MessageReceivedContext(
+                httpContext,
+                new AuthenticationScheme("Bearer", null, typeof(JwtBearerHandler)),
+                options);
+
+            await options.Events.MessageReceived(context);
+
+            Assert.Null(context.Token);
+        }
+
+        [Theory]
+        [InlineData("/migrationHub")]
+        [InlineData("/migrationHub/negotiate")]
+        [InlineData("/migrationHub/")]
+        public async Task JwtBearer_Accepts_AccessTokenQueryParam_OnlyForMigrationHub(string requestPath)
+        {
+            var httpContext = new DefaultHttpContext();
+            httpContext.Request.Path = requestPath;
+            httpContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+            {
+                { "access_token", "valid-signalr-token" }
+            });
+
+            var options = new JwtBearerOptions();
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/migrationHub"))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                }
+            };
+
+            var context = new MessageReceivedContext(
+                httpContext,
+                new AuthenticationScheme("Bearer", null, typeof(JwtBearerHandler)),
+                options);
+
+            await options.Events.MessageReceived(context);
+
+            Assert.Equal("valid-signalr-token", context.Token);
+        }
+
+        #endregion
+
+        #region 6. Cloudinary Logging Sanitization & Authenticated Deletion
+
+        [Fact]
+        public async Task CloudinaryService_DoesNotLog_ProtectedSignedUrls_OrSignatures()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                {"Cloudinary:CloudName", "dummy_cloud"},
+                {"Cloudinary:ApiKey", "123456789012345"},
+                {"Cloudinary:ApiSecret", "abcdefghijklmnopqrstuvwxyz1"}
+            };
+            IConfiguration config = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+            var service = new CloudinaryService(config);
+
+            using var sw = new StringWriter();
+            var originalOut = Console.Out;
+            Console.SetOut(sw);
+            try
+            {
+                var sensitiveUrl = "https://res.cloudinary.com/dummy/raw/authenticated/s--SecretSig123--/v1/DailyReferences/file.pdf";
+                await service.DownloadFileStreamAsync(sensitiveUrl, "DailyReferences");
+                await service.DeleteFileAsync(sensitiveUrl, "DailyReferences");
+
+                var logs = sw.ToString();
+                Assert.DoesNotContain("SecretSig123", logs);
+                Assert.DoesNotContain("https://res.cloudinary.com", logs);
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+            }
+        }
+
+        [Fact]
+        public async Task CloudinaryService_DeleteFileAsync_HandlesInvalidOrEmptyUrl_WithoutCrashing()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                {"Cloudinary:CloudName", "dummy_cloud"},
+                {"Cloudinary:ApiKey", "123456789012345"},
+                {"Cloudinary:ApiSecret", "abcdefghijklmnopqrstuvwxyz1"}
+            };
+            IConfiguration config = new ConfigurationBuilder()
+                .AddInMemoryCollection(inMemorySettings)
+                .Build();
+            var service = new CloudinaryService(config);
+
+            var emptyResult = await service.DeleteFileAsync("", "DailyReferences");
+            Assert.False(emptyResult);
+
+            var nullResult = await service.DeleteFileAsync(null!, "DailyReferences");
+            Assert.False(nullResult);
+        }
+
+        #endregion
+
+        #region 7. Angular Client Hygiene (No access_token in URLs)
+
+        [Fact]
+        public void AngularClient_DoesNotContain_AccessTokenInUrls()
+        {
+            var currentDir = AppContext.BaseDirectory;
+            var clientAppDir = Path.GetFullPath(Path.Combine(currentDir, "../../../../../client/src/app"));
+
+            if (Directory.Exists(clientAppDir))
+            {
+                var tsFiles = Directory.GetFiles(clientAppDir, "*.ts", SearchOption.AllDirectories);
+                foreach (var file in tsFiles)
+                {
+                    var content = File.ReadAllText(file);
+                    Assert.DoesNotContain("access_token=", content);
+                    Assert.DoesNotContain("access_token}", content);
+                }
+            }
         }
 
         #endregion

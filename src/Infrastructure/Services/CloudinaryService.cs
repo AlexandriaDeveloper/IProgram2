@@ -137,7 +137,7 @@ namespace Auth.Infrastructure.Services
                 var response = await httpClient.GetAsync(downloadUrl);
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"[ERROR] Cloudinary download failed with status {response.StatusCode} for URL: {downloadUrl}");
+                    Console.WriteLine($"[ERROR] Cloudinary download failed with status {response.StatusCode} for folder: {folderName}");
                     return null;
                 }
 
@@ -164,48 +164,55 @@ namespace Auth.Infrastructure.Services
         {
             try
             {
-                Console.WriteLine($"[DEBUG] Attempting to delete file logic. Url: {fileUrl}, Folder: {folderName}");
-
                 if (string.IsNullOrEmpty(fileUrl)) return false;
 
                 var uri = new Uri(fileUrl);
-                var pathSegments = uri.AbsolutePath.Split('/');
+                var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
                 
                 // Construct Public ID candidates
                 var fileNameWithExt = pathSegments[pathSegments.Length - 1];
                 var fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileNameWithExt);
                 
-                // For Raw files, Public ID usually includes extension
                 var publicIdWithExt = $"{folderName}/{fileNameWithExt}";
-                
-                // For Image files, Public ID usually excludes extension
                 var publicIdWithoutExt = $"{folderName}/{fileNameWithoutExt}";
 
-                Console.WriteLine($"[DEBUG] Public Id With Ext: {publicIdWithExt}");
-                Console.WriteLine($"[DEBUG] Public Id Without Ext: {publicIdWithoutExt}");
+                // Determine whether URL indicates authenticated delivery
+                bool isExplicitAuthenticated = uri.AbsolutePath.Contains("/raw/authenticated/", StringComparison.OrdinalIgnoreCase);
 
-                // Try Delete as Raw (using ID with Extension)
-                var deletionParamsRaw = new DeletionParams(publicIdWithExt)
+                // Priority: if URL is explicitly authenticated, try "authenticated" first, then "upload".
+                // Otherwise try "authenticated" then fallback to "upload" for complete coverage.
+                var deliveryTypes = isExplicitAuthenticated
+                    ? new[] { "authenticated", "upload" }
+                    : new[] { "authenticated", "upload" };
+
+                foreach (var deliveryType in deliveryTypes)
                 {
-                    ResourceType = ResourceType.Raw
-                };
-                Console.WriteLine($"[DEBUG] Sending DestroyAsync (RAW) for: {publicIdWithExt}");
-                var resultRaw = await _cloudinary.DestroyAsync(deletionParamsRaw);
-                Console.WriteLine($"[DEBUG] Raw Delete Result: {resultRaw.Result}");
+                    // 1. Try deleting as Raw asset
+                    var deletionParamsRaw = new DeletionParams(publicIdWithExt)
+                    {
+                        ResourceType = ResourceType.Raw,
+                        Type = deliveryType
+                    };
+                    var resultRaw = await _cloudinary.DestroyAsync(deletionParamsRaw);
+                    if (resultRaw?.Result == "ok")
+                    {
+                        return true;
+                    }
 
-                if (resultRaw.Result == "ok") return true;
+                    // 2. Fallback: Try deleting as Image asset
+                    var deletionParamsImg = new DeletionParams(publicIdWithoutExt)
+                    {
+                        ResourceType = ResourceType.Image,
+                        Type = deliveryType
+                    };
+                    var resultImg = await _cloudinary.DestroyAsync(deletionParamsImg);
+                    if (resultImg?.Result == "ok")
+                    {
+                        return true;
+                    }
+                }
 
-                // Fallback: Try Delete as Image (using ID without Extension)
-                // Sometimes PDFs are uploaded as 'image' type, they strip extension
-                var deletionParamsImg = new DeletionParams(publicIdWithoutExt)
-                {
-                    ResourceType = ResourceType.Image
-                };
-                Console.WriteLine($"[DEBUG] Sending DestroyAsync (IMAGE) for: {publicIdWithoutExt}");
-                var resultImg = await _cloudinary.DestroyAsync(deletionParamsImg);
-                Console.WriteLine($"[DEBUG] Image Delete Result: {resultImg.Result}");
-
-                return resultImg.Result == "ok";
+                return false;
             }
             catch (Exception ex)
             {

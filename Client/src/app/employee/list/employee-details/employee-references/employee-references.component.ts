@@ -1,10 +1,9 @@
-import { Component, Inject, Input, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, Inject, Input, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { GalleryItem, ImageItem } from 'ng-gallery';
 import { EmployeeReferencesService } from '../../../../shared/service/employee-references.service';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { UploadComponent } from '../../../../shared/components/upload/upload.component';
-import { environment } from '../../../../environment';
 
 @Component({
   selector: 'app-employee-references',
@@ -12,57 +11,77 @@ import { environment } from '../../../../environment';
   templateUrl: './employee-references.component.html',
   styleUrl: './employee-references.component.scss'
 })
-export class EmployeeReferencesComponent implements OnInit {
+export class EmployeeReferencesComponent implements OnInit, OnDestroy {
 
   images: GalleryItem[] = null;
-  @Input('employeeId') employeeId: number
+  private createdObjectUrls: string[] = [];
+  @Input('employeeId') employeeId: number;
   employeeReferenceServices = inject(EmployeeReferencesService);
 
-
   ngOnInit(): void {
-    // console.log('tab is hits ');
     if (this.images == null) {
       this.loadRefernces();
     }
-
   }
 
-  loadRefernces() {
+  ngOnDestroy(): void {
+    this.revokeAllObjectUrls();
+  }
+
+  private revokeAllObjectUrls(): void {
+    if (this.createdObjectUrls && this.createdObjectUrls.length > 0) {
+      this.createdObjectUrls.forEach(url => URL.revokeObjectURL(url));
+      this.createdObjectUrls = [];
+    }
+  }
+
+  loadRefernces(): void {
     this.employeeReferenceServices.getEmployeeReferences(this.employeeId).subscribe({
       next: (res: any) => {
-        const token = localStorage.getItem('token');
-        let base = environment.apiContent || 'http://localhost:5000/';
-        if (!base.endsWith('/')) {
-          base += '/';
+        this.revokeAllObjectUrls();
+
+        if (!res || res.length === 0) {
+          this.images = [];
+          return;
         }
 
-        this.images = res.map((x: any) => {
-          let path = String(x.referencePath || '').trim();
-          let fullUrl = path.startsWith('http') ? path : base + (path.startsWith('/') ? path.substring(1) : path);
-          if (token && !fullUrl.includes('access_token')) {
-            const sep = fullUrl.includes('?') ? '&' : '?';
-            fullUrl = `${fullUrl}${sep}access_token=${token}`;
-          }
-          return new ImageItem({ src: fullUrl, thumb: fullUrl, args: { id: x.id } });
+        const items: GalleryItem[] = [];
+        let pending = res.length;
+
+        res.forEach((x: any) => {
+          this.employeeReferenceServices.getReferenceFile(x.id).subscribe({
+            next: (blob: Blob) => {
+              const objectUrl = URL.createObjectURL(blob);
+              this.createdObjectUrls.push(objectUrl);
+              items.push(new ImageItem({ src: objectUrl, thumb: objectUrl, args: { id: x.id } }));
+              pending--;
+              if (pending === 0) {
+                this.images = items;
+              }
+            },
+            error: () => {
+              pending--;
+              if (pending === 0) {
+                this.images = items;
+              }
+            }
+          });
         });
       }
-    })
+    });
   }
 
-  saveImage(imageSrc) {
-
+  saveImage(imageSrc: string): void {
     window.open(imageSrc, '_blank');
   }
-  deleteImage(imageItem) {
+
+  deleteImage(imageItem: any): void {
     if (confirm('هل تريد حذف هذا المستند؟')) {
       this.employeeReferenceServices.deleteEmployeeReference(imageItem?.args?.id).subscribe({
-        next: (res) => {
-          console.log(res);
+        next: () => {
           this.loadRefernces();
         }
-      })
+      });
     }
-
   }
-
 }

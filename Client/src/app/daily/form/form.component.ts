@@ -291,28 +291,18 @@ export class FormComponent implements OnInit, AfterViewInit {
     }
   }
   openReferenceDialog(dailyReference: any) {
-    if (!dailyReference || !dailyReference.referencePath) return;
+    if (!dailyReference || !dailyReference.id) return;
 
-    let path = String(dailyReference.referencePath).trim();
-
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      window.open(path, '_blank');
-      return;
-    }
-
-    let base = environment.apiContent || 'http://localhost:5000/';
-    if (!base.endsWith('/')) {
-      base += '/';
-    }
-    if (path.startsWith('/')) {
-      path = path.substring(1);
-    }
-
-    const token = localStorage.getItem('token');
-    const separator = path.includes('?') ? '&' : '?';
-    const finalUrl = token ? `${base}${path}${separator}access_token=${token}` : `${base}${path}`;
-
-    window.open(finalUrl, '_blank');
+    this.dailyRefService.getReferenceFile(dailyReference.id).subscribe({
+      next: (blob: Blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      },
+      error: () => {
+        this.toasterService.openErrorToaster('تعذر فتح الملف المرجعي');
+      }
+    });
   }
   restoreForm(row) {
     if (confirm(` أنت على وشك استرجاع ملف ${row.name} هل انت متاكد ؟؟!`)) {

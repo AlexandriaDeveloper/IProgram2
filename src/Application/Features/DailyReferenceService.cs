@@ -49,7 +49,7 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "فشلت عملية حذف المرجع من قاعدة البيانات."));
             }
 
-            Console.WriteLine($"[DEBUG] Deleting Reference. Path: '{dailyReference.ReferencePath}'");
+            Console.WriteLine($"[DEBUG] Deleting Reference Id: {dailyReference.Id}");
 
             if (!string.IsNullOrEmpty(dailyReference.ReferencePath) && dailyReference.ReferencePath.Contains("cloudinary", StringComparison.OrdinalIgnoreCase))
             {
@@ -57,7 +57,7 @@ namespace Application.Features
                 var delResult = await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
                 if (!delResult)
                 {
-                    _logger.LogWarning("Failed to delete file from Cloudinary: {Path}", dailyReference.ReferencePath);
+                    _logger.LogWarning("Failed to delete file from Cloudinary for Reference Id: {Id}", dailyReference.Id);
                 }
             }
             else if (!string.IsNullOrEmpty(dailyReference.ReferencePath))
