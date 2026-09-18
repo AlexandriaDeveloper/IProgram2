@@ -23,12 +23,21 @@ public static class InfrastructureExtension
 
         //     services.AddScoped<ApplicationContext>(provider => provider.GetRequiredService<SupabaseContext>());
         // }
+        var sqlOptions = Configuration.SqlServerOptions.FromConfiguration(configuration);
         services.AddScoped<Core.Interfaces.IDbConnectionProvider, Services.DbConnectionProvider>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();
-            options.UseSqlServer(dbProvider.GetConnectionString(), o => o.UseCompatibilityLevel(120));
+            options.UseSqlServer(dbProvider.GetConnectionString(), o =>
+            {
+                o.UseCompatibilityLevel(120);
+                o.EnableRetryOnFailure(
+                    maxRetryCount: sqlOptions.MaxRetryCount,
+                    maxRetryDelay: TimeSpan.FromSeconds(sqlOptions.MaxRetryDelaySeconds),
+                    errorNumbersToAdd: null);
+                o.CommandTimeout(sqlOptions.CommandTimeoutSeconds);
+            });
         });
 
 
