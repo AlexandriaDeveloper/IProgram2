@@ -10,6 +10,7 @@ using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
 using Microsoft.EntityFrameworkCore;
+using Application.Interfaces;
 
 namespace Application.Features
 {
@@ -21,14 +22,16 @@ namespace Application.Features
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly UserManager<ApplicationUser> _usermanager;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IDailyClosureGuard _dailyClosureGuard;
 
-        public FormArchivedService(IFormRepository formRepository, IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> usermanager, ICurrentUserService currentUserService)
+        public FormArchivedService(IFormRepository formRepository, IUnitOfWork unitOfWork, IHttpContextAccessor httpContextAccessor, UserManager<ApplicationUser> usermanager, ICurrentUserService currentUserService, IDailyClosureGuard dailyClosureGuard)
         {
             this._usermanager = usermanager;
             this._unitOfWork = unitOfWork;
             this._httpContextAccessor = httpContextAccessor;
             this._formRepository = formRepository;
             this._currentUserService = currentUserService;
+            this._dailyClosureGuard = dailyClosureGuard;
         }
         public async Task<Result<PaginatedResult<FormArchivedDto>>> GetArchivedForms(FormArchivedParam param)
         {
@@ -45,7 +48,7 @@ namespace Application.Features
             }
 
             var result = await _formRepository.ListAllAsync(spec);
-            var count = await _formRepository.CountAsync(new ArchivedFormsCountSpecification(param));
+            var count = await _formRepository.CountAsync(specCount);
 
             var creatorIds = result.Select(x => x.CreatedBy).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
             var creatorMap = await _usermanager.Users
@@ -67,6 +70,11 @@ namespace Application.Features
 
         public async Task<Result> MoveFormArchiveToDaily(MoveFromArchiveToDaily request)
         {
+            var targetGuard = await _dailyClosureGuard.EnsureDailyOpenAsync(request.DailyId);
+            if (targetGuard.IsFailure)
+            {
+                return targetGuard;
+            }
 
             foreach (var formId in request.FormIds)
             {
@@ -74,6 +82,11 @@ namespace Application.Features
                 if (form == null)
                 {
                     return Result.Failure(new Error("404", "Not Found"));
+                }
+                var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+                if (guard.IsFailure)
+                {
+                    return guard;
                 }
                 form.DailyId = request.DailyId;
                 _formRepository.Update(form);
@@ -92,6 +105,12 @@ namespace Application.Features
             var form = await _formRepository.GetById(id);
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
+
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+            if (guard.IsFailure)
+            {
+                return guard;
+            }
 
             await _formRepository.DeActive(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;

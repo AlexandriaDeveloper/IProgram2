@@ -17,6 +17,8 @@ using Persistence.Specifications;
 using Persistence.Extensions;
 using Application.Dtos.Requests;
 
+using Application.Interfaces;
+
 namespace Application.Features
 {
     public class DailyService
@@ -28,9 +30,10 @@ namespace Application.Features
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IEmployeeNetPayRepository _employeeNetPayRepository;
         private readonly WatchListService _watchListService;
+        private readonly IDailyClosureGuard _dailyClosureGuard;
         private IConfiguration _config;
 
-        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository, WatchListService watchListService)
+        public DailyService(IDailyRepository dailyRepository, IFormRepository formRepository, ReportService reportService, IUnitOfWork unitOfWork, UserManager<ApplicationUser> userManager, IConfiguration config, IEmployeeNetPayRepository employeeNetPayRepository, WatchListService watchListService, IDailyClosureGuard dailyClosureGuard)
         {
             this._formRepository = formRepository;
             this._reportService = reportService;
@@ -40,6 +43,7 @@ namespace Application.Features
             this._userManager = userManager;
             this._employeeNetPayRepository = employeeNetPayRepository;
             this._watchListService = watchListService;
+            this._dailyClosureGuard = dailyClosureGuard;
         }
 
         public async Task<Result<DailyDto>> AddDaily(DailyDto dailyDto, CancellationToken cancellationToken)
@@ -141,8 +145,13 @@ namespace Application.Features
 
         public async Task<Result<DailyDto>> EditDaily(DailyDto dailyDto, CancellationToken cancellationToken)
         {
-
             var daily = await _dailyRepository.GetById(dailyDto.Id);
+            var guard = _dailyClosureGuard.ValidateDailyOpen(daily);
+            if (guard.IsFailure)
+            {
+                return Result.Failure<DailyDto>(guard.Error);
+            }
+
             daily.Name = dailyDto.Name;
             daily.DailyDate = dailyDto.DailyDate;
             _dailyRepository.Update(daily);
@@ -201,13 +210,12 @@ namespace Application.Features
         public async Task<Result> SoftDeleteDaily(int id, CancellationToken cancellationToken)
         {
             var daily = await _dailyRepository.GetById(id);
-            if (daily == null)
-                return Result.Failure(new Error("404", "Not Found"));
-            //daily.IsActive = false;
-            if (daily.Closed)
+            var guard = _dailyClosureGuard.ValidateDailyOpen(daily);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("500", "اليوميه مغلقه"));
+                return guard;
             }
+
             await _dailyRepository.DeActive(daily.Id);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -216,13 +224,12 @@ namespace Application.Features
         public async Task<Result> DeleteDaily(int id, CancellationToken cancellationToken)
         {
             var daily = await _dailyRepository.GetById(id);
-            if (daily == null)
-                return Result.Failure(new Error("404", "Not Found"));
-            if (daily.Closed)
+            var guard = _dailyClosureGuard.ValidateDailyOpen(daily);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("500", "اليوميه مغلقه"));
+                return guard;
             }
-            //daily.IsActive = false;
+
             await _dailyRepository.Delete(daily.Id);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -590,8 +597,9 @@ namespace Application.Features
         {
             var daily = await _dailyRepository.GetQueryable()
                 .Include(x => x.Forms.Where(f => f.IsActive))
-                    .ThenInclude(f => f.FormDetails)
-                    .ThenInclude(fd => fd.Employee)
+                    .ThenInclude(f => f.FormDetails.Where(fd => fd.IsActive))
+                        .ThenInclude(fd => fd.Employee)
+                            .ThenInclude(e => e.Department)
                 .FirstOrDefaultAsync(x => x.Id == dailyId);
 
             if (daily == null)
@@ -600,7 +608,8 @@ namespace Application.Features
             }
 
             var allFormDetails = daily.Forms
-                .SelectMany(f => f.FormDetails.Select(fd => new { Form = f, Detail = fd }))
+                .Where(f => f.IsActive)
+                .SelectMany(f => f.FormDetails.Where(fd => fd.IsActive).Select(fd => new { Form = f, Detail = fd }))
                 .ToList();
 
             var reviewerIds = allFormDetails
@@ -699,13 +708,15 @@ namespace Application.Features
                 .ThenInclude(f => f.FormDetails)
                 .FirstOrDefaultAsync(x => x.Id == dailyId);
 
-            if (daily == null)
+            var guard = _dailyClosureGuard.ValidateDailyOpen(daily);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("404", "اليومية غير موجودة"));
+                return guard;
             }
 
             var formDetails = daily.Forms
-                .SelectMany(f => f.FormDetails)
+                .Where(f => f.IsActive)
+                .SelectMany(f => f.FormDetails.Where(fd => fd.IsActive))
                 .Where(fd => fd.EmployeeId == request.EmployeeId)
                 .ToList();
 
@@ -736,9 +747,10 @@ namespace Application.Features
         public async Task<Result> UpdateBeneficiaryNetPay(int dailyId, UpdateBeneficiaryNetPayRequest request)
         {
             var daily = await _dailyRepository.GetById(dailyId);
-            if (daily == null)
+            var guard = _dailyClosureGuard.ValidateDailyOpen(daily);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("404", "اليومية غير موجودة"));
+                return guard;
             }
 
             var netPayEntry = await _employeeNetPayRepository.GetQueryable()
@@ -852,9 +864,10 @@ namespace Application.Features
                 .ThenInclude(f => f.FormDetails)
                 .FirstOrDefaultAsync(x => x.Id == dailyId);
 
-            if (daily == null)
+            var guard = _dailyClosureGuard.ValidateDailyOpen(daily);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("404", "اليومية غير موجودة"));
+                return guard;
             }
 
             foreach (var form in daily.Forms)

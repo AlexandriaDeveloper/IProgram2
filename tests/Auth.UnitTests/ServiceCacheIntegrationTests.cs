@@ -51,6 +51,10 @@ namespace Auth.UnitTests
                 uowMock.Object, 
                 currentUserServiceMock.Object);
 
+            var dailyClosureGuardMock = new Mock<Application.Interfaces.IDailyClosureGuard>();
+            dailyClosureGuardMock.Setup(g => g.EnsureFormDailyOpenAsync(It.IsAny<int>()))
+                .ReturnsAsync(Application.Helpers.Result.Success());
+
             var service = new FormDetailsService(
                 formRepoMock.Object,
                 formRefRepoMock.Object,
@@ -63,7 +67,8 @@ namespace Auth.UnitTests
                 userManagerMock.Object,
                 loggerMock.Object,
                 currentUserServiceMock.Object,
-                watchListService);
+                watchListService,
+                dailyClosureGuardMock.Object);
 
             // Mock DB lookup and update for ReOrderRows (which calls ClearFormDetailsCache)
             formRepoMock.Setup(r => r.GetById(100)).ReturnsAsync(new Form { Id = 100, DailyId = null });

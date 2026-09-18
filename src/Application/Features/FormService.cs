@@ -26,6 +26,8 @@ using Persistence.Extensions;
 using Persistence.Helpers;
 using Persistence.Specifications;
 
+using Application.Interfaces;
+
 namespace Application.Features
 {
     public class FormService
@@ -41,6 +43,7 @@ namespace Application.Features
         private readonly IMemoryCache _cache;
         private readonly IDbCacheKeyFactory _cacheKeyFactory;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IDailyClosureGuard _dailyClosureGuard;
 
         public FormService(
             IFormRepository formRepository,
@@ -52,7 +55,8 @@ namespace Application.Features
             UserManager<ApplicationUser> userManager,
             IMemoryCache cache,
             IDbCacheKeyFactory cacheKeyFactory,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            IDailyClosureGuard dailyClosureGuard)
         {
             this._dailyRepository = dailyRepository;
             this._userManager = userManager;
@@ -64,6 +68,7 @@ namespace Application.Features
             this._cache = cache;
             this._cacheKeyFactory = cacheKeyFactory;
             this._currentUserService = currentUserService;
+            this._dailyClosureGuard = dailyClosureGuard;
         }
 
         private void ClearFormCache()
@@ -165,9 +170,13 @@ namespace Application.Features
 
         public async Task<Result<FormDto>> AddForm(FormDto form)
         {
-            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            if (form.DailyId.HasValue)
             {
-                return Result.Failure<FormDto>(new Error("500", "هذا اليوم مغلق"));
+                var guard = await _dailyClosureGuard.EnsureDailyOpenAsync(form.DailyId.Value);
+                if (guard.IsFailure)
+                {
+                    return Result.Failure<FormDto>(guard.Error);
+                }
             }
 
             var formToDb = new Form
@@ -199,14 +208,19 @@ namespace Application.Features
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
 
-            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن تعديل استمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
-            if (request.DailyId.HasValue && request.DailyId != form.DailyId && _dailyRepository.IsClosed(request.DailyId.Value))
+            if (request.DailyId.HasValue && request.DailyId != form.DailyId)
             {
-                return Result.Failure(new Error("400", "اليومية المستهدفة مغلقة"));
+                var targetGuard = await _dailyClosureGuard.EnsureDailyOpenAsync(request.DailyId.Value);
+                if (targetGuard.IsFailure)
+                {
+                    return targetGuard;
+                }
             }
 
             form.Name = request.Name;
@@ -228,9 +242,10 @@ namespace Application.Features
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
 
-            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن تعديل استمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
             form.Description = request.Description;
@@ -247,9 +262,19 @@ namespace Application.Features
             if (formFromDb == null)
                 return Result.Failure(new Error("404", "Not Found"));
 
-            if (formFromDb.DailyId.HasValue && _dailyRepository.IsClosed(formFromDb.DailyId.Value))
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(formFromDb);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن نقل استمارة تابعة ليومية مغلقة"));
+                return guard;
+            }
+
+            if (request.DailyId.HasValue)
+            {
+                var targetGuard = await _dailyClosureGuard.EnsureDailyOpenAsync(request.DailyId.Value);
+                if (targetGuard.IsFailure)
+                {
+                    return targetGuard;
+                }
             }
 
             formFromDb.DailyId = request.DailyId;
@@ -270,9 +295,10 @@ namespace Application.Features
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
 
-            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن حذف استمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
             await _formRepository.DeActive(id);
@@ -288,9 +314,10 @@ namespace Application.Features
             if (form == null)
                 return Result.Failure(new Error("404", "Not Found"));
 
-            if (form.DailyId.HasValue && _dailyRepository.IsClosed(form.DailyId.Value))
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+            if (guard.IsFailure)
             {
-                return Result.Failure(new Error("400", "لا يمكن حذف استمارة تابعة ليومية مغلقة"));
+                return guard;
             }
 
             await _formRepository.Delete(id);
@@ -447,6 +474,12 @@ namespace Application.Features
         }
         public async Task<Result> UploadExcelEmployeesToForm(UploadEmployeesToFormRequest request)
         {
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(request.FormId);
+            if (guard.IsFailure)
+            {
+                return guard;
+            }
+
             if (request.File == null)
             {
                 return Result.Failure(new Error("500", "الملف غير موجود للرفع الرجاء التأكد من الملف"));
@@ -553,6 +586,9 @@ namespace Application.Features
             var form = await _formRepository.GetQueryable().FirstOrDefaultAsync(x => x.Id == id);
             if (form == null) return Result.Failure<object>(new Error("404", "Form not found"));
 
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+            if (guard.IsFailure) return Result.Failure<object>(guard.Error);
+
             form.IsActive = false;
             _formRepository.Update(form);
             await _unitOfWork.SaveChangesAsync();
@@ -564,6 +600,9 @@ namespace Application.Features
         {
             var form = await _formRepository.GetQueryable(null).FirstOrDefaultAsync(x => x.Id == id);
             if (form == null) return Result.Failure<object>(new Error("404", "Form not found"));
+
+            var guard = await _dailyClosureGuard.ValidateFormDailyOpenAsync(form);
+            if (guard.IsFailure) return Result.Failure<object>(guard.Error);
 
             form.IsActive = true;
             _formRepository.Update(form);

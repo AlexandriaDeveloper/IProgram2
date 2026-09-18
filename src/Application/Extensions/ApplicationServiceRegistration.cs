@@ -1,5 +1,6 @@
 using Application.Features;
 using Application.Interfaces;
+using Application.Services;
 using Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -10,6 +11,7 @@ namespace Application.Extensions
     {
         public static IServiceCollection AddApplicationServices(this IServiceCollection services)
         {
+            services.AddScoped<IDailyClosureGuard, DailyClosureGuard>();
             services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<ReportService>();
             services.AddScoped<FormArchivedService>();

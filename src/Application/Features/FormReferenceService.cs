@@ -13,6 +13,8 @@ using Microsoft.Extensions.Configuration;
 using Persistence.Extensions;
 using Microsoft.Extensions.Logging;
 
+using Application.Interfaces;
+
 namespace Application.Features
 {
     public class FormReferenceService
@@ -26,8 +28,9 @@ namespace Application.Features
 
         private readonly IFileStorageService _fileStorageService;
         private readonly Microsoft.Extensions.Logging.ILogger<FormReferenceService> _logger;
+        private readonly IDailyClosureGuard _dailyClosureGuard;
 
-        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUnitOfWork uow, IHttpContextAccessor httpContextAccessor, IConfiguration config, IWebHostEnvironment hostEnvironment, ICurrentUserService currentUserService, IFileStorageService fileStorageService, Microsoft.Extensions.Logging.ILogger<FormReferenceService> logger)
+        public FormReferenceService(IFormReferencesRepository formReferencesRepository, IUnitOfWork uow, IHttpContextAccessor httpContextAccessor, IConfiguration config, IWebHostEnvironment hostEnvironment, ICurrentUserService currentUserService, IFileStorageService fileStorageService, Microsoft.Extensions.Logging.ILogger<FormReferenceService> logger, IDailyClosureGuard dailyClosureGuard)
         {
             this._httpContextAccessor = httpContextAccessor;
             this._hostEnvironment = hostEnvironment;
@@ -37,6 +40,7 @@ namespace Application.Features
             this._currentUserService = currentUserService;
             this._fileStorageService = fileStorageService;
             this._logger = logger;
+            this._dailyClosureGuard = dailyClosureGuard;
         }
 
         public async Task<Result<List<FormReferenceDto>>> GetFormReferences(int formId)
@@ -97,7 +101,12 @@ namespace Application.Features
 
         public async Task<Result> DeleteFormReference(int id)
         {
-            
+            var guard = await _dailyClosureGuard.EnsureFormReferenceDailyOpenAsync(id);
+            if (guard.IsFailure)
+            {
+                return guard;
+            }
+
             var formRefernce = await _formReferencesRepository.GetById(id);
             if (formRefernce == null)
             {
@@ -134,6 +143,12 @@ namespace Application.Features
 
         public async Task<Result> UploadRefernce(FormRefernceFileUploadRequest request)
         {
+            var guard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(request.FormId);
+            if (guard.IsFailure)
+            {
+                return guard;
+            }
+
             var fileName = request.FormId.ToString() + "_" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + Path.GetExtension(request.File.FileName);
             //check directory exist
             if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "Content", "FormReferences")))
