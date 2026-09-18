@@ -760,7 +760,14 @@ namespace Application.Features
                 return Result.Failure(new Error("1500", System.Text.Json.JsonSerializer.Serialize(messages)));
             }
 
-            // Step 5: Atomic Replacement in a Single SaveChangesAsync
+            // Step 5: Second Daily Closure Guard directly before DB mutation to prevent race conditions
+            var persistenceGuard = await _dailyClosureGuard.EnsureFormDailyOpenAsync(request.FormId);
+            if (persistenceGuard.IsFailure)
+            {
+                return persistenceGuard;
+            }
+
+            // Step 6: Atomic Replacement in a Single SaveChangesAsync
             var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
             _formDetailsRepository.DeleteRange(deleteEntity);
             await _formDetailsRepository.AddRange(detailsToInsert);
