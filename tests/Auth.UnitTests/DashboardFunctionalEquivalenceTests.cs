@@ -294,5 +294,113 @@ namespace Auth.UnitTests
             // 4. MUST NOT execute Task.WhenAll on EF queries (thread safety)
             Assert.DoesNotContain("Task.WhenAll", sourceCode);
         }
+
+        [Fact]
+        public async Task DashboardService_ExcludesSoftDeletedFormDetails_FromAllMetrics()
+        {
+            // Arrange
+            var dbName = Guid.NewGuid().ToString();
+            using var context = CreateInMemoryContext(dbName);
+
+            var dept = new Department { Id = 10, Name = "الهندسة", IsActive = true };
+            context.Departments.Add(dept);
+
+            var empActive1 = new Employee { Id = "3001", Name = "علي حسن", DepartmentId = 10, Department = dept, IsActive = true };
+            var empInactiveOnly = new Employee { Id = "3002", Name = "موظف تفصيل ملغي", DepartmentId = 10, Department = dept, IsActive = true };
+            var empBoth = new Employee { Id = "3003", Name = "يوسف عمر", DepartmentId = 10, Department = dept, IsActive = true };
+            context.Employees.AddRange(empActive1, empInactiveOnly, empBoth);
+
+            var currentStart = new DateTime(2026, 2, 1, 0, 0, 0);
+            var currentEnd = new DateTime(2026, 2, 20, 23, 59, 59);
+            var duration = currentEnd - currentStart;
+            var prevEnd = currentStart.AddDays(-1);
+            var prevStart = prevEnd.AddDays(-duration.TotalDays);
+
+            // Form 501 in current period: 1 active detail (1000), 1 inactive detail (5000), 1 active detail (500), 1 inactive detail (2000)
+            var form501 = new Form { Id = 501, Description = "استمارة الاختبار النشط والملغي", CreatedAt = new DateTime(2026, 2, 10), IsActive = true };
+            form501.FormDetails.Add(new FormDetails { FormId = 501, EmployeeId = empActive1.Id, Employee = empActive1, Amount = 1000.0, IsActive = true });
+            form501.FormDetails.Add(new FormDetails { FormId = 501, EmployeeId = empInactiveOnly.Id, Employee = empInactiveOnly, Amount = 5000.0, IsActive = false }); // SOFT DELETED
+            form501.FormDetails.Add(new FormDetails { FormId = 501, EmployeeId = empBoth.Id, Employee = empBoth, Amount = 500.0, IsActive = true });
+            form501.FormDetails.Add(new FormDetails { FormId = 501, EmployeeId = empBoth.Id, Employee = empBoth, Amount = 2000.0, IsActive = false }); // SOFT DELETED
+
+            // Form 601 in previous period: 1 active detail (800), 1 inactive detail (10000)
+            var form601 = new Form { Id = 601, Description = "استمارة الفترة السابقة", CreatedAt = prevStart.AddDays(5), IsActive = true };
+            form601.FormDetails.Add(new FormDetails { FormId = 601, EmployeeId = empActive1.Id, Employee = empActive1, Amount = 800.0, IsActive = true });
+            form601.FormDetails.Add(new FormDetails { FormId = 601, EmployeeId = empInactiveOnly.Id, Employee = empInactiveOnly, Amount = 10000.0, IsActive = false }); // SOFT DELETED
+
+            context.Set<Form>().AddRange(form501, form601);
+            await context.SaveChangesAsync();
+
+            var httpContextAccessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+            var formRepo = new FormRepository(context, httpContextAccessor);
+            var empRepo = new EmployeeRepository(context, httpContextAccessor);
+
+            var service = new DashboardService(formRepo, empRepo);
+
+            // Act: Daily range
+            var stats = await service.GetDashboardStatsAsync(new DashboardFilterRequest { StartDate = currentStart, EndDate = currentEnd });
+
+            // Assert:
+            // 1. TotalAmount: only active details (1000 + 500 = 1500)
+            Assert.Equal(1500.0, stats.TotalAmount);
+
+            // 2. ActiveForms: Form 501 is counted
+            Assert.Equal(1, stats.ActiveForms);
+
+            // 3. Trends & Distinct employees:
+            // Current distinct: empActive1, empBoth (empInactiveOnly was only on inactive detail -> excluded)
+            // Prev distinct: empActive1 (800) -> 1 employee (empInactiveOnly on 10000 inactive detail -> excluded)
+            // Prev TotalAmount: 800 (not 10800)
+            // EmployeeCountChange: ((2 - 1) / 1) * 100 = 100%
+            // TotalAmountChange: ((1500 - 800) / 800) * 100 = 87.5%
+            Assert.Equal(87.5, stats.TotalAmountChange);
+            Assert.Equal(100.0, stats.EmployeeCountChange);
+
+            // 4. TopEmployees:
+            // Must contain ONLY active details. empInactiveOnly (amount 5000) must NOT appear at all!
+            Assert.Equal(2, stats.TopEmployees.Count);
+            Assert.DoesNotContain(stats.TopEmployees, e => e.Id == empInactiveOnly.Id);
+            Assert.Equal("3001", stats.TopEmployees[0].Id);
+            Assert.Equal(1000.0, stats.TopEmployees[0].TotalAmount);
+            Assert.Equal(1, stats.TopEmployees[0].FormCount);
+
+            Assert.Equal("3003", stats.TopEmployees[1].Id);
+            Assert.Equal(500.0, stats.TopEmployees[1].TotalAmount);
+            Assert.Equal(1, stats.TopEmployees[1].FormCount);
+
+            // 5. Department Stats:
+            // الهندسة: only active details (1000 + 500 = 1500, not 8500)
+            Assert.Single(stats.FormsByDepartment);
+            Assert.Equal("الهندسة", stats.FormsByDepartment[0].Label);
+            Assert.Equal(1500.0, stats.FormsByDepartment[0].Value);
+
+            // 6. RecentForms:
+            // Form 501 EmployeeCount: only 2 active details (not 4)
+            // Form 501 TotalAmount: 1500 (not 8500)
+            Assert.Single(stats.RecentForms);
+            Assert.Equal(501, stats.RecentForms[0].Id);
+            Assert.Equal(2, stats.RecentForms[0].EmployeeCount);
+            Assert.Equal(1500.0, stats.RecentForms[0].TotalAmount);
+
+            // 7. Daily Chart:
+            // On 10/02: 1 form, 2 employees, 1500 total amount
+            Assert.Single(stats.ChartData);
+            Assert.Equal("10/02", stats.ChartData[0].Label);
+            Assert.Equal(1, stats.ChartData[0].FormCount);
+            Assert.Equal(2, stats.ChartData[0].EmployeeCount);
+            Assert.Equal(1500.0, stats.ChartData[0].TotalAmount);
+
+            // 8. Monthly Chart:
+            var monthlyStats = await service.GetDashboardStatsAsync(new DashboardFilterRequest
+            {
+                StartDate = new DateTime(2026, 1, 1),
+                EndDate = new DateTime(2026, 3, 31) // > 35 days
+            });
+            var febPoint = monthlyStats.ChartData.FirstOrDefault(c => c.Label == "2026-2");
+            Assert.NotNull(febPoint);
+            Assert.Equal(1, febPoint.FormCount);
+            Assert.Equal(2, febPoint.EmployeeCount); // only active distinct employees
+            Assert.Equal(1500.0, febPoint.TotalAmount); // only active amount
+        }
     }
 }

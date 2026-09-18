@@ -28,7 +28,7 @@ namespace Auth.UnitTests
             var query = context.Set<Form>()
                 .Where(f => f.IsActive && f.CreatedAt >= startDate && f.CreatedAt <= endDate)
                 .SelectMany(f => f.FormDetails)
-                .Where(fd => fd.Employee != null)
+                .Where(fd => fd.IsActive && fd.Employee != null)
                 .GroupBy(fd => new
                 {
                     fd.Employee.Id,
@@ -49,6 +49,7 @@ namespace Auth.UnitTests
             var sql = query.ToQueryString();
             Assert.Contains("GROUP BY", sql);
             Assert.Contains("TOP(@__p_", sql);
+            Assert.Contains("[f0].[IsActive] = CAST(1 AS bit)", sql);
         }
 
         [Fact]
@@ -61,6 +62,7 @@ namespace Auth.UnitTests
             var query = context.Set<Form>()
                 .Where(f => f.IsActive && f.CreatedAt >= startDate && f.CreatedAt <= endDate)
                 .SelectMany(f => f.FormDetails)
+                .Where(fd => fd.IsActive)
                 .GroupBy(fd => fd.Employee != null && fd.Employee.Department != null ? fd.Employee.Department.Name : "غير محدد")
                 .Select(g => new
                 {
@@ -71,6 +73,7 @@ namespace Auth.UnitTests
             var sql = query.ToQueryString();
             Assert.Contains("GROUP BY", sql);
             Assert.Contains("SUM", sql);
+            Assert.Contains("[f0].[IsActive] = CAST(1 AS bit)", sql);
         }
 
         [Fact]
@@ -89,12 +92,13 @@ namespace Auth.UnitTests
                     Id = f.Id,
                     Description = f.Description,
                     Date = f.CreatedAt,
-                    EmployeeCount = f.FormDetails.Count,
-                    TotalAmount = f.FormDetails.Sum(fd => (double?)fd.Amount) ?? 0.0
+                    EmployeeCount = f.FormDetails.Count(fd => fd.IsActive),
+                    TotalAmount = f.FormDetails.Where(fd => fd.IsActive).Sum(fd => (double?)fd.Amount) ?? 0.0
                 });
 
             var sql = query.ToQueryString();
             Assert.Contains("TOP(@__p_", sql);
+            Assert.Contains("[f0].[IsActive] = CAST(1 AS bit)", sql);
         }
 
         [Fact]
@@ -111,12 +115,13 @@ namespace Auth.UnitTests
                 {
                     Date = g.Key,
                     FormCount = g.Count(),
-                    TotalAmount = g.SelectMany(f => f.FormDetails).Sum(fd => (double?)fd.Amount) ?? 0.0,
-                    EmployeeCount = g.SelectMany(f => f.FormDetails).Select(fd => fd.EmployeeId).Distinct().Count()
+                    TotalAmount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Sum(fd => (double?)fd.Amount) ?? 0.0,
+                    EmployeeCount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Select(fd => fd.EmployeeId).Distinct().Count()
                 });
 
             var sql = query.ToQueryString();
             Assert.Contains("GROUP BY", sql);
+            Assert.Contains("[f1].[IsActive] = CAST(1 AS bit)", sql);
         }
 
         [Fact]
@@ -134,12 +139,13 @@ namespace Auth.UnitTests
                     g.Key.Year,
                     g.Key.Month,
                     FormCount = g.Count(),
-                    TotalAmount = g.SelectMany(f => f.FormDetails).Sum(fd => (double?)fd.Amount) ?? 0.0,
-                    EmployeeCount = g.SelectMany(f => f.FormDetails).Select(fd => fd.EmployeeId).Distinct().Count()
+                    TotalAmount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Sum(fd => (double?)fd.Amount) ?? 0.0,
+                    EmployeeCount = g.SelectMany(f => f.FormDetails).Where(fd => fd.IsActive).Select(fd => fd.EmployeeId).Distinct().Count()
                 });
 
             var sql = query.ToQueryString();
             Assert.Contains("GROUP BY", sql);
+            Assert.Contains("[f1].[IsActive] = CAST(1 AS bit)", sql);
         }
     }
 }
