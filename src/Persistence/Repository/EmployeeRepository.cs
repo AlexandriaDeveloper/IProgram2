@@ -31,17 +31,21 @@ namespace Persistence.Repository
         public async Task Delete(string id)
         {
             var entity = await GetById(id);
-            this._context.Set<Employee>().Remove(entity);
-
+            if (entity != null)
+            {
+                this._context.Set<Employee>().Remove(entity);
+            }
         }
         public async Task DeActive(string id)
         {
             var entity = await GetById(id);
-            entity.IsActive = false;
-            entity.DeactivatedAt = DateTime.Now;
-            entity.DeactivatedBy = _accessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value;
-            _context.Set<Employee>().Update(entity);
-
+            if (entity != null)
+            {
+                entity.IsActive = false;
+                entity.DeactivatedAt = DateTime.Now;
+                entity.DeactivatedBy = _accessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "System";
+                _context.Set<Employee>().Update(entity);
+            }
         }
 
 

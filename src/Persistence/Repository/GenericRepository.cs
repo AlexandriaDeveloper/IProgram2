@@ -31,32 +31,41 @@ namespace Persistence.Repository
         public virtual async Task Delete(int id)
         {
             var entity = await GetById(id);
-            this._context.Set<T>().Remove(entity);
+            if (entity != null)
+            {
+                this._context.Set<T>().Remove(entity);
+            }
         }
         public virtual void DeleteRange(IEnumerable<T> entities)
         {
-            this._context.Set<T>().RemoveRange(entities);
+            if (entities != null)
+            {
+                this._context.Set<T>().RemoveRange(entities.Where(e => e != null));
+            }
         }
 
 
         public virtual async Task InActive(int id)
         {
             var entity = await GetById(id);
-
-            entity.IsActive = true;
-            entity.DeactivatedAt = null;
-            entity.DeactivatedBy = null;
-            _context.Set<T>().Update(entity);
-
+            if (entity != null)
+            {
+                entity.IsActive = true;
+                entity.DeactivatedAt = null;
+                entity.DeactivatedBy = null;
+                _context.Set<T>().Update(entity);
+            }
         }
         public virtual async Task DeActive(int id)
         {
             var entity = await GetById(id);
-            entity.IsActive = false;
-            entity.DeactivatedAt = DateTime.Now;
-            entity.DeactivatedBy = _accessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "System";
-            _context.Set<T>().Update(entity);
-
+            if (entity != null)
+            {
+                entity.IsActive = false;
+                entity.DeactivatedAt = DateTime.Now;
+                entity.DeactivatedBy = _accessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value ?? "System";
+                _context.Set<T>().Update(entity);
+            }
         }
 
         public virtual async Task Insert(T entity)

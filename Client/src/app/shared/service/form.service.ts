@@ -65,6 +65,10 @@ export class FormService {
     return this.http.put<any>(this.apiUrl + 'form/updateDescription/' + id, val)
   }
 
+  softDeleteForm(id) {
+    return this.http.delete(this.apiUrl + 'form/SoftDelete/' + id);
+  }
+
   deleteForm(id) {
     return this.http.delete(this.apiUrl + 'form/' + id);
   }

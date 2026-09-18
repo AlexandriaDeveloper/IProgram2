@@ -294,7 +294,7 @@ namespace Application.Features
                 return guard;
             }
 
-            await _formDetailsRepository.Delete(id);
+            await _formDetailsRepository.DeActive(id);
             var result = await _unitOfWork.SaveChangesAsync() > 0;
             if (!result)
             {

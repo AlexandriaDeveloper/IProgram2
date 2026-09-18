@@ -156,7 +156,7 @@ export class FormComponent implements OnInit, AfterViewInit {
 
   onDelete(row) {
     if (confirm(` أنت على وشك حذف ملف ${row.name} هل انت متاكد ؟؟!`)) {
-      this.formService.deleteForm(row.id).subscribe({
+      this.formService.softDeleteForm(row.id).subscribe({
         next: (x: any) => {
           this.loadData();
         }

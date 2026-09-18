@@ -154,7 +154,7 @@ export class DailyComponent implements OnInit {
   }
   deleteDaily(row) {
     if (confirm(`انت على وشك حذف يوميه " ${row.name}  "هل انت متأكد ؟؟!`)) {
-      this.dailyService.deleteDaily(row.id).subscribe({
+      this.dailyService.softDeleteDaily(row.id).subscribe({
         next: (x: any) => {
           this.loadData();
         }
