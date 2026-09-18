@@ -76,6 +76,11 @@ namespace Auth.UnitTests
             return new FormFile(new MemoryStream(bytes), 0, bytes.Length, "file", "employees.xlsx");
         }
 
+        private IFormFile CreateExcelFile(IEnumerable<(string natId, string tabCode, string tegaraCode, string dept, string name, string amount)> rows)
+        {
+            return CreateExcelFile(rows.ToArray());
+        }
+
         private (FormService service,
                  ApplicationContext context,
                  Func<int> getQueryCount,
@@ -517,6 +522,118 @@ namespace Auth.UnitTests
             guardMock.Verify(g => g.EnsureFormDailyOpenAsync(8), Times.Exactly(2));
             uowMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once());
             cacheMock.Verify(c => c.Remove("form_details_8"), Times.Once());
+        }
+
+        [Fact]
+        public async Task UploadExcelEmployeesToForm_1000UniqueNationalIds_ExecutesExactlyOneBatchLookup()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var (service, context, getQueryCount, _, _, _) = CreateFormServiceWithSpy(dbName);
+
+            var employees = Enumerable.Range(1, 1000)
+                .Select(i => new Employee
+                {
+                    Id = $"2900000000{i:D4}",
+                    Name = $"موظف {i}",
+                    IsActive = true
+                })
+                .ToList();
+            context.Employees.AddRange(employees);
+            context.Set<Form>().Add(new Form { Id = 100, Name = "استمارة 1000", IsActive = true });
+            await context.SaveChangesAsync();
+
+            var rows = Enumerable.Range(1, 1000)
+                .Select(i => ($"2900000000{i:D4}", "", "", "قسم", $"موظف {i}", "50.0"));
+            var excelFile = CreateExcelFile(rows);
+
+            // Act
+            var result = await service.UploadExcelEmployeesToForm(new UploadEmployeesToFormRequest
+            {
+                FormId = 100,
+                File = excelFile,
+                ValidateName = false
+            });
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            int queryCount = getQueryCount();
+            Assert.Equal(1, queryCount); // Exactly 1 batch lookup query, NOT 1000
+
+            var detailsCount = await context.Set<FormDetails>().CountAsync(f => f.FormId == 100);
+            Assert.Equal(1000, detailsCount);
+        }
+
+        [Fact]
+        public async Task UploadExcelEmployeesToForm_1001UniqueNationalIds_ExecutesExactlyTwoBatchLookups()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var (service, context, getQueryCount, _, _, _) = CreateFormServiceWithSpy(dbName);
+
+            var employees = Enumerable.Range(1, 1001)
+                .Select(i => new Employee
+                {
+                    Id = $"2900000000{i:D4}",
+                    Name = $"موظف {i}",
+                    IsActive = true
+                })
+                .ToList();
+            context.Employees.AddRange(employees);
+            context.Set<Form>().Add(new Form { Id = 101, Name = "استمارة 1001", IsActive = true });
+            await context.SaveChangesAsync();
+
+            var rows = Enumerable.Range(1, 1001)
+                .Select(i => ($"2900000000{i:D4}", "", "", "قسم", $"موظف {i}", "50.0"));
+            var excelFile = CreateExcelFile(rows);
+
+            // Act
+            var result = await service.UploadExcelEmployeesToForm(new UploadEmployeesToFormRequest
+            {
+                FormId = 101,
+                File = excelFile,
+                ValidateName = false
+            });
+
+            // Assert
+            Assert.True(result.IsSuccess);
+            int queryCount = getQueryCount();
+            Assert.Equal(2, queryCount); // Exactly 2 batch lookup queries (1000 + 1), NOT 1001
+
+            var detailsCount = await context.Set<FormDetails>().CountAsync(f => f.FormId == 101);
+            Assert.Equal(1001, detailsCount);
+        }
+
+        [Fact]
+        public async Task UploadExcelEmployeesToForm_SaveChangesFails_DoesNotEvictCache()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var (service, context, _, guardMock, cacheMock, uowMock) = CreateFormServiceWithSpy(dbName);
+
+            var emp = new Employee { Id = "29001018888888", Name = "موظف اختبار حفظ", IsActive = true };
+            context.Employees.Add(emp);
+            context.Set<Form>().Add(new Form { Id = 200, Name = "استمارة 200", IsActive = true });
+            await context.SaveChangesAsync();
+
+            // Configure SaveChanges to throw an exception
+            uowMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new DbUpdateException("Simulated database failure during SaveChanges", new Exception()));
+
+            var excelFile = CreateExcelFile(
+                ("29001018888888", "", "", "قسم", "موظف اختبار حفظ", "100.0")
+            );
+
+            // Act & Assert: Exception propagates naturally
+            await Assert.ThrowsAsync<DbUpdateException>(() => service.UploadExcelEmployeesToForm(new UploadEmployeesToFormRequest
+            {
+                FormId = 200,
+                File = excelFile,
+                ValidateName = false
+            }));
+
+            // Cache MUST NOT be evicted when SaveChanges fails
+            cacheMock.Verify(c => c.Remove(It.IsAny<object>()), Times.Never());
+
+            // Both guards were checked before DB write attempt
+            guardMock.Verify(g => g.EnsureFormDailyOpenAsync(200), Times.Exactly(2));
         }
     }
 }
