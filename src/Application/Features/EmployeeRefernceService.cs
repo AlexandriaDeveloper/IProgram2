@@ -44,11 +44,39 @@ namespace Application.Features
             var employeeReferncesToReturn = employeeRefernces.Select(x => new EmployeeRefernceDto()
             {
                 EmployeeId = x.EmployeeId,
-                ReferencePath = _config["ApiContent"] + "EmployeeReferences/" + x.ReferencePath,
+                ReferencePath = $"api/EmployeeRefernces/file/{x.Id}",
                 Id = x.Id
             }).ToList();
 
             return Result.Success<List<EmployeeRefernceDto>>(employeeReferncesToReturn);
+        }
+
+        public async Task<Result<(Stream stream, string contentType, string fileName)>> GetReferenceFile(int id)
+        {
+            var employeeRefernce = await _employeeRefernceRepository.GetById(id);
+            if (employeeRefernce == null || !employeeRefernce.IsActive)
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "المرجع غير موجود."));
+            }
+
+            if (string.IsNullOrEmpty(employeeRefernce.ReferencePath))
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "مسار المرجع غير صالح."));
+            }
+
+            // Local file
+            var safeFileName = Path.GetFileName(employeeRefernce.ReferencePath);
+            var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "EmployeeReferences");
+            var filePath = Path.Combine(directoryPath, safeFileName);
+
+            if (!File.Exists(filePath))
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "الملف غير موجود على الخادم."));
+            }
+
+            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var contentType = GetContentType(safeFileName);
+            return Result.Success((fileStream as Stream, contentType, safeFileName));
         }
 
         public async Task<Result> DeleteEmployeeReference(int id)
@@ -74,13 +102,6 @@ namespace Application.Features
         public async Task<Result> UploadRefernce(EmployeeRefernceFileUploadRequest request)
         {
             var fileName = request.EmployeeId.ToString() + "_" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + Path.GetExtension(request.File.FileName);
-            //check directory exist
-            // if (!Directory.Exists(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences")))
-            // {
-            //     Directory.CreateDirectory(Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences"));
-            // }
-
-            // var path = Path.Combine(_hostEnvironment.ContentRootPath, "wwwroot", "Content", "EmployeeReferences", fileName);
 
             var path = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "EmployeeReferences", fileName);
             //check directory exist
@@ -93,8 +114,6 @@ namespace Application.Features
                 File.Delete(path);
             }
             //save file
-
-
 
             using (var fileStream = new FileStream(path, FileMode.Create))
             {
@@ -111,7 +130,20 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "Internal Server Error"));
             }
 
-            return Result.Success("تم الحذف بنجاح");
+            return Result.Success("تم رفع الملف بنجاح.");
+        }
+
+        private static string GetContentType(string fileName)
+        {
+            var ext = Path.GetExtension(fileName).ToLowerInvariant();
+            return ext switch
+            {
+                ".pdf" => "application/pdf",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream"
+            };
         }
     }
 }

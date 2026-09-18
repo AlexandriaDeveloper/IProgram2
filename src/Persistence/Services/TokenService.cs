@@ -25,7 +25,8 @@ namespace Persistence.Services
         {
             this._userManager = userManager;
             this._config = config;
-            this._key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Token:Key"]));
+            var validatedKey = Auth.Infrastructure.Security.JwtKeyValidator.GetValidatedSigningKey(config);
+            this._key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(validatedKey));
             this._dbProvider = dbProvider;
         }
         public async Task<string> CreateToken(ApplicationUser user)

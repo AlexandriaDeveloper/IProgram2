@@ -149,26 +149,34 @@ namespace Api.Controllers
         [HttpPost("upload-excel-form")]
         public async Task<IActionResult> UploadDepartment(UploadEmployeesToFormRequest model)
         {
-            Result result = null;
-            // if (!ModelState.IsValid)
-            // {
-            //     result = Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
-            // }
-            result = await _formService.UploadExcelEmployeesToForm(model);
+            var validation = FileSecurityValidator.ValidateFile(
+                model?.File,
+                FileSecurityValidator.MaxExcelJsonBytes,
+                new[] { ".xlsx", ".xls" });
 
+            if (!validation.IsSuccess)
+            {
+                return HandleResult(validation);
+            }
+
+            var result = await _formService.UploadExcelEmployeesToForm(model);
             return HandleResult(result);
         }
+
         [HttpPost("upload-json-form")]
-        [AllowAnonymous]
         public async Task<IActionResult> UploadJSONForm(UploadJsonFormRequest model)
         {
-            Result result = null;
-            // if (!ModelState.IsValid)
-            // {
-            //     result = Result.Failure<DepartmentDto>(new Error("500", "Validation Error"));
-            // }
-            result = await _formService.UploadJSONForm(model);
+            var validation = FileSecurityValidator.ValidateFile(
+                model?.File,
+                FileSecurityValidator.MaxExcelJsonBytes,
+                new[] { ".json" });
 
+            if (!validation.IsSuccess)
+            {
+                return HandleResult(validation);
+            }
+
+            var result = await _formService.UploadJSONForm(model);
             return HandleResult(result);
         }
     }

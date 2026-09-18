@@ -28,7 +28,12 @@ export class DailyReferencesService {
   }
 
   deleteDailyReference(id: number): Observable<any> {
-    debugger
     return this.http.delete(this.apiUrl + 'dailyReferences/' + id);
+  }
+
+  getReferenceFile(id: number): Observable<Blob> {
+    return this.http.get(this.apiUrl + 'dailyReferences/file/' + id, {
+      responseType: 'blob'
+    });
   }
 }

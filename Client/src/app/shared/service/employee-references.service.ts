@@ -31,8 +31,9 @@ export class EmployeeReferencesService {
       })
     }
 
-
-
-
-
+  getReferenceFile(id: number) {
+    return this.http.get(this.apiUrl + 'employeeRefernces/file/' + id, {
+      responseType: 'blob'
+    });
+  }
 }

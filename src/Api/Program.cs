@@ -91,49 +91,28 @@ builder.Services.AddSwaggerGen(c =>
 
 });
 
+var maxUploadLimit = builder.Configuration.GetValue<long>("UploadLimits:GlobalMultipartBodyLengthLimit", 52428800L);
 builder.Services.Configure<FormOptions>(o =>
 {
-    o.ValueLengthLimit = int.MaxValue;
-    o.MultipartBodyLengthLimit = int.MaxValue;
-    o.MemoryBufferThreshold = int.MaxValue;
+    o.ValueLengthLimit = 10 * 1024 * 1024;
+    o.MultipartBodyLengthLimit = maxUploadLimit;
+    o.MemoryBufferThreshold = 2 * 1024 * 1024;
 });
 
 var app = builder.Build();
 
-// ========== AUTO MIGRATION DISABLED ==========
-// Migration is now triggered manually via API endpoint
-// try
-// {
-//     RunMigration.Execute();
-// }
-// catch (Exception ex)
-// {
-//     Console.WriteLine($"MIGRATION ERROR: {ex.Message}");
-// }
-// =============================================
-
-var scope = app.Services.CreateScope();
-// try 
-// { 
-//     ManualCleanup.Execute(app.Configuration); 
-// } 
-// catch (Exception ex) 
-// { 
-//     Console.WriteLine("Cleanup Error: " + ex.Message); 
-// }
-
-var context = scope.ServiceProvider.GetRequiredService<ApplicationContext>();
-
-var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-try 
-{ 
-    if (userMgr.Users.Count() == 0) 
-        SeedData.EnsureSeedData(context, userMgr, roleMgr); 
-} 
-catch (Exception ex) 
-{ 
-    Console.WriteLine(ex); 
+using (var scope = app.Services.CreateScope())
+{
+    var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try 
+    { 
+        await SeedData.EnsureSeedData(roleMgr); 
+    } 
+    catch (Exception ex) 
+    { 
+        logger.LogError(ex, "Role seeding failed during application startup.");
+    }
 }
 
 
@@ -152,8 +131,20 @@ app.UseCors("CorsPolicy");
 // Add Response Caching middleware BEFORE static files
 app.UseResponseCaching();
 
-// Add Output Caching middleware
-app.UseOutputCache();
+// Block direct unauthenticated static access to sensitive reference directories
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value ?? string.Empty;
+    var normalizedPath = path.Replace('\\', '/');
+    if (normalizedPath.StartsWith("/content/DailyReferences", StringComparison.OrdinalIgnoreCase) ||
+        normalizedPath.StartsWith("/content/FormReferences", StringComparison.OrdinalIgnoreCase) ||
+        normalizedPath.StartsWith("/content/EmployeeReferences", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+    await next();
+});
 
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
@@ -168,13 +159,16 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-
 app.UseAuthentication();
 app.UseAuthorization();
-    // await next(context);
-//app.MapControllers();
-app.MapHub<Auth.Infrastructure.Hubs.MigrationHub>("/migrationHub"); // Map MigrationHub
 
+// Output Cache MUST be placed after Authentication & Authorization
+app.UseOutputCache();
+
+if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
+{
+    app.MapHub<Auth.Infrastructure.Hubs.MigrationHub>("/migrationHub");
+}
 
 app.MapControllers();
 app.MapFallbackToController("Index", "Fallback");

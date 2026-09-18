@@ -16,12 +16,15 @@
     </PackageReference>
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.11" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\Auth.Core.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Auth.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Application\Auth.Application.csproj" />
+    <ProjectReference Include="..\..\src\Persistence\Auth.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Api\Auth.Api.csproj" />
   </ItemGroup>
 
 </Project>

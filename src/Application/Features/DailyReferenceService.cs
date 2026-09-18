@@ -49,7 +49,7 @@ namespace Application.Features
                 return Result.Failure(new Error("500", "فشلت عملية حذف المرجع من قاعدة البيانات."));
             }
 
-            Console.WriteLine($"[DEBUG] Deleting Reference. Path: '{dailyReference.ReferencePath}'");
+            Console.WriteLine($"[DEBUG] Deleting Reference Id: {dailyReference.Id}");
 
             if (!string.IsNullOrEmpty(dailyReference.ReferencePath) && dailyReference.ReferencePath.Contains("cloudinary", StringComparison.OrdinalIgnoreCase))
             {
@@ -57,7 +57,7 @@ namespace Application.Features
                 var delResult = await _fileStorageService.DeleteFileAsync(dailyReference.ReferencePath, "DailyReferences");
                 if (!delResult)
                 {
-                    _logger.LogWarning("Failed to delete file from Cloudinary: {Path}", dailyReference.ReferencePath);
+                    _logger.LogWarning("Failed to delete file from Cloudinary for Reference Id: {Id}", dailyReference.Id);
                 }
             }
             else if (!string.IsNullOrEmpty(dailyReference.ReferencePath))
@@ -139,6 +139,46 @@ namespace Application.Features
             return Result.Success("تم رفع الملف بنجاح.");
         }
 
+        public async Task<Result<(Stream stream, string contentType, string fileName)>> GetReferenceFile(int id)
+        {
+            var dailyReference = await _dailyReferencesRepository.GetById(id);
+            if (dailyReference == null || !dailyReference.IsActive)
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "المرجع غير موجود."));
+            }
+
+            if (string.IsNullOrEmpty(dailyReference.ReferencePath))
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "مسار المرجع غير صالح."));
+            }
+
+            // Cloudinary or External storage
+            if (dailyReference.ReferencePath.StartsWith("http", StringComparison.OrdinalIgnoreCase) ||
+                dailyReference.ReferencePath.Contains("cloudinary", StringComparison.OrdinalIgnoreCase))
+            {
+                var downloaded = await _fileStorageService.DownloadFileStreamAsync(dailyReference.ReferencePath, "DailyReferences");
+                if (downloaded == null)
+                {
+                    return Result.Failure<(Stream, string, string)>(new Error("404", "تعذر جلب الملف من التخزين السحابي."));
+                }
+                return Result.Success(downloaded.Value);
+            }
+
+            // Local file (Legacy)
+            var safeFileName = Path.GetFileName(dailyReference.ReferencePath);
+            var directoryPath = Path.Combine(_hostEnvironment.ContentRootPath, "Content", "DailyReferences");
+            var filePath = Path.Combine(directoryPath, safeFileName);
+
+            if (!File.Exists(filePath))
+            {
+                return Result.Failure<(Stream, string, string)>(new Error("404", "الملف غير موجود على الخادم."));
+            }
+
+            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var contentType = GetContentType(safeFileName);
+            return Result.Success((fileStream as Stream, contentType, safeFileName));
+        }
+
         public async Task<string> TestCloudinaryConnection()
         {
             try
@@ -151,8 +191,8 @@ namespace Application.Features
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Test Connection Failed");
-                return $"FAILED: {ex}";
+                _logger.LogError(ex, "Test Connection to Cloudinary Failed");
+                return "FAILED";
             }
         }
 
@@ -197,7 +237,7 @@ namespace Application.Features
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, $"Failed to sync reference {r.Id} ({fileName}) to Cloudinary");
-                    results.Add(new { Id = r.Id, DailyId = r.DailyId, FileName = fileName, Status = "Failed", Error = ex.Message });
+                    results.Add(new { Id = r.Id, DailyId = r.DailyId, FileName = fileName, Status = "Failed", Error = "فشلت عملية المزامنة السحابية للملف." });
                 }
             }
 
@@ -207,6 +247,22 @@ namespace Application.Features
             }
 
             return results;
+        }
+
+        private static string GetContentType(string fileName)
+        {
+            var ext = Path.GetExtension(fileName).ToLowerInvariant();
+            return ext switch
+            {
+                ".pdf" => "application/pdf",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".xls" => "application/vnd.ms-excel",
+                ".json" => "application/json",
+                _ => "application/octet-stream"
+            };
         }
     }
 }

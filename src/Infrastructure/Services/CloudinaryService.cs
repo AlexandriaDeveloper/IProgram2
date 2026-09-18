@@ -3,7 +3,10 @@ using CloudinaryDotNet.Actions;
 using Core.Interfaces;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Auth.Infrastructure.Services
@@ -12,6 +15,10 @@ namespace Auth.Infrastructure.Services
     {
         private readonly Cloudinary _cloudinary;
         private readonly IConfiguration _configuration;
+
+        private static readonly Regex CloudinaryPublicIdRegex = new Regex(
+            @"/(?:raw|image|video)/(?:authenticated|upload|private)/(?:s--[^/]+--/)?(?:v\d+/)?(.+)$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public CloudinaryService(IConfiguration configuration)
         {
@@ -42,6 +49,43 @@ namespace Auth.Infrastructure.Services
             }
         }
 
+        public static string ExtractPublicIdFromUrl(string fileUrl, string folderName = "DailyReferences")
+        {
+            if (string.IsNullOrWhiteSpace(fileUrl)) return string.Empty;
+
+            if (!fileUrl.Contains("://") && !fileUrl.StartsWith("/"))
+            {
+                return fileUrl;
+            }
+
+            try
+            {
+                var uri = new Uri(fileUrl, UriKind.RelativeOrAbsolute);
+                var path = uri.IsAbsoluteUri ? uri.AbsolutePath : fileUrl;
+
+                var match = CloudinaryPublicIdRegex.Match(path);
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    var rawId = match.Groups[1].Value.Trim('/');
+                    return Uri.UnescapeDataString(rawId);
+                }
+
+                var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (segments.Length > 0)
+                {
+                    var fileName = Uri.UnescapeDataString(segments[segments.Length - 1]);
+                    return !string.IsNullOrEmpty(folderName) ? $"{folderName}/{fileName}" : fileName;
+                }
+            }
+            catch
+            {
+                var simpleName = Path.GetFileName(fileUrl);
+                return !string.IsNullOrEmpty(folderName) ? $"{folderName}/{simpleName}" : simpleName;
+            }
+
+            return fileUrl;
+        }
+
         public async Task<string> UploadFileAsync(Stream fileStream, string fileName, string folderName = "DailyReferences")
         {
             try
@@ -49,14 +93,17 @@ namespace Auth.Infrastructure.Services
                 if (fileStream.Position > 0)
                     fileStream.Position = 0;
 
+                var safeFileName = Path.GetFileName(fileName);
+
                 var uploadParams = new RawUploadParams()
                 {
-                    File = new FileDescription(fileName, fileStream),
+                    File = new FileDescription(safeFileName, fileStream),
                     Folder = folderName,
-                    PublicId = Path.GetFileNameWithoutExtension(fileName),
+                    PublicId = safeFileName, // Cloudinary Raw assets require preserving the file extension in public ID
                     Overwrite = true,
                     UseFilename = true,
-                    UniqueFilename = false
+                    UniqueFilename = false,
+                    Type = "authenticated"
                 };
 
                 RawUploadResult uploadResult;
@@ -83,57 +130,198 @@ namespace Auth.Infrastructure.Services
             }
         }
 
+        public string GetProtectedUrl(string fileUrl, string folderName = "DailyReferences")
+        {
+            if (string.IsNullOrEmpty(fileUrl)) return string.Empty;
+
+            if (!fileUrl.Contains("cloudinary.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return fileUrl;
+            }
+
+            try
+            {
+                var uri = new Uri(fileUrl);
+                // Backward compatibility: If asset was uploaded with legacy public delivery ('/raw/upload/' or '/image/upload/'), return as is
+                if (uri.AbsolutePath.Contains("/raw/upload/", StringComparison.OrdinalIgnoreCase) ||
+                    uri.AbsolutePath.Contains("/image/upload/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return fileUrl;
+                }
+
+                var publicId = ExtractPublicIdFromUrl(fileUrl, folderName);
+                if (string.IsNullOrEmpty(publicId))
+                {
+                    return fileUrl;
+                }
+
+                if (_cloudinary != null)
+                {
+                    var signedUrl = _cloudinary.Api.UrlImgUp
+                        .ResourceType("raw")
+                        .Action("authenticated")
+                        .Signed(true)
+                        .BuildUrl(publicId);
+
+                    return signedUrl;
+                }
+
+                return fileUrl;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Cloudinary GetProtectedUrl Failed: {ex.Message}");
+                return fileUrl;
+            }
+        }
+
+        public async Task<(Stream stream, string contentType, string fileName)?> DownloadFileStreamAsync(string fileUrl, string folderName = "DailyReferences")
+        {
+            if (string.IsNullOrEmpty(fileUrl)) return null;
+
+            try
+            {
+                var downloadUrl = GetProtectedUrl(fileUrl, folderName);
+                using var httpClient = new System.Net.Http.HttpClient();
+                var response = await httpClient.GetAsync(downloadUrl);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[ERROR] Cloudinary download failed with status {response.StatusCode} for folder: {folderName}");
+                    return null;
+                }
+
+                var memoryStream = new MemoryStream();
+                await response.Content.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+                var publicId = ExtractPublicIdFromUrl(fileUrl, folderName);
+                var fileName = Path.GetFileName(publicId);
+                if (string.IsNullOrEmpty(fileName))
+                {
+                    fileName = Path.GetFileName(new Uri(fileUrl).AbsolutePath);
+                }
+
+                return (memoryStream, contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Cloudinary DownloadFileStreamAsync Failed: {ex.Message}");
+                return null;
+            }
+        }
+
         public async Task<bool> DeleteFileAsync(string fileUrl, string folderName)
         {
             try
             {
-                Console.WriteLine($"[DEBUG] Attempting to delete file logic. Url: {fileUrl}, Folder: {folderName}");
+                if (string.IsNullOrWhiteSpace(fileUrl)) return false;
 
-                if (string.IsNullOrEmpty(fileUrl)) return false;
+                // 1. Extract public ID from URL if possible
+                var extractedPublicId = ExtractPublicIdFromUrl(fileUrl, folderName);
 
-                var uri = new Uri(fileUrl);
-                var pathSegments = uri.AbsolutePath.Split('/');
-                
-                // Construct Public ID candidates
-                var fileNameWithExt = pathSegments[pathSegments.Length - 1];
-                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileNameWithExt);
-                
-                // For Raw files, Public ID usually includes extension
-                var publicIdWithExt = $"{folderName}/{fileNameWithExt}";
-                
-                // For Image files, Public ID usually excludes extension
-                var publicIdWithoutExt = $"{folderName}/{fileNameWithoutExt}";
+                // Build candidate public IDs
+                var candidates = new List<string>();
 
-                Console.WriteLine($"[DEBUG] Public Id With Ext: {publicIdWithExt}");
-                Console.WriteLine($"[DEBUG] Public Id Without Ext: {publicIdWithoutExt}");
-
-                // Try Delete as Raw (using ID with Extension)
-                var deletionParamsRaw = new DeletionParams(publicIdWithExt)
+                if (!string.IsNullOrWhiteSpace(extractedPublicId))
                 {
-                    ResourceType = ResourceType.Raw
-                };
-                Console.WriteLine($"[DEBUG] Sending DestroyAsync (RAW) for: {publicIdWithExt}");
-                var resultRaw = await _cloudinary.DestroyAsync(deletionParamsRaw);
-                Console.WriteLine($"[DEBUG] Raw Delete Result: {resultRaw.Result}");
+                    // Primary candidate: exactly as extracted (e.g. "DailyReferences/file.pdf")
+                    candidates.Add(extractedPublicId);
 
-                if (resultRaw.Result == "ok") return true;
+                    // Candidate without extension (e.g. "DailyReferences/file") for legacy uploads
+                    var lastSlash = extractedPublicId.LastIndexOf('/');
+                    var folderPart = lastSlash >= 0 ? extractedPublicId.Substring(0, lastSlash) : "";
+                    var filePart = lastSlash >= 0 ? extractedPublicId.Substring(lastSlash + 1) : extractedPublicId;
+                    var filePartWithoutExt = Path.GetFileNameWithoutExtension(filePart);
+                    var candidateWithoutExt = string.IsNullOrEmpty(folderPart) ? filePartWithoutExt : $"{folderPart}/{filePartWithoutExt}";
 
-                // Fallback: Try Delete as Image (using ID without Extension)
-                // Sometimes PDFs are uploaded as 'image' type, they strip extension
-                var deletionParamsImg = new DeletionParams(publicIdWithoutExt)
+                    if (!candidates.Contains(candidateWithoutExt, StringComparer.OrdinalIgnoreCase))
+                    {
+                        candidates.Add(candidateWithoutExt);
+                    }
+                }
+
+                // Fallback candidate using folderName + filename from URL
+                try
                 {
-                    ResourceType = ResourceType.Image
-                };
-                Console.WriteLine($"[DEBUG] Sending DestroyAsync (IMAGE) for: {publicIdWithoutExt}");
-                var resultImg = await _cloudinary.DestroyAsync(deletionParamsImg);
-                Console.WriteLine($"[DEBUG] Image Delete Result: {resultImg.Result}");
+                    if (Uri.TryCreate(fileUrl, UriKind.RelativeOrAbsolute, out var uri))
+                    {
+                        var path = uri.IsAbsoluteUri ? uri.AbsolutePath : fileUrl;
+                        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        if (segments.Length > 0)
+                        {
+                            var rawFileName = Uri.UnescapeDataString(segments[segments.Length - 1]);
+                            var candidateWithExt = !string.IsNullOrEmpty(folderName) ? $"{folderName}/{rawFileName}" : rawFileName;
+                            if (!candidates.Contains(candidateWithExt, StringComparer.OrdinalIgnoreCase))
+                            {
+                                candidates.Add(candidateWithExt);
+                            }
 
-                return resultImg.Result == "ok";
+                            var rawFileNameWithoutExt = Path.GetFileNameWithoutExtension(rawFileName);
+                            var candidateWithoutExt = !string.IsNullOrEmpty(folderName) ? $"{folderName}/{rawFileNameWithoutExt}" : rawFileNameWithoutExt;
+                            if (!candidates.Contains(candidateWithoutExt, StringComparer.OrdinalIgnoreCase))
+                            {
+                                candidates.Add(candidateWithoutExt);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore URL parsing error for candidate generation
+                }
+
+                // Determine delivery types:
+                // If the URL explicitly contains "/raw/authenticated/" or "/authenticated/", try "authenticated" first.
+                // If it explicitly contains "/raw/upload/" or "/upload/", try "upload" first.
+                // Otherwise try "authenticated" then "upload".
+                bool isExplicitUpload = fileUrl.Contains("/upload/", StringComparison.OrdinalIgnoreCase);
+                var deliveryTypes = isExplicitUpload
+                    ? new[] { "upload", "authenticated" }
+                    : new[] { "authenticated", "upload" };
+
+                // Try deleting using candidates
+                foreach (var deliveryType in deliveryTypes)
+                {
+                    // 1. First try Raw assets (new authenticated assets with extension & legacy raw)
+                    foreach (var candidate in candidates)
+                    {
+                        var destroyParamsRaw = new DeletionParams(candidate)
+                        {
+                            ResourceType = ResourceType.Raw,
+                            Type = deliveryType
+                        };
+
+                        var resultRaw = await _cloudinary.DestroyAsync(destroyParamsRaw);
+                        if (resultRaw?.Result == "ok")
+                        {
+                            return true;
+                        }
+                    }
+
+                    // 2. Fallback to Image assets (legacy images uploaded as image)
+                    foreach (var candidate in candidates)
+                    {
+                        var destroyParamsImg = new DeletionParams(candidate)
+                        {
+                            ResourceType = ResourceType.Image,
+                            Type = deliveryType
+                        };
+
+                        var resultImg = await _cloudinary.DestroyAsync(destroyParamsImg);
+                        if (resultImg?.Result == "ok")
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
             }
             catch (Exception ex)
             {
-                 Console.WriteLine($"[ERROR] Cloudinary Delete Failed: {ex.Message}");
-                 return false;
+                Console.WriteLine($"[ERROR] Cloudinary Delete Failed: {ex.Message}");
+                return false;
             }
         }
 

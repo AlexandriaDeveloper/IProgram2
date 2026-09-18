@@ -28,5 +28,9 @@ export class FormReferencesService {
     })
   }
 
-
+  getReferenceFile(id: number) {
+    return this.http.get(this.apiUrl + 'formReferences/file/' + id, {
+      responseType: 'blob'
+    });
+  }
 }

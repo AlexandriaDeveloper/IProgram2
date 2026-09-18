@@ -100,4 +100,32 @@ testem.log
 .DS_Store
 Thumbs.db
 *.mov
+
+# Local secrets and config overrides
+appsettings*.local.json
+secrets.json
+.env
+.env.*
+notes
+*.local
+
+# Diagnostic, verification and log files
+*.log
+*_log*.txt
+*_output*.txt
+*_error*.txt
+diag_output.txt
+response_verification.txt
+schema_verify.json
+final_system_check.json
+check_data.json
+token.json
+verify_*.json
+pdf_dump.txt
+output_utf8.txt
+test_debug.pdf
+tests/pdf_debug.txt
+
+# PDF handling
 *.pdf
+!tests/PDF/*.pdf

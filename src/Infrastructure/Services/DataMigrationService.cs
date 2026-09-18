@@ -10,21 +10,30 @@ namespace Auth.Infrastructure.Services
 {
     public class DataMigrationService
     {
+        private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
         private readonly string _sqlServerConn;
         private readonly string _supabaseConn;
         private readonly IHubContext<MigrationHub> _hubContext;
 
         public DataMigrationService(Microsoft.Extensions.Configuration.IConfiguration configuration, IHubContext<MigrationHub> hubContext)
         {
+            _configuration = configuration;
             _hubContext = hubContext;
-            _sqlServerConn = configuration.GetConnectionString("DefaultConnection")
-                ?? "Server=localhost,1433;Database=IProgramDb;User Id=sa;Password=123;TrustServerCertificate=True;Encrypt=False";
-            _supabaseConn = configuration.GetConnectionString("SupabaseConnection")
-                ?? "Host=aws-1-eu-west-3.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iztxgikxmcpzoqowomtp;Password=FNsGxA0IN0qzqSDC;SSL Mode=Require;Trust Server Certificate=true;";
+            _sqlServerConn = configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
+            _supabaseConn = configuration.GetConnectionString("SupabaseConnection") ?? string.Empty;
+        }
+
+        private void EnsureLegacyMigrationEnabled()
+        {
+            if (!_configuration.GetValue<bool>("LegacyMigration:Enabled", false))
+            {
+                throw new InvalidOperationException("Legacy migration is disabled.");
+            }
         }
 
         public async Task<SyncResult> FullSyncToSupabaseAsync(bool force = false)
         {
+            EnsureLegacyMigrationEnabled();
             var result = new SyncResult();
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -269,6 +278,7 @@ namespace Auth.Infrastructure.Services
         /// </summary>
         public async Task<SyncResult> PullFromSupabaseAsync()
         {
+            EnsureLegacyMigrationEnabled();
             var result = new SyncResult();
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 

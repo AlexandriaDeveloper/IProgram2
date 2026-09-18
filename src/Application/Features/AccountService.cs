@@ -123,7 +123,6 @@ namespace Application.Features
                 Roles = await _roleRepository.GetUserRoles(user.Id)
 
             };
-            Console.WriteLine(userToReturn.Token);
             return Result.Success(userToReturn);
         }
 
