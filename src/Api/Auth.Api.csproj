@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -20,7 +20,7 @@
 
   <ItemGroup>
 
-    <ProjectReference Include="..\infrastructure\Auth.Infrastructure.csproj" />
+    <ProjectReference Include="..\Infrastructure\Auth.Infrastructure.csproj" />
     <ProjectReference Include="..\Persistence\Auth.Persistence.csproj" />
       <ProjectReference Include="..\Application\Auth.Application.csproj" />
   </ItemGroup>
