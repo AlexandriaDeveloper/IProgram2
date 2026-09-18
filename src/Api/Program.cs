@@ -37,6 +37,13 @@ builder.Services.AddOutputCache(options =>
     options.AddPolicy("Short", builder => builder.Expire(TimeSpan.FromMinutes(1)));
 });
 
+// Global Exception Handling & Problem Details
+builder.Services.AddExceptionHandler<Auth.Api.Middleware.GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
+// Application Health Checks
+builder.Services.AddHealthChecks();
+
 // Add Memory Cache for service-level caching
 builder.Services.AddMemoryCache();
 
@@ -116,6 +123,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 
+// Use centralized exception handling
+app.UseExceptionHandler();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -169,6 +179,9 @@ if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
 {
     app.MapHub<Auth.Infrastructure.Hubs.MigrationHub>("/migrationHub");
 }
+
+// Health check endpoint (application liveness)
+app.MapHealthChecks("/health");
 
 app.MapControllers();
 app.MapFallbackToController("Index", "Fallback");
