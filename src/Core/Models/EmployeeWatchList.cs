@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Core.Models
 {
-    public class EmployeeWatchList : Entity
+    public class EmployeeWatchList : SyncableEntity
     {
         [StringLength(14)]
         public string EmployeeId { get; set; }

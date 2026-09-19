@@ -5,6 +5,9 @@ namespace Auth.Infrastructure.Sync
 {
     public class AzureSyncContext : DbContext
     {
+        public const string MigrationsHistoryTableName = "__EFMigrationsHistory_AzureSync";
+        public const string MigrationsHistoryTableSchema = "sync";
+
         public DbSet<ServerState> ServerStates { get; set; }
         public DbSet<ServerChangeFeed> ServerChangeFeeds { get; set; }
         public DbSet<ServerTombstone> Tombstones { get; set; }
@@ -50,6 +53,8 @@ namespace Auth.Infrastructure.Sync
                 entity.ToTable("ProcessedOperations");
                 entity.HasKey(e => new { e.DatabaseId, e.ClientOperationId });
                 entity.Property(e => e.DatabaseId).HasMaxLength(32);
+                entity.Property(e => e.CommandName).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.RequestHash).HasMaxLength(64).IsRequired().IsUnicode(false);
                 entity.Property(e => e.EntityType).HasMaxLength(50);
                 entity.Property(e => e.ResultStatus).HasMaxLength(20).IsRequired();
             });

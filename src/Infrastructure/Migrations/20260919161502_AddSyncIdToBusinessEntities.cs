@@ -15,144 +15,144 @@ namespace Auth.Infrastructure.Migrations
                 name: "SyncId",
                 table: "FormRefernce",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "FormDetails",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "Form",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "EmployeeWatchLists",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "Employees",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "EmployeeRefernce",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "EmployeeNetPays",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "EmployeeBank",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "Departments",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "DailyReference",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SyncId",
                 table: "Daily",
                 type: "uniqueidentifier",
-                nullable: false,
-                defaultValueSql: "NEWSEQUENTIALID()");
+                nullable: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_FormRefernce_SyncId",
                 table: "FormRefernce",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_FormDetails_SyncId",
                 table: "FormDetails",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Form_SyncId",
                 table: "Form",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeeWatchLists_SyncId",
                 table: "EmployeeWatchLists",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Employees_SyncId",
                 table: "Employees",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeeRefernce_SyncId",
                 table: "EmployeeRefernce",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeeNetPays_SyncId",
                 table: "EmployeeNetPays",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeeBank_SyncId",
                 table: "EmployeeBank",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Departments_SyncId",
                 table: "Departments",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_DailyReference_SyncId",
                 table: "DailyReference",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Daily_SyncId",
                 table: "Daily",
                 column: "SyncId",
-                unique: true);
+                unique: true,
+                filter: "[SyncId] IS NOT NULL");
         }
 
         /// <inheritdoc />

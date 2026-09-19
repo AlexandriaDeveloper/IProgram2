@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -22,6 +22,8 @@ namespace Auth.Infrastructure.Migrations.AzureSync
                     DatabaseId = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
                     ClientOperationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     DeviceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CommandName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    RequestHash = table.Column<string>(type: "varchar(64)", unicode: false, maxLength: 64, nullable: false),
                     EntityType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     EntitySyncId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ProcessedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),

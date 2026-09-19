@@ -8,6 +8,8 @@ namespace Core.Models.Sync
         public string DatabaseId { get; set; } = string.Empty; // '2026' or '2027'
         public Guid ClientOperationId { get; set; }
         public Guid DeviceId { get; set; }
+        public string CommandName { get; set; } = string.Empty;
+        public string RequestHash { get; set; } = string.Empty;
         public string EntityType { get; set; } = string.Empty;
         public Guid EntitySyncId { get; set; }
         public DateTime ProcessedAtUtc { get; set; } = DateTime.UtcNow;

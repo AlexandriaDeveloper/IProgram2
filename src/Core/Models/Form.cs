@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Core.Models
 {
-    public class Form : Entity
+    public class Form : SyncableEntity
     {
         public int? DailyId { get; set; }
         public int? Index { get; set; }

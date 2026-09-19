@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Core.Models
 {
-    public class EmployeeNetPay : Entity
+    public class EmployeeNetPay : SyncableEntity
     {
         public int DailyId { get; set; }
         public Daily Daily { get; set; }

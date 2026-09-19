@@ -5,6 +5,9 @@ namespace Auth.Infrastructure.Sync
 {
     public class LocalSyncContext : DbContext
     {
+        public const string MigrationsHistoryTableName = "__EFMigrationsHistory_LocalSync";
+        public const string MigrationsHistoryTableSchema = "sync";
+
         public DbSet<LocalOutbox> LocalOutboxes { get; set; }
         public DbSet<LocalState> LocalStates { get; set; }
         public DbSet<LocalBootstrapManifest> BootstrapManifests { get; set; }

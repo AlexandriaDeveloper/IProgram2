@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Auth.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationContext))]
-    [Migration("20260919155549_AddSyncIdToBusinessEntities")]
+    [Migration("20260919161502_AddSyncIdToBusinessEntities")]
     partial class AddSyncIdToBusinessEntities
     {
         /// <inheritdoc />
@@ -130,10 +130,8 @@ namespace Auth.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -145,7 +143,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_Daily_SyncId");
+                        .HasDatabaseName("IX_Daily_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("Daily");
                 });
@@ -183,10 +182,8 @@ namespace Auth.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -200,7 +197,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_DailyReference_SyncId");
+                        .HasDatabaseName("IX_DailyReference_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("DailyReference");
                 });
@@ -233,10 +231,8 @@ namespace Auth.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -248,7 +244,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_Departments_SyncId");
+                        .HasDatabaseName("IX_Departments_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("Departments");
                 });
@@ -293,10 +290,8 @@ namespace Auth.Infrastructure.Migrations
                         .HasMaxLength(25)
                         .HasColumnType("nvarchar(25)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<int?>("TabCode")
                         .HasColumnType("int");
@@ -316,7 +311,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_Employees_SyncId");
+                        .HasDatabaseName("IX_Employees_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.HasIndex("TabCode")
                         .IsUnique()
@@ -358,10 +354,8 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -373,7 +367,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_EmployeeBank_SyncId");
+                        .HasDatabaseName("IX_EmployeeBank_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("EmployeeBank");
                 });
@@ -417,10 +412,8 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<double>("NetPay")
                         .HasColumnType("float");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -436,7 +429,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_EmployeeNetPays_SyncId");
+                        .HasDatabaseName("IX_EmployeeNetPays_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.HasIndex("DailyId", "EmployeeId")
                         .IsUnique()
@@ -474,10 +468,8 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<string>("ReferencePath")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -491,7 +483,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_EmployeeRefernce_SyncId");
+                        .HasDatabaseName("IX_EmployeeRefernce_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("EmployeeRefernce");
                 });
@@ -533,10 +526,8 @@ namespace Auth.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -550,7 +541,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_EmployeeWatchLists_SyncId");
+                        .HasDatabaseName("IX_EmployeeWatchLists_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("EmployeeWatchLists");
                 });
@@ -590,10 +582,8 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -607,7 +597,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_Form_SyncId");
+                        .HasDatabaseName("IX_Form_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.HasIndex("IsActive", "CreatedAt")
                         .HasDatabaseName("IX_Form_IsActive_CreatedAt");
@@ -684,10 +675,8 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<DateTime?>("SummaryReviewedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -701,7 +690,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_FormDetails_SyncId");
+                        .HasDatabaseName("IX_FormDetails_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.HasIndex("FormId", "IsActive", "EmployeeId")
                         .HasDatabaseName("IX_FormDetails_FormId_IsActive_EmployeeId");
@@ -741,10 +731,8 @@ namespace Auth.Infrastructure.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
 
-                    b.Property<Guid>("SyncId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -758,7 +746,8 @@ namespace Auth.Infrastructure.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique()
-                        .HasDatabaseName("IX_FormRefernce_SyncId");
+                        .HasDatabaseName("IX_FormRefernce_SyncId")
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("FormRefernce");
                 });

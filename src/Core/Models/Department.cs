@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Core.Models
 {
-    public class Department : Entity
+    public class Department : SyncableEntity
     {
         [Required]
         [MaxLength(200)]
