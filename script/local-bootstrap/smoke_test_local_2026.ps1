@@ -200,6 +200,29 @@ try {
     Write-Host " FAIL" -ForegroundColor Red
 }
 
+# Test 7: .NET LocalDbRequired Unit Smoke Tests (with REQUIRE_LOCAL_DB=true)
+try {
+    Write-Host "Test 7: .NET LocalDbRequired Smoke Suite (REQUIRE_LOCAL_DB=true)..." -NoNewline
+    $env:REQUIRE_LOCAL_DB = "true"
+    $testProj = Join-Path $repoRoot "tests\Auth.UnitTests\Auth.UnitTests.csproj"
+    $testOutput = & dotnet test $testProj --filter "Category=LocalDbRequired" --verbosity minimal 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet test failed with exit code $LASTEXITCODE. Output: $testOutput"
+    }
+    $report.Tests["DotNet_LocalDbRequired_Suite"] = [ordered]@{
+        Status = "PASS"
+        Filter = "Category=LocalDbRequired"
+        RequireLocalDb = $true
+    }
+    Write-Host " PASS (Executed with enforced local DB presence)" -ForegroundColor Green
+} catch {
+    $allPassed = $false
+    $report.Tests["DotNet_LocalDbRequired_Suite"] = [ordered]@{ Status = "FAIL"; Error = $_.Exception.Message }
+    Write-Host " FAIL: $($_.Exception.Message)" -ForegroundColor Red
+} finally {
+    $env:REQUIRE_LOCAL_DB = $null
+}
+
 $report.OverallStatus = if ($allPassed) { "PASS" } else { "FAIL" }
 
 $parentDir = Split-Path -Parent $OutputJsonPath

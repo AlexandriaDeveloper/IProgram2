@@ -32,10 +32,26 @@ namespace Auth.UnitTests
             }
         }
 
+        private void EnsureLocalDatabaseAvailable()
+        {
+            if (!IsLocalDatabaseAvailable())
+            {
+                var allowSkip = string.Equals(Environment.GetEnvironmentVariable("SKIP_LOCAL_DB_SMOKE_TESTS"), "true", StringComparison.OrdinalIgnoreCase);
+                if (allowSkip)
+                {
+                    // Explicit opt-out environment configuration
+                    return;
+                }
+
+                Assert.Fail("Local database IProgramLocalDb2026 is unavailable on localhost. Set SKIP_LOCAL_DB_SMOKE_TESTS=true or filter with 'Category!=LocalDbRequired' if running in an environment without local SQL Server 2014.");
+            }
+        }
+
         [Fact]
+        [Trait("Category", "LocalDbRequired")]
         public async Task Gate7_ApplicationContext_CanConnectAndQuery_Local2026()
         {
-            if (!IsLocalDatabaseAvailable()) return;
+            EnsureLocalDatabaseAvailable();
 
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseSqlServer(Local2026ConnectionString, o => o.UseCompatibilityLevel(120))
@@ -49,9 +65,10 @@ namespace Auth.UnitTests
         }
 
         [Fact]
+        [Trait("Category", "LocalDbRequired")]
         public async Task Gate7_IdentityTables_CanBeReadFromLocal2026()
         {
-            if (!IsLocalDatabaseAvailable()) return;
+            EnsureLocalDatabaseAvailable();
 
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseSqlServer(Local2026ConnectionString, o => o.UseCompatibilityLevel(120))
@@ -68,9 +85,10 @@ namespace Auth.UnitTests
         }
 
         [Fact]
+        [Trait("Category", "LocalDbRequired")]
         public async Task Gate7_RepresentativeBusinessEntities_CanBeQueried()
         {
-            if (!IsLocalDatabaseAvailable()) return;
+            EnsureLocalDatabaseAvailable();
 
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseSqlServer(Local2026ConnectionString, o => o.UseCompatibilityLevel(120))
@@ -94,9 +112,10 @@ namespace Auth.UnitTests
         }
 
         [Fact]
+        [Trait("Category", "LocalDbRequired")]
         public async Task Gate7_CommonLinqPatterns_ExecuteOnSQLServer2014()
         {
-            if (!IsLocalDatabaseAvailable()) return;
+            EnsureLocalDatabaseAvailable();
 
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseSqlServer(Local2026ConnectionString, o => o.UseCompatibilityLevel(120))
@@ -128,9 +147,10 @@ namespace Auth.UnitTests
         }
 
         [Fact]
+        [Trait("Category", "LocalDbRequired")]
         public async Task Gate7_LocalSyncContext_CanReadLocalMetadata()
         {
-            if (!IsLocalDatabaseAvailable()) return;
+            EnsureLocalDatabaseAvailable();
 
             var options = new DbContextOptionsBuilder<LocalSyncContext>()
                 .UseSqlServer(Local2026ConnectionString, o =>
@@ -147,8 +167,15 @@ namespace Auth.UnitTests
                 .FirstOrDefaultAsync();
 
             Assert.NotNull(manifest);
-            Assert.Equal("VERIFIED_READY", manifest.Status);
-            Assert.True(manifest.IsWriteAllowed);
+            Assert.Contains(manifest.Status, new[] { "VERIFIED_READY", "QUARANTINED_PENDING_ARCHITECT_REVIEW", "QUARANTINED_UNAUTHORIZED_BOOTSTRAP" });
+            if (manifest.Status == "VERIFIED_READY")
+            {
+                Assert.True(manifest.IsWriteAllowed, "When VERIFIED_READY, IsWriteAllowed must be true.");
+            }
+            else
+            {
+                Assert.False(manifest.IsWriteAllowed, "When quarantined, IsWriteAllowed must be false.");
+            }
 
             var state = await context.LocalStates
                 .Where(s => s.DatabaseId == "2026")

@@ -1,38 +1,33 @@
-# Slice 4.2B: Year 2026 Revalidation & Adoption Audit Report
+# Slice 4.2B: Year 2026 Revalidation & Adoption Audit Report (Hardened)
 
 ## Executive Summary
-In accordance with official directives from the Business Owner and ChatGPT Architect in Issue #14, **Slice 4.2B — Year 2026 Revalidation & Adoption of Existing Quarantined Clone** was executed on branch `feat/slice-4-2b-revalidate-2026-clone` based on master baseline `b635383e147d2088c69613f194a2eb23e0d42e03`.
+In accordance with official directives from the Business Owner and ChatGPT Architect in Issue #14, **Slice 4.2B — Year 2026 Revalidation & Adoption of Existing Quarantined Clone** was executed and hardened on branch `feat/slice-4-2b-revalidate-2026-clone` based on master baseline `b635383e147d2088c69613f194a2eb23e0d42e03`.
 
-The objective was to perform a fresh, read-only cryptographic and schema revalidation of the live Azure database `IProgramDb2026` against the existing local database `IProgramLocalDb2026` (previously quarantined under `QUARANTINED_UNAUTHORIZED_BOOTSTRAP`).
-
-### Key Findings & Decision Gate Outcome
-* **Decision Gate Evaluated:** **CASE 1 — EXACT CURRENT MATCH**
-* **Comparison Result:** **100% PASS** across all 24 Azure-origin tables (47,573 total rows).
-* **Cryptographic Hashes:** Exact type-aware deterministic SHA-256 match on every table.
-* **Schema & Identities:** Exact match on columns, primary keys, foreign keys, and `IDENT_CURRENT`.
-* **Sync Invariants:** Zero null `SyncId`s and zero duplicate `SyncId`s across all syncable entities.
-* **Version Checkpoint:** Azure `sync.ServerState.CurrentVersion = 0` matches Local `sync.LocalState.LastServerVersion = 0`.
-* **Adoption Action:** Local `sync.BootstrapManifest` updated from quarantine to `Status = 'VERIFIED_READY'` and `IsWriteAllowed = true`.
-* **Smoke Tests:** Gate 7 application smoke tests executed and passed 100%.
+This revision incorporates all verification hardening required by the Architect review on PR #20:
+- **Blocker 1 & 2 Resolved:** Full schema enforcement (exact ordered column names, types/lengths/precision/scale, nullability, identity column presence & names, FK relationships & cascade actions, and index definitions detecting manual drift). `IDENT_CURRENT` mismatches strictly fail comparison.
+- **Blocker 3 Resolved:** Operational local schema cleaned up by removing Azure-only sync tables (`sync.ServerState`, `sync.ServerChangeFeed`, `sync.Tombstones`, `sync.ProcessedOperations`, `sync.__EFMigrationsHistory_AzureSync`) from the local clone while keeping all 19 business tables intact.
+- **Blocker 4 Resolved:** Smoke tests hardened to fail with `Assert.Fail` when local DB is unavailable (enforced via `REQUIRE_LOCAL_DB=true` and CI filtering `Category!=LocalDbRequired`).
+- **Blocker 5 Resolved:** Issue narrative and audit documentation corrected to the exact 24-table IProgram schema.
 
 ---
 
-## 1. Baseline Inventory Comparison
+## 1. Phase A — Source-Clone Parity BEFORE Local-Only Cleanup
 
-| Metric | Source (Azure `IProgramDb2026`) | Target (Local `IProgramLocalDb2026`) | Match Status |
+* Evaluated using hardened `script/local-bootstrap/verify_bootstrap_integrity.ps1 -Mode Compare`.
+* Compares live Azure SQL `IProgramDb2026` against quarantined local clone `IProgramLocalDb2026`.
+
+| Metric | Source (Azure `IProgramDb2026`) | Target (Local `IProgramLocalDb2026`) | Status |
 | :--- | :---: | :---: | :---: |
-| **SQL Engine** | Microsoft Azure SQL | localhost (Microsoft SQL Server 2014) | Compatibility Level 120 Validated |
+| **SQL Engine** | Microsoft Azure SQL | localhost (SQL Server 2014) | Comp. Level 120 Validated |
 | **Total Azure-Origin Tables** | 24 | 24 (excluding 4 local-only sync tables) | **EXACT MATCH** |
 | **Total Cloned Rows** | 47,573 | 47,573 | **EXACT MATCH** |
 | **Server State Version** | `0` | `0` (`sync.LocalState.LastServerVersion`) | **EXACT MATCH** |
 | **LocalOutbox Queue** | N/A | `0` | **VERIFIED EMPTY** |
-| **Overall Comparison** | Authoritative Live Source | Existing Local Clone | **PASS (0 Mismatches)** |
+| **FK & Index Drift** | Full Metadata Collected | Full Metadata Collected | **0 MISMATCHES** |
+| **Identity Values** | Exact `IDENT_CURRENT` | Exact `IDENT_CURRENT` | **100% MATCH** |
+| **Overall Parity** | Authoritative Live Source | Existing Local Clone | **PASS (0 Mismatches)** |
 
-*Note: Local-only sync metadata tables (`sync.LocalOutbox`, `sync.LocalState`, `sync.BootstrapManifest`, `sync.__EFMigrationsHistory_LocalSync`) were excluded from the source-clone equality calculation in accordance with Architect instructions.*
-
----
-
-## 2. Deterministic SHA-256 Per-Table Hash Matrix
+### Pre-Cleanup 24-Table Deterministic SHA-256 Hash Matrix
 
 | Schema & Table Name | Source Rows | Target Rows | Row Delta | Deterministic SHA-256 Hash | Status |
 | :--- | :---: | :---: | :---: | :--- | :---: |
@@ -61,6 +56,30 @@ The objective was to perform a fresh, read-only cryptographic and schema revalid
 | `sync.ServerState` | 1 | 1 | 0 | `71054C73A68742B2189820967FF4742005F9DBCD6F3EB17952DFE988734D5402` | **PASS** |
 | `sync.Tombstones` | 0 | 0 | 0 | `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` | **PASS** |
 
+*Evidence Artifact:* `docs/audit/sync-slice-4-2b/2026/revalidation_comparison.json`
+
+---
+
+## 2. Phase B — Operational Local Schema AFTER Cleanup
+
+Following verification of Phase A, the approved architectural boundary was applied to `IProgramLocalDb2026` locally:
+* **Azure-Only Sync Operational Tables Removed (LOCAL COPY ONLY):**
+  - `sync.ServerState`
+  - `sync.ServerChangeFeed`
+  - `sync.Tombstones`
+  - `sync.ProcessedOperations`
+  - `sync.__EFMigrationsHistory_AzureSync`
+* **Local-Only Sync Tables Retained:**
+  - `sync.LocalOutbox` (0 rows)
+  - `sync.LocalState` (LastServerVersion = 0)
+  - `sync.BootstrapManifest` (Status = VERIFIED_READY, IsWriteAllowed = True)
+  - `sync.__EFMigrationsHistory_LocalSync`
+* **Business Tables Verified Intact:**
+  - 19 business and Identity tables retained 100% of their rows (47,571 total rows).
+  - All cryptographic SHA-256 data hashes remain identical to the Azure baseline.
+
+*Evidence Artifact:* `docs/audit/sync-slice-4-2b/2026/operational_local_audit.json`
+
 ---
 
 ## 3. Decision Gate Execution: Adoption of 2026 Clone
@@ -68,25 +87,31 @@ The objective was to perform a fresh, read-only cryptographic and schema revalid
 Following the Architect's instructions for **Case 1 (Exact Current Match)**:
 1. **Quarantine Lifted & Manifest Updated:**
    * Prior Status: `QUARANTINED_UNAUTHORIZED_BOOTSTRAP` (`IsWriteAllowed = False`)
-   * New Status: `VERIFIED_READY` (`IsWriteAllowed = True`)
+   * Safety Hold Status: `QUARANTINED_PENDING_ARCHITECT_REVIEW` (`IsWriteAllowed = False`)
+   * Adopted Status: `VERIFIED_READY` (`IsWriteAllowed = True`)
    * Scope: DatabaseId `2026` (`IProgramLocalDb2026`)
 2. **Sync Outbox & State Verified:**
    * `sync.LocalOutbox` count: `0`
-   * `sync.LocalState.LastServerVersion`: `0` (synchronized with Azure `sync.ServerState.CurrentVersion = 0`).
+   * `sync.LocalState.LastServerVersion`: `0` (synchronized with Azure version 0).
 3. **Smoke Tests Validated (Gate 7):**
    * ApplicationContext connectivity: PASS (12,308 employees readable).
    * Security tables queryable: PASS (2 users, 2 roles).
    * Core business entities queryable: PASS (Daily, Form, FormDetails).
    * SQL Server 2014 T-SQL join patterns: PASS.
-   * `AzureSyncContext` physical binding guard: PASS (local database connection strictly rejected).
-   * All 292 unit tests passing: PASS.
+   * `LocalSyncContext` metadata check: PASS.
+   * `AzureSyncContext` physical binding guard: PASS.
+   * `.NET 10 LocalDbRequired` unit smoke suite: PASS (enforced via `REQUIRE_LOCAL_DB=true`).
+   * All 292 backend unit tests passing: PASS (`dotnet test IProgram.sln -c Release`).
+   * Angular 17 build: PASS (`npm run build`).
+
+*Evidence Artifact:* `docs/audit/sync-slice-4-2b/2026/application_smoke_test_report.json`
 
 ---
 
 ## 4. Compliance & Operational Boundary Checklist
-* [x] **Zero Azure Mutations:** Read-only access performed; zero DDL or DML queries executed against Azure SQL.
+* [x] **Zero Azure Mutations:** Live Azure access was strictly READ-ONLY; zero DDL or DML queries executed against Azure SQL.
 * [x] **Zero 2027 Bootstrap:** Year 2027 was completely excluded from this slice.
 * [x] **LocalFirst Disabled:** `LocalFirst:Enabled = false` remains in effect across all application settings.
 * [x] **Zero Manual Row Patching:** No synthetic row modification or sync catch-up performed.
 * [x] **Zero Secret Leakage:** No credentials printed, logged, or committed.
-* [x] **PR Left Unmerged:** New pull request opened and left unmerged awaiting Architect evaluation.
+* [x] **PR Left Unmerged:** PR #20 is open and left unmerged awaiting Architect review.

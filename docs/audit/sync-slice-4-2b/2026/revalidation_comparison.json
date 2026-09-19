@@ -1,7 +1,7 @@
 ﻿{
     "ReportType":  "DataIntegrityAuditReport",
     "Slice":  "4.2B",
-    "GeneratedUtc":  "2026-09-19T23:00:48.0675008Z",
+    "GeneratedUtc":  "2026-09-19T23:26:06.3926434Z",
     "Mode":  "Compare",
     "OverallStatus":  "PASS",
     "SourceSummary":  {
@@ -22,6 +22,8 @@
                                                           "SourceIdentCurrent":  null,
                                                           "TargetIdentCurrent":  null,
                                                           "IdentMatch":  true,
+                                                          "ForeignKeyCount":  0,
+                                                          "IndexCount":  1,
                                                           "Mismatches":  [
 
                                                                          ]
@@ -35,6 +37,8 @@
                                                      "SourceIdentCurrent":  "1",
                                                      "TargetIdentCurrent":  "1",
                                                      "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  2,
                                                      "Mismatches":  [
 
                                                                     ]
@@ -48,6 +52,8 @@
                                                 "SourceIdentCurrent":  null,
                                                 "TargetIdentCurrent":  null,
                                                 "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  2,
                                                 "Mismatches":  [
 
                                                                ]
@@ -61,6 +67,8 @@
                                                      "SourceIdentCurrent":  "8",
                                                      "TargetIdentCurrent":  "8",
                                                      "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  2,
                                                      "Mismatches":  [
 
                                                                     ]
@@ -74,6 +82,8 @@
                                                      "SourceIdentCurrent":  null,
                                                      "TargetIdentCurrent":  null,
                                                      "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  2,
                                                      "Mismatches":  [
 
                                                                     ]
@@ -87,6 +97,8 @@
                                                     "SourceIdentCurrent":  null,
                                                     "TargetIdentCurrent":  null,
                                                     "IdentMatch":  true,
+                                                    "ForeignKeyCount":  2,
+                                                    "IndexCount":  2,
                                                     "Mismatches":  [
 
                                                                    ]
@@ -100,6 +112,8 @@
                                                 "SourceIdentCurrent":  null,
                                                 "TargetIdentCurrent":  null,
                                                 "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  3,
                                                 "Mismatches":  [
 
                                                                ]
@@ -113,6 +127,8 @@
                                                      "SourceIdentCurrent":  null,
                                                      "TargetIdentCurrent":  null,
                                                      "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  1,
                                                      "Mismatches":  [
 
                                                                     ]
@@ -126,6 +142,8 @@
                                           "SourceIdentCurrent":  "1108",
                                           "TargetIdentCurrent":  "1108",
                                           "IdentMatch":  true,
+                                          "ForeignKeyCount":  0,
+                                          "IndexCount":  2,
                                           "Mismatches":  [
 
                                                          ]
@@ -139,6 +157,8 @@
                                                    "SourceIdentCurrent":  "1098",
                                                    "TargetIdentCurrent":  "1098",
                                                    "IdentMatch":  true,
+                                                   "ForeignKeyCount":  1,
+                                                   "IndexCount":  3,
                                                    "Mismatches":  [
 
                                                                   ]
@@ -152,6 +172,8 @@
                                                 "SourceIdentCurrent":  "15",
                                                 "TargetIdentCurrent":  "15",
                                                 "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  2,
                                                 "Mismatches":  [
 
                                                                ]
@@ -165,6 +187,8 @@
                                                  "SourceIdentCurrent":  null,
                                                  "TargetIdentCurrent":  null,
                                                  "IdentMatch":  true,
+                                                 "ForeignKeyCount":  1,
+                                                 "IndexCount":  2,
                                                  "Mismatches":  [
 
                                                                 ]
@@ -178,6 +202,8 @@
                                                     "SourceIdentCurrent":  "18918",
                                                     "TargetIdentCurrent":  "18918",
                                                     "IdentMatch":  true,
+                                                    "ForeignKeyCount":  3,
+                                                    "IndexCount":  5,
                                                     "Mismatches":  [
 
                                                                    ]
@@ -191,6 +217,8 @@
                                                      "SourceIdentCurrent":  "1",
                                                      "TargetIdentCurrent":  "1",
                                                      "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  3,
                                                      "Mismatches":  [
 
                                                                     ]
@@ -204,6 +232,8 @@
                                               "SourceIdentCurrent":  null,
                                               "TargetIdentCurrent":  null,
                                               "IdentMatch":  true,
+                                              "ForeignKeyCount":  1,
+                                              "IndexCount":  5,
                                               "Mismatches":  [
 
                                                              ]
@@ -217,6 +247,8 @@
                                                        "SourceIdentCurrent":  "23",
                                                        "TargetIdentCurrent":  "23",
                                                        "IdentMatch":  true,
+                                                       "ForeignKeyCount":  1,
+                                                       "IndexCount":  3,
                                                        "Mismatches":  [
 
                                                                       ]
@@ -230,6 +262,8 @@
                                          "SourceIdentCurrent":  "5353",
                                          "TargetIdentCurrent":  "5353",
                                          "IdentMatch":  true,
+                                         "ForeignKeyCount":  2,
+                                         "IndexCount":  6,
                                          "Mismatches":  [
 
                                                         ]
@@ -243,6 +277,8 @@
                                                 "SourceIdentCurrent":  "59872",
                                                 "TargetIdentCurrent":  "59872",
                                                 "IdentMatch":  true,
+                                                "ForeignKeyCount":  2,
+                                                "IndexCount":  4,
                                                 "Mismatches":  [
 
                                                                ]
@@ -256,6 +292,8 @@
                                                  "SourceIdentCurrent":  "1",
                                                  "TargetIdentCurrent":  "1",
                                                  "IdentMatch":  true,
+                                                 "ForeignKeyCount":  1,
+                                                 "IndexCount":  3,
                                                  "Mismatches":  [
 
                                                                 ]
@@ -269,6 +307,8 @@
                                                                      "SourceIdentCurrent":  null,
                                                                      "TargetIdentCurrent":  null,
                                                                      "IdentMatch":  true,
+                                                                     "ForeignKeyCount":  0,
+                                                                     "IndexCount":  1,
                                                                      "Mismatches":  [
 
                                                                                     ]
@@ -282,6 +322,8 @@
                                                          "SourceIdentCurrent":  null,
                                                          "TargetIdentCurrent":  null,
                                                          "IdentMatch":  true,
+                                                         "ForeignKeyCount":  0,
+                                                         "IndexCount":  1,
                                                          "Mismatches":  [
 
                                                                         ]
@@ -295,6 +337,8 @@
                                                       "SourceIdentCurrent":  "1",
                                                       "TargetIdentCurrent":  "1",
                                                       "IdentMatch":  true,
+                                                      "ForeignKeyCount":  0,
+                                                      "IndexCount":  2,
                                                       "Mismatches":  [
 
                                                                      ]
@@ -308,6 +352,8 @@
                                                  "SourceIdentCurrent":  null,
                                                  "TargetIdentCurrent":  null,
                                                  "IdentMatch":  true,
+                                                 "ForeignKeyCount":  0,
+                                                 "IndexCount":  1,
                                                  "Mismatches":  [
 
                                                                 ]
@@ -321,6 +367,8 @@
                                                 "SourceIdentCurrent":  null,
                                                 "TargetIdentCurrent":  null,
                                                 "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  2,
                                                 "Mismatches":  [
 
                                                                ]

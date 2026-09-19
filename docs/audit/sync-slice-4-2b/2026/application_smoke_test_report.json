@@ -1,6 +1,6 @@
 ﻿{
     "Gate":  "Gate7_SmokeTest",
-    "TimestampUtc":  "2026-09-19T23:03:59.4039275Z",
+    "TimestampUtc":  "2026-09-19T23:29:12.1560584Z",
     "TargetDatabase":  "IProgramLocalDb2026",
     "LocalEngine":  "localhost (SQL Server 2014)",
     "Tests":  {
@@ -39,7 +39,12 @@
                   "AzureSync_Guard":  {
                                           "Status":  "PASS",
                                           "Description":  "AzureSyncContext strictly rejects local database name IProgramLocalDb2026"
-                                      }
+                                      },
+                  "DotNet_LocalDbRequired_Suite":  {
+                                                       "Status":  "PASS",
+                                                       "Filter":  "Category=LocalDbRequired",
+                                                       "RequireLocalDb":  true
+                                                   }
               },
     "OverallStatus":  "PASS"
 }
