@@ -41,27 +41,41 @@ Credentials are strictly read from environment variables and must **NEVER** be c
 
 ## 4. Execution Workflow
 
-### Step 4.1: Build Frontend (Angular SPA)
-Compile the Angular client into the API static files directory (`src/Api/wwwroot`):
+### Option A: Automated Repeatable Runner (Recommended)
+The test runner script sets process-scoped environment overrides, compiles the Angular client with the `--configuration e2e` profile, launches the API daemon, verifies database safety, runs Playwright, and cleans up completely without touching User Secrets or normal operator configuration:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests/e2e/run_e2e.ps1
+```
+
+### Option B: Manual Execution with Process-Scoped Isolation
+
+#### Step 4.1: Build Frontend (Angular E2E Configuration)
+Compile the Angular client using the dedicated E2E configuration (which sets relative `/api/` routing only for the combined host, leaving normal development and production configurations untouched):
 ```bash
 cd Client
-npm run build
+npm run build:e2e
 cd ..
 ```
 
-### Step 4.2: Start Backend API (Port 5000)
-Run the ASP.NET Core API using the Release configuration:
-```bash
+#### Step 4.2: Start Backend API with Process-Scoped Overrides
+In your terminal, set process-scoped environment variables so the API binds to local databases and enables the diagnostic endpoint for the test session only, then run the API:
+```powershell
+$env:ConnectionStrings__DefaultConnection = "Server=localhost;Database=IProgramDb2026;Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=true;"
+$env:ConnectionStrings__CON2027 = "Server=localhost;Database=IProgramDb2027;Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=true;"
+$env:E2E__DiagnosticsEnabled = "true"
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+
 dotnet run --project src/Api/Auth.Api.csproj -c Release --urls "http://localhost:5000"
 ```
 
-### Step 4.3: Verify Runtime DB Safety (Preflight)
+#### Step 4.3: Verify Runtime DB Safety (Preflight)
 Before running tests, execute the preflight safety verification script to prove that all runtime database connections resolve only to approved local databases:
 ```powershell
 powershell -ExecutionPolicy Bypass -File tests/e2e/preflight_db_safety_check.ps1
 ```
 
-### Step 4.4: Run Playwright Tests
+#### Step 4.4: Run Playwright Tests
 In a separate terminal, execute the test suite:
 ```bash
 cd tests/e2e

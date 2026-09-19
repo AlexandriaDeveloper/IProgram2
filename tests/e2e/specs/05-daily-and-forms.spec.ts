@@ -65,22 +65,23 @@ test.describe('Daily Batches & Forms Management', () => {
     const formTable = page.locator('table, mat-table');
     await expect(formTable).toBeVisible({ timeout: 10000 });
 
-    // If active form rows exist, test read-only navigation to Form Details
+    // Assert active form rows exist deterministically (verified existing in fixture)
     const formRows = page.locator('tr.mat-mdc-row, mat-row, tr[mat-row]');
+    await expect(formRows.first()).toBeVisible({ timeout: 10000 });
     const formCount = await formRows.count();
-    if (formCount > 0) {
-      const detailsButton = formRows.first().locator('button.info-button');
-      if (await detailsButton.isVisible()) {
-        await detailsButton.click();
-        await page.waitForURL(/\/daily\/\d+\/form\/\d+/, { timeout: 15000 });
-        expect(page.url()).toMatch(/\/daily\/\d+\/form\/\d+/);
+    expect(formCount).toBeGreaterThan(0);
 
-        // Verify form details component loaded read-only without errors
-        await page.waitForLoadState('networkidle');
-        const detailsContainer = page.locator('app-form-details, table, mat-card, .mat-elevation-z8');
-        await expect(detailsContainer.first()).toBeVisible();
-      }
-    }
+    // Unconditionally assert read-only navigation to Form Details
+    const detailsButton = formRows.first().locator('button.info-button');
+    await expect(detailsButton).toBeVisible();
+    await detailsButton.click();
+    await page.waitForURL(/\/daily\/\d+\/form\/\d+/, { timeout: 15000 });
+    expect(page.url()).toMatch(/\/daily\/\d+\/form\/\d+/);
+
+    // Verify form details component loaded read-only without errors
+    await page.waitForLoadState('networkidle');
+    const detailsContainer = page.locator('app-form-details, table, mat-card, .mat-elevation-z8');
+    await expect(detailsContainer.first()).toBeVisible();
 
     monitor.assertNoFailures();
   });

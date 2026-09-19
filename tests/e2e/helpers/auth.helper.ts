@@ -67,16 +67,26 @@ export function verifyJwtDbClaim(token: string, expectedYear: string) {
 
 export interface ApiMonitorOptions {
   allowedErrors?: Array<{ status: number; pathSubstring: string }>;
+  allowedConsoleErrors?: Array<{ pattern: RegExp | string }>;
+}
+
+export interface KnownDefect {
+  defectId: string;
+  source: string;
+  detail: string;
 }
 
 /**
- * Reusable network monitor that tracks all /api/** responses.
- * Fails test on any unexpected HTTP status >= 400.
+ * Reusable monitor that tracks all /api/** responses, uncaught browser pageerrors,
+ * and browser console errors. Explicitly captures documented known defects without hiding them.
+ * Fails test on any unexpected HTTP status >= 400 or unexpected browser error.
  */
 export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
-  const unexpectedErrors: { status: number; url: string }[] = [];
+  const unexpectedErrors: { status: number; url: string; detail?: string }[] = [];
   const observedEndpoints = new Set<string>();
+  const knownDefects: KnownDefect[] = [];
 
+  // 1. Network response monitor
   page.on('response', response => {
     const url = response.url();
     if (url.includes('/api/')) {
@@ -93,8 +103,61 @@ export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
           e => e.status === status && url.includes(e.pathSubstring)
         );
         if (!isAllowed) {
-          unexpectedErrors.push({ status, url });
+          unexpectedErrors.push({ status, url, detail: `HTTP ${status} on ${url}` });
         }
+      }
+    }
+  });
+
+  // 2. Browser uncaught exception monitor
+  page.on('pageerror', error => {
+    unexpectedErrors.push({
+      status: 0,
+      url: page.url(),
+      detail: `Uncaught Page Exception: ${error.message}\n${error.stack || ''}`,
+    });
+  });
+
+  // 3. Browser console error monitor
+  page.on('console', msg => {
+    if (msg.type() === 'error') {
+      const text = msg.text();
+
+      // Classify documented known defect: Legacy Migration SignalR 405 on startup
+      const isSignalRDefect =
+        text.includes('/migrationHub') ||
+        text.includes('405') ||
+        text.includes('Method Not Allowed') ||
+        text.includes('negotiat') ||
+        text.includes('Failed to start the connection');
+
+      if (isSignalRDefect) {
+        knownDefects.push({
+          defectId: 'DEFECT_3_SIGNALR_MIGRATIONHUB_405',
+          source: 'Browser Console',
+          detail: text,
+        });
+        return;
+      }
+
+      // Check if this console error corresponds to an allowed HTTP error response
+      const isAllowedHttpConsoleError = options?.allowedErrors?.some(e =>
+        text.includes(`status of ${e.status}`) || text.includes(`${e.status} (`)
+      );
+      if (isAllowedHttpConsoleError) {
+        return;
+      }
+
+      // Check user-allowed console patterns
+      const isAllowed = options?.allowedConsoleErrors?.some(c =>
+        typeof c.pattern === 'string' ? text.includes(c.pattern) : c.pattern.test(text)
+      );
+      if (!isAllowed) {
+        unexpectedErrors.push({
+          status: 0,
+          url: page.url(),
+          detail: `Browser Console Error: ${text}`,
+        });
       }
     }
   });
@@ -102,11 +165,12 @@ export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
   return {
     assertNoFailures: () => {
       if (unexpectedErrors.length > 0) {
-        const details = unexpectedErrors.map(e => `${e.status} ${e.url}`).join('; ');
-        throw new Error(`Unexpected API error response(s) detected: ${details}`);
+        const details = unexpectedErrors.map(e => e.detail || `${e.status} ${e.url}`).join('\n---\n');
+        throw new Error(`Unexpected browser / API error(s) detected during test execution:\n${details}`);
       }
     },
     getObservedEndpoints: () => Array.from(observedEndpoints),
+    getKnownDefects: () => knownDefects,
   };
 }
 

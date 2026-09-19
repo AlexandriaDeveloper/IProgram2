@@ -24,13 +24,15 @@ A full automated End-to-End (E2E) testing harness was engineered using Playwrigh
 * **21 automated E2E test specs** were implemented across 9 test suites with 100% pass rate.
 * **Zero destructive operations** were performed; zero Production or Azure database mutations took place; quarantined database `IProgramLocalDb2026` was never accessed or referenced.
 * **7 architectural / functional defects** were cataloged with exact root cause analysis and severity classifications.
-* **Remediations implemented:**
-  1. DI constructor ambiguity startup crash resolved in `LocalBootstrapWriteGate`.
-  2. Invalid login response corrected from HTTP 500 to HTTP 401 Unauthorized in `AccountService`.
-  3. Hardcoded port 80 URL in `environment.prod.ts` corrected to relative `/api/` path.
-  4. Runtime DB safety preflight endpoint and automated validation script added.
-  5. Credentials isolation via `.env` / environment variables with sanitized fast-failure.
-  6. E2E test suite documentation provided in `tests/e2e/README.md`.
+* **Strict Environment Isolation & Remediations Implemented:**
+  1. **User Secrets Restored:** Normal operator User Secrets were fully restored to pre-sprint values (pointing to Azure); zero persistent alterations to machine secrets.
+  2. **Process-Scoped E2E Overrides:** Local database routing (`IProgramDb2026` / `IProgramDb2027`) exists strictly as process-scoped environment overrides (`ConnectionStrings__*`) during test runs and disappears on exit.
+  3. **Angular Environment Isolation:** Master `environment.ts` and `environment.prod.ts` reverted to original baseline; dedicated `environment.e2e.ts` profile added via Angular configuration `--configuration e2e` (`npm run build:e2e`).
+  4. **Double-Guarded Diagnostics:** Endpoint `/api/diagnostics/e2e-db-safety` double-gated by `IsDevelopment()` AND explicit process flag `E2E:DiagnosticsEnabled=true`.
+  5. **Browser Error Monitoring:** Reusable `attachApiMonitor` enhanced with browser `pageerror` and `console` error tracking, capturing documented Defect 3 (SignalR 405 on startup) as observed evidence.
+  6. **Deterministic Form Details Flow:** Unconditionally asserts read-only Form Details navigation (`/:id/form/:formid`) without conditional branching.
+  7. **Test-Enablement Core Fixes:** `LocalBootstrapWriteGate` DI registration ambiguity resolved, and `AccountService` line 29 corrected to return HTTP 401 Unauthorized for invalid credentials.
+  8. **Repeatable Launcher:** Provided `tests/e2e/run_e2e.ps1` automating the isolated test lifecycle.
 * **Prerequisites documentation** in `README.md` was corrected to reflect .NET 10.0 SDK.
 
 ---
