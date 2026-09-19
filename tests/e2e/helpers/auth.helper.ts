@@ -86,11 +86,19 @@ export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
   const observedEndpoints = new Set<string>();
   const knownDefects: KnownDefect[] = [];
 
+  // Track whether /migrationHub was targeted and failed with 405
+  let migrationHub405Observed = false;
+
   // 1. Network response monitor
   page.on('response', response => {
     const url = response.url();
+    const status = response.status();
+
+    if (url.includes('/migrationHub') && status === 405) {
+      migrationHub405Observed = true;
+    }
+
     if (url.includes('/api/')) {
-      const status = response.status();
       try {
         const parsed = new URL(url);
         observedEndpoints.add(`${response.request().method()} ${parsed.pathname}`);
@@ -122,16 +130,29 @@ export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
   page.on('console', msg => {
     if (msg.type() === 'error') {
       const text = msg.text();
+      const locationUrl = msg.location()?.url || '';
 
       // Classify documented known defect: Legacy Migration SignalR 405 on startup
+      // Must be specifically attributable to /migrationHub (or its negotiate endpoint)
+      // AND match the expected negotiation/405 failure shape.
+      const isDirectMigrationHub405 =
+        (locationUrl.includes('/migrationHub') || text.includes('/migrationHub')) &&
+        (text.includes('405') || text.includes('Method Not Allowed'));
+
+      const isSignalRNegotiationCascade =
+        (text.includes('Failed to complete negotiation with the server') ||
+         text.includes('Failed to start the connection: Error: Failed to complete negotiation')) &&
+        text.includes("Status code '405'") &&
+        text.includes('Method Not Allowed');
+
       const isSignalRDefect =
-        text.includes('/migrationHub') ||
-        text.includes('405') ||
-        text.includes('Method Not Allowed') ||
-        text.includes('negotiat') ||
-        text.includes('Failed to start the connection');
+        isDirectMigrationHub405 ||
+        (migrationHub405Observed && isSignalRNegotiationCascade);
 
       if (isSignalRDefect) {
+        if (isDirectMigrationHub405) {
+          migrationHub405Observed = true;
+        }
         knownDefects.push({
           defectId: 'DEFECT_3_SIGNALR_MIGRATIONHUB_405',
           source: 'Browser Console',
