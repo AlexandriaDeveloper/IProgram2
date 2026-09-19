@@ -1,0 +1,12 @@
+﻿{
+    "Gate":  "Gate6_LocalSyncMetadata",
+    "RunId":  "20260919_214709",
+    "TargetDatabase":  "IProgramLocalDb2026",
+    "LocalStateDatabaseId":  "2026",
+    "LocalStateServerVersionCheckpoint":  0,
+    "LocalOutboxRowCount":  0,
+    "BootstrapManifestStatus":  "VERIFIED_READY",
+    "BootstrapManifestIsWriteAllowed":  true,
+    "IdentCorrectionsCount":  4,
+    "Status":  "PASSED"
+}

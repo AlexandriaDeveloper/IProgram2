@@ -1,0 +1,17 @@
+﻿{
+    "Gate":  "Gate2_ConsistentExport",
+    "RunId":  "20260919_214709",
+    "MaintenanceWindowStartUtc":  "2026-09-19T18:48:24.6362490Z",
+    "MaintenanceWindowEndUtc":  "2026-09-19T18:51:45.7645677Z",
+    "DurationSeconds":  144.05,
+    "SourceDatabase":  "IProgramDb2026",
+    "AzureServer":  "iprogram-sql-prod-01.database.windows.net",
+    "BacpacFileName":  "IProgramDb2026_Slice42B_20260919_214709.bacpac",
+    "BacpacFileSizeBytes":  2360622,
+    "BacpacFileSizeMB":  2.25,
+    "BacpacSha256":  "67B69DECB504F8CCE5BFB24EA4DAAB8FD95BE2D436D5EE38C3C6AAB7E7EE8B97",
+    "SqlPackageVersion":  "170.5.96.0",
+    "SourceConsistencyVerified":  true,
+    "PreExportRowCount":  47573,
+    "PostExportRowCount":  47573
+}

@@ -1,0 +1,20 @@
+﻿{
+    "Gate":  "Gate0_Preflight",
+    "RunId":  "20260919_214709",
+    "TimestampUtc":  "2026-09-19T18:47:09.3297416Z",
+    "ExpectedMasterBaseline":  "7c46ea854b65742f7a34a594a73896f16782f5a0",
+    "CurrentGitBranch":  "feat/azure-to-local-bootstrap-2026-slice-4-2b",
+    "CurrentGitCommit":  "7c46ea854b65742f7a34a594a73896f16782f5a0",
+    "LocalSqlEndpoint":  "localhost",
+    "LocalSqlVersion":  null,
+    "LocalSqlProductVersion":  "12.0.2269.0",
+    "LocalSqlEdition":  "Enterprise Edition (64-bit)",
+    "LocalSqlMajorVersion":  12,
+    "LocalSqlNetTransport":  "Shared memory",
+    "DiskSpaceFreeGB":  167.36,
+    "FinalDbAlreadyExists":  false,
+    "StagingDbAlreadyExists":  false,
+    "AzureConnectivityOk":  true,
+    "SqlPackageVersion":  "170.5.96.0",
+    "Status":  "PASSED"
+}

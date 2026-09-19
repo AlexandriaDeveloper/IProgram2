@@ -13,7 +13,27 @@ namespace Auth.Infrastructure.Sync
         public DbSet<ServerTombstone> Tombstones { get; set; }
         public DbSet<ProcessedOperation> ProcessedOperations { get; set; }
 
-        public AzureSyncContext(DbContextOptions<AzureSyncContext> options) : base(options) { }
+        public AzureSyncContext(DbContextOptions<AzureSyncContext> options) : base(options)
+        {
+            ValidateAzureDatabaseConnection();
+        }
+
+        public void ValidateAzureDatabaseConnection()
+        {
+            if (Database.IsRelational())
+            {
+                var connection = Database.GetDbConnection();
+                var physicalDbName = connection?.Database;
+                if (!string.IsNullOrEmpty(physicalDbName))
+                {
+                    if (DatabaseBindingValidator.IsLocalDatabaseName(physicalDbName))
+                    {
+                        throw new InvalidOperationException(
+                            $"Security violation: AzureSyncContext cannot target local database '{physicalDbName}'. AzureSyncContext is strictly for remote Azure databases.");
+                    }
+                }
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

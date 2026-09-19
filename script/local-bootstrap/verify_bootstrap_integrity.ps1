@@ -1,0 +1,487 @@
+﻿# Deterministic Data Integrity and Schema Verifier for IProgram Phase 4 Slice 4.2B
+param(
+    [string]$SourceConnectionString = "",
+    [string]$TargetConnectionString = "",
+    [ValidateSet("CaptureSource", "CaptureTarget", "Compare")]
+    [string]$Mode = "Compare",
+    [string]$OutputJsonPath = ""
+)
+
+$ErrorActionPreference = "Stop"
+
+# Ensure C# TableHasher type is compiled and loaded
+if (-not ([System.Management.Automation.PSTypeName]'TableHasher').Type) {
+    $hasherCode = @"
+using System;
+using System.IO;
+using System.Data;
+using System.Data.SqlClient;
+using System.Security.Cryptography;
+using System.Text;
+using System.Globalization;
+using System.Collections.Generic;
+
+public class TableHasher
+{
+    public class TableAuditResult
+    {
+        public string SchemaName { get; set; }
+        public string TableName { get; set; }
+        public long RowCount { get; set; }
+        public string Sha256Hash { get; set; }
+        public string PrimaryKeyName { get; set; }
+        public string PrimaryKeyColumns { get; set; }
+        public int ColumnCount { get; set; }
+        public List<string> ColumnNames { get; set; }
+        public List<string> ColumnTypes { get; set; }
+        public List<bool> ColumnNullability { get; set; }
+        public bool HasIdentity { get; set; }
+        public string IdentityColumn { get; set; }
+        public object IdentCurrent { get; set; }
+        public int ForeignKeyCount { get; set; }
+        public int IndexCount { get; set; }
+        public long SyncIdNullCount { get; set; }
+        public long SyncIdDuplicateCount { get; set; }
+        public double HashElapsedSeconds { get; set; }
+
+        public TableAuditResult()
+        {
+            ColumnNames = new List<string>();
+            ColumnTypes = new List<string>();
+            ColumnNullability = new List<bool>();
+        }
+    }
+
+    public static TableAuditResult AuditAndHashTable(string connectionString, string schemaName, string tableName, string pkColumns, bool isSyncable)
+    {
+        var result = new TableAuditResult
+        {
+            SchemaName = schemaName,
+            TableName = tableName
+        };
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        using (var conn = new SqlConnection(connectionString))
+        {
+            conn.Open();
+
+            // 1. Column Inventory & Nullability
+            using (var cmdCols = conn.CreateCommand())
+            {
+                cmdCols.CommandText = @"
+                    SELECT 
+                        c.name, 
+                        tp.name AS type_name, 
+                        c.is_nullable,
+                        c.is_identity
+                    FROM sys.columns c
+                    INNER JOIN sys.tables t ON c.object_id = t.object_id
+                    INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                    INNER JOIN sys.types tp ON c.user_type_id = tp.user_type_id
+                    WHERE s.name = @schema AND t.name = @table
+                    ORDER BY c.column_id";
+                cmdCols.Parameters.AddWithValue("@schema", schemaName);
+                cmdCols.Parameters.AddWithValue("@table", tableName);
+                using (var reader = cmdCols.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var colName = reader.GetString(0);
+                        var typeName = reader.GetString(1);
+                        var isNull = reader.GetBoolean(2);
+                        var isIdent = reader.GetBoolean(3);
+
+                        result.ColumnNames.Add(colName);
+                        result.ColumnTypes.Add(typeName);
+                        result.ColumnNullability.Add(isNull);
+
+                        if (isIdent)
+                        {
+                            result.HasIdentity = true;
+                            result.IdentityColumn = colName;
+                        }
+                    }
+                }
+            }
+            result.ColumnCount = result.ColumnNames.Count;
+
+            // 2. Foreign Keys Count
+            using (var cmdFk = conn.CreateCommand())
+            {
+                cmdFk.CommandText = @"
+                    SELECT COUNT(*)
+                    FROM sys.foreign_keys fk
+                    INNER JOIN sys.tables t ON fk.parent_object_id = t.object_id
+                    INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                    WHERE s.name = @schema AND t.name = @table";
+                cmdFk.Parameters.AddWithValue("@schema", schemaName);
+                cmdFk.Parameters.AddWithValue("@table", tableName);
+                result.ForeignKeyCount = Convert.ToInt32(cmdFk.ExecuteScalar());
+            }
+
+            // 3. Index Count
+            using (var cmdIdx = conn.CreateCommand())
+            {
+                cmdIdx.CommandText = @"
+                    SELECT COUNT(*)
+                    FROM sys.indexes i
+                    INNER JOIN sys.tables t ON i.object_id = t.object_id
+                    INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                    WHERE s.name = @schema AND t.name = @table AND i.type > 0";
+                cmdIdx.Parameters.AddWithValue("@schema", schemaName);
+                cmdIdx.Parameters.AddWithValue("@table", tableName);
+                result.IndexCount = Convert.ToInt32(cmdIdx.ExecuteScalar());
+            }
+
+            // 4. Identity Value (IDENT_CURRENT)
+            if (result.HasIdentity)
+            {
+                using (var cmdId = conn.CreateCommand())
+                {
+                    cmdId.CommandText = string.Format("SELECT IDENT_CURRENT('[{0}].[{1}]')", schemaName, tableName);
+                    var val = cmdId.ExecuteScalar();
+                    result.IdentCurrent = (val == DBNull.Value || val == null) ? null : Convert.ToString(val, CultureInfo.InvariantCulture);
+                }
+            }
+
+            // 5. SyncId Checks (if syncable)
+            if (isSyncable && result.ColumnNames.Contains("SyncId"))
+            {
+                using (var cmdSync = conn.CreateCommand())
+                {
+                    cmdSync.CommandText = string.Format(@"
+                        SELECT 
+                            SUM(CASE WHEN SyncId IS NULL OR SyncId = '00000000-0000-0000-0000-000000000000' THEN 1 ELSE 0 END) AS NullCount,
+                            COUNT(SyncId) - COUNT(DISTINCT SyncId) AS DupCount
+                        FROM [{0}].[{1}]", schemaName, tableName);
+                    using (var reader = cmdSync.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            result.SyncIdNullCount = reader.IsDBNull(0) ? 0 : Convert.ToInt64(reader.GetValue(0));
+                            result.SyncIdDuplicateCount = reader.IsDBNull(1) ? 0 : Convert.ToInt64(reader.GetValue(1));
+                        }
+                    }
+                }
+            }
+
+            // 6. Deterministic Streaming Hash
+            var colListSql = "[" + string.Join("], [", result.ColumnNames) + "]";
+            var orderBySql = string.IsNullOrWhiteSpace(pkColumns) ? colListSql : pkColumns;
+
+            using (var cmdData = conn.CreateCommand())
+            {
+                cmdData.CommandTimeout = 300;
+                cmdData.CommandText = string.Format("SELECT {0} FROM [{1}].[{2}] ORDER BY {3}", colListSql, schemaName, tableName, orderBySql);
+
+                using (var sha = SHA256.Create())
+                using (var cs = new CryptoStream(Stream.Null, sha, CryptoStreamMode.Write))
+                using (var bw = new BinaryWriter(cs, Encoding.UTF8, true))
+                {
+                    using (var reader = cmdData.ExecuteReader())
+                    {
+                        long rowCount = 0;
+                        int colCount = result.ColumnNames.Count;
+
+                        while (reader.Read())
+                        {
+                            rowCount++;
+                            bw.Write((byte)0xFF); // Row marker
+
+                            for (int i = 0; i < colCount; i++)
+                            {
+                                if (reader.IsDBNull(i))
+                                {
+                                    bw.Write((byte)0x00); // NULL marker
+                                    continue;
+                                }
+
+                                var typeName = result.ColumnTypes[i];
+                                switch (typeName)
+                                {
+                                    case "bit":
+                                        bw.Write((byte)0x01);
+                                        bw.Write(reader.GetBoolean(i));
+                                        break;
+                                    case "int":
+                                        bw.Write((byte)0x02);
+                                        bw.Write(reader.GetInt32(i));
+                                        break;
+                                    case "bigint":
+                                        bw.Write((byte)0x03);
+                                        bw.Write(reader.GetInt64(i));
+                                        break;
+                                    case "float":
+                                        bw.Write((byte)0x04);
+                                        bw.Write(reader.GetDouble(i));
+                                        break;
+                                    case "uniqueidentifier":
+                                        bw.Write((byte)0x05);
+                                        bw.Write(reader.GetGuid(i).ToByteArray());
+                                        break;
+                                    case "datetime2":
+                                    case "datetime":
+                                        bw.Write((byte)0x06);
+                                        var dt = reader.GetDateTime(i);
+                                        bw.Write(dt.ToString("yyyy-MM-ddTHH:mm:ss.fffffff", CultureInfo.InvariantCulture));
+                                        break;
+                                    case "datetimeoffset":
+                                        bw.Write((byte)0x07);
+                                        var dto = (DateTimeOffset)reader.GetValue(i);
+                                        bw.Write(dto.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffffff+00:00", CultureInfo.InvariantCulture));
+                                        break;
+                                    case "nvarchar":
+                                    case "varchar":
+                                    case "nchar":
+                                    case "char":
+                                    case "text":
+                                    case "ntext":
+                                        bw.Write((byte)0x08);
+                                        bw.Write(reader.GetString(i));
+                                        break;
+                                    case "varbinary":
+                                    case "binary":
+                                    case "image":
+                                        bw.Write((byte)0x09);
+                                        var bytes = (byte[])reader.GetValue(i);
+                                        bw.Write(bytes.Length);
+                                        bw.Write(bytes);
+                                        break;
+                                    default:
+                                        bw.Write((byte)0x0A);
+                                        bw.Write(Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture) ?? "");
+                                        break;
+                                }
+                            }
+                        }
+
+                        result.RowCount = rowCount;
+                    }
+
+                    bw.Flush();
+                    cs.FlushFinalBlock();
+                    result.Sha256Hash = BitConverter.ToString(sha.Hash).Replace("-", "").ToUpperInvariant();
+                }
+            }
+        }
+
+        sw.Stop();
+        result.HashElapsedSeconds = sw.Elapsed.TotalSeconds;
+        return result;
+    }
+}
+"@
+    Add-Type -TypeDefinition $hasherCode -ReferencedAssemblies "System.Data", "System.Xml"
+}
+
+$syncableEntities = @(
+    "Daily",
+    "DailyReference",
+    "Departments",
+    "EmployeeBank",
+    "EmployeeNetPays",
+    "EmployeeRefernce",
+    "Employees",
+    "EmployeeWatchLists",
+    "Form",
+    "FormDetails",
+    "FormRefernce"
+)
+
+function Get-DatabaseTableList($cs) {
+    Add-Type -AssemblyName 'System.Data'
+    $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
+    $conn.Open()
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandTimeout = 120
+    $cmd.CommandText = @"
+SELECT 
+    s.name AS SchemaName,
+    t.name AS TableName,
+    ISNULL(pk.name, '') AS PrimaryKeyName,
+    ISNULL(
+        STUFF((
+            SELECT ', ' + c.name
+            FROM sys.index_columns ic
+            INNER JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+            WHERE ic.object_id = pk.parent_object_id AND ic.index_id = pk.unique_index_id
+            ORDER BY ic.key_ordinal
+            FOR XML PATH('')
+        ), 1, 2, ''),
+        ''
+    ) AS KeyColumns
+FROM sys.tables t
+INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+LEFT JOIN sys.key_constraints pk ON t.object_id = pk.parent_object_id AND pk.type = 'PK'
+ORDER BY s.name, t.name
+"@
+    $tables = @()
+    $reader = $cmd.ExecuteReader()
+    while ($reader.Read()) {
+        $tables += [PSCustomObject]@{
+            SchemaName = $reader["SchemaName"]
+            TableName = $reader["TableName"]
+            PrimaryKeyName = $reader["PrimaryKeyName"]
+            KeyColumns = $reader["KeyColumns"]
+        }
+    }
+    $reader.Close()
+    $conn.Close()
+    return $tables
+}
+
+function Audit-Database($cs, $label) {
+    Write-Host "`nAuditing database [$label]..." -ForegroundColor Cyan
+    $tableList = Get-DatabaseTableList $cs
+    $results = [ordered]@{}
+    $totalRows = 0
+
+    foreach ($t in $tableList) {
+        $fullName = "$($t.SchemaName).$($t.TableName)"
+        $isSyncable = $syncableEntities -contains $t.TableName
+        $pkColsFormatted = ""
+        if (-not [string]::IsNullOrWhiteSpace($t.KeyColumns)) {
+            $pkColsFormatted = "[" + ($t.KeyColumns -split ", " -join "], [") + "]"
+        }
+
+        Write-Host "  Hashing $fullName..." -NoNewline
+        $audit = [TableHasher]::AuditAndHashTable($cs, $t.SchemaName, $t.TableName, $pkColsFormatted, $isSyncable)
+        $audit.PrimaryKeyName = $t.PrimaryKeyName
+        $audit.PrimaryKeyColumns = $t.KeyColumns
+        $results[$fullName] = $audit
+        $totalRows += $audit.RowCount
+        Write-Host " $($audit.RowCount) rows, Hash: $($audit.Sha256Hash) ($([math]::Round($audit.HashElapsedSeconds, 2))s)" -ForegroundColor Green
+    }
+
+    return [ordered]@{
+        Label = $label
+        TableCount = $tableList.Count
+        TotalRows = $totalRows
+        Tables = $results
+    }
+}
+
+$report = [ordered]@{
+    ReportType = "DataIntegrityAuditReport"
+    Slice = "4.2B"
+    GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+    Mode = $Mode
+    OverallStatus = "UNKNOWN"
+}
+
+if ($Mode -eq "CaptureSource") {
+    $sourceAudit = Audit-Database $SourceConnectionString "Source_Azure_2026"
+    $report.Source = $sourceAudit
+    $report.OverallStatus = "CAPTURED"
+}
+elseif ($Mode -eq "CaptureTarget") {
+    $targetAudit = Audit-Database $TargetConnectionString "Target_Local_2026"
+    $report.Target = $targetAudit
+    $report.OverallStatus = "CAPTURED"
+}
+elseif ($Mode -eq "Compare") {
+    Write-Host "Starting Comparative Verification between Source (Azure) and Target (Local)..." -ForegroundColor Yellow
+    $sourceAudit = Audit-Database $SourceConnectionString "Source_Azure_2026"
+    $targetAudit = Audit-Database $TargetConnectionString "Target_Local_2026"
+
+    $report.SourceSummary = [ordered]@{ TableCount = $sourceAudit.TableCount; TotalRows = $sourceAudit.TotalRows }
+    $report.TargetSummary = [ordered]@{ TableCount = $targetAudit.TableCount; TotalRows = $targetAudit.TotalRows }
+
+    $comparisons = [ordered]@{}
+    $allPassed = $true
+    $mismatchCount = 0
+
+    # Verify table count
+    if ($sourceAudit.TableCount -ne $targetAudit.TableCount) {
+        $allPassed = $false
+        Write-Warning "Table count mismatch! Source: $($sourceAudit.TableCount), Target: $($targetAudit.TableCount)"
+    }
+
+    foreach ($tableName in $sourceAudit.Tables.Keys) {
+        $src = $sourceAudit.Tables[$tableName]
+        $tgt = $targetAudit.Tables[$tableName]
+
+        $tableStatus = "PASS"
+        $mismatchDetails = @()
+
+        if (-not $tgt) {
+            $tableStatus = "FAIL_MISSING_IN_TARGET"
+            $mismatchDetails += "Table missing in target"
+            $allPassed = $false
+            $mismatchCount++
+        }
+        else {
+            if ($src.RowCount -ne $tgt.RowCount) {
+                $tableStatus = "FAIL_ROWCOUNT_MISMATCH"
+                $mismatchDetails += "RowCount source ($($src.RowCount)) != target ($($tgt.RowCount))"
+                $allPassed = $false
+                $mismatchCount++
+            }
+            if ($src.Sha256Hash -ne $tgt.Sha256Hash) {
+                $tableStatus = "FAIL_HASH_MISMATCH"
+                $mismatchDetails += "SHA256 source ($($src.Sha256Hash)) != target ($($tgt.Sha256Hash))"
+                $allPassed = $false
+                $mismatchCount++
+            }
+            if ($src.ColumnCount -ne $tgt.ColumnCount) {
+                $mismatchDetails += "ColumnCount source ($($src.ColumnCount)) != target ($($tgt.ColumnCount))"
+                $allPassed = $false
+                $mismatchCount++
+            }
+            if ($src.PrimaryKeyColumns -ne $tgt.PrimaryKeyColumns) {
+                $mismatchDetails += "PK Columns source ($($src.PrimaryKeyColumns)) != target ($($tgt.PrimaryKeyColumns))"
+                $allPassed = $false
+                $mismatchCount++
+            }
+            if ($src.SyncIdNullCount -ne $tgt.SyncIdNullCount -or $tgt.SyncIdNullCount -gt 0) {
+                $mismatchDetails += "SyncId nulls detected: $($tgt.SyncIdNullCount)"
+                $allPassed = $false
+                $mismatchCount++
+            }
+            if ($src.SyncIdDuplicateCount -ne $tgt.SyncIdDuplicateCount -or $tgt.SyncIdDuplicateCount -gt 0) {
+                $mismatchDetails += "SyncId duplicates detected: $($tgt.SyncIdDuplicateCount)"
+                $allPassed = $false
+                $mismatchCount++
+            }
+        }
+
+        $comparisons[$tableName] = [ordered]@{
+            Status = $tableStatus
+            SourceRowCount = $src.RowCount
+            TargetRowCount = if ($tgt) { $tgt.RowCount } else { $null }
+            SourceHash = $src.Sha256Hash
+            TargetHash = if ($tgt) { $tgt.Sha256Hash } else { $null }
+            SourceIdentCurrent = $src.IdentCurrent
+            TargetIdentCurrent = if ($tgt) { $tgt.IdentCurrent } else { $null }
+            IdentMatch = if ($tgt) { ($src.IdentCurrent -eq $tgt.IdentCurrent) } else { $false }
+            Mismatches = $mismatchDetails
+        }
+    }
+
+    $report.Comparisons = $comparisons
+    $report.MismatchCount = $mismatchCount
+    $report.OverallStatus = if ($allPassed) { "PASS" } else { "FAIL" }
+
+    Write-Host "`n=== COMPARISON SUMMARY ===" -ForegroundColor Cyan
+    Write-Host "Overall Status: $($report.OverallStatus)" -ForegroundColor $(if ($allPassed) { "Green" } else { "Red" })
+    Write-Host "Total Tables Compared: $($sourceAudit.TableCount)"
+    Write-Host "Total Rows: Source=$($sourceAudit.TotalRows), Target=$($targetAudit.TotalRows)"
+    Write-Host "Mismatches: $mismatchCount"
+}
+
+if ($OutputJsonPath) {
+    $parentDir = Split-Path -Parent $OutputJsonPath
+    if (-not (Test-Path $parentDir)) {
+        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
+    }
+    $json = $report | ConvertTo-Json -Depth 6
+    [System.IO.File]::WriteAllText($OutputJsonPath, $json, [System.Text.Encoding]::UTF8)
+    Write-Host "Report saved to: $OutputJsonPath" -ForegroundColor Green
+}
+
+if ($report.OverallStatus -eq "FAIL") {
+    exit 1
+} else {
+    exit 0
+}

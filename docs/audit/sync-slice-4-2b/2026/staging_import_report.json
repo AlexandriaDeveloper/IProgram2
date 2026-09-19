@@ -1,0 +1,10 @@
+﻿{
+    "Gate":  "Gate3_StagingImport",
+    "RunId":  "20260919_214709",
+    "StagingDatabaseName":  "IProgramLocalDb2026_Bootstrap_20260919_214709",
+    "TargetEngine":  "localhost",
+    "ImportDurationSeconds":  8.07,
+    "DatabaseState":  "ONLINE",
+    "CompatibilityLevel":  120,
+    "Status":  "PASSED"
+}

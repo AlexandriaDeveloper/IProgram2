@@ -10,6 +10,7 @@ namespace Auth.Infrastructure.Sync
         private readonly ILocalSyncContextFactory _contextFactory;
         private readonly LocalSyncContext _directContext;
 
+        [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
         public LocalBootstrapWriteGate(ILocalSyncContextFactory contextFactory)
         {
             _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
