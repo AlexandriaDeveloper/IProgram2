@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Evaluates local SQL Server instances for Phase 4 Slice 4.2A Local-First readiness.
+    Evaluates local SQL Server default instance for Phase 4 Slice 4.2A Local-First readiness.
 .DESCRIPTION
-    Scans for localhost\SQLEXPRESS and default localhost instances.
+    Scans the primary selected local SQL Server instance (localhost).
     Checks SQL Server edition, version, actual transport protocol (via net_transport),
     Windows Integrated Security connectivity, and reserved database presence.
     Emits sanitized machine-readable JSON without exposing workstation/user names or credentials.
@@ -32,13 +32,13 @@ $report = [ordered]@{
 }
 
 $instancesToTest = @(
-    @{ Name = "localhost\SQLEXPRESS"; Description = "Preferred Local-First SQL Express Named Instance" },
-    @{ Name = "localhost"; Description = "Default Local SQL Server Instance" }
+    @{ Name = "localhost"; Description = "Selected Local SQL Server Default Instance" },
+    @{ Name = "localhost\SQLEXPRESS"; Description = "Optional/Informational Named Instance" }
 )
 
 Add-Type -AssemblyName 'System.Data'
 
-$foundUsableInstance = $false
+$foundPrimary = $false
 
 foreach ($inst in $instancesToTest) {
     $serverTarget = $inst.Name
@@ -101,16 +101,15 @@ SELECT
         Write-Host "  -> Connected successfully!" -ForegroundColor Green
         Write-Host "     Edition: $($instResult.Edition), Version: $($instResult.ProductVersion), Transport: $($instResult.NetTransport)" -ForegroundColor Green
 
-        if ($serverTarget -like "*SQLEXPRESS*" -or $instResult.Edition -like "*Express*") {
-            $foundUsableInstance = $true
+        if ($serverTarget -eq "localhost") {
+            $foundPrimary = $true
         }
     }
     catch {
         $instResult.ConnectionSuccessful = $false
         $instResult.NetTransport = "None"
-        # Sanitize error message to avoid environment disclosure
         $instResult.ErrorMessage = "Connection attempt failed (Instance not accessible or service not started)."
-        Write-Host "  -> Connection failed: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  -> Connection failed: $($_.Exception.Message)" -ForegroundColor $(if ($serverTarget -eq "localhost") { "Red" } else { "DarkGray" })
     }
     finally {
         if ($conn.State -eq [System.Data.ConnectionState]::Open) {
@@ -122,20 +121,13 @@ SELECT
 }
 
 # Evaluate overall readiness per Business Owner Decision
-if ($foundUsableInstance) {
-    $report.ReadinessStatus = "READY_SQLEXPRESS"
-    $report.RecommendedAction = "SQL Server Express instance is available on the local workstation."
+if ($foundPrimary) {
+    $report.ReadinessStatus = "LOCAL_ENGINE_AVAILABLE_BOOTSTRAP_DEFERRED"
+    $report.RecommendedAction = "Selected local SQL Server default instance (localhost, Enterprise Edition 64-bit, SQL Server 2014) is running and ready. Physical operational database creation and Azure data bootstrap remain deferred per Business Owner decision."
 }
 else {
-    $defaultInst = $report.TestedInstances | Where-Object { $_.ServerTarget -eq "localhost" -and $_.ConnectionSuccessful -eq $true }
-    if ($defaultInst) {
-        $report.ReadinessStatus = "LOCAL_DEV_ENGINE_AVAILABLE"
-        $report.RecommendedAction = "Per Business Owner decision, the existing local SQL Server 2014 instance is retained as the development/test engine. SQL Server 2022 Express installation and local operational DB creation are deferred to an explicitly authorized future slice."
-    }
-    else {
-        $report.ReadinessStatus = "NO_LOCAL_SQL_FOUND"
-        $report.RecommendedAction = "No local SQL Server detected on the workstation."
-    }
+    $report.ReadinessStatus = "NO_LOCAL_SQL_FOUND"
+    $report.RecommendedAction = "No local SQL Server detected on the workstation."
 }
 
 $jsonText = $report | ConvertTo-Json -Depth 5

@@ -4,12 +4,13 @@
 This directory contains scripts and tooling to establish and verify the Local-First operational database foundation for IProgram.
 
 Under Slice 4.2A:
-- **Business Owner Decision:** The existing local SQL Server 2014 instance on the workstation is retained as the development/test SQL engine. Installation of SQL Server 2022 Express and creation of final local operational databases are deferred to an explicitly authorized future slice.
-- Operational database naming contract:
+- **Business Owner Decision:** The existing local SQL Server 2014 default instance (`localhost`) on the workstation is the currently selected local development/test SQL engine. Installation of SQL Server 2022 Express is not planned.
+- **Deferred Physical Databases:** Physical local operational database creation (`IProgramLocalDb2026`, `IProgramLocalDb2027`) and data bootstrapping/cutover are deferred to an explicitly authorized future slice. No local business databases are created in this slice.
+- **Operational Database Naming Contract:**
   - `IProgramLocalDb2026` for canonical year 2026
   - `IProgramLocalDb2027` for canonical year 2027
-- Remote Azure production databases (`IProgramDb2026`, `IProgramDb2027`) remain authoritative and untouched.
-- `LocalFirst:Enabled` is set to `false` by default, preserving current Azure-routed application behavior.
+- **Remote Isolation:** Remote Azure production databases (`IProgramDb2026`, `IProgramDb2027`) remain authoritative and completely untouched.
+- **Feature Switch Default:** `LocalFirst:Enabled` is set to `false` by default, preserving 100% current Azure-routed application behavior.
 
 ---
 
@@ -17,8 +18,7 @@ Under Slice 4.2A:
 
 | Script | Purpose | Elevation |
 | :--- | :--- | :--- |
-| `check_local_sql_readiness.ps1` | Scans local SQL instances, tests transport protocol via `net_transport` & Windows Integrated Security, checks for reserved databases, and outputs sanitized audit JSON. | Standard User |
-| `install_sqlexpress.ps1` | Reference automated installer for SQL Server 2022 Express instance `SQLEXPRESS` with Windows Integrated Security (installation deferred per Business Owner decision). | **Administrator** |
+| `check_local_sql_readiness.ps1` | Scans the local SQL Server default instance (`localhost`), checks transport protocol via `net_transport` & Windows Integrated Security, verifies reserved database absence, and outputs sanitized audit JSON. | Standard User |
 
 ---
 

@@ -7,7 +7,7 @@ namespace Core.Configuration
         public const string SectionName = "LocalFirst";
 
         public bool Enabled { get; set; } = false;
-        public string SqlServerInstance { get; set; } = @"localhost\SQLEXPRESS";
+        public string SqlServerInstance { get; set; } = "localhost";
         public List<LocalDatabaseConfigItem> Databases { get; set; } = new List<LocalDatabaseConfigItem>();
     }
 

@@ -118,7 +118,7 @@ namespace Auth.Infrastructure.Services
             // Fallback: construct standard trusted connection using configured instance
             if (string.IsNullOrWhiteSpace(connStr))
             {
-                var instance = _configuration.GetValue<string>("LocalFirst:SqlServerInstance") ?? @"localhost\SQLEXPRESS";
+                var instance = _configuration.GetValue<string>("LocalFirst:SqlServerInstance") ?? "localhost";
                 connStr = $"Server={instance};Database={binding.ExpectedDatabaseName};Trusted_Connection=True;TrustServerCertificate=True";
             }
 

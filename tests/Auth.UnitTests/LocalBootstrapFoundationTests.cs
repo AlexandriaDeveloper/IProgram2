@@ -104,8 +104,8 @@ namespace Auth.UnitTests
                 {
                     { "ConnectionStrings:DefaultConnection", "Server=localhost;Database=IProgramDb2026;Trusted_Connection=True;" },
                     { "ConnectionStrings:CON2027", "Server=localhost;Database=IProgramDb2027;Trusted_Connection=True;" },
-                    { "ConnectionStrings:LocalConnection2026", "Server=localhost\\SQLEXPRESS;Database=IProgramLocalDb2026;Trusted_Connection=True;" },
-                    { "ConnectionStrings:LocalConnection2027", "Server=localhost\\SQLEXPRESS;Database=IProgramLocalDb2027;Trusted_Connection=True;" },
+                    { "ConnectionStrings:LocalConnection2026", "Server=localhost;Database=IProgramLocalDb2026;Trusted_Connection=True;" },
+                    { "ConnectionStrings:LocalConnection2027", "Server=localhost;Database=IProgramLocalDb2027;Trusted_Connection=True;" },
                     { "DatabaseSettings:Databases:0:Id", "2026" },
                     { "DatabaseSettings:Databases:0:ConnectionStringName", "DefaultConnection" },
                     { "DatabaseSettings:Databases:1:Id", "2027" },
@@ -144,14 +144,14 @@ namespace Auth.UnitTests
                 {
                     { "ConnectionStrings:DefaultConnection", "Server=localhost;Database=IProgramDb2026;Trusted_Connection=True;" },
                     { "ConnectionStrings:CON2027", "Server=localhost;Database=IProgramDb2027;Trusted_Connection=True;" },
-                    { "ConnectionStrings:LocalConnection2026", "Server=localhost\\SQLEXPRESS;Database=IProgramLocalDb2026;Trusted_Connection=True;" },
-                    { "ConnectionStrings:LocalConnection2027", "Server=localhost\\SQLEXPRESS;Database=IProgramLocalDb2027;Trusted_Connection=True;" },
+                    { "ConnectionStrings:LocalConnection2026", "Server=localhost;Database=IProgramLocalDb2026;Trusted_Connection=True;" },
+                    { "ConnectionStrings:LocalConnection2027", "Server=localhost;Database=IProgramLocalDb2027;Trusted_Connection=True;" },
                     { "DatabaseSettings:Databases:0:Id", "2026" },
                     { "DatabaseSettings:Databases:0:ConnectionStringName", "DefaultConnection" },
                     { "DatabaseSettings:Databases:1:Id", "2027" },
                     { "DatabaseSettings:Databases:1:ConnectionStringName", "CON2027" },
                     { "LocalFirst:Enabled", "true" },
-                    { "LocalFirst:SqlServerInstance", "localhost\\SQLEXPRESS" }
+                    { "LocalFirst:SqlServerInstance", "localhost" }
                 })
                 .Build();
 
@@ -164,7 +164,7 @@ namespace Auth.UnitTests
             // Default route (2026) routes to LOCAL database
             var conn2026 = provider.GetConnectionString();
             Assert.Contains("Database=IProgramLocalDb2026", conn2026);
-            Assert.Contains("localhost\\SQLEXPRESS", conn2026);
+            Assert.Contains("Server=localhost", conn2026);
 
             // Explicit 2027 selection routes to LOCAL 2027 database
             httpContext.Request.Headers["X-Db-Selection"] = "2027";
@@ -200,7 +200,7 @@ namespace Auth.UnitTests
         public void LocalSyncContext_AcceptsLocalDatabaseConnection()
         {
             var optionsLocal = new DbContextOptionsBuilder<LocalSyncContext>()
-                .UseSqlServer("Server=localhost\\SQLEXPRESS;Database=IProgramLocalDb2026;Trusted_Connection=True;TrustServerCertificate=True")
+                .UseSqlServer("Server=localhost;Database=IProgramLocalDb2026;Trusted_Connection=True;TrustServerCertificate=True")
                 .Options;
 
             using var localContext = new LocalSyncContext(optionsLocal);
@@ -298,7 +298,7 @@ namespace Auth.UnitTests
                 Status = "VERIFIED_READY",
                 IsWriteAllowed = true,
                 AzureServerSource = "iprogram-sql-prod-01.database.windows.net",
-                TargetLocalEngine = "SQLEXPRESS",
+                TargetLocalEngine = "localhost",
                 BootstrapTimestampUtc = DateTime.UtcNow
             });
             context.SaveChanges();
