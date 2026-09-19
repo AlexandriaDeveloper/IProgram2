@@ -18,7 +18,7 @@ This directory contains the exact, reproducible, and sanitized deployment artifa
 2. **`02_controlled_production_backfill.sql`**
    - Explicit, idempotent DML populating `SyncId` using `NEWID()` strictly `WHERE [SyncId] IS NULL`.
    - Never alters existing non-null GUIDs.
-   - Re-run safe and deterministic.
+   - Re-run safe and idempotent (GUID generation via `NEWID()` is intentionally non-deterministic, while the target row scoping and overall procedure are strictly idempotent and stable once assigned).
 
 3. **`03_finalization_sync_migration.sql`**
    - Drops staged filtered indexes.

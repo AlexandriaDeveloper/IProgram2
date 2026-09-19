@@ -1,12 +1,12 @@
 -- ==============================================================================
 -- PHASE 4 — SLICE 4.1B: Controlled Rollout Tooling
--- Stage B: Controlled Production Backfill (Deterministic, Safe, Resumable)
+-- Stage B: Controlled Production Backfill (Idempotent, Safe, Resumable)
 -- Applied to: IProgramDb2026, IProgramDb2027
 -- 
 -- Rules:
 -- 1. ONLY rows where SyncId IS NULL are assigned a GUID.
 -- 2. Existing non-null SyncIds are NEVER modified.
--- 3. Generates RFC 4122 v4 GUIDs natively inside SQL Server engine.
+-- 3. Generates RFC 4122 v4 GUIDs natively inside SQL Server engine (NEWID() generation is non-deterministic, but the procedure is strictly idempotent and stable once assigned).
 -- 4. Re-run safe (idempotent).
 -- ==============================================================================
 

@@ -1,7 +1,7 @@
 # Deterministic Table Fingerprint Specification (Slice 4.1B)
 
 ## 1. Objective
-To provide cryptographic, non-repudiable proof that **zero business data was modified, corrupted, or lost** during the Phase 4 Slice 4.1B production rollout on Azure SQL databases `IProgramDb2026` and `IProgramDb2027`, where only the newly populated `SyncId` column was altered.
+To provide strong deterministic integrity evidence that the serialized business-column state matched before and after the rollout during the Phase 4 Slice 4.1B production rollout on Azure SQL databases `IProgramDb2026` and `IProgramDb2027`, where only the newly populated `SyncId` column was altered.
 
 ---
 
