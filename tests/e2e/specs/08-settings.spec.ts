@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginThroughUI } from '../helpers/auth.helper';
+import { loginThroughUI, attachApiMonitor } from '../helpers/auth.helper';
 
 test.describe('Settings Module Flow & Route Verification', () => {
 
@@ -8,6 +8,7 @@ test.describe('Settings Module Flow & Route Verification', () => {
   });
 
   test('Settings route (/settings) loads without fatal application crash', async ({ page }) => {
+    const monitor = attachApiMonitor(page);
     const pageErrors: Error[] = [];
     page.on('pageerror', err => pageErrors.push(err));
 
@@ -23,5 +24,7 @@ test.describe('Settings Module Flow & Route Verification', () => {
 
     // Verify no fatal page-level runtime errors
     expect(pageErrors).toHaveLength(0);
+
+    monitor.assertNoFailures();
   });
 });

@@ -26,7 +26,7 @@ namespace Application.Features
 
             var appUser = await _accountRepository.Login(username, password);
             if (appUser == null)
-                return Result.Failure<UserDto>(new Error("500", "Invalid username or password"));
+                return Result.Failure<UserDto>(new Error("401", "Invalid username or password"));
             var token = await _tokenService.CreateToken(appUser);
             var user = new UserDto
             {
