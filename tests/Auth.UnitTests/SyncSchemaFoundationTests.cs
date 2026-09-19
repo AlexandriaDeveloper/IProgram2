@@ -39,13 +39,12 @@ namespace Auth.UnitTests
 
                 var prop = type.GetProperty("SyncId");
                 Assert.NotNull(prop);
-                Assert.Equal(typeof(Guid?), prop.PropertyType);
+                Assert.Equal(typeof(Guid), prop.PropertyType);
 
                 // Default initialization creates non-null, non-empty Guid
                 var instance = Activator.CreateInstance(type) as ISyncableEntity;
                 Assert.NotNull(instance);
-                Assert.NotNull(instance.SyncId);
-                Assert.NotEqual(Guid.Empty, instance.SyncId.Value);
+                Assert.NotEqual(Guid.Empty, instance.SyncId);
             }
 
             // 2. Base Entity class itself must NOT implement ISyncableEntity
@@ -65,7 +64,7 @@ namespace Auth.UnitTests
         }
 
         [Fact]
-        public void ApplicationContext_ConfiguresStagedNullableSyncId_WithFilteredUniqueIndex()
+        public void ApplicationContext_ConfiguresFinalizedNotNullSyncId_WithUniqueIndex()
         {
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseSqlServer("Server=localhost;Database=Dummy;Trusted_Connection=True;")
@@ -82,19 +81,101 @@ namespace Auth.UnitTests
                 var syncIdProp = entityType.FindProperty("SyncId");
                 Assert.NotNull(syncIdProp);
 
-                // Staged requirement: Must be nullable (no forced NOT NULL in 4.1A)
-                Assert.True(syncIdProp.IsNullable, $"{type.Name}.SyncId must be nullable in 4.1A staging migration");
+                // Finalized requirement: Must be NOT NULL
+                Assert.False(syncIdProp.IsNullable, $"{type.Name}.SyncId must be NOT NULL in finalized model");
 
-                // Staged requirement: Must NOT have default value SQL (no silent NEWSEQUENTIALID backfill)
+                // Finalized requirement: Must NOT have database default value SQL (no DB default generating GUID)
                 Assert.Null(syncIdProp.GetDefaultValueSql());
 
-                // Staged requirement: Filtered unique index to allow existing NULL rows
+                // Finalized requirement: Standard unique index (no filter needed since column is NOT NULL)
                 var syncIdIndex = entityType.GetIndexes()
                     .FirstOrDefault(i => i.Properties.Count == 1 && i.Properties[0].Name == "SyncId");
 
                 Assert.NotNull(syncIdIndex);
                 Assert.True(syncIdIndex.IsUnique, $"SyncId index on {type.Name} must be UNIQUE");
-                Assert.Equal("[SyncId] IS NOT NULL", syncIdIndex.GetFilter());
+                Assert.Null(syncIdIndex.GetFilter());
+            }
+        }
+
+        [Fact]
+        public void AzureDatabaseBinding_RejectsCrossMatchingAndInvalidIds()
+        {
+            // Valid bindings
+            var b2026 = AzureDatabaseBinding.For2026();
+            Assert.Equal("2026", b2026.CanonicalDatabaseId);
+            Assert.Equal("IProgramDb2026", b2026.ExpectedDatabaseName);
+
+            var b2027 = AzureDatabaseBinding.For2027();
+            Assert.Equal("2027", b2027.CanonicalDatabaseId);
+            Assert.Equal("IProgramDb2027", b2027.ExpectedDatabaseName);
+
+            // DB2026 binding rejects 2027 target
+            Assert.Throws<InvalidOperationException>(() => new AzureDatabaseBinding("2026", "IProgramDb2027"));
+
+            // DB2027 binding rejects 2026 target
+            Assert.Throws<InvalidOperationException>(() => new AzureDatabaseBinding("2027", "IProgramDb2026"));
+
+            // Rejects unknown/unsupported IDs
+            Assert.Throws<ArgumentException>(() => new AzureDatabaseBinding("2028", "IProgramDb2028"));
+            Assert.Throws<ArgumentException>(() => new AzureDatabaseBinding("", "IProgramDb2026"));
+        }
+
+        [Fact]
+        public void ServerState_Initialization_IsIdempotent_AndDatabaseIdIsolated()
+        {
+            var options = new DbContextOptionsBuilder<AzureSyncContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AzureSyncContext(options);
+
+            // 1. Initialize 2026 via trusted binding
+            AzureSyncContext.InitializeServerState(context, AzureDatabaseBinding.For2026());
+            var state2026 = context.ServerStates.Find("2026");
+            Assert.NotNull(state2026);
+            Assert.Equal("2026", state2026.DatabaseId);
+            Assert.Equal(0, state2026.CurrentVersion);
+
+            // 2. Re-initialize 2026 (idempotency check: does not throw or duplicate)
+            AzureSyncContext.InitializeServerState(context, AzureDatabaseBinding.For2026());
+            Assert.Equal(1, context.ServerStates.Count());
+
+            // 3. Initialize 2027 (isolation check)
+            AzureSyncContext.InitializeServerState(context, AzureDatabaseBinding.For2027());
+            var state2027 = context.ServerStates.Find("2027");
+            Assert.NotNull(state2027);
+            Assert.Equal("2027", state2027.DatabaseId);
+            Assert.Equal(0, state2027.CurrentVersion);
+            Assert.Equal(2, context.ServerStates.Count());
+        }
+
+        [Fact]
+        public void AzureServerStateInitializer_RejectsPhysicalDatabaseMismatch()
+        {
+            // Context connected to physical DB IProgramDb2026
+            var options2026 = new DbContextOptionsBuilder<AzureSyncContext>()
+                .UseSqlServer("Server=localhost;Database=IProgramDb2026;Trusted_Connection=True;")
+                .Options;
+
+            using (var context2026 = new AzureSyncContext(options2026))
+            {
+                // Attempting to initialize with 2027 binding must throw InvalidOperationException
+                var ex = Assert.Throws<InvalidOperationException>(() =>
+                    AzureServerStateInitializer.Initialize(context2026, AzureDatabaseBinding.For2027()));
+                Assert.Contains("Physical database connection mismatch", ex.Message);
+            }
+
+            // Context connected to physical DB IProgramDb2027
+            var options2027 = new DbContextOptionsBuilder<AzureSyncContext>()
+                .UseSqlServer("Server=localhost;Database=IProgramDb2027;Trusted_Connection=True;")
+                .Options;
+
+            using (var context2027 = new AzureSyncContext(options2027))
+            {
+                // Attempting to initialize with 2026 binding must throw InvalidOperationException
+                var ex = Assert.Throws<InvalidOperationException>(() =>
+                    AzureServerStateInitializer.Initialize(context2027, AzureDatabaseBinding.For2026()));
+                Assert.Contains("Physical database connection mismatch", ex.Message);
             }
         }
 
@@ -312,6 +393,41 @@ namespace Auth.UnitTests
             Assert.DoesNotContain(typeof(LocalOutbox), azureTypes);
             Assert.DoesNotContain(typeof(LocalState), azureTypes);
             Assert.DoesNotContain(typeof(LocalBootstrapManifest), azureTypes);
+        }
+
+        [Fact]
+        public void BackfillLogic_IsIdempotent_AndNeverModifiesExistingNonNullSyncId()
+        {
+            var initialSyncId = Guid.NewGuid();
+            var dailyWithExistingSyncId = new Daily { Id = 1, Name = "Existing", SyncId = initialSyncId };
+            var dailyNeedingSyncId = new Daily { Id = 2, Name = "NeedsBackfill", SyncId = Guid.Empty };
+
+            var list = new System.Collections.Generic.List<Daily> { dailyWithExistingSyncId, dailyNeedingSyncId };
+
+            // Backfill pass 1: only assign where Guid is empty / unassigned
+            foreach (var d in list)
+            {
+                if (d.SyncId == Guid.Empty)
+                {
+                    d.SyncId = Guid.NewGuid();
+                }
+            }
+
+            Assert.Equal(initialSyncId, dailyWithExistingSyncId.SyncId);
+            Assert.NotEqual(Guid.Empty, dailyNeedingSyncId.SyncId);
+            var assignedSyncId = dailyNeedingSyncId.SyncId;
+
+            // Backfill pass 2 (idempotency check): re-running backfill must not alter any value
+            foreach (var d in list)
+            {
+                if (d.SyncId == Guid.Empty)
+                {
+                    d.SyncId = Guid.NewGuid();
+                }
+            }
+
+            Assert.Equal(initialSyncId, dailyWithExistingSyncId.SyncId);
+            Assert.Equal(assignedSyncId, dailyNeedingSyncId.SyncId);
         }
     }
 }

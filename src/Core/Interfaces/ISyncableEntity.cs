@@ -5,7 +5,7 @@ namespace Core.Interfaces
 {
     public interface ISyncableEntity
     {
-        Guid? SyncId { get; set; }
+        Guid SyncId { get; set; }
     }
 }
 

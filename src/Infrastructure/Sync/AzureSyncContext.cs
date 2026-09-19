@@ -61,5 +61,10 @@ namespace Auth.Infrastructure.Sync
 
             base.OnModelCreating(builder);
         }
+
+        public static void InitializeServerState(AzureSyncContext context, AzureDatabaseBinding binding)
+        {
+            AzureServerStateInitializer.Initialize(context, binding);
+        }
     }
 }
