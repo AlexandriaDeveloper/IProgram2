@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Core.Models
 {
-    public class Employee : Entity
+    public class Employee : SyncableEntity
     {
 
         [MaxLength(14, ErrorMessage = "الرقم القومى لا يمكن ان يزيد عن 14 رقم")]

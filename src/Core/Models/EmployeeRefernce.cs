@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Core.Models
 {
-    public class EmployeeRefernce : Entity
+    public class EmployeeRefernce : SyncableEntity
     {
         [NotMapped]
         public override string Name { get => base.Name; set => base.Name = value; }

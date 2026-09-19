@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Core.Models
 {
-    public class EmployeeBank : Entity
+    public class EmployeeBank : SyncableEntity
     {
         [NotMapped]
         override public int Id { get; set; }

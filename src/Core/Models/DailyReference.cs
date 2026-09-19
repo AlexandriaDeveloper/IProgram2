@@ -6,7 +6,7 @@ namespace Core.Models
     /// <summary>
     /// Represents a daily reference entity that contains information about references related to daily entries.
     /// </summary>
-    public class DailyReference : Entity
+    public class DailyReference : SyncableEntity
     {
         /// <summary>
         /// Gets or sets the ID of the daily entry this reference belongs to.

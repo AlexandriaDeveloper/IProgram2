@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Core.Models
 {
-    public class FormDetails : Entity
+    public class FormDetails : SyncableEntity
     {
         [NotMapped]
         public override string Name { get; set; }

@@ -1,4 +1,4 @@
-
+using System;
 
 namespace Core.Models
 {
@@ -14,5 +14,4 @@ namespace Core.Models
         public DateTime? DeactivatedAt { get; set; }
         public bool IsActive { get; set; }
     }
-
-}
+}

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Core.Models
 {
-    public class Daily : Entity
+    public class Daily : SyncableEntity
     {
         [Required]
         [MaxLength(200, ErrorMessage = "البيان طويل الحد الاقصى 200 حرف")]
