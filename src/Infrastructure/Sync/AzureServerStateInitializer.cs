@@ -4,47 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Auth.Infrastructure.Sync
 {
-    /// <summary>
-    /// Represents a verified, immutable binding between a canonical database identifier and an expected physical database name.
-    /// </summary>
-    public sealed class AzureDatabaseBinding
-    {
-        public string CanonicalDatabaseId { get; }
-        public string ExpectedDatabaseName { get; }
-
-        public AzureDatabaseBinding(string canonicalDatabaseId, string expectedDatabaseName)
-        {
-            if (string.IsNullOrWhiteSpace(canonicalDatabaseId))
-                throw new ArgumentException("CanonicalDatabaseId is required.", nameof(canonicalDatabaseId));
-            if (string.IsNullOrWhiteSpace(expectedDatabaseName))
-                throw new ArgumentException("ExpectedDatabaseName is required.", nameof(expectedDatabaseName));
-
-            // Strictly enforce valid canonical combinations
-            if (canonicalDatabaseId == "2026" && !expectedDatabaseName.Equals("IProgramDb2026", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    $"Configuration mismatch: Canonical DatabaseId '2026' cannot be bound to database '{expectedDatabaseName}'. Expected 'IProgramDb2026'.");
-            }
-
-            if (canonicalDatabaseId == "2027" && !expectedDatabaseName.Equals("IProgramDb2027", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    $"Configuration mismatch: Canonical DatabaseId '2027' cannot be bound to database '{expectedDatabaseName}'. Expected 'IProgramDb2027'.");
-            }
-
-            if (canonicalDatabaseId != "2026" && canonicalDatabaseId != "2027")
-            {
-                throw new ArgumentException(
-                    $"Unsupported canonical DatabaseId '{canonicalDatabaseId}'. Expected '2026' or '2027'.", nameof(canonicalDatabaseId));
-            }
-
-            CanonicalDatabaseId = canonicalDatabaseId;
-            ExpectedDatabaseName = expectedDatabaseName;
-        }
-
-        public static AzureDatabaseBinding For2026() => new AzureDatabaseBinding("2026", "IProgramDb2026");
-        public static AzureDatabaseBinding For2027() => new AzureDatabaseBinding("2027", "IProgramDb2027");
-    }
+    using AzureDatabaseBinding = Core.Models.Sync.AzureDatabaseBinding;
 
     /// <summary>
     /// Service responsible for safely initializing the canonical sync.ServerState row,

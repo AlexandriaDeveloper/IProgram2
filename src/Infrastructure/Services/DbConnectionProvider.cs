@@ -2,14 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using Core.Configuration;
 using Core.Exceptions;
 using Core.Interfaces;
+using Core.Models.Sync;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 
 namespace Auth.Infrastructure.Services
 {
-    public class DbConnectionProvider : IDbConnectionProvider
+    public class DbConnectionProvider : ISyncConnectionProvider
     {
         private const string ContextItemKey = "__CanonicalDatabaseResolution";
 
@@ -21,6 +24,8 @@ namespace Auth.Infrastructure.Services
             _httpContextAccessor = httpContextAccessor;
             _configuration = configuration;
         }
+
+        public bool IsLocalFirstEnabled => _configuration.GetValue<bool>("LocalFirst:Enabled", false);
 
         public string GetSelectedDatabaseId()
         {
@@ -37,6 +42,163 @@ namespace Auth.Infrastructure.Services
             return GetConfiguredDatabases()
                 .Select(d => new DatabaseInfo { Id = d.Id, Name = d.Name })
                 .ToList();
+        }
+
+        public LocalDatabaseBinding GetLocalBinding(string databaseId)
+        {
+            return LocalDatabaseBinding.For(databaseId);
+        }
+
+        public AzureDatabaseBinding GetRemoteBinding(string databaseId)
+        {
+            return AzureDatabaseBinding.For(databaseId);
+        }
+
+        public string GetRemoteConnectionString(string databaseId)
+        {
+            if (string.IsNullOrWhiteSpace(databaseId))
+            {
+                throw new InvalidDatabaseSelectionException("Canonical database ID is required.");
+            }
+
+            var databases = GetConfiguredDatabases();
+            var matched = databases.FirstOrDefault(d => d.Id.Equals(databaseId.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (matched == null)
+            {
+                throw new DatabaseConfigurationException($"No database configured for canonical DatabaseId '{databaseId}'.");
+            }
+
+            var connStr = _configuration.GetConnectionString(matched.ConnectionStringName);
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                throw new DatabaseConfigurationException(
+                    $"Missing or empty remote connection string for database '{matched.Id}' with ConnectionStringName '{matched.ConnectionStringName}'.");
+            }
+
+            var binding = GetRemoteBinding(databaseId);
+
+            // Validate physical target database from connection string
+            ValidateConnectionStringPhysicalDatabase(binding.CanonicalDatabaseId, connStr, isLocal: false);
+
+            return connStr;
+        }
+
+        public string GetLocalConnectionString(string databaseId)
+        {
+            var binding = GetLocalBinding(databaseId);
+
+            // Check if explicitly configured in LocalFirst:Databases
+            var localDatabases = _configuration.GetSection("LocalFirst:Databases").Get<List<LocalDatabaseConfigItem>>();
+            var localConfigItem = localDatabases?.FirstOrDefault(d => d.Id.Equals(binding.CanonicalDatabaseId, StringComparison.OrdinalIgnoreCase));
+
+            string connStr = null;
+            if (localConfigItem != null && !string.IsNullOrWhiteSpace(localConfigItem.LocalConnectionStringName))
+            {
+                connStr = _configuration.GetConnectionString(localConfigItem.LocalConnectionStringName);
+            }
+
+            // Fallback: check standard convention connection string name LocalConnection{Id}
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                connStr = _configuration.GetConnectionString($"LocalConnection{binding.CanonicalDatabaseId}");
+            }
+
+            // Check if configured under DatabaseSettings:Databases
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                var databases = _configuration.GetSection("DatabaseSettings:Databases").Get<List<DatabaseConfigItem>>();
+                var matched = databases?.FirstOrDefault(d => d.Id.Equals(binding.CanonicalDatabaseId, StringComparison.OrdinalIgnoreCase));
+                if (matched != null && !string.IsNullOrWhiteSpace(matched.ConnectionStringName))
+                {
+                    connStr = _configuration.GetConnectionString(matched.ConnectionStringName);
+                }
+            }
+
+            // Fallback: construct standard trusted connection using configured instance
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                var instance = _configuration.GetValue<string>("LocalFirst:SqlServerInstance") ?? "localhost";
+                connStr = $"Server={instance};Database={binding.ExpectedDatabaseName};Trusted_Connection=True;TrustServerCertificate=True";
+            }
+
+            // Validate physical target database from connection string
+            ValidateConnectionStringPhysicalDatabase(binding.CanonicalDatabaseId, connStr, isLocal: true);
+
+            return connStr;
+        }
+
+        private void ValidateConnectionStringPhysicalDatabase(string canonicalId, string connStr, bool isLocal)
+        {
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                throw new DatabaseConfigurationException($"Missing connection string for canonical DatabaseId '{canonicalId}'.");
+            }
+
+            SqlConnectionStringBuilder builder;
+            try
+            {
+                builder = new SqlConnectionStringBuilder(connStr);
+            }
+            catch (Exception ex)
+            {
+                // Fail-closed on parse error, NEVER skip validation. Sanitize exception to avoid leaking credentials.
+                throw new DatabaseConfigurationException(
+                    $"Malformed connection string for canonical DatabaseId '{canonicalId}'. Could not parse SQL connection string parameters. ({ex.GetType().Name})");
+            }
+
+            // InitialCatalog / Database MUST be present
+            var physicalDbName = builder.InitialCatalog;
+            if (string.IsNullOrWhiteSpace(physicalDbName))
+            {
+                throw new DatabaseConfigurationException(
+                    $"Invalid connection string for canonical DatabaseId '{canonicalId}': InitialCatalog / Database is missing or empty.");
+            }
+
+            // Local endpoint validation: DataSource / Server MUST be a trusted local instance
+            if (isLocal)
+            {
+                var configuredInstance = _configuration.GetValue<string>("LocalFirst:SqlServerInstance");
+                var dataSource = builder.DataSource;
+
+                if (!IsLocalServerEndpoint(dataSource, configuredInstance))
+                {
+                    throw new PhysicalDatabaseMismatchException(
+                        $"Security violation: Local target connection for canonical DatabaseId '{canonicalId}' cannot point to non-local server endpoint '{dataSource}'. Expected local endpoint.");
+                }
+            }
+
+            // Validate catalog name against binding rules
+            DatabaseBindingValidator.ValidateTargetDatabase(canonicalId, physicalDbName, isLocalTarget: isLocal);
+        }
+
+        private static bool IsLocalServerEndpoint(string dataSource, string configuredInstance)
+        {
+            if (string.IsNullOrWhiteSpace(dataSource)) return false;
+
+            var trimmed = dataSource.Trim();
+            var parts = trimmed.Split(new[] { '\\', ',' }, 2);
+            var hostPart = parts[0].Trim();
+
+            var isLocalHost = hostPart.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                              hostPart.Equals(".", StringComparison.OrdinalIgnoreCase) ||
+                              hostPart.Equals("(local)", StringComparison.OrdinalIgnoreCase) ||
+                              hostPart.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                              hostPart.Equals("::1", StringComparison.OrdinalIgnoreCase) ||
+                              hostPart.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+
+            if (isLocalHost) return true;
+
+            if (!string.IsNullOrWhiteSpace(configuredInstance))
+            {
+                var configParts = configuredInstance.Trim().Split(new[] { '\\', ',' }, 2);
+                if (configParts.Length > 0 && hostPart.Equals(configParts[0].Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private CanonicalDatabaseResolution ResolveDatabase()
@@ -114,35 +276,50 @@ namespace Auth.Infrastructure.Services
                     throw new InvalidDatabaseSelectionException($"Invalid database selection '{candidate}' from source '{selectorSource}'.");
                 }
 
-                var connStr = _configuration.GetConnectionString(matched.ConnectionStringName);
-                if (string.IsNullOrWhiteSpace(connStr))
+                string resolvedConnStr;
+                string connStrName;
+
+                if (IsLocalFirstEnabled)
                 {
-                    // Fail Closed: Missing connection string for a configured database is a configuration failure
-                    throw new DatabaseConfigurationException($"Missing or empty connection string for database '{matched.Id}' with ConnectionStringName '{matched.ConnectionStringName}'.");
+                    resolvedConnStr = GetLocalConnectionString(matched.Id);
+                    connStrName = $"LocalConnection{matched.Id}";
+                }
+                else
+                {
+                    resolvedConnStr = GetRemoteConnectionString(matched.Id);
+                    connStrName = matched.ConnectionStringName;
                 }
 
                 resolution = new CanonicalDatabaseResolution
                 {
                     DatabaseId = matched.Id, // Canonical configured ID
-                    ConnectionString = connStr,
-                    ConnectionStringName = matched.ConnectionStringName
+                    ConnectionString = resolvedConnStr,
+                    ConnectionStringName = connStrName
                 };
             }
             else
             {
                 // No explicit selector provided: resolve to default configured database (first item)
                 var defaultDb = databases[0];
-                var connStr = _configuration.GetConnectionString(defaultDb.ConnectionStringName);
-                if (string.IsNullOrWhiteSpace(connStr))
+                string resolvedConnStr;
+                string connStrName;
+
+                if (IsLocalFirstEnabled)
                 {
-                    throw new DatabaseConfigurationException($"Missing or empty connection string for default database '{defaultDb.Id}' with ConnectionStringName '{defaultDb.ConnectionStringName}'.");
+                    resolvedConnStr = GetLocalConnectionString(defaultDb.Id);
+                    connStrName = $"LocalConnection{defaultDb.Id}";
+                }
+                else
+                {
+                    resolvedConnStr = GetRemoteConnectionString(defaultDb.Id);
+                    connStrName = defaultDb.ConnectionStringName;
                 }
 
                 resolution = new CanonicalDatabaseResolution
                 {
                     DatabaseId = defaultDb.Id,
-                    ConnectionString = connStr,
-                    ConnectionStringName = defaultDb.ConnectionStringName
+                    ConnectionString = resolvedConnStr,
+                    ConnectionStringName = connStrName
                 };
             }
 

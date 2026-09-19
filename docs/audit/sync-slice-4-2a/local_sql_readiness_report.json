@@ -1,0 +1,45 @@
+﻿{
+    "ReportType":  "LocalSqlReadinessReport",
+    "Slice":  "4.2A",
+    "GeneratedUtc":  "2026-09-19T17:59:51.1364293Z",
+    "MachineName":  "[LOCAL_WORKSTATION]",
+    "CurrentUser":  "[LOCAL_USER]",
+    "IsAdmin":  false,
+    "TestedInstances":  [
+                            {
+                                "ServerTarget":  "localhost",
+                                "Description":  "Selected Local SQL Server Default Instance",
+                                "ConnectionSuccessful":  true,
+                                "ServerName":  "[LOCAL_WORKSTATION]",
+                                "InstanceName":  "(Default)",
+                                "Edition":  "Enterprise Edition (64-bit)",
+                                "ProductVersion":  "12.0.2269.0",
+                                "MajorVersion":  "12",
+                                "AuthenticationMode":  "Windows Integrated Security",
+                                "NetTransport":  "Shared memory",
+                                "DatabasesPresent":  [
+                                                         "IProgramDb2026",
+                                                         "IProgramDb2027"
+                                                     ],
+                                "ErrorMessage":  null
+                            },
+                            {
+                                "ServerTarget":  "localhost\\SQLEXPRESS",
+                                "Description":  "Optional/Informational Named Instance",
+                                "ConnectionSuccessful":  false,
+                                "ServerName":  null,
+                                "InstanceName":  null,
+                                "Edition":  null,
+                                "ProductVersion":  null,
+                                "MajorVersion":  null,
+                                "AuthenticationMode":  "Windows Integrated Security",
+                                "NetTransport":  "None",
+                                "DatabasesPresent":  [
+
+                                                     ],
+                                "ErrorMessage":  "Connection attempt failed (Instance not accessible or service not started)."
+                            }
+                        ],
+    "ReadinessStatus":  "LOCAL_ENGINE_AVAILABLE_BOOTSTRAP_DEFERRED",
+    "RecommendedAction":  "Selected local SQL Server default instance (localhost, Enterprise Edition 64-bit, SQL Server 2014) is running and ready. Physical operational database creation and Azure data bootstrap remain deferred per Business Owner decision."
+}

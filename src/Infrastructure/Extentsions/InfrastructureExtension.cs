@@ -25,10 +25,39 @@ public static class InfrastructureExtension
         // }
         var sqlOptions = Configuration.SqlServerOptions.FromConfiguration(configuration);
         services.AddScoped<Core.Interfaces.IDbConnectionProvider, Services.DbConnectionProvider>();
+        services.AddScoped<Core.Interfaces.ISyncConnectionProvider>(provider => (Services.DbConnectionProvider)provider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>());
+
+        // Year-bound background-safe factory for LocalSyncContext
+        services.AddScoped<Sync.ILocalSyncContextFactory, Sync.LocalSyncContextFactory>();
+
+        // Request-bound LocalSyncContext
+        services.AddDbContext<Sync.LocalSyncContext>((serviceProvider, options) =>
+        {
+            var syncProvider = serviceProvider.GetRequiredService<Core.Interfaces.ISyncConnectionProvider>();
+            var databaseId = syncProvider.GetSelectedDatabaseId();
+            var localConnStr = syncProvider.GetLocalConnectionString(databaseId);
+            options.UseSqlServer(localConnStr, o =>
+            {
+                o.UseCompatibilityLevel(120);
+                o.MigrationsHistoryTable(Sync.LocalSyncContext.MigrationsHistoryTableName, Sync.LocalSyncContext.MigrationsHistoryTableSchema);
+                o.EnableRetryOnFailure(
+                    maxRetryCount: sqlOptions.MaxRetryCount,
+                    maxRetryDelay: TimeSpan.FromSeconds(sqlOptions.MaxRetryDelaySeconds),
+                    errorNumbersToAdd: null);
+                o.CommandTimeout(sqlOptions.CommandTimeoutSeconds);
+            });
+        });
+
+        // Server-side bootstrap write-gate
+        services.AddScoped<Core.Interfaces.ILocalBootstrapWriteGate, Sync.LocalBootstrapWriteGate>();
+        services.AddScoped<Sync.LocalBootstrapWriteGateInterceptor>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();
+            var writeGateInterceptor = serviceProvider.GetRequiredService<Sync.LocalBootstrapWriteGateInterceptor>();
+
+            options.AddInterceptors(writeGateInterceptor);
             options.UseSqlServer(dbProvider.GetConnectionString(), o =>
             {
                 o.UseCompatibilityLevel(120);
