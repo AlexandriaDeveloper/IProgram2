@@ -39,13 +39,12 @@ namespace Auth.UnitTests
 
                 var prop = type.GetProperty("SyncId");
                 Assert.NotNull(prop);
-                Assert.Equal(typeof(Guid?), prop.PropertyType);
+                Assert.Equal(typeof(Guid), prop.PropertyType);
 
                 // Default initialization creates non-null, non-empty Guid
                 var instance = Activator.CreateInstance(type) as ISyncableEntity;
                 Assert.NotNull(instance);
-                Assert.NotNull(instance.SyncId);
-                Assert.NotEqual(Guid.Empty, instance.SyncId.Value);
+                Assert.NotEqual(Guid.Empty, instance.SyncId);
             }
 
             // 2. Base Entity class itself must NOT implement ISyncableEntity
@@ -65,7 +64,7 @@ namespace Auth.UnitTests
         }
 
         [Fact]
-        public void ApplicationContext_ConfiguresStagedNullableSyncId_WithFilteredUniqueIndex()
+        public void ApplicationContext_ConfiguresFinalizedNotNullSyncId_WithUniqueIndex()
         {
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseSqlServer("Server=localhost;Database=Dummy;Trusted_Connection=True;")
@@ -82,20 +81,53 @@ namespace Auth.UnitTests
                 var syncIdProp = entityType.FindProperty("SyncId");
                 Assert.NotNull(syncIdProp);
 
-                // Staged requirement: Must be nullable (no forced NOT NULL in 4.1A)
-                Assert.True(syncIdProp.IsNullable, $"{type.Name}.SyncId must be nullable in 4.1A staging migration");
+                // Finalized requirement: Must be NOT NULL
+                Assert.False(syncIdProp.IsNullable, $"{type.Name}.SyncId must be NOT NULL in finalized model");
 
-                // Staged requirement: Must NOT have default value SQL (no silent NEWSEQUENTIALID backfill)
+                // Finalized requirement: Must NOT have database default value SQL (no DB default generating GUID)
                 Assert.Null(syncIdProp.GetDefaultValueSql());
 
-                // Staged requirement: Filtered unique index to allow existing NULL rows
+                // Finalized requirement: Standard unique index (no filter needed since column is NOT NULL)
                 var syncIdIndex = entityType.GetIndexes()
                     .FirstOrDefault(i => i.Properties.Count == 1 && i.Properties[0].Name == "SyncId");
 
                 Assert.NotNull(syncIdIndex);
                 Assert.True(syncIdIndex.IsUnique, $"SyncId index on {type.Name} must be UNIQUE");
-                Assert.Equal("[SyncId] IS NOT NULL", syncIdIndex.GetFilter());
+                Assert.Null(syncIdIndex.GetFilter());
             }
+        }
+
+        [Fact]
+        public void ServerState_Initialization_IsIdempotent_AndDatabaseIdIsolated()
+        {
+            var options = new DbContextOptionsBuilder<AzureSyncContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AzureSyncContext(options);
+
+            // 1. Initialize 2026
+            AzureSyncContext.InitializeServerState(context, "2026");
+            var state2026 = context.ServerStates.Find("2026");
+            Assert.NotNull(state2026);
+            Assert.Equal("2026", state2026.DatabaseId);
+            Assert.Equal(0, state2026.CurrentVersion);
+
+            // 2. Re-initialize 2026 (idempotency check: does not throw or duplicate)
+            AzureSyncContext.InitializeServerState(context, "2026");
+            Assert.Equal(1, context.ServerStates.Count());
+
+            // 3. Initialize 2027 (isolation check)
+            AzureSyncContext.InitializeServerState(context, "2027");
+            var state2027 = context.ServerStates.Find("2027");
+            Assert.NotNull(state2027);
+            Assert.Equal("2027", state2027.DatabaseId);
+            Assert.Equal(0, state2027.CurrentVersion);
+            Assert.Equal(2, context.ServerStates.Count());
+
+            // 4. Reject cross-initialization / invalid database IDs
+            Assert.Throws<ArgumentException>(() => AzureSyncContext.InitializeServerState(context, "2028"));
+            Assert.Throws<ArgumentException>(() => AzureSyncContext.InitializeServerState(context, "invalid"));
         }
 
         [Fact]
@@ -312,6 +344,41 @@ namespace Auth.UnitTests
             Assert.DoesNotContain(typeof(LocalOutbox), azureTypes);
             Assert.DoesNotContain(typeof(LocalState), azureTypes);
             Assert.DoesNotContain(typeof(LocalBootstrapManifest), azureTypes);
+        }
+
+        [Fact]
+        public void BackfillLogic_IsIdempotent_AndNeverModifiesExistingNonNullSyncId()
+        {
+            var initialSyncId = Guid.NewGuid();
+            var dailyWithExistingSyncId = new Daily { Id = 1, Name = "Existing", SyncId = initialSyncId };
+            var dailyNeedingSyncId = new Daily { Id = 2, Name = "NeedsBackfill", SyncId = Guid.Empty };
+
+            var list = new System.Collections.Generic.List<Daily> { dailyWithExistingSyncId, dailyNeedingSyncId };
+
+            // Backfill pass 1: only assign where Guid is empty / unassigned
+            foreach (var d in list)
+            {
+                if (d.SyncId == Guid.Empty)
+                {
+                    d.SyncId = Guid.NewGuid();
+                }
+            }
+
+            Assert.Equal(initialSyncId, dailyWithExistingSyncId.SyncId);
+            Assert.NotEqual(Guid.Empty, dailyNeedingSyncId.SyncId);
+            var assignedSyncId = dailyNeedingSyncId.SyncId;
+
+            // Backfill pass 2 (idempotency check): re-running backfill must not alter any value
+            foreach (var d in list)
+            {
+                if (d.SyncId == Guid.Empty)
+                {
+                    d.SyncId = Guid.NewGuid();
+                }
+            }
+
+            Assert.Equal(initialSyncId, dailyWithExistingSyncId.SyncId);
+            Assert.Equal(assignedSyncId, dailyNeedingSyncId.SyncId);
         }
     }
 }

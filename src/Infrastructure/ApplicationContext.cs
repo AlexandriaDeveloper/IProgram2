@@ -76,71 +76,71 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
                 entity.HasIndex(w => w.EmployeeId);
             });
 
-            // --- Additive Staged SyncId Configuration for Syncable Business Entities ---
+            // --- Additive Finalized SyncId Configuration for Syncable Business Entities ---
             builder.Entity<Daily>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_Daily_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Daily_SyncId");
             });
 
             builder.Entity<Form>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_Form_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Form_SyncId");
             });
 
             builder.Entity<FormDetails>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_FormDetails_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_FormDetails_SyncId");
             });
 
             builder.Entity<Department>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_Departments_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Departments_SyncId");
             });
 
             builder.Entity<Employee>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_Employees_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Employees_SyncId");
             });
 
             builder.Entity<EmployeeBank>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_EmployeeBank_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeBank_SyncId");
             });
 
             builder.Entity<EmployeeNetPay>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_EmployeeNetPays_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeNetPays_SyncId");
             });
 
             builder.Entity<EmployeeWatchList>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_EmployeeWatchLists_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeWatchLists_SyncId");
             });
 
             builder.Entity<DailyReference>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_DailyReference_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_DailyReference_SyncId");
             });
 
             builder.Entity<FormRefernce>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_FormRefernce_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_FormRefernce_SyncId");
             });
 
             builder.Entity<EmployeeRefernce>(entity =>
             {
-                entity.Property(e => e.SyncId).IsRequired(false);
-                entity.HasIndex(e => e.SyncId).IsUnique().HasFilter("[SyncId] IS NOT NULL").HasDatabaseName("IX_EmployeeRefernce_SyncId");
+                entity.Property(e => e.SyncId).IsRequired();
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeRefernce_SyncId");
             });
 
             base.OnModelCreating(builder);

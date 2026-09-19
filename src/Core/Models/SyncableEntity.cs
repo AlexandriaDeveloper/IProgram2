@@ -6,6 +6,6 @@ namespace Core.Models
 {
     public abstract class SyncableEntity : Entity, ISyncableEntity
     {
-        public Guid? SyncId { get; set; } = Guid.NewGuid();
+        public Guid SyncId { get; set; } = Guid.NewGuid();
     }
 }
