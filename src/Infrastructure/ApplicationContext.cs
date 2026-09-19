@@ -76,6 +76,73 @@ public class ApplicationContext : IdentityDbContext<ApplicationUser>
                 entity.HasIndex(w => w.EmployeeId);
             });
 
+            // --- Additive SyncId Configuration for Syncable Business Entities ---
+            builder.Entity<Daily>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Daily_SyncId");
+            });
+
+            builder.Entity<Form>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Form_SyncId");
+            });
+
+            builder.Entity<FormDetails>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_FormDetails_SyncId");
+            });
+
+            builder.Entity<Department>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Departments_SyncId");
+            });
+
+            builder.Entity<Employee>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_Employees_SyncId");
+            });
+
+            builder.Entity<EmployeeBank>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeBank_SyncId");
+            });
+
+            builder.Entity<EmployeeNetPay>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeNetPays_SyncId");
+            });
+
+            builder.Entity<EmployeeWatchList>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeWatchLists_SyncId");
+            });
+
+            builder.Entity<DailyReference>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_DailyReference_SyncId");
+            });
+
+            builder.Entity<FormRefernce>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_FormRefernce_SyncId");
+            });
+
+            builder.Entity<EmployeeRefernce>(entity =>
+            {
+                entity.Property(e => e.SyncId).HasDefaultValueSql("NEWSEQUENTIALID()");
+                entity.HasIndex(e => e.SyncId).IsUnique().HasDatabaseName("IX_EmployeeRefernce_SyncId");
+            });
+
             base.OnModelCreating(builder);
         }
 }
