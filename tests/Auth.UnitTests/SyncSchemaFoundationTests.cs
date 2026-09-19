@@ -98,6 +98,29 @@ namespace Auth.UnitTests
         }
 
         [Fact]
+        public void AzureDatabaseBinding_RejectsCrossMatchingAndInvalidIds()
+        {
+            // Valid bindings
+            var b2026 = AzureDatabaseBinding.For2026();
+            Assert.Equal("2026", b2026.CanonicalDatabaseId);
+            Assert.Equal("IProgramDb2026", b2026.ExpectedDatabaseName);
+
+            var b2027 = AzureDatabaseBinding.For2027();
+            Assert.Equal("2027", b2027.CanonicalDatabaseId);
+            Assert.Equal("IProgramDb2027", b2027.ExpectedDatabaseName);
+
+            // DB2026 binding rejects 2027 target
+            Assert.Throws<InvalidOperationException>(() => new AzureDatabaseBinding("2026", "IProgramDb2027"));
+
+            // DB2027 binding rejects 2026 target
+            Assert.Throws<InvalidOperationException>(() => new AzureDatabaseBinding("2027", "IProgramDb2026"));
+
+            // Rejects unknown/unsupported IDs
+            Assert.Throws<ArgumentException>(() => new AzureDatabaseBinding("2028", "IProgramDb2028"));
+            Assert.Throws<ArgumentException>(() => new AzureDatabaseBinding("", "IProgramDb2026"));
+        }
+
+        [Fact]
         public void ServerState_Initialization_IsIdempotent_AndDatabaseIdIsolated()
         {
             var options = new DbContextOptionsBuilder<AzureSyncContext>()
@@ -106,28 +129,54 @@ namespace Auth.UnitTests
 
             using var context = new AzureSyncContext(options);
 
-            // 1. Initialize 2026
-            AzureSyncContext.InitializeServerState(context, "2026");
+            // 1. Initialize 2026 via trusted binding
+            AzureSyncContext.InitializeServerState(context, AzureDatabaseBinding.For2026());
             var state2026 = context.ServerStates.Find("2026");
             Assert.NotNull(state2026);
             Assert.Equal("2026", state2026.DatabaseId);
             Assert.Equal(0, state2026.CurrentVersion);
 
             // 2. Re-initialize 2026 (idempotency check: does not throw or duplicate)
-            AzureSyncContext.InitializeServerState(context, "2026");
+            AzureSyncContext.InitializeServerState(context, AzureDatabaseBinding.For2026());
             Assert.Equal(1, context.ServerStates.Count());
 
             // 3. Initialize 2027 (isolation check)
-            AzureSyncContext.InitializeServerState(context, "2027");
+            AzureSyncContext.InitializeServerState(context, AzureDatabaseBinding.For2027());
             var state2027 = context.ServerStates.Find("2027");
             Assert.NotNull(state2027);
             Assert.Equal("2027", state2027.DatabaseId);
             Assert.Equal(0, state2027.CurrentVersion);
             Assert.Equal(2, context.ServerStates.Count());
+        }
 
-            // 4. Reject cross-initialization / invalid database IDs
-            Assert.Throws<ArgumentException>(() => AzureSyncContext.InitializeServerState(context, "2028"));
-            Assert.Throws<ArgumentException>(() => AzureSyncContext.InitializeServerState(context, "invalid"));
+        [Fact]
+        public void AzureServerStateInitializer_RejectsPhysicalDatabaseMismatch()
+        {
+            // Context connected to physical DB IProgramDb2026
+            var options2026 = new DbContextOptionsBuilder<AzureSyncContext>()
+                .UseSqlServer("Server=localhost;Database=IProgramDb2026;Trusted_Connection=True;")
+                .Options;
+
+            using (var context2026 = new AzureSyncContext(options2026))
+            {
+                // Attempting to initialize with 2027 binding must throw InvalidOperationException
+                var ex = Assert.Throws<InvalidOperationException>(() =>
+                    AzureServerStateInitializer.Initialize(context2026, AzureDatabaseBinding.For2027()));
+                Assert.Contains("Physical database connection mismatch", ex.Message);
+            }
+
+            // Context connected to physical DB IProgramDb2027
+            var options2027 = new DbContextOptionsBuilder<AzureSyncContext>()
+                .UseSqlServer("Server=localhost;Database=IProgramDb2027;Trusted_Connection=True;")
+                .Options;
+
+            using (var context2027 = new AzureSyncContext(options2027))
+            {
+                // Attempting to initialize with 2026 binding must throw InvalidOperationException
+                var ex = Assert.Throws<InvalidOperationException>(() =>
+                    AzureServerStateInitializer.Initialize(context2027, AzureDatabaseBinding.For2026()));
+                Assert.Contains("Physical database connection mismatch", ex.Message);
+            }
         }
 
         [Fact]

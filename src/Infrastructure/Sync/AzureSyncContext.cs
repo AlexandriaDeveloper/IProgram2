@@ -62,22 +62,9 @@ namespace Auth.Infrastructure.Sync
             base.OnModelCreating(builder);
         }
 
-        public static void InitializeServerState(AzureSyncContext context, string databaseId)
+        public static void InitializeServerState(AzureSyncContext context, AzureDatabaseBinding binding)
         {
-            if (databaseId != "2026" && databaseId != "2027")
-                throw new System.ArgumentException($"Invalid canonical databaseId '{databaseId}'. Expected '2026' or '2027'.", nameof(databaseId));
-
-            var existing = context.ServerStates.Find(databaseId);
-            if (existing == null)
-            {
-                context.ServerStates.Add(new ServerState
-                {
-                    DatabaseId = databaseId,
-                    CurrentVersion = 0,
-                    LastUpdatedUtc = System.DateTime.UtcNow
-                });
-                context.SaveChanges();
-            }
+            AzureServerStateInitializer.Initialize(context, binding);
         }
     }
 }

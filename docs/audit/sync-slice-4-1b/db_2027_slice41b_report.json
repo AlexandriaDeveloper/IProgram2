@@ -1,0 +1,545 @@
+﻿{
+    "Gate0":  {
+                  "Status":  "VERIFIED_PASSED",
+                  "DatabaseName":  "IProgramDb2027",
+                  "ServerName":  "iprogram-sql-prod-01",
+                  "PreMutationUtc":  "2026-09-19T16:55:05.3186032",
+                  "Edition":  "GeneralPurpose",
+                  "ServiceObjective":  "GP_S_Gen5_1",
+                  "RecoveryModel":  "FULL",
+                  "State":  "ONLINE",
+                  "IsReadOnly":  false,
+                  "PitrCapability":  "Azure SQL Standard tier (GP_S_Gen5_1) maintains automated Point-In-Time Restore (PITR) with continuous transactional backups (7-day retention minimum).",
+                  "OperatorPermission":  "Verified (Full DDL/DML admin privileges confirmed on production database).",
+                  "SchemaDriftNote":  "IX_FormDetails_FormId_IsActive_Includes verified present on dbo.FormDetails."
+              },
+    "PreBaseline":  {
+                        "DbName":  "IProgramDb2027",
+                        "ServerName":  "iprogram-sql-prod-01",
+                        "UtcNow":  "2026-09-19T16:55:06.0647014",
+                        "Edition":  "GeneralPurpose",
+                        "ServiceObjective":  "GP_S_Gen5_1",
+                        "RecoveryModel":  "FULL",
+                        "DatabaseState":  "ONLINE",
+                        "IsReadOnly":  false,
+                        "Migrations":  [
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20240815134033_Init"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20240819221452_Daily-Relation-fix"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20240819222322_Department-Relation-fix"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20250815185021_Add-Review-Field"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20250907211723_Add-DailyReference"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20260227150824_AddSummaryReviewFields"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20260227162856_AddSummaryComment"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20260310112020_AddFormDetailsFormIdIndex"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20260310215854_AddEmployeeNetPay"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20260422085815_AddFormDailyIdIndex"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20260510185130_AddEmployeeWatchList"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.0",
+                                               "MigrationId":  "20260917213000_AddSummaryReviewMethod"
+                                           },
+                                           {
+                                               "ProductVersion":  "8.0.11",
+                                               "MigrationId":  "20260918185849_OptimizeHotPathIndexesSprint4B"
+                                           }
+                                       ],
+                        "AzureSyncMigrations":  [
+
+                                                ],
+                        "TableCounts":  {
+                                            "dbo.__EFMigrationsHistory":  13,
+                                            "dbo.AspNetRoleClaims":  0,
+                                            "dbo.AspNetRoles":  2,
+                                            "dbo.AspNetUserClaims":  8,
+                                            "dbo.AspNetUserLogins":  0,
+                                            "dbo.AspNetUserRoles":  3,
+                                            "dbo.AspNetUsers":  2,
+                                            "dbo.AspNetUserTokens":  0,
+                                            "dbo.Daily":  14,
+                                            "dbo.DailyReference":  8,
+                                            "dbo.Departments":  9,
+                                            "dbo.EmployeeBank":  478,
+                                            "dbo.EmployeeNetPays":  4098,
+                                            "dbo.EmployeeRefernce":  0,
+                                            "dbo.Employees":  12353,
+                                            "dbo.EmployeeWatchLists":  24,
+                                            "dbo.Form":  580,
+                                            "dbo.FormDetails":  7877,
+                                            "dbo.FormRefernce":  0
+                                        },
+                        "Identities":  {
+                                           "AspNetRoleClaims":  {
+                                                                    "Column":  "Id",
+                                                                    "IdentCurrent":  1
+                                                                },
+                                           "AspNetUserClaims":  {
+                                                                    "Column":  "Id",
+                                                                    "IdentCurrent":  8
+                                                                },
+                                           "Daily":  {
+                                                         "Column":  "Id",
+                                                         "IdentCurrent":  3122
+                                                     },
+                                           "DailyReference":  {
+                                                                  "Column":  "Id",
+                                                                  "IdentCurrent":  1112
+                                                              },
+                                           "Departments":  {
+                                                               "Column":  "Id",
+                                                               "IdentCurrent":  16
+                                                           },
+                                           "EmployeeNetPays":  {
+                                                                   "Column":  "Id",
+                                                                   "IdentCurrent":  25185
+                                                               },
+                                           "EmployeeRefernce":  {
+                                                                    "Column":  "Id",
+                                                                    "IdentCurrent":  1
+                                                                },
+                                           "EmployeeWatchLists":  {
+                                                                      "Column":  "Id",
+                                                                      "IdentCurrent":  28
+                                                                  },
+                                           "Form":  {
+                                                        "Column":  "Id",
+                                                        "IdentCurrent":  8896
+                                                    },
+                                           "FormDetails":  {
+                                                               "Column":  "Id",
+                                                               "IdentCurrent":  71934
+                                                           },
+                                           "FormRefernce":  {
+                                                                "Column":  "Id",
+                                                                "IdentCurrent":  1
+                                                            }
+                                       },
+                        "Fingerprints":  {
+                                             "Daily":  "88850B0C0C1B12B6DCC57E4548E2B3C149D863185D1F3DF92A129069D77F1F8F",
+                                             "Form":  "0B6A849FD79BC8720F09DE308751CBA8D165B939BE2211730725DE13B41AEA43",
+                                             "FormDetails":  "B5B0A8E9F82CCD535DCE2AB0C240C1C554F2DBCEDE77D0EE4FA6C19FAD24C116",
+                                             "Departments":  "3D55B7CCF975434AE19D2CCBB8CF6292DC661244D5A5E2A074F77286677CAF99",
+                                             "Employees":  "D1749311015A411FE99C29C2475F8E5BF1800E7A7AD40BC53A5F0A2D97B7556D",
+                                             "EmployeeBank":  "DE2E7E9FC4A072830A9D8D9602662DD7DF9F2517E6F68014E1D49B95454B5F11",
+                                             "EmployeeNetPays":  "E3C31974DFAC4DCFBFA7A57688698AE45B03CC550FD654141ABC68D2E344AD8E",
+                                             "EmployeeWatchLists":  "94CB08620A0DF04E88F46BCB926467EB6571727DFA2ADBD27710A645F214AB6B",
+                                             "DailyReference":  "435D8C23ABC153D9C7684670EF3D614AB491F45A67EC73872F7814887DEF5B08",
+                                             "FormRefernce":  "EMPTY_TABLE",
+                                             "EmployeeRefernce":  "EMPTY_TABLE"
+                                         },
+                        "SyncIdMetrics":  {
+                                              "Daily":  "COLUMN_NOT_PRESENT",
+                                              "Form":  "COLUMN_NOT_PRESENT",
+                                              "FormDetails":  "COLUMN_NOT_PRESENT",
+                                              "Departments":  "COLUMN_NOT_PRESENT",
+                                              "Employees":  "COLUMN_NOT_PRESENT",
+                                              "EmployeeBank":  "COLUMN_NOT_PRESENT",
+                                              "EmployeeNetPays":  "COLUMN_NOT_PRESENT",
+                                              "EmployeeWatchLists":  "COLUMN_NOT_PRESENT",
+                                              "DailyReference":  "COLUMN_NOT_PRESENT",
+                                              "FormRefernce":  "COLUMN_NOT_PRESENT",
+                                              "EmployeeRefernce":  "COLUMN_NOT_PRESENT"
+                                          },
+                        "DB2027_ManualIndexPreserved":  true,
+                        "AzureSyncTables":  {
+                                                "ServerState":  {
+                                                                    "Count":  0,
+                                                                    "Exists":  false
+                                                                },
+                                                "ServerChangeFeed":  {
+                                                                         "Count":  0,
+                                                                         "Exists":  false
+                                                                     },
+                                                "Tombstones":  {
+                                                                   "Count":  0,
+                                                                   "Exists":  false
+                                                               },
+                                                "ProcessedOperations":  {
+                                                                            "Count":  0,
+                                                                            "Exists":  false
+                                                                        }
+                                            }
+                    },
+    "MaintenanceWindow":  {
+                              "StartUtc":  "2026-09-19T16:55:20.7437773",
+                              "EndUtc":  "2026-09-19T16:56:09.6535919"
+                          },
+    "StageB_Backfill":  {
+                            "Daily":  14,
+                            "Form":  580,
+                            "FormDetails":  7877,
+                            "Departments":  9,
+                            "Employees":  12353,
+                            "EmployeeBank":  478,
+                            "EmployeeNetPays":  4098,
+                            "EmployeeWatchLists":  24,
+                            "DailyReference":  8,
+                            "FormRefernce":  0,
+                            "EmployeeRefernce":  0
+                        },
+    "StageC_Verification":  {
+                                "Status":  "PASSED_100%",
+                                "Details":  {
+                                                "Daily":  {
+                                                              "Total":  14,
+                                                              "Nulls":  0,
+                                                              "Distinct":  14,
+                                                              "FingerprintMatch":  true
+                                                          },
+                                                "Form":  {
+                                                             "Total":  580,
+                                                             "Nulls":  0,
+                                                             "Distinct":  580,
+                                                             "FingerprintMatch":  true
+                                                         },
+                                                "FormDetails":  {
+                                                                    "Total":  7877,
+                                                                    "Nulls":  0,
+                                                                    "Distinct":  7877,
+                                                                    "FingerprintMatch":  true
+                                                                },
+                                                "Departments":  {
+                                                                    "Total":  9,
+                                                                    "Nulls":  0,
+                                                                    "Distinct":  9,
+                                                                    "FingerprintMatch":  true
+                                                                },
+                                                "Employees":  {
+                                                                  "Total":  12353,
+                                                                  "Nulls":  0,
+                                                                  "Distinct":  12353,
+                                                                  "FingerprintMatch":  true
+                                                              },
+                                                "EmployeeBank":  {
+                                                                     "Total":  478,
+                                                                     "Nulls":  0,
+                                                                     "Distinct":  478,
+                                                                     "FingerprintMatch":  true
+                                                                 },
+                                                "EmployeeNetPays":  {
+                                                                        "Total":  4098,
+                                                                        "Nulls":  0,
+                                                                        "Distinct":  4098,
+                                                                        "FingerprintMatch":  true
+                                                                    },
+                                                "EmployeeWatchLists":  {
+                                                                           "Total":  24,
+                                                                           "Nulls":  0,
+                                                                           "Distinct":  24,
+                                                                           "FingerprintMatch":  true
+                                                                       },
+                                                "DailyReference":  {
+                                                                       "Total":  8,
+                                                                       "Nulls":  0,
+                                                                       "Distinct":  8,
+                                                                       "FingerprintMatch":  true
+                                                                   },
+                                                "FormRefernce":  {
+                                                                     "Total":  0,
+                                                                     "Nulls":  0,
+                                                                     "Distinct":  0,
+                                                                     "FingerprintMatch":  true
+                                                                 },
+                                                "EmployeeRefernce":  {
+                                                                         "Total":  0,
+                                                                         "Nulls":  0,
+                                                                         "Distinct":  0,
+                                                                         "FingerprintMatch":  true
+                                                                     }
+                                            }
+                            },
+    "PostVerification":  {
+                             "DbName":  "IProgramDb2027",
+                             "ServerName":  "iprogram-sql-prod-01",
+                             "UtcNow":  "2026-09-19T16:55:55.4042246",
+                             "Edition":  "GeneralPurpose",
+                             "ServiceObjective":  "GP_S_Gen5_1",
+                             "RecoveryModel":  "FULL",
+                             "DatabaseState":  "ONLINE",
+                             "IsReadOnly":  false,
+                             "Migrations":  [
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20240815134033_Init"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20240819221452_Daily-Relation-fix"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20240819222322_Department-Relation-fix"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20250815185021_Add-Review-Field"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20250907211723_Add-DailyReference"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20260227150824_AddSummaryReviewFields"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20260227162856_AddSummaryComment"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20260310112020_AddFormDetailsFormIdIndex"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20260310215854_AddEmployeeNetPay"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20260422085815_AddFormDailyIdIndex"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20260510185130_AddEmployeeWatchList"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.0",
+                                                    "MigrationId":  "20260917213000_AddSummaryReviewMethod"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.11",
+                                                    "MigrationId":  "20260918185849_OptimizeHotPathIndexesSprint4B"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.11",
+                                                    "MigrationId":  "20260919161502_AddSyncIdToBusinessEntities"
+                                                },
+                                                {
+                                                    "ProductVersion":  "8.0.11",
+                                                    "MigrationId":  "20260919163939_FinalizeSyncIdNotNull"
+                                                }
+                                            ],
+                             "AzureSyncMigrations":  [
+                                                         {
+                                                             "ProductVersion":  "8.0.11",
+                                                             "MigrationId":  "20260919155715_InitialAzureSyncSchema"
+                                                         }
+                                                     ],
+                             "TableCounts":  {
+                                                 "dbo.__EFMigrationsHistory":  15,
+                                                 "dbo.AspNetRoleClaims":  0,
+                                                 "dbo.AspNetRoles":  2,
+                                                 "dbo.AspNetUserClaims":  8,
+                                                 "dbo.AspNetUserLogins":  0,
+                                                 "dbo.AspNetUserRoles":  3,
+                                                 "dbo.AspNetUsers":  2,
+                                                 "dbo.AspNetUserTokens":  0,
+                                                 "dbo.Daily":  14,
+                                                 "dbo.DailyReference":  8,
+                                                 "dbo.Departments":  9,
+                                                 "dbo.EmployeeBank":  478,
+                                                 "dbo.EmployeeNetPays":  4098,
+                                                 "dbo.EmployeeRefernce":  0,
+                                                 "dbo.Employees":  12353,
+                                                 "dbo.EmployeeWatchLists":  24,
+                                                 "dbo.Form":  580,
+                                                 "dbo.FormDetails":  7877,
+                                                 "dbo.FormRefernce":  0,
+                                                 "sync.__EFMigrationsHistory_AzureSync":  1,
+                                                 "sync.ProcessedOperations":  0,
+                                                 "sync.ServerChangeFeed":  0,
+                                                 "sync.ServerState":  1,
+                                                 "sync.Tombstones":  0
+                                             },
+                             "Identities":  {
+                                                "AspNetRoleClaims":  {
+                                                                         "Column":  "Id",
+                                                                         "IdentCurrent":  1
+                                                                     },
+                                                "AspNetUserClaims":  {
+                                                                         "Column":  "Id",
+                                                                         "IdentCurrent":  8
+                                                                     },
+                                                "Daily":  {
+                                                              "Column":  "Id",
+                                                              "IdentCurrent":  3122
+                                                          },
+                                                "DailyReference":  {
+                                                                       "Column":  "Id",
+                                                                       "IdentCurrent":  1112
+                                                                   },
+                                                "Departments":  {
+                                                                    "Column":  "Id",
+                                                                    "IdentCurrent":  16
+                                                                },
+                                                "EmployeeNetPays":  {
+                                                                        "Column":  "Id",
+                                                                        "IdentCurrent":  25185
+                                                                    },
+                                                "EmployeeRefernce":  {
+                                                                         "Column":  "Id",
+                                                                         "IdentCurrent":  1
+                                                                     },
+                                                "EmployeeWatchLists":  {
+                                                                           "Column":  "Id",
+                                                                           "IdentCurrent":  28
+                                                                       },
+                                                "Form":  {
+                                                             "Column":  "Id",
+                                                             "IdentCurrent":  8896
+                                                         },
+                                                "FormDetails":  {
+                                                                    "Column":  "Id",
+                                                                    "IdentCurrent":  71934
+                                                                },
+                                                "FormRefernce":  {
+                                                                     "Column":  "Id",
+                                                                     "IdentCurrent":  1
+                                                                 },
+                                                "ServerChangeFeed":  {
+                                                                         "Column":  "FeedId",
+                                                                         "IdentCurrent":  null
+                                                                     }
+                                            },
+                             "Fingerprints":  {
+                                                  "Daily":  "88850B0C0C1B12B6DCC57E4548E2B3C149D863185D1F3DF92A129069D77F1F8F",
+                                                  "Form":  "0B6A849FD79BC8720F09DE308751CBA8D165B939BE2211730725DE13B41AEA43",
+                                                  "FormDetails":  "B5B0A8E9F82CCD535DCE2AB0C240C1C554F2DBCEDE77D0EE4FA6C19FAD24C116",
+                                                  "Departments":  "3D55B7CCF975434AE19D2CCBB8CF6292DC661244D5A5E2A074F77286677CAF99",
+                                                  "Employees":  "D1749311015A411FE99C29C2475F8E5BF1800E7A7AD40BC53A5F0A2D97B7556D",
+                                                  "EmployeeBank":  "DE2E7E9FC4A072830A9D8D9602662DD7DF9F2517E6F68014E1D49B95454B5F11",
+                                                  "EmployeeNetPays":  "E3C31974DFAC4DCFBFA7A57688698AE45B03CC550FD654141ABC68D2E344AD8E",
+                                                  "EmployeeWatchLists":  "94CB08620A0DF04E88F46BCB926467EB6571727DFA2ADBD27710A645F214AB6B",
+                                                  "DailyReference":  "435D8C23ABC153D9C7684670EF3D614AB491F45A67EC73872F7814887DEF5B08",
+                                                  "FormRefernce":  "EMPTY_TABLE",
+                                                  "EmployeeRefernce":  "EMPTY_TABLE"
+                                              },
+                             "SyncIdMetrics":  {
+                                                   "Daily":  {
+                                                                 "Total":  14,
+                                                                 "NullCount":  0,
+                                                                 "DistinctCount":  14,
+                                                                 "Duplicates":  0
+                                                             },
+                                                   "Form":  {
+                                                                "Total":  580,
+                                                                "NullCount":  0,
+                                                                "DistinctCount":  580,
+                                                                "Duplicates":  0
+                                                            },
+                                                   "FormDetails":  {
+                                                                       "Total":  7877,
+                                                                       "NullCount":  0,
+                                                                       "DistinctCount":  7877,
+                                                                       "Duplicates":  0
+                                                                   },
+                                                   "Departments":  {
+                                                                       "Total":  9,
+                                                                       "NullCount":  0,
+                                                                       "DistinctCount":  9,
+                                                                       "Duplicates":  0
+                                                                   },
+                                                   "Employees":  {
+                                                                     "Total":  12353,
+                                                                     "NullCount":  0,
+                                                                     "DistinctCount":  12353,
+                                                                     "Duplicates":  0
+                                                                 },
+                                                   "EmployeeBank":  {
+                                                                        "Total":  478,
+                                                                        "NullCount":  0,
+                                                                        "DistinctCount":  478,
+                                                                        "Duplicates":  0
+                                                                    },
+                                                   "EmployeeNetPays":  {
+                                                                           "Total":  4098,
+                                                                           "NullCount":  0,
+                                                                           "DistinctCount":  4098,
+                                                                           "Duplicates":  0
+                                                                       },
+                                                   "EmployeeWatchLists":  {
+                                                                              "Total":  24,
+                                                                              "NullCount":  0,
+                                                                              "DistinctCount":  24,
+                                                                              "Duplicates":  0
+                                                                          },
+                                                   "DailyReference":  {
+                                                                          "Total":  8,
+                                                                          "NullCount":  0,
+                                                                          "DistinctCount":  8,
+                                                                          "Duplicates":  0
+                                                                      },
+                                                   "FormRefernce":  {
+                                                                        "Total":  0,
+                                                                        "NullCount":  0,
+                                                                        "DistinctCount":  0,
+                                                                        "Duplicates":  0
+                                                                    },
+                                                   "EmployeeRefernce":  {
+                                                                            "Total":  0,
+                                                                            "NullCount":  0,
+                                                                            "DistinctCount":  0,
+                                                                            "Duplicates":  0
+                                                                        }
+                                               },
+                             "DB2027_ManualIndexPreserved":  true,
+                             "AzureSyncTables":  {
+                                                     "ServerState":  {
+                                                                         "Count":  1,
+                                                                         "Exists":  true
+                                                                     },
+                                                     "ServerChangeFeed":  {
+                                                                              "Count":  0,
+                                                                              "Exists":  true
+                                                                          },
+                                                     "Tombstones":  {
+                                                                        "Count":  0,
+                                                                        "Exists":  true
+                                                                    },
+                                                     "ProcessedOperations":  {
+                                                                                 "Count":  0,
+                                                                                 "Exists":  true
+                                                                             }
+                                                 },
+                             "ServerStateRows":  [
+                                                     {
+                                                         "DatabaseId":  "2027",
+                                                         "CurrentVersion":  0,
+                                                         "LastUpdatedUtc":  "2026-09-19T16:55:54.8597049"
+                                                     }
+                                                 ]
+                         },
+    "Status":  "COMPLETED_SUCCESS"
+}
