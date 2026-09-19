@@ -49,7 +49,8 @@ public static class InfrastructureExtension
         });
 
         // Server-side bootstrap write-gate
-        services.AddScoped<Core.Interfaces.ILocalBootstrapWriteGate, Sync.LocalBootstrapWriteGate>();
+        services.AddScoped<Core.Interfaces.ILocalBootstrapWriteGate>(sp =>
+            new Sync.LocalBootstrapWriteGate(sp.GetRequiredService<Sync.ILocalSyncContextFactory>()));
         services.AddScoped<Sync.LocalBootstrapWriteGateInterceptor>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>

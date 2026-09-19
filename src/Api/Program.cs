@@ -183,6 +183,63 @@ if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
 // Health check endpoint (application liveness)
 app.MapHealthChecks("/health");
 
+if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2E:DiagnosticsEnabled", false))
+{
+    // Double-guarded diagnostic endpoint for E2E runtime DB safety verification (disabled in normal runtimes)
+    app.MapGet("/api/diagnostics/e2e-db-safety", (IConfiguration configuration) =>
+    {
+        var databases = configuration.GetSection("DatabaseSettings:Databases").GetChildren().ToList();
+        var results = new List<object>();
+        bool allSafe = true;
+
+        foreach (var db in databases)
+        {
+            var id = db["Id"];
+            var connName = db["ConnectionStringName"] ?? "DefaultConnection";
+            var connStr = configuration.GetConnectionString(connName);
+
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                return Results.Problem($"Missing connection string for '{connName}'.", statusCode: 500);
+            }
+
+            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connStr);
+            var server = builder.DataSource?.ToLowerInvariant().Trim() ?? string.Empty;
+            var initialCatalog = builder.InitialCatalog?.Trim() ?? string.Empty;
+
+            bool isLocal = server == "localhost" || server == "(local)" || server == "127.0.0.1" ||
+                           server == "." || server.StartsWith("localhost\\") || server.StartsWith("(local)\\") ||
+                           server.StartsWith(".\\");
+
+            bool isAzureOrRemote = server.Contains("database.windows.net") || server.Contains("azure");
+            bool isQuarantined = initialCatalog.Equals("IProgramLocalDb2026", StringComparison.OrdinalIgnoreCase);
+            bool isApprovedDb = initialCatalog.Equals("IProgramDb2026", StringComparison.OrdinalIgnoreCase) ||
+                                initialCatalog.Equals("IProgramDb2027", StringComparison.OrdinalIgnoreCase);
+
+            bool isSafe = isLocal && !isAzureOrRemote && !isQuarantined && isApprovedDb;
+            if (!isSafe) allSafe = false;
+
+            results.Add(new
+            {
+                DatabaseId = id,
+                ServerClassification = isLocal ? "LOCAL_INSTANCE" : "REMOTE_NON_LOCAL",
+                ApprovedDatabase = isApprovedDb,
+                InitialCatalog = initialCatalog,
+                IsQuarantinedDatabase = isQuarantined,
+                IsAzureOrRemote = isAzureOrRemote,
+                IsSafe = isSafe
+            });
+        }
+
+        return Results.Ok(new
+        {
+            SafetyCheckPassed = allSafe,
+            DatabaseCount = results.Count,
+            Databases = results
+        });
+    });
+}
+
 app.MapControllers();
 app.MapFallbackToController("Index", "Fallback");
 
