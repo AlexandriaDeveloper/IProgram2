@@ -7,11 +7,18 @@ namespace Auth.Infrastructure.Sync
 {
     public class LocalBootstrapWriteGate : ILocalBootstrapWriteGate
     {
-        private readonly LocalSyncContext _localSyncContext;
+        private readonly ILocalSyncContextFactory _contextFactory;
+        private readonly LocalSyncContext _directContext;
 
-        public LocalBootstrapWriteGate(LocalSyncContext localSyncContext)
+        public LocalBootstrapWriteGate(ILocalSyncContextFactory contextFactory)
         {
-            _localSyncContext = localSyncContext;
+            _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
+        }
+
+        // Overload for testing or direct context usage
+        public LocalBootstrapWriteGate(LocalSyncContext directContext)
+        {
+            _directContext = directContext ?? throw new ArgumentNullException(nameof(directContext));
         }
 
         public BootstrapReadinessResult EvaluateReadiness(string databaseId)
@@ -28,7 +35,16 @@ namespace Auth.Infrastructure.Sync
                     $"Unsupported canonical DatabaseId '{normalizedId}'. Expected '2026' or '2027'.");
             }
 
-            if (_localSyncContext == null)
+            if (_contextFactory != null)
+            {
+                using var context = _contextFactory.Create(normalizedId);
+                return EvaluateReadinessInternal(context, normalizedId);
+            }
+            else if (_directContext != null)
+            {
+                return EvaluateReadinessInternal(_directContext, normalizedId);
+            }
+            else
             {
                 return new BootstrapReadinessResult
                 {
@@ -38,8 +54,11 @@ namespace Auth.Infrastructure.Sync
                     Message = "LocalSyncContext is not configured."
                 };
             }
+        }
 
-            var manifest = _localSyncContext.BootstrapManifests
+        private static BootstrapReadinessResult EvaluateReadinessInternal(LocalSyncContext context, string normalizedId)
+        {
+            var manifest = context.BootstrapManifests
                 .Where(m => m.DatabaseId == normalizedId)
                 .OrderByDescending(m => m.BootstrapTimestampUtc)
                 .FirstOrDefault();

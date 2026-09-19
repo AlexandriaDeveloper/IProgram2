@@ -27,6 +27,10 @@ public static class InfrastructureExtension
         services.AddScoped<Core.Interfaces.IDbConnectionProvider, Services.DbConnectionProvider>();
         services.AddScoped<Core.Interfaces.ISyncConnectionProvider>(provider => (Services.DbConnectionProvider)provider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>());
 
+        // Year-bound background-safe factory for LocalSyncContext
+        services.AddScoped<Sync.ILocalSyncContextFactory, Sync.LocalSyncContextFactory>();
+
+        // Request-bound LocalSyncContext
         services.AddDbContext<Sync.LocalSyncContext>((serviceProvider, options) =>
         {
             var syncProvider = serviceProvider.GetRequiredService<Core.Interfaces.ISyncConnectionProvider>();
@@ -44,11 +48,16 @@ public static class InfrastructureExtension
             });
         });
 
+        // Server-side bootstrap write-gate
         services.AddScoped<Core.Interfaces.ILocalBootstrapWriteGate, Sync.LocalBootstrapWriteGate>();
+        services.AddScoped<Sync.LocalBootstrapWriteGateInterceptor>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();
+            var writeGateInterceptor = serviceProvider.GetRequiredService<Sync.LocalBootstrapWriteGateInterceptor>();
+
+            options.AddInterceptors(writeGateInterceptor);
             options.UseSqlServer(dbProvider.GetConnectionString(), o =>
             {
                 o.UseCompatibilityLevel(120);

@@ -1,9 +1,9 @@
 ﻿{
     "ReportType":  "LocalSqlReadinessReport",
     "Slice":  "4.2A",
-    "GeneratedUtc":  "2026-09-19T17:33:57.0614683Z",
-    "MachineName":  "DESKTOP-S36MP61",
-    "CurrentUser":  "seaag",
+    "GeneratedUtc":  "2026-09-19T17:44:46.7743376Z",
+    "MachineName":  "[LOCAL_WORKSTATION]",
+    "CurrentUser":  "[LOCAL_USER]",
     "IsAdmin":  false,
     "TestedInstances":  [
                             {
@@ -16,23 +16,23 @@
                                 "ProductVersion":  null,
                                 "MajorVersion":  null,
                                 "AuthenticationMode":  "Windows Integrated Security",
-                                "TcpConnectivity":  "Failed",
+                                "NetTransport":  "None",
                                 "DatabasesPresent":  [
 
                                                      ],
-                                "ErrorMessage":  "Exception calling \"Open\" with \"0\" argument(s): \"A network-related or instance-specific error occurred while establishing a connection to SQL Server. The server was not found or was not accessible. Verify that the instance name is correct and that SQL Server is configured to allow remote connections. (provider: SQL Network Interfaces, error: 26 - Error Locating Server/Instance Specified)\""
+                                "ErrorMessage":  "Connection attempt failed (Instance not accessible or service not started)."
                             },
                             {
                                 "ServerTarget":  "localhost",
                                 "Description":  "Default Local SQL Server Instance",
                                 "ConnectionSuccessful":  true,
-                                "ServerName":  "DESKTOP-S36MP61",
+                                "ServerName":  "[LOCAL_WORKSTATION]",
                                 "InstanceName":  "(Default)",
                                 "Edition":  "Enterprise Edition (64-bit)",
                                 "ProductVersion":  "12.0.2269.0",
                                 "MajorVersion":  "12",
                                 "AuthenticationMode":  "Windows Integrated Security",
-                                "TcpConnectivity":  "Successful",
+                                "NetTransport":  "Shared memory",
                                 "DatabasesPresent":  [
                                                          "IProgramDb2026",
                                                          "IProgramDb2027"
@@ -40,6 +40,6 @@
                                 "ErrorMessage":  null
                             }
                         ],
-    "ReadinessStatus":  "ALTERNATE_LOCAL_SQL_FOUND",
-    "RecommendedAction":  "Default instance \u0027DESKTOP-S36MP61\u0027 (Enterprise Edition (64-bit)) is running. To use dedicated SQLEXPRESS per design, run install_sqlexpress.ps1 with Administrator privileges."
+    "ReadinessStatus":  "LOCAL_DEV_ENGINE_AVAILABLE",
+    "RecommendedAction":  "Per Business Owner decision, the existing local SQL Server 2014 instance is retained as the development/test engine. SQL Server 2022 Express installation and local operational DB creation are deferred to an explicitly authorized future slice."
 }

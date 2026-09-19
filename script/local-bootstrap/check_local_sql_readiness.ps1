@@ -3,8 +3,9 @@
     Evaluates local SQL Server instances for Phase 4 Slice 4.2A Local-First readiness.
 .DESCRIPTION
     Scans for localhost\SQLEXPRESS and default localhost instances.
-    Checks SQL Server edition, version, Windows Integrated Security connectivity,
-    and reserved database presence without modifying any system state or logging credentials.
+    Checks SQL Server edition, version, actual transport protocol (via net_transport),
+    Windows Integrated Security connectivity, and reserved database presence.
+    Emits sanitized machine-readable JSON without exposing workstation/user names or credentials.
 .PARAMETER OutputJsonPath
     Optional path to write the sanitized JSON readiness report.
 #>
@@ -22,8 +23,8 @@ $report = [ordered]@{
     ReportType = "LocalSqlReadinessReport"
     Slice = "4.2A"
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
-    MachineName = $env:COMPUTERNAME
-    CurrentUser = $env:USERNAME
+    MachineName = "[LOCAL_WORKSTATION]"
+    CurrentUser = "[LOCAL_USER]"
     IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     TestedInstances = @()
     ReadinessStatus = "NOT_READY"
@@ -53,7 +54,7 @@ foreach ($inst in $instancesToTest) {
         ProductVersion = $null
         MajorVersion = $null
         AuthenticationMode = "Windows Integrated Security"
-        TcpConnectivity = "Pending"
+        NetTransport = "Unknown"
         DatabasesPresent = @()
         ErrorMessage = $null
     }
@@ -64,7 +65,6 @@ foreach ($inst in $instancesToTest) {
     try {
         $conn.Open()
         $instResult.ConnectionSuccessful = $true
-        $instResult.TcpConnectivity = "Successful"
 
         $cmd = $conn.CreateCommand()
         $cmd.CommandText = @"
@@ -73,15 +73,17 @@ SELECT
     SERVERPROPERTY('InstanceName') AS InstanceName,
     SERVERPROPERTY('Edition') AS Edition,
     SERVERPROPERTY('ProductVersion') AS ProductVersion,
-    PARSENAME(CONVERT(VARCHAR(32), SERVERPROPERTY('ProductVersion')), 4) AS MajorVersion;
+    PARSENAME(CONVERT(VARCHAR(32), SERVERPROPERTY('ProductVersion')), 4) AS MajorVersion,
+    CONVERT(VARCHAR(32), CONNECTIONPROPERTY('net_transport')) AS NetTransport;
 "@
         $reader = $cmd.ExecuteReader()
         if ($reader.Read()) {
-            $instResult.ServerName = [string]$reader["ServerName"]
+            $instResult.ServerName = "[LOCAL_WORKSTATION]"
             $instResult.InstanceName = if ($reader["InstanceName"] -ne [DBNull]::Value) { [string]$reader["InstanceName"] } else { "(Default)" }
             $instResult.Edition = [string]$reader["Edition"]
             $instResult.ProductVersion = [string]$reader["ProductVersion"]
             $instResult.MajorVersion = [string]$reader["MajorVersion"]
+            $instResult.NetTransport = if ($reader["NetTransport"] -ne [DBNull]::Value) { [string]$reader["NetTransport"] } else { "Unknown" }
         }
         $reader.Close()
 
@@ -97,7 +99,7 @@ SELECT
         $instResult.DatabasesPresent = $dbList
 
         Write-Host "  -> Connected successfully!" -ForegroundColor Green
-        Write-Host "     Server: $($instResult.ServerName), Edition: $($instResult.Edition), Version: $($instResult.ProductVersion)" -ForegroundColor Green
+        Write-Host "     Edition: $($instResult.Edition), Version: $($instResult.ProductVersion), Transport: $($instResult.NetTransport)" -ForegroundColor Green
 
         if ($serverTarget -like "*SQLEXPRESS*" -or $instResult.Edition -like "*Express*") {
             $foundUsableInstance = $true
@@ -105,8 +107,9 @@ SELECT
     }
     catch {
         $instResult.ConnectionSuccessful = $false
-        $instResult.TcpConnectivity = "Failed"
-        $instResult.ErrorMessage = $_.Exception.Message
+        $instResult.NetTransport = "None"
+        # Sanitize error message to avoid environment disclosure
+        $instResult.ErrorMessage = "Connection attempt failed (Instance not accessible or service not started)."
         Write-Host "  -> Connection failed: $($_.Exception.Message)" -ForegroundColor Red
     }
     finally {
@@ -118,21 +121,20 @@ SELECT
     $report.TestedInstances += $instResult
 }
 
-# Evaluate overall readiness
+# Evaluate overall readiness per Business Owner Decision
 if ($foundUsableInstance) {
-    $report.ReadinessStatus = "READY"
-    $report.RecommendedAction = "SQL Server Express instance is available for Slice 4.2B database creation."
+    $report.ReadinessStatus = "READY_SQLEXPRESS"
+    $report.RecommendedAction = "SQL Server Express instance is available on the local workstation."
 }
 else {
-    # Check if default instance is available
     $defaultInst = $report.TestedInstances | Where-Object { $_.ServerTarget -eq "localhost" -and $_.ConnectionSuccessful -eq $true }
     if ($defaultInst) {
-        $report.ReadinessStatus = "ALTERNATE_LOCAL_SQL_FOUND"
-        $report.RecommendedAction = "Default instance '$($defaultInst.ServerName)' ($($defaultInst.Edition)) is running. To use dedicated SQLEXPRESS per design, run install_sqlexpress.ps1 with Administrator privileges."
+        $report.ReadinessStatus = "LOCAL_DEV_ENGINE_AVAILABLE"
+        $report.RecommendedAction = "Per Business Owner decision, the existing local SQL Server 2014 instance is retained as the development/test engine. SQL Server 2022 Express installation and local operational DB creation are deferred to an explicitly authorized future slice."
     }
     else {
         $report.ReadinessStatus = "NO_LOCAL_SQL_FOUND"
-        $report.RecommendedAction = "No local SQL Server detected. Run install_sqlexpress.ps1 with Administrator privileges to install SQL Server 2022 Express."
+        $report.RecommendedAction = "No local SQL Server detected on the workstation."
     }
 }
 
