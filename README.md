@@ -32,7 +32,7 @@ The backend follows a Clean Architecture pattern with the following layers:
 
 ### Prerequisites
 
-- [.NET 7.0 SDK](https://dotnet.microsoft.com/download/dotnet/7.0) or later
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) or later
 - [Node.js 16+](https://nodejs.org/)
 - [Angular CLI](https://angular.io/cli)
 
