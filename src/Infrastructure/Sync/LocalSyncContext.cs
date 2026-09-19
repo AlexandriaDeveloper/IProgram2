@@ -12,7 +12,27 @@ namespace Auth.Infrastructure.Sync
         public DbSet<LocalState> LocalStates { get; set; }
         public DbSet<LocalBootstrapManifest> BootstrapManifests { get; set; }
 
-        public LocalSyncContext(DbContextOptions<LocalSyncContext> options) : base(options) { }
+        public LocalSyncContext(DbContextOptions<LocalSyncContext> options) : base(options)
+        {
+            ValidateLocalDatabaseConnection();
+        }
+
+        public void ValidateLocalDatabaseConnection()
+        {
+            if (Database.IsRelational())
+            {
+                var connection = Database.GetDbConnection();
+                var physicalDbName = connection?.Database;
+                if (!string.IsNullOrEmpty(physicalDbName))
+                {
+                    if (DatabaseBindingValidator.IsRemoteDatabaseName(physicalDbName))
+                    {
+                        throw new InvalidOperationException(
+                            $"Security violation: LocalSyncContext cannot target remote Azure production database '{physicalDbName}'. LocalSyncContext is strictly local-only.");
+                    }
+                }
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

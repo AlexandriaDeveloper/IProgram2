@@ -25,6 +25,26 @@ public static class InfrastructureExtension
         // }
         var sqlOptions = Configuration.SqlServerOptions.FromConfiguration(configuration);
         services.AddScoped<Core.Interfaces.IDbConnectionProvider, Services.DbConnectionProvider>();
+        services.AddScoped<Core.Interfaces.ISyncConnectionProvider>(provider => (Services.DbConnectionProvider)provider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>());
+
+        services.AddDbContext<Sync.LocalSyncContext>((serviceProvider, options) =>
+        {
+            var syncProvider = serviceProvider.GetRequiredService<Core.Interfaces.ISyncConnectionProvider>();
+            var databaseId = syncProvider.GetSelectedDatabaseId();
+            var localConnStr = syncProvider.GetLocalConnectionString(databaseId);
+            options.UseSqlServer(localConnStr, o =>
+            {
+                o.UseCompatibilityLevel(120);
+                o.MigrationsHistoryTable(Sync.LocalSyncContext.MigrationsHistoryTableName, Sync.LocalSyncContext.MigrationsHistoryTableSchema);
+                o.EnableRetryOnFailure(
+                    maxRetryCount: sqlOptions.MaxRetryCount,
+                    maxRetryDelay: TimeSpan.FromSeconds(sqlOptions.MaxRetryDelaySeconds),
+                    errorNumbersToAdd: null);
+                o.CommandTimeout(sqlOptions.CommandTimeoutSeconds);
+            });
+        });
+
+        services.AddScoped<Core.Interfaces.ILocalBootstrapWriteGate, Sync.LocalBootstrapWriteGate>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
