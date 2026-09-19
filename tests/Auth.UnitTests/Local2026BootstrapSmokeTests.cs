@@ -36,14 +36,7 @@ namespace Auth.UnitTests
         {
             if (!IsLocalDatabaseAvailable())
             {
-                var allowSkip = string.Equals(Environment.GetEnvironmentVariable("SKIP_LOCAL_DB_SMOKE_TESTS"), "true", StringComparison.OrdinalIgnoreCase);
-                if (allowSkip)
-                {
-                    // Explicit opt-out environment configuration
-                    return;
-                }
-
-                Assert.Fail("Local database IProgramLocalDb2026 is unavailable on localhost. Set SKIP_LOCAL_DB_SMOKE_TESTS=true or filter with 'Category!=LocalDbRequired' if running in an environment without local SQL Server 2014.");
+                Assert.Fail("Local database IProgramLocalDb2026 is unavailable on localhost. Generic CI must exclude this test using --filter \"Category!=LocalDbRequired\".");
             }
         }
 
@@ -167,14 +160,14 @@ namespace Auth.UnitTests
                 .FirstOrDefaultAsync();
 
             Assert.NotNull(manifest);
-            Assert.Contains(manifest.Status, new[] { "VERIFIED_READY", "QUARANTINED_PENDING_ARCHITECT_REVIEW", "QUARANTINED_UNAUTHORIZED_BOOTSTRAP" });
+            Assert.Contains(manifest.Status, new[] { "VERIFIED_READY", "REVIEW_HOLD", "QUARANTINED" });
             if (manifest.Status == "VERIFIED_READY")
             {
                 Assert.True(manifest.IsWriteAllowed, "When VERIFIED_READY, IsWriteAllowed must be true.");
             }
             else
             {
-                Assert.False(manifest.IsWriteAllowed, "When quarantined, IsWriteAllowed must be false.");
+                Assert.False(manifest.IsWriteAllowed, "When quarantined or in review hold, IsWriteAllowed must be false.");
             }
 
             var state = await context.LocalStates
@@ -190,6 +183,7 @@ namespace Auth.UnitTests
         }
 
         [Fact]
+        [Trait("Category", "LocalDbRequired")]
         public void Gate7_AzureSyncContext_PhysicalBindingGuard_RejectsLocal2026()
         {
             var options = new DbContextOptionsBuilder<AzureSyncContext>()
@@ -197,7 +191,7 @@ namespace Auth.UnitTests
                 .Options;
 
             var ex = Assert.Throws<InvalidOperationException>(() => new AzureSyncContext(options));
-            Assert.Contains("Security violation: AzureSyncContext cannot target local database", ex.Message);
+            Assert.Contains("Security violation: AzureSyncContext cannot target local", ex.Message);
         }
     }
 }

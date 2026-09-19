@@ -23,14 +23,9 @@ namespace Auth.Infrastructure.Sync
             {
                 var connection = Database.GetDbConnection();
                 var physicalDbName = connection?.Database;
-                if (!string.IsNullOrEmpty(physicalDbName))
-                {
-                    if (DatabaseBindingValidator.IsRemoteDatabaseName(physicalDbName))
-                    {
-                        throw new InvalidOperationException(
-                            $"Security violation: LocalSyncContext cannot target remote Azure production database '{physicalDbName}'. LocalSyncContext is strictly local-only.");
-                    }
-                }
+                var dataSource = connection?.DataSource;
+
+                DatabaseBindingValidator.ValidateLocalBinding(dataSource, physicalDbName);
             }
         }
 

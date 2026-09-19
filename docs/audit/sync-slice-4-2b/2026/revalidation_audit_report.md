@@ -3,11 +3,21 @@
 ## Executive Summary
 In accordance with official directives from the Business Owner and ChatGPT Architect in Issue #14, **Slice 4.2B — Year 2026 Revalidation & Adoption of Existing Quarantined Clone** was executed and hardened on branch `feat/slice-4-2b-revalidate-2026-clone` based on master baseline `b635383e147d2088c69613f194a2eb23e0d42e03`.
 
-This revision incorporates all verification hardening required by the Architect review on PR #20:
-- **Blocker 1 & 2 Resolved:** Full schema enforcement (exact ordered column names, types/lengths/precision/scale, nullability, identity column presence & names, FK relationships & cascade actions, and index definitions detecting manual drift). `IDENT_CURRENT` mismatches strictly fail comparison.
-- **Blocker 3 Resolved:** Operational local schema cleaned up by removing Azure-only sync tables (`sync.ServerState`, `sync.ServerChangeFeed`, `sync.Tombstones`, `sync.ProcessedOperations`, `sync.__EFMigrationsHistory_AzureSync`) from the local clone while keeping all 19 business tables intact.
-- **Blocker 4 Resolved:** Smoke tests hardened to fail with `Assert.Fail` when local DB is unavailable (enforced via `REQUIRE_LOCAL_DB=true` and CI filtering `Category!=LocalDbRequired`).
-- **Blocker 5 Resolved:** Issue narrative and audit documentation corrected to the exact 24-table IProgram schema.
+This revision incorporates all verification and security hardening required by the Architect review on PR #20:
+- **Security Blocker 1 & 2 Resolved (Bidirectional Physical Binding Validation):**
+  - Implemented comprehensive endpoint classification in `DatabaseBindingValidator.cs` (`IsLocalServerEndpoint`, `IsRemoteServerEndpoint`, `ValidateAzureBinding`, `ValidateLocalBinding`).
+  - `AzureSyncContext` rejects ANY local endpoint (`localhost`, `.`, `(local)`, `127.0.0.1`, `::1`, `Environment.MachineName`, named instances) even if paired with remote DB names, and rejects local DB names. Requires an approved remote DB name (`IProgramDb2026`/`IProgramDb2027`). Validated without opening a database connection.
+  - `LocalSyncContext` enforces bidirectional symmetry: requires BOTH a trusted local endpoint AND an approved local DB name (`IProgramLocalDb2026`/`IProgramLocalDb2027`), rejecting remote endpoints or incorrect DB names.
+  - Added unit test suite `tests/Auth.UnitTests/SyncSecurityBindingTests.cs` covering 26 combinatorial scenarios (100% passing offline without DB access).
+- **Metadata Blocker 3 Resolved (Schema vs Model Verification):**
+  - Investigated physical SQL schema vs EF Core metadata: `sync.BootstrapManifest.Status` physical column type is `nvarchar(50)` (`max_length = 100` bytes), while EF Core configuration specifies `.HasMaxLength(20)`.
+  - Applied migration `20260919155658_InitialLocalSyncSchema` remains untouched.
+  - Canonical status vocabulary strictly adopted as `<= 20` characters (`REVIEW_HOLD` [11 chars], `VERIFIED_READY` [14 chars]), fully compatible with both physical and EF Core model constraints.
+- **Verification Blocker 4 Resolved (Elimination of Fake Skips):**
+  - Removed `SKIP_LOCAL_DB_SMOKE_TESTS` fake skip from `Local2026BootstrapSmokeTests.cs`. Missing local DB results in direct `Assert.Fail`.
+  - Decorated all 6 tests with `[Trait("Category", "LocalDbRequired")]`.
+  - Verified local execution: all 6 tests executed and passed cleanly.
+- **Blocker 5 Resolved:** Clear separation between Phase A (24-table source parity, 47,573 rows) and Phase B (19 operational business tables, 47,571 rows + 4 local sync tables).
 
 ---
 
@@ -101,7 +111,7 @@ Following the Architect's instructions for **Case 1 (Exact Current Match)**:
    * `LocalSyncContext` metadata check: PASS.
    * `AzureSyncContext` physical binding guard: PASS.
    * `.NET 10 LocalDbRequired` unit smoke suite: PASS (enforced via `REQUIRE_LOCAL_DB=true`).
-   * All 292 backend unit tests passing: PASS (`dotnet test IProgram.sln -c Release`).
+   * All 318 backend unit tests passing: PASS (`dotnet test IProgram.sln -c Release`).
    * Angular 17 build: PASS (`npm run build`).
 
 *Evidence Artifact:* `docs/audit/sync-slice-4-2b/2026/application_smoke_test_report.json`

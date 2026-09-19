@@ -9,7 +9,7 @@ namespace Auth.Infrastructure.Sync
         {
             var optionsBuilder = new DbContextOptionsBuilder<LocalSyncContext>();
             optionsBuilder.UseSqlServer(
-                "Server=localhost;Database=IProgram_DesignTime;Integrated Security=True;TrustServerCertificate=True;",
+                "Server=localhost;Database=IProgramLocalDb2026;Integrated Security=True;TrustServerCertificate=True;",
                 x => x.MigrationsHistoryTable(LocalSyncContext.MigrationsHistoryTableName, LocalSyncContext.MigrationsHistoryTableSchema));
             return new LocalSyncContext(optionsBuilder.Options);
         }
@@ -21,7 +21,7 @@ namespace Auth.Infrastructure.Sync
         {
             var optionsBuilder = new DbContextOptionsBuilder<AzureSyncContext>();
             optionsBuilder.UseSqlServer(
-                "Server=localhost;Database=IProgram_DesignTime;Integrated Security=True;TrustServerCertificate=True;",
+                "Server=tcp:design-time.database.windows.net,1433;Database=IProgramDb2026;User ID=designtime;Password=designtime;",
                 x => x.MigrationsHistoryTable(AzureSyncContext.MigrationsHistoryTableName, AzureSyncContext.MigrationsHistoryTableSchema));
             return new AzureSyncContext(optionsBuilder.Options);
         }

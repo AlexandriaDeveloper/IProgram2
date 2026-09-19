@@ -24,14 +24,9 @@ namespace Auth.Infrastructure.Sync
             {
                 var connection = Database.GetDbConnection();
                 var physicalDbName = connection?.Database;
-                if (!string.IsNullOrEmpty(physicalDbName))
-                {
-                    if (DatabaseBindingValidator.IsLocalDatabaseName(physicalDbName))
-                    {
-                        throw new InvalidOperationException(
-                            $"Security violation: AzureSyncContext cannot target local database '{physicalDbName}'. AzureSyncContext is strictly for remote Azure databases.");
-                    }
-                }
+                var dataSource = connection?.DataSource;
+
+                DatabaseBindingValidator.ValidateAzureBinding(dataSource, physicalDbName);
             }
         }
 
