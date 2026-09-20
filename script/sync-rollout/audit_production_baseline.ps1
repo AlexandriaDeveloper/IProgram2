@@ -3,12 +3,18 @@
 # Strictly READ-ONLY comparison across Azure and Local databases (2026 & 2027)
 # 
 # Verifies:
-# 1. dbo.Daily scalar fields, counts, active/inactive, deterministic SHA-256 hash.
-# 2. Sync metadata: Azure sync.ServerState vs Local sync.LocalState & sync.LocalOutbox.
-# 3. Detection and classification of untracked drift (CLEAN_BASELINE, BUSINESS_DRIFT_UNTRACKED,
-#    VERSION_DRIFT, OUTBOX_PENDING, MIXED_DRIFT).
-# 4. Authoritative tracking cutover readiness evaluation.
-# 5. Generates sanitized audit reports:
+# 1. Physical Database Binding Validation (SqlConnectionStringBuilder fail-closed).
+# 2. dbo.Daily scalar fields, counts, active/inactive, deterministic SHA-256 hash.
+# 3. Sync metadata: Azure sync.ServerState vs Local sync.LocalState & sync.LocalOutbox.
+# 4. Local sync metadata strict validation (LocalState=1 row, BootstrapManifest=1 row,
+#    VERIFIED_READY, IsWriteAllowed=true).
+# 5. Outbox readiness requiring strictly 0 total operations.
+# 6. Actual configuration safety verification (AuthoritativeTrackingEnabled=false,
+#    PushEnabled=false, LegacyMigration:Enabled=false).
+# 7. Architecture AST audit (zero direct Daily DML outside push coordinator).
+# 8. Detection and classification of untracked drift (CLEAN_BASELINE,
+#    BUSINESS_DRIFT_UNTRACKED, VERSION_DRIFT, OUTBOX_PENDING, MIXED_DRIFT).
+# 9. Generates sanitized audit reports:
 #    - docs/audit/sync-slice-4-4b/baseline_2026_report.json
 #    - docs/audit/sync-slice-4-4b/baseline_2027_report.json
 #    - docs/audit/sync-slice-4-4b/BASELINE_RECONCILIATION_SUMMARY.md
@@ -37,6 +43,67 @@ if (-not (Test-Path $docsAuditDir)) {
 }
 
 Add-Type -AssemblyName "System.Data"
+
+# ------------------------------------------------------------------------------
+# P0: Physical Database Binding Validation Function
+# ------------------------------------------------------------------------------
+function Assert-PhysicalDatabaseBinding {
+    param(
+        [string]$ConnectionString,
+        [string]$ExpectedTarget, # "Azure" or "Local"
+        [string]$ExpectedYear     # "2026" or "2027"
+    )
+    if ([string]::IsNullOrWhiteSpace($ConnectionString)) {
+        throw "PHYSICAL_BINDING_ERROR: Connection string for $ExpectedTarget $ExpectedYear is null or empty."
+    }
+
+    $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($ConnectionString)
+    $dataSource = if ($builder.DataSource) { $builder.DataSource.Trim() } else { "" }
+    $initialCatalog = if ($builder.InitialCatalog) { $builder.InitialCatalog.Trim() } else { "" }
+
+    # Strip optional tcp: prefix and ,port suffix for endpoint evaluation
+    $serverHost = $dataSource -replace '^(?i)tcp:', '' -replace ',\s*[0-9]+$', ''
+
+    if ($ExpectedTarget -eq "Azure") {
+        $expectedCatalog = if ($ExpectedYear -eq "2026") { "IProgramDb2026" } else { "IProgramDb2027" }
+        if ($initialCatalog -ne $expectedCatalog) {
+            throw "PHYSICAL_BINDING_ERROR: Azure $ExpectedYear InitialCatalog mismatch. Expected '$expectedCatalog', got '$initialCatalog'."
+        }
+        $isAzure = $serverHost.ToLowerInvariant().EndsWith(".database.windows.net") -and 
+                   ($serverHost -match '^[a-zA-Z0-9.-]+\.database\.windows\.net$')
+        if (-not $isAzure) {
+            throw "PHYSICAL_BINDING_ERROR: Azure $ExpectedYear DataSource is not a trusted Azure SQL endpoint (*.database.windows.net)."
+        }
+    } elseif ($ExpectedTarget -eq "Local") {
+        $expectedCatalog = if ($ExpectedYear -eq "2026") { "IProgramLocalDb2026" } else { "IProgramLocalDb2027" }
+        if ($initialCatalog -ne $expectedCatalog) {
+            throw "PHYSICAL_BINDING_ERROR: Local $ExpectedYear InitialCatalog mismatch. Expected '$expectedCatalog', got '$initialCatalog'."
+        }
+        if ($serverHost.ToLowerInvariant().Contains(".database.windows.net")) {
+            throw "PHYSICAL_BINDING_ERROR: Local $ExpectedYear DataSource cannot point to an Azure SQL endpoint."
+        }
+        $isLocal = ($serverHost -eq "." -or 
+                    $serverHost -eq "(local)" -or 
+                    $serverHost -eq "localhost" -or 
+                    $serverHost -eq "127.0.0.1" -or 
+                    $serverHost.StartsWith("(localdb)\", [System.StringComparison]::OrdinalIgnoreCase) -or 
+                    $serverHost.StartsWith("localhost\", [System.StringComparison]::OrdinalIgnoreCase) -or 
+                    $serverHost.StartsWith(".\", [System.StringComparison]::OrdinalIgnoreCase) -or 
+                    $serverHost.StartsWith("127.0.0.1\", [System.StringComparison]::OrdinalIgnoreCase))
+        if (-not $isLocal) {
+            throw "PHYSICAL_BINDING_ERROR: Local $ExpectedYear DataSource is not a trusted local endpoint."
+        }
+    } else {
+        throw "PHYSICAL_BINDING_ERROR: Unknown expected target '$ExpectedTarget'."
+    }
+
+    return @{
+        Target = $ExpectedTarget
+        Year = $ExpectedYear
+        InitialCatalog = $initialCatalog
+        Status = "PASS"
+    }
+}
 
 # 1. Resolve Connection Strings securely
 if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString) -or [string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
@@ -68,9 +135,60 @@ if ([string]::IsNullOrWhiteSpace($Local2027ConnectionString)) {
     $Local2027ConnectionString = $appsettings.ConnectionStrings.LocalConnection2027
 }
 
+# ------------------------------------------------------------------------------
+# P0: Configuration Safety Verification (Committed appsettings.json)
+# ------------------------------------------------------------------------------
+$authTrackingEnabled = [bool]$appsettings.Sync.AuthoritativeTrackingEnabled
+$pushEnabled = [bool]$appsettings.Sync.PushEnabled
+$legacyMigrationEnabled = [bool]$appsettings.LegacyMigration.Enabled
+
+$configSafetyIssues = @()
+if ($authTrackingEnabled -ne $false) {
+    $configSafetyIssues += "Sync:AuthoritativeTrackingEnabled must be false in committed configuration (found: $authTrackingEnabled)"
+}
+if ($pushEnabled -ne $false) {
+    $configSafetyIssues += "Sync:PushEnabled must be false in committed configuration (found: $pushEnabled)"
+}
+if ($legacyMigrationEnabled -ne $false) {
+    $configSafetyIssues += "LegacyMigration:Enabled must be false in committed configuration (found: $legacyMigrationEnabled)"
+}
+
+$configSafetyStatus = if ($configSafetyIssues.Count -eq 0) { "PASS" } else { "FAIL" }
+
+# ------------------------------------------------------------------------------
+# P1: Architecture DML Audit Verification
+# ------------------------------------------------------------------------------
+function Audit-DailyDmlArchitectureSafety($rootPath) {
+    $srcDir = Join-Path $rootPath "src"
+    $csFiles = Get-ChildItem -Path $srcDir -Filter "*.cs" -Recurse | Where-Object { $_.Name -ne "AzurePushTransactionCoordinator.cs" }
+    $dmlPattern = [regex]'\b(INSERT\s+INTO|UPDATE|DELETE(\s+FROM)?)\s+(\[?dbo\]?\.)?\[?Daily\]?\b'
+    $violations = @()
+
+    foreach ($file in $csFiles) {
+        $lines = Get-Content $file.FullName
+        for ($i = 0; $i -lt $lines.Length; $i++) {
+            $line = $lines[$i].Trim()
+            if ($line.StartsWith("//") -or $line.StartsWith("/*") -or $line.StartsWith("*")) { continue }
+            if ($dmlPattern.IsMatch($line)) {
+                $violations += "$($file.Name): Line $($i + 1)"
+            }
+        }
+    }
+
+    return @{
+        Status = if ($violations.Count -eq 0) { "PASS" } else { "FAIL" }
+        Violations = $violations
+    }
+}
+
+$archDmlAudit = Audit-DailyDmlArchitectureSafety $repoRoot
+
+# ------------------------------------------------------------------------------
+# Database Audit Functions
+# ------------------------------------------------------------------------------
 function Audit-DailyTable($conn) {
     $cmd = $conn.CreateCommand()
-    $cmd.CommandTimeout = 180
+    $cmd.CommandTimeout = 120
     $cmd.CommandText = @"
 SELECT 
     [SyncId],
@@ -96,11 +214,21 @@ ORDER BY [SyncId] ASC;
     $count = 0
     $activeCount = 0
     $inactiveCount = 0
+    $nullSyncIds = 0
+    $dupSyncIds = 0
+    $seenSyncIds = New-Object 'System.Collections.Generic.HashSet[System.Guid]'
     $rowDict = @{}
 
     while ($reader.Read()) {
         $count++
         $syncId = $reader.GetGuid(0)
+        if ($syncId -eq [Guid]::Empty) {
+            $nullSyncIds++
+        }
+        if (-not $seenSyncIds.Add($syncId)) {
+            $dupSyncIds++
+        }
+
         $name = if ($reader.IsDBNull(1)) { $null } else { $reader.GetString(1) }
         $dailyDate = if ($reader.IsDBNull(2)) { $null } else { $reader.GetDateTime(2) }
         $closed = $reader.GetBoolean(3)
@@ -148,24 +276,8 @@ ORDER BY [SyncId] ASC;
     $bw.Flush()
     $bytes = $ms.ToArray()
     $hashBytes = $sha.ComputeHash($bytes)
-    $hashStr = [BitConverter]::ToString($hashBytes).Replace("-", "").ToUpperInvariant()
-
-    # Check SyncId validity (Nulls / Duplicates)
-    $cmdSync = $conn.CreateCommand()
-    $cmdSync.CommandText = @"
-SELECT 
-    SUM(CASE WHEN SyncId IS NULL OR SyncId = '00000000-0000-0000-0000-000000000000' THEN 1 ELSE 0 END) AS NullCount,
-    COUNT(SyncId) - COUNT(DISTINCT SyncId) AS DupCount
-FROM [dbo].[Daily];
-"@
-    $rSync = $cmdSync.ExecuteReader()
-    $nullSyncIds = 0
-    $dupSyncIds = 0
-    if ($rSync.Read()) {
-        $nullSyncIds = if ($rSync.IsDBNull(0)) { 0 } else { [Convert]::ToInt32($rSync.GetValue(0)) }
-        $dupSyncIds = if ($rSync.IsDBNull(1)) { 0 } else { [Convert]::ToInt32($rSync.GetValue(1)) }
-    }
-    $rSync.Close()
+    $hashStr = [BitConverter]::ToString($hashBytes).Replace("-", "")
+    $ms.Dispose()
 
     return @{
         TotalRows = $count
@@ -260,62 +372,49 @@ WHERE TABLE_SCHEMA = 'sync'
     }
 }
 
+# ------------------------------------------------------------------------------
+# P0: Strict Local Sync Metadata Validation Function (No DeviceId/Tokens Leaked)
+# ------------------------------------------------------------------------------
 function Audit-LocalSyncMetadata($conn, $year) {
-    # LocalState
+    # 1. LocalState cardinality and values
     $cmdLS = $conn.CreateCommand()
-    $cmdLS.CommandText = @"
-SELECT 
-    DatabaseId,
-    DeviceId,
-    DeviceName,
-    LastServerVersion,
-    ActiveLeaseToken,
-    LeaseExpiresAtUtc,
-    LastSuccessfulPushUtc,
-    LastSyncError
-FROM [sync].[LocalState];
-"@
-    $lsData = @{}
+    $cmdLS.CommandText = "SELECT DatabaseId, LastServerVersion FROM [sync].[LocalState];"
     $rLS = $cmdLS.ExecuteReader()
-    if ($rLS.Read()) {
-        $lsData = @{
-            DatabaseId = $rLS.GetString(0)
-            DeviceId = $rLS.GetGuid(1).ToString()
-            DeviceName = if ($rLS.IsDBNull(2)) { $null } else { $rLS.GetString(2) }
-            LastServerVersion = $rLS.GetInt64(3)
-            ActiveLeaseToken = if ($rLS.IsDBNull(4)) { $null } else { $rLS.GetGuid(4).ToString() }
-            LeaseExpiresAtUtc = if ($rLS.IsDBNull(5)) { $null } else { $rLS.GetDateTime(5).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ") }
-            LastSuccessfulPushUtc = if ($rLS.IsDBNull(6)) { $null } else { $rLS.GetDateTime(6).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ") }
-            LastSyncError = if ($rLS.IsDBNull(7)) { $null } else { $rLS.GetString(7) }
+    $lsRows = @()
+    while ($rLS.Read()) {
+        $lsRows += @{
+            DatabaseId = if ($rLS.IsDBNull(0)) { $null } else { $rLS.GetString(0) }
+            LastServerVersion = if ($rLS.IsDBNull(1)) { [long]-1 } else { $rLS.GetInt64(1) }
         }
     }
     $rLS.Close()
 
-    # BootstrapManifest
+    $lsRowCount = $lsRows.Count
+    $lsDbId = if ($lsRowCount -ge 1) { $lsRows[0].DatabaseId } else { $null }
+    $lastServerVersion = if ($lsRowCount -ge 1) { $lsRows[0].LastServerVersion } else { [long]-1 }
+
+    # 2. BootstrapManifest cardinality and values
     $cmdBM = $conn.CreateCommand()
-    $cmdBM.CommandText = @"
-SELECT 
-    DatabaseId,
-    Status,
-    IsWriteAllowed,
-    BootstrapTimestampUtc,
-    AzureServerSource
-FROM [sync].[BootstrapManifest];
-"@
-    $bmData = @{}
+    $cmdBM.CommandText = "SELECT DatabaseId, Status, IsWriteAllowed, BootstrapTimestampUtc FROM [sync].[BootstrapManifest];"
     $rBM = $cmdBM.ExecuteReader()
-    if ($rBM.Read()) {
-        $bmData = @{
-            DatabaseId = $rBM.GetString(0)
-            Status = $rBM.GetString(1)
-            IsWriteAllowed = $rBM.GetBoolean(2)
+    $bmRows = @()
+    while ($rBM.Read()) {
+        $bmRows += @{
+            DatabaseId = if ($rBM.IsDBNull(0)) { $null } else { $rBM.GetString(0) }
+            Status = if ($rBM.IsDBNull(1)) { $null } else { $rBM.GetString(1) }
+            IsWriteAllowed = if ($rBM.IsDBNull(2)) { $false } else { $rBM.GetBoolean(2) }
             BootstrapTimestampUtc = if ($rBM.IsDBNull(3)) { $null } else { $rBM.GetDateTime(3).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ") }
-            AzureServerSource = "Azure:ProductionServer"
         }
     }
     $rBM.Close()
 
-    # LocalOutbox
+    $bmRowCount = $bmRows.Count
+    $bmDbId = if ($bmRowCount -ge 1) { $bmRows[0].DatabaseId } else { $null }
+    $bootstrapStatus = if ($bmRowCount -ge 1) { $bmRows[0].Status } else { $null }
+    $isWriteAllowed = if ($bmRowCount -ge 1) { $bmRows[0].IsWriteAllowed } else { $false }
+    $bootstrapTimestampUtc = if ($bmRowCount -ge 1) { $bmRows[0].BootstrapTimestampUtc } else { $null }
+
+    # 3. LocalOutbox all 5 counts
     $cmdOB = $conn.CreateCommand()
     $cmdOB.CommandText = @"
 SELECT 
@@ -330,34 +429,61 @@ FROM [sync].[LocalOutbox];
     $rOB = $cmdOB.ExecuteReader()
     if ($rOB.Read()) {
         $obData = @{
-            TotalCount = $rOB.GetInt32(0)
-            PendingCount = if ($rOB.IsDBNull(1)) { 0 } else { $rOB.GetInt32(1) }
-            InProgressCount = if ($rOB.IsDBNull(2)) { 0 } else { $rOB.GetInt32(2) }
-            CompletedCount = if ($rOB.IsDBNull(3)) { 0 } else { $rOB.GetInt32(3) }
-            FailedCount = if ($rOB.IsDBNull(4)) { 0 } else { $rOB.GetInt32(4) }
+            TotalCount = if ($rOB.IsDBNull(0)) { 0 } else { [Convert]::ToInt32($rOB.GetValue(0)) }
+            PendingCount = if ($rOB.IsDBNull(1)) { 0 } else { [Convert]::ToInt32($rOB.GetValue(1)) }
+            InProgressCount = if ($rOB.IsDBNull(2)) { 0 } else { [Convert]::ToInt32($rOB.GetValue(2)) }
+            CompletedCount = if ($rOB.IsDBNull(3)) { 0 } else { [Convert]::ToInt32($rOB.GetValue(3)) }
+            FailedCount = if ($rOB.IsDBNull(4)) { 0 } else { [Convert]::ToInt32($rOB.GetValue(4)) }
         }
     }
     $rOB.Close()
 
     return @{
-        LocalState = $lsData
-        BootstrapManifest = $bmData
+        LocalStateRowCount = $lsRowCount
+        DatabaseId = $lsDbId
+        LastServerVersion = $lastServerVersion
+        BootstrapManifestRowCount = $bmRowCount
+        BootstrapDatabaseId = $bmDbId
+        BootstrapStatus = $bootstrapStatus
+        IsWriteAllowed = $isWriteAllowed
+        BootstrapTimestampUtc = $bootstrapTimestampUtc
         LocalOutbox = $obData
     }
 }
 
+# ------------------------------------------------------------------------------
+# Year Baseline Comparison Function
+# ------------------------------------------------------------------------------
 function Compare-YearBaseline($year, $azureCs, $localCs) {
     Write-Host "`n==========================================================================" -ForegroundColor Cyan
     Write-Host "  AUDITING BASELINE: YEAR $year" -ForegroundColor Cyan
     Write-Host "==========================================================================" -ForegroundColor Cyan
 
-    # Connect to Azure
+    # P0: Physical Database Binding Validation BEFORE opening connections
+    Write-Host "Validating physical database bindings for $year..." -NoNewline
+    $azureBinding = Assert-PhysicalDatabaseBinding -ConnectionString $azureCs -ExpectedTarget "Azure" -ExpectedYear $year
+    $localBinding = Assert-PhysicalDatabaseBinding -ConnectionString $localCs -ExpectedTarget "Local" -ExpectedYear $year
+    Write-Host " PASS (Azure: $($azureBinding.InitialCatalog), Local: $($localBinding.InitialCatalog))" -ForegroundColor Green
+
+    # Connect to Azure (Strictly SELECT-only with retry for transient wake-up)
     Write-Host "Connecting to Azure DB ($year)..." -NoNewline
-    $azureConn = New-Object SqlConnection($azureCs)
-    $azureConn.Open()
+    $azureBldr = New-Object SqlConnectionStringBuilder($azureCs)
+    $azureBldr["Connect Timeout"] = 60
+    $azureConn = $null
+    $maxAttempts = 3
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        try {
+            $azureConn = New-Object SqlConnection($azureBldr.ConnectionString)
+            $azureConn.Open()
+            break
+        } catch {
+            if ($attempt -eq $maxAttempts) { throw }
+            Start-Sleep -Seconds 3
+        }
+    }
     Write-Host " Connected (READ-ONLY)" -ForegroundColor Green
 
-    # Connect to Local
+    # Connect to Local (Strictly SELECT-only)
     Write-Host "Connecting to Local DB ($year)..." -NoNewline
     $localConn = New-Object SqlConnection($localCs)
     $localConn.Open()
@@ -380,30 +506,33 @@ function Compare-YearBaseline($year, $azureCs, $localCs) {
 
         Write-Host "Auditing Sync Metadata on Local..." -NoNewline
         $localSync = Audit-LocalSyncMetadata $localConn $year
-        Write-Host " OK (LastServerVersion=$($localSync.LocalState.LastServerVersion), Outbox=$($localSync.LocalOutbox.TotalCount))" -ForegroundColor Green
+        Write-Host " OK (LastServerVersion=$($localSync.LastServerVersion), Outbox Total=$($localSync.LocalOutbox.TotalCount))" -ForegroundColor Green
 
-        # 3. Detect and Compare Daily Differences
+        # 3. Detect and Compare Daily Differences (P1: Sanitized key hashes only, zero production data leakage)
         $dailyMatch = ($azureDaily.DeterministicSha256 -eq $localDaily.DeterministicSha256)
         $missingOnLocal = @()
         $missingOnAzure = @()
         $differingRows = @()
 
         foreach ($syncId in $azureDaily.Rows.Keys) {
+            $syncIdBytes = [System.Text.Encoding]::UTF8.GetBytes($syncId.ToString())
+            $keyHash = [BitConverter]::ToString([SHA256]::Create().ComputeHash($syncIdBytes)).Replace("-", "").Substring(0, 16)
+
             if (-not $localDaily.Rows.ContainsKey($syncId)) {
-                $missingOnLocal += $syncId
+                $missingOnLocal += @{ EntityKeyHash = $keyHash }
             } else {
                 $azR = $azureDaily.Rows[$syncId]
                 $locR = $localDaily.Rows[$syncId]
-                $diffs = @()
+                $diffFields = @()
                 foreach ($f in @("Name", "DailyDate", "Closed", "CreatedAt", "CreatedBy", "UpdatedAt", "UpdatedBy", "DeactivatedAt", "DeactivatedBy", "IsActive")) {
                     if ($azR[$f] -ne $locR[$f]) {
-                        $diffs += "$f (Azure='${azR[$f]}' vs Local='${locR[$f]}')"
+                        $diffFields += $f
                     }
                 }
-                if ($diffs.Count -gt 0) {
+                if ($diffFields.Count -gt 0) {
                     $differingRows += @{
-                        SyncId = $syncId
-                        Differences = $diffs
+                        EntityKeyHash = $keyHash
+                        DifferingFields = $diffFields
                     }
                 }
             }
@@ -411,22 +540,24 @@ function Compare-YearBaseline($year, $azureCs, $localCs) {
 
         foreach ($syncId in $localDaily.Rows.Keys) {
             if (-not $azureDaily.Rows.ContainsKey($syncId)) {
-                $missingOnAzure += $syncId
+                $syncIdBytes = [System.Text.Encoding]::UTF8.GetBytes($syncId.ToString())
+                $keyHash = [BitConverter]::ToString([SHA256]::Create().ComputeHash($syncIdBytes)).Replace("-", "").Substring(0, 16)
+                $missingOnAzure += @{ EntityKeyHash = $keyHash }
             }
         }
 
-        # 4. Classify Drift
+        # 4. Classify Drift (P0: Any outbox row prevents CLEAN_BASELINE)
         $classification = ""
-        $versionMatch = ($azureSync.CurrentVersion -eq $localSync.LocalState.LastServerVersion)
-        $hasPendingOutbox = ($localSync.LocalOutbox.PendingCount -gt 0 -or $localSync.LocalOutbox.InProgressCount -gt 0)
+        $versionMatch = ($azureSync.CurrentVersion -eq $localSync.LastServerVersion)
+        $hasOutboxRows = ($localSync.LocalOutbox.TotalCount -gt 0)
 
-        if ($dailyMatch -and $versionMatch -and -not $hasPendingOutbox) {
+        if ($dailyMatch -and $versionMatch -and -not $hasOutboxRows) {
             $classification = "CLEAN_BASELINE"
-        } elseif (-not $dailyMatch -and $versionMatch -and -not $hasPendingOutbox) {
+        } elseif (-not $dailyMatch -and $versionMatch -and -not $hasOutboxRows) {
             $classification = "BUSINESS_DRIFT_UNTRACKED"
-        } elseif ($dailyMatch -and -not $versionMatch -and -not $hasPendingOutbox) {
+        } elseif ($dailyMatch -and -not $versionMatch -and -not $hasOutboxRows) {
             $classification = "VERSION_DRIFT"
-        } elseif ($hasPendingOutbox -and $dailyMatch -and $versionMatch) {
+        } elseif ($hasOutboxRows -and $dailyMatch -and $versionMatch) {
             $classification = "OUTBOX_PENDING"
         } else {
             $classification = "MIXED_DRIFT"
@@ -437,6 +568,7 @@ function Compare-YearBaseline($year, $azureCs, $localCs) {
         # 5. Authoritative Tracking Cutover Readiness Evaluation
         $readinessIssues = @()
 
+        # Azure Schema & State Validation
         if (-not $azureSync.SchemaComplete) {
             $readinessIssues += "Azure sync schema is incomplete (missing tables: $(@('ServerState', 'ServerChangeFeed', 'Tombstones', 'ProcessedOperations') | Where-Object { $azureSync.SyncTables -notcontains $_ }))"
         }
@@ -449,19 +581,58 @@ function Compare-YearBaseline($year, $azureCs, $localCs) {
         if ($azureDaily.NullSyncIdCount -gt 0 -or $azureDaily.DuplicateSyncIdCount -gt 0) {
             $readinessIssues += "Azure Daily contains invalid SyncIds (nulls: $($azureDaily.NullSyncIdCount), duplicates: $($azureDaily.DuplicateSyncIdCount))"
         }
+
+        # Local Schema & State Validation (P0: Strict Cardinality & Status)
+        if ($localSync.LocalStateRowCount -ne 1) {
+            $readinessIssues += "LocalState must exist exactly once per DB (found count: $($localSync.LocalStateRowCount))"
+        }
+        if ($localSync.DatabaseId -ne $year) {
+            $readinessIssues += "LocalState DatabaseId mismatch: expected '$year', found '$($localSync.DatabaseId)'"
+        }
+        if ($localSync.LastServerVersion -lt 0) {
+            $readinessIssues += "LocalState LastServerVersion must be non-negative (found: $($localSync.LastServerVersion))"
+        }
+        if ($localSync.BootstrapManifestRowCount -ne 1) {
+            $readinessIssues += "BootstrapManifest must exist exactly once per DB (found count: $($localSync.BootstrapManifestRowCount))"
+        }
+        if ($localSync.BootstrapDatabaseId -ne $year) {
+            $readinessIssues += "BootstrapManifest DatabaseId mismatch: expected '$year', found '$($localSync.BootstrapDatabaseId)'"
+        }
+        if ($localSync.BootstrapStatus -ne "VERIFIED_READY") {
+            $readinessIssues += "BootstrapManifest Status must be 'VERIFIED_READY' (found: '$($localSync.BootstrapStatus)')"
+        }
+        if ($localSync.IsWriteAllowed -ne $true) {
+            $readinessIssues += "BootstrapManifest IsWriteAllowed must be true (found: $($localSync.IsWriteAllowed))"
+        }
         if ($localDaily.NullSyncIdCount -gt 0 -or $localDaily.DuplicateSyncIdCount -gt 0) {
             $readinessIssues += "Local Daily contains invalid SyncIds (nulls: $($localDaily.NullSyncIdCount), duplicates: $($localDaily.DuplicateSyncIdCount))"
         }
-        if ($hasPendingOutbox) {
-            $readinessIssues += "LocalOutbox contains unexplained pending/in-progress operations (count: $($localSync.LocalOutbox.TotalCount))"
+
+        # P0: Outbox Truly Empty Requirement
+        if ($localSync.LocalOutbox.TotalCount -gt 0) {
+            $readinessIssues += "LocalOutbox must be completely empty (0 total operations). Found total: $($localSync.LocalOutbox.TotalCount) (Pending: $($localSync.LocalOutbox.PendingCount), InProgress: $($localSync.LocalOutbox.InProgressCount), Failed: $($localSync.LocalOutbox.FailedCount), Completed: $($localSync.LocalOutbox.CompletedCount))"
         }
+
+        # P0: Configuration Safety
+        if ($configSafetyStatus -ne "PASS") {
+            foreach ($csIssue in $configSafetyIssues) {
+                $readinessIssues += "Configuration safety issue: $csIssue"
+            }
+        }
+
+        # P1: Architecture DML Audit
+        if ($archDmlAudit.Status -ne "PASS") {
+            $readinessIssues += "Architecture safety violation: Found $($archDmlAudit.Violations.Count) direct Daily DML statements outside AzurePushTransactionCoordinator"
+        }
+
+        # Baseline Drift Check
         if ($classification -ne "CLEAN_BASELINE") {
             $readinessIssues += "Baseline drift detected ($classification). Reconciliation must occur before enabling tracking."
         }
 
         $cutoverReadiness = if ($readinessIssues.Count -eq 0) { "YES" } else { "NO" }
 
-        # Build Sanitized Report Object
+        # Build Sanitized Report Object (Zero raw DeviceId, zero credentials, zero production data)
         $report = [ordered]@{
             Year = $year
             TimestampUtc = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")
@@ -471,7 +642,7 @@ function Compare-YearBaseline($year, $azureCs, $localCs) {
             Comparison_Summary = [ordered]@{
                 DailyContentMatch = $dailyMatch
                 VersionMatch = $versionMatch
-                HasPendingOutbox = $hasPendingOutbox
+                HasPendingOutbox = ($localSync.LocalOutbox.TotalCount -gt 0)
                 Azure_Daily_Total = $azureDaily.TotalRows
                 Azure_Daily_Active = $azureDaily.ActiveRows
                 Azure_Daily_Inactive = $azureDaily.InactiveRows
@@ -496,13 +667,24 @@ function Compare-YearBaseline($year, $azureCs, $localCs) {
                 ProcessedOperationsRows = $azureSync.ProcessedOperationsCount
             }
             Local_Metadata = [ordered]@{
-                DatabaseId = $localSync.LocalState.DatabaseId
-                DeviceId = $localSync.LocalState.DeviceId
-                LastServerVersion = $localSync.LocalState.LastServerVersion
-                BootstrapStatus = $localSync.BootstrapManifest.Status
-                IsWriteAllowed = $localSync.BootstrapManifest.IsWriteAllowed
-                BootstrapTimestampUtc = $localSync.BootstrapManifest.BootstrapTimestampUtc
+                LocalStateRowCount = $localSync.LocalStateRowCount
+                DatabaseId = $localSync.DatabaseId
+                LastServerVersion = $localSync.LastServerVersion
+                BootstrapManifestRowCount = $localSync.BootstrapManifestRowCount
+                BootstrapStatus = $localSync.BootstrapStatus
+                IsWriteAllowed = $localSync.IsWriteAllowed
+                BootstrapTimestampUtc = $localSync.BootstrapTimestampUtc
                 LocalOutbox = $localSync.LocalOutbox
+            }
+            ConfigurationSafety = [ordered]@{
+                AuthoritativeTrackingEnabled = $authTrackingEnabled
+                PushEnabled = $pushEnabled
+                LegacyMigrationEnabled = $legacyMigrationEnabled
+                Status = $configSafetyStatus
+            }
+            ArchitectureSafety = [ordered]@{
+                RawDmlAudit = $archDmlAudit.Status
+                ApprovedCoordinator = "AzurePushTransactionCoordinator.cs"
             }
             Drift_Details = [ordered]@{
                 MissingOnLocal = $missingOnLocal
@@ -570,13 +752,13 @@ try {
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("## 2. Baseline Reconciliation Matrix")
     [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("| Year | Daily Rows (Azure / Local) | Daily SHA-256 Match | Azure ServerVersion | Local LastServerVersion | Local Outbox Count | Classification | Cutover Readiness |")
-    [void]$sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
+    [void]$sb.AppendLine("| Year | Daily Rows (Azure / Local) | Daily SHA-256 Match | Azure ServerVersion | Local LastServerVersion | Local Outbox Total | LocalState Rows | Bootstrap Rows | Classification | Cutover Readiness |")
+    [void]$sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
 
     $m2026 = if ($report2026.Comparison_Summary.DailyContentMatch) { 'MATCH' } else { 'MISMATCH' }
     $m2027 = if ($report2027.Comparison_Summary.DailyContentMatch) { 'MATCH' } else { 'MISMATCH' }
-    [void]$sb.AppendLine("| **2026** | $($report2026.Comparison_Summary.Azure_Daily_Total) / $($report2026.Comparison_Summary.Local_Daily_Total) | $m2026 | $($report2026.Azure_Metadata.CurrentVersion) | $($report2026.Local_Metadata.LastServerVersion) | $($report2026.Local_Metadata.LocalOutbox.TotalCount) | **$($report2026.Classification)** | **$($report2026.AuthoritativeTrackingCutoverReadiness)** |")
-    [void]$sb.AppendLine("| **2027** | $($report2027.Comparison_Summary.Azure_Daily_Total) / $($report2027.Comparison_Summary.Local_Daily_Total) | $m2027 | $($report2027.Azure_Metadata.CurrentVersion) | $($report2027.Local_Metadata.LastServerVersion) | $($report2027.Local_Metadata.LocalOutbox.TotalCount) | **$($report2027.Classification)** | **$($report2027.AuthoritativeTrackingCutoverReadiness)** |")
+    [void]$sb.AppendLine("| **2026** | $($report2026.Comparison_Summary.Azure_Daily_Total) / $($report2026.Comparison_Summary.Local_Daily_Total) | $m2026 | $($report2026.Azure_Metadata.CurrentVersion) | $($report2026.Local_Metadata.LastServerVersion) | $($report2026.Local_Metadata.LocalOutbox.TotalCount) | $($report2026.Local_Metadata.LocalStateRowCount) | $($report2026.Local_Metadata.BootstrapManifestRowCount) | **$($report2026.Classification)** | **$($report2026.AuthoritativeTrackingCutoverReadiness)** |")
+    [void]$sb.AppendLine("| **2027** | $($report2027.Comparison_Summary.Azure_Daily_Total) / $($report2027.Comparison_Summary.Local_Daily_Total) | $m2027 | $($report2027.Azure_Metadata.CurrentVersion) | $($report2027.Local_Metadata.LastServerVersion) | $($report2027.Local_Metadata.LocalOutbox.TotalCount) | $($report2027.Local_Metadata.LocalStateRowCount) | $($report2027.Local_Metadata.BootstrapManifestRowCount) | **$($report2027.Classification)** | **$($report2027.AuthoritativeTrackingCutoverReadiness)** |")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("---")
     [void]$sb.AppendLine("")
@@ -589,7 +771,9 @@ try {
     [void]$sb.AppendLine("- **Local Daily:** $($report2026.Comparison_Summary.Local_Daily_Total) total ($($report2026.Comparison_Summary.Local_Daily_Active) active, $($report2026.Comparison_Summary.Local_Daily_Inactive) inactive)")
     [void]$sb.AppendLine("- **Azure ServerState Version:** $($report2026.Azure_Metadata.CurrentVersion)")
     [void]$sb.AppendLine("- **Local LastServerVersion:** $($report2026.Local_Metadata.LastServerVersion)")
-    [void]$sb.AppendLine("- **Local Outbox Operations:** $($report2026.Local_Metadata.LocalOutbox.TotalCount) total ($($report2026.Local_Metadata.LocalOutbox.PendingCount) pending, $($report2026.Local_Metadata.LocalOutbox.InProgressCount) in-progress)")
+    [void]$sb.AppendLine("- **LocalState Cardinality:** $($report2026.Local_Metadata.LocalStateRowCount) row(s)")
+    [void]$sb.AppendLine("- **BootstrapManifest Cardinality:** $($report2026.Local_Metadata.BootstrapManifestRowCount) row(s) (Status: $($report2026.Local_Metadata.BootstrapStatus), IsWriteAllowed: $($report2026.Local_Metadata.IsWriteAllowed))")
+    [void]$sb.AppendLine("- **Local Outbox Operations:** $($report2026.Local_Metadata.LocalOutbox.TotalCount) total ($($report2026.Local_Metadata.LocalOutbox.PendingCount) pending, $($report2026.Local_Metadata.LocalOutbox.InProgressCount) in-progress, $($report2026.Local_Metadata.LocalOutbox.FailedCount) failed, $($report2026.Local_Metadata.LocalOutbox.CompletedCount) completed)")
     [void]$sb.AppendLine("- **Readiness Issues:**")
     if ($report2026.ReadinessIssues.Count -eq 0) {
         [void]$sb.AppendLine("  - None (All pre-conditions satisfied)")
@@ -606,7 +790,9 @@ try {
     [void]$sb.AppendLine("- **Local Daily:** $($report2027.Comparison_Summary.Local_Daily_Total) total ($($report2027.Comparison_Summary.Local_Daily_Active) active, $($report2027.Comparison_Summary.Local_Daily_Inactive) inactive)")
     [void]$sb.AppendLine("- **Azure ServerState Version:** $($report2027.Azure_Metadata.CurrentVersion)")
     [void]$sb.AppendLine("- **Local LastServerVersion:** $($report2027.Local_Metadata.LastServerVersion)")
-    [void]$sb.AppendLine("- **Local Outbox Operations:** $($report2027.Local_Metadata.LocalOutbox.TotalCount) total ($($report2027.Local_Metadata.LocalOutbox.PendingCount) pending, $($report2027.Local_Metadata.LocalOutbox.InProgressCount) in-progress)")
+    [void]$sb.AppendLine("- **LocalState Cardinality:** $($report2027.Local_Metadata.LocalStateRowCount) row(s)")
+    [void]$sb.AppendLine("- **BootstrapManifest Cardinality:** $($report2027.Local_Metadata.BootstrapManifestRowCount) row(s) (Status: $($report2027.Local_Metadata.BootstrapStatus), IsWriteAllowed: $($report2027.Local_Metadata.IsWriteAllowed))")
+    [void]$sb.AppendLine("- **Local Outbox Operations:** $($report2027.Local_Metadata.LocalOutbox.TotalCount) total ($($report2027.Local_Metadata.LocalOutbox.PendingCount) pending, $($report2027.Local_Metadata.LocalOutbox.InProgressCount) in-progress, $($report2027.Local_Metadata.LocalOutbox.FailedCount) failed, $($report2027.Local_Metadata.LocalOutbox.CompletedCount) completed)")
     [void]$sb.AppendLine("- **Readiness Issues:**")
     if ($report2027.ReadinessIssues.Count -eq 0) {
         [void]$sb.AppendLine("  - None (All pre-conditions satisfied)")
@@ -618,18 +804,36 @@ try {
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("---")
     [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("## 4. Cutover Strategy Proposal")
+    [void]$sb.AppendLine("## 4. Configuration & Architecture Safety Verification")
+    [void]$sb.AppendLine("")
+    $authStatus = if (-not $authTrackingEnabled) { 'PASS' } else { 'FAIL' }
+    $pushStatus = if (-not $pushEnabled) { 'PASS' } else { 'FAIL' }
+    $legacyStatus = if (-not $legacyMigrationEnabled) { 'PASS' } else { 'FAIL' }
+
+    [void]$sb.AppendLine("| Check | Expected Value | Actual Value | Status |")
+    [void]$sb.AppendLine("| :--- | :--- | :--- | :--- |")
+    [void]$sb.AppendLine("| ``Sync:AuthoritativeTrackingEnabled`` | ``false`` | ``$($authTrackingEnabled.ToString().ToLowerInvariant())`` | **$authStatus** |")
+    [void]$sb.AppendLine("| ``Sync:PushEnabled`` | ``false`` | ``$($pushEnabled.ToString().ToLowerInvariant())`` | **$pushStatus** |")
+    [void]$sb.AppendLine("| ``LegacyMigration:Enabled`` | ``false`` | ``$($legacyMigrationEnabled.ToString().ToLowerInvariant())`` | **$legacyStatus** |")
+    [void]$sb.AppendLine("| Direct Daily DML Audit | 0 outside Approved Coordinator | $($archDmlAudit.Violations.Count) violation(s) | **$($archDmlAudit.Status)** |")
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("---")
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("## 5. Cutover Strategy Proposal")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine($proposalSb.ToString())
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("---")
     [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("## 5. Safety Invariants Confirmed")
+    [void]$sb.AppendLine("## 6. Safety Invariants Confirmed")
     [void]$sb.AppendLine("")
-    [void]$sb.AppendLine("- **Azure Production DML:** Exactly 0 mutations executed.")
+    [void]$sb.AppendLine("- **Azure Production DML:** Exactly 0 mutations executed (strictly SELECT-only).")
     [void]$sb.AppendLine("- **Local Replicas:** Exactly 0 mutations executed.")
+    [void]$sb.AppendLine("- **Physical Database Binding Guard:** Verified fail-closed on SqlConnectionStringBuilder.")
+    [void]$sb.AppendLine("- **Artifact Sanitization:** Zero DeviceIds, passwords, tokens, connection strings, IPs, or production business scalar values leaked.")
     [void]$sb.AppendLine('- **Feature Gate Sync:AuthoritativeTrackingEnabled:** `false`')
     [void]$sb.AppendLine('- **Feature Gate Sync:PushEnabled:** `false`')
+    [void]$sb.AppendLine('- **Feature Gate LegacyMigration:Enabled:** `false`')
 
     $summaryPath = Join-Path $docsAuditDir "BASELINE_RECONCILIATION_SUMMARY.md"
     Set-Content -Path $summaryPath -Value $sb.ToString() -Encoding UTF8

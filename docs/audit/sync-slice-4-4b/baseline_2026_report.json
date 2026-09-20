@@ -1,6 +1,6 @@
 ﻿{
     "Year":  "2026",
-    "TimestampUtc":  "2026-09-20T22:35:54.6975613Z",
+    "TimestampUtc":  "2026-09-20T23:16:30.5923290Z",
     "Classification":  "CLEAN_BASELINE",
     "AuthoritativeTrackingCutoverReadiness":  "YES",
     "ReadinessIssues":  [
@@ -39,9 +39,10 @@
                            "ProcessedOperationsRows":  0
                        },
     "Local_Metadata":  {
+                           "LocalStateRowCount":  1,
                            "DatabaseId":  "2026",
-                           "DeviceId":  "c8e9833f-801b-463b-8898-2448e284e4e3",
                            "LastServerVersion":  0,
+                           "BootstrapManifestRowCount":  1,
                            "BootstrapStatus":  "VERIFIED_READY",
                            "IsWriteAllowed":  true,
                            "BootstrapTimestampUtc":  "2026-09-19T18:54:44.5070000Z",
@@ -53,6 +54,16 @@
                                                "TotalCount":  0
                                            }
                        },
+    "ConfigurationSafety":  {
+                                "AuthoritativeTrackingEnabled":  false,
+                                "PushEnabled":  false,
+                                "LegacyMigrationEnabled":  false,
+                                "Status":  "PASS"
+                            },
+    "ArchitectureSafety":  {
+                               "RawDmlAudit":  "PASS",
+                               "ApprovedCoordinator":  "AzurePushTransactionCoordinator.cs"
+                           },
     "Drift_Details":  {
                           "MissingOnLocal":  [
 
