@@ -1,5 +1,6 @@
 # Deterministic Data Integrity and Schema Verifier for IProgram Phase 4 Slice 4.2B
 param(
+    [string]$Year = "2026",
     [string]$SourceConnectionString = "",
     [string]$TargetConnectionString = "",
     [ValidateSet("CaptureSource", "CaptureTarget", "Compare", "VerifyOperationalLocal")]
@@ -59,6 +60,27 @@ public class TableHasher
     }
 
     public static TableAuditResult AuditAndHashTable(string connectionString, string schemaName, string tableName, string pkColumns, bool isSyncable)
+    {
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                return InternalAuditAndHashTable(connectionString, schemaName, tableName, pkColumns, isSyncable);
+            }
+            catch (Exception)
+            {
+                if (attempt < 3)
+                {
+                    System.Threading.Thread.Sleep(2000 * attempt);
+                    continue;
+                }
+                throw;
+            }
+        }
+        return InternalAuditAndHashTable(connectionString, schemaName, tableName, pkColumns, isSyncable);
+    }
+
+    private static TableAuditResult InternalAuditAndHashTable(string connectionString, string schemaName, string tableName, string pkColumns, bool isSyncable)
     {
         var result = new TableAuditResult
         {
@@ -409,17 +431,27 @@ if ([string]::IsNullOrWhiteSpace($SourceConnectionString)) {
     $apiProj = Resolve-Path (Join-Path $PSScriptRoot "../../src/Api/Auth.Api.csproj") -ErrorAction SilentlyContinue
     if ($apiProj) {
         $secrets = dotnet user-secrets list --project $apiProj 2>$null
+        $secretKey = if ($Year -eq "2027") { "ConnectionStrings:CON2027 = " } else { "ConnectionStrings:DefaultConnection = " }
         foreach ($line in $secrets) {
-            if ($line.StartsWith("ConnectionStrings:DefaultConnection = ")) {
-                $SourceConnectionString = $line.Substring("ConnectionStrings:DefaultConnection = ".Length).Trim()
+            if ($line.StartsWith($secretKey)) {
+                $SourceConnectionString = $line.Substring($secretKey.Length).Trim()
                 break
             }
         }
     }
 }
 
+if (-not [string]::IsNullOrWhiteSpace($SourceConnectionString)) {
+    $SourceConnectionString = $SourceConnectionString -replace "Connection Timeout=\d+", "Connection Timeout=60"
+    $SourceConnectionString = $SourceConnectionString -replace "TrustServerCertificate=False", "TrustServerCertificate=True"
+    if ($SourceConnectionString -notmatch "TrustServerCertificate") {
+        $SourceConnectionString += ";TrustServerCertificate=True"
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($TargetConnectionString) -and ($Mode -ne "CaptureSource")) {
-    $TargetConnectionString = "Server=localhost;Database=IProgramLocalDb2026;Integrated Security=True;TrustServerCertificate=True;"
+    $targetDbName = if ($Year -eq "2027") { "IProgramLocalDb2027" } else { "IProgramLocalDb2026" }
+    $TargetConnectionString = "Server=localhost;Database=$targetDbName;Integrated Security=True;TrustServerCertificate=True;"
 }
 
 function Audit-Database($cs, $label, [bool]$ignoreLocalSyncTables = $false) {
@@ -472,26 +504,26 @@ function Audit-Database($cs, $label, [bool]$ignoreLocalSyncTables = $false) {
 
 $report = [ordered]@{
     ReportType = "DataIntegrityAuditReport"
-    Slice = "4.2B"
+    Slice = if ($Year -eq "2027") { "4.2C" } else { "4.2B" }
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
     Mode = $Mode
     OverallStatus = "UNKNOWN"
 }
 
 if ($Mode -eq "CaptureSource") {
-    $sourceAudit = Audit-Database $SourceConnectionString "Source_Azure_2026" $false
+    $sourceAudit = Audit-Database $SourceConnectionString "Source_Azure_$Year" $false
     $report.Source = $sourceAudit
     $report.OverallStatus = "CAPTURED"
 }
 elseif ($Mode -eq "CaptureTarget") {
-    $targetAudit = Audit-Database $TargetConnectionString "Target_Local_2026" $true
+    $targetAudit = Audit-Database $TargetConnectionString "Target_Local_$Year" $true
     $report.Target = $targetAudit
     $report.OverallStatus = "CAPTURED"
 }
 elseif ($Mode -eq "Compare") {
     Write-Host "Starting Comparative Verification between Source (Azure) and Target (Local)..." -ForegroundColor Yellow
-    $sourceAudit = Audit-Database $SourceConnectionString "Source_Azure_2026" $false
-    $targetAudit = Audit-Database $TargetConnectionString "Target_Local_2026" $true
+    $sourceAudit = Audit-Database $SourceConnectionString "Source_Azure_$Year" $false
+    $targetAudit = Audit-Database $TargetConnectionString "Target_Local_$Year" $true
 
     $report.SourceSummary = [ordered]@{ TableCount = $sourceAudit.TableCount; TotalRows = $sourceAudit.TotalRows }
     $report.TargetSummary = [ordered]@{ TableCount = $targetAudit.TableCount; TotalRows = $targetAudit.TotalRows }
@@ -686,7 +718,7 @@ elseif ($Mode -eq "VerifyOperationalLocal") {
     }
 
     # Audit the remaining tables (which should be the 19 business tables + 4 local sync tables)
-    $localAudit = Audit-Database $TargetConnectionString "Operational_Local_2026" $true
+    $localAudit = Audit-Database $TargetConnectionString "Operational_Local_$Year" $true
     $report.OperationalCheck = $operationalCheck
     $report.OperationalLocalAudit = $localAudit
     $report.OverallStatus = if ($operationalCheck.AzureOnlyTablesCleanedUp -and $operationalCheck.LocalSyncTablesPresent) { "PASS" } else { "FAIL" }

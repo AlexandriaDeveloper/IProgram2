@@ -1,14 +1,20 @@
 # Gate 7 Application Compatibility Smoke Test Runner (Local Read-Only)
 param(
-    [string]$TargetDatabase = "IProgramLocalDb2026",
+    [string]$Year = "2026",
+    [string]$TargetDatabase = "",
     [string]$OutputJsonPath = ""
 )
 
 $ErrorActionPreference = "Stop"
 
+if (-not $TargetDatabase) {
+    $TargetDatabase = if ($Year -eq "2027") { "IProgramLocalDb2027" } else { "IProgramLocalDb2026" }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 if (-not $OutputJsonPath) {
-    $OutputJsonPath = Join-Path $repoRoot "docs\audit\sync-slice-4-2b\2026\application_smoke_test_report.json"
+    $sliceDir = if ($Year -eq "2027") { "sync-slice-4-2c\2027" } else { "sync-slice-4-2b\2026" }
+    $OutputJsonPath = Join-Path $repoRoot "docs\audit\$sliceDir\application_smoke_test_report.json"
 }
 
 Write-Host "==========================================================================" -ForegroundColor Cyan
@@ -143,9 +149,9 @@ try {
     $conn.Open()
     $cmd = $conn.CreateCommand()
     $cmd.CommandText = @"
-SELECT Status, IsWriteAllowed FROM sync.BootstrapManifest WHERE DatabaseId = '2026';
-SELECT ServerVersionCheckpoint = LastServerVersion FROM sync.LocalState WHERE DatabaseId = '2026';
-SELECT OutboxCount = COUNT(*) FROM sync.LocalOutbox WHERE DatabaseId = '2026';
+SELECT Status, IsWriteAllowed FROM sync.BootstrapManifest WHERE DatabaseId = '$Year';
+SELECT ServerVersionCheckpoint = LastServerVersion FROM sync.LocalState WHERE DatabaseId = '$Year';
+SELECT OutboxCount = COUNT(*) FROM sync.LocalOutbox WHERE DatabaseId = '$Year';
 "@
     $reader = $cmd.ExecuteReader()
     $bStatus = ""
@@ -191,7 +197,7 @@ try {
     # Test via dotnet test
     $report.Tests["AzureSync_Guard"] = [ordered]@{
         Status = "PASS"
-        Description = "AzureSyncContext strictly rejects local database name IProgramLocalDb2026"
+        Description = "AzureSyncContext strictly rejects local database name $TargetDatabase"
     }
     Write-Host " PASS (Confirmed by physical binding guard)" -ForegroundColor Green
 } catch {
