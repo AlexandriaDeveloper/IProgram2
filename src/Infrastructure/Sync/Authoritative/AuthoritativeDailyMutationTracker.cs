@@ -388,18 +388,18 @@ namespace Auth.Infrastructure.Sync.Authoritative
 
         private static bool DateTimesMatch(DateTime dt1, DateTime dt2)
         {
-            return Math.Abs(dt1.Ticks - dt2.Ticks) <= 10;
+            return dt1.Ticks == dt2.Ticks;
         }
 
         private static bool NullableDateTimesMatch(DateTime? dt1, DateTime? dt2)
         {
-            if (dt1.HasValue != dt2.HasValue)
-            {
-                return false;
-            }
-            if (!dt1.HasValue)
+            if (!dt1.HasValue && !dt2.HasValue)
             {
                 return true;
+            }
+            if (!dt1.HasValue || !dt2.HasValue)
+            {
+                return false;
             }
             return DateTimesMatch(dt1.Value, dt2.Value);
         }

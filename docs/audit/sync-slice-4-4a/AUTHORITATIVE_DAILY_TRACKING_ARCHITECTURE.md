@@ -140,6 +140,7 @@ To prevent stale authoritative writes from overwriting newer changes (Lost Updat
 3. **Optimistic Snapshot Validation:**
    The current authoritative database row is compared against `OriginalSnapshot` for all authoritative scalar fields:
    `Name`, `DailyDate`, `Closed`, `CreatedAt`, `CreatedBy`, `UpdatedAt`, `UpdatedBy`, `DeactivatedAt`, `DeactivatedBy`, `IsActive`.
+   - Date comparison uses deterministic exact tick comparison (`a.Ticks == b.Ticks`), matching SQL Server `datetime2(7)` 100ns (.NET tick) resolution with zero tolerance (no microsecond or sub-microsecond leeway) and ignoring `DateTime.Kind` (as SQL Server `datetime2` does not store timezone/kind).
    - If the database row does not exist or has been deleted $\to$ fail-closed with `AuthoritativeConcurrencyConflictException` (`AUTHORITATIVE_CONCURRENCY_CONFLICT`).
    - If any scalar field differs $\to$ fail-closed with `AuthoritativeConcurrencyConflictException` (`AUTHORITATIVE_CONCURRENCY_CONFLICT`).
 4. **Row Lock Held Until Commit:**

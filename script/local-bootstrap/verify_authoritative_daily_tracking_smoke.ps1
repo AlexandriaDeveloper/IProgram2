@@ -191,7 +191,7 @@ try {
     $report.Gate_And_Safety_Verification["UnitTests"] = "PASS"
 
     # --- [TIER 3] Comprehensive Integration Matrix ---
-    Write-Host "`n--- [TIER 3] 15-Scenario Authoritative Daily Tracking Matrix ---" -ForegroundColor Yellow
+    Write-Host "`n--- [TIER 3] 16-Scenario Authoritative Daily Tracking Matrix ---" -ForegroundColor Yellow
     Write-Host "Running AuthoritativeDailyTrackingIntegrationTests..." -NoNewline
 
     $integTestOutput = dotnet test (Join-Path $repoRoot "tests\Auth.UnitTests\Auth.UnitTests.csproj") --no-build --configuration Debug --verbosity normal --filter "FullyQualifiedName~AuthoritativeDailyTrackingIntegrationTests" 2>&1
@@ -200,7 +200,7 @@ try {
         foreach ($line in $integTestOutput) { Write-Host $line -ForegroundColor Red }
         throw "Integration tests failed."
     }
-    Write-Host " PASS (15/15 scenarios)" -ForegroundColor Green
+    Write-Host " PASS (16/16 scenarios)" -ForegroundColor Green
 
     $report.Integration_Scenarios["Scenario01_OnlineInsert"] = "PASS"
     $report.Integration_Scenarios["Scenario02_OnlineUpdate"] = "PASS"
@@ -217,8 +217,9 @@ try {
     $report.Integration_Scenarios["Scenario13_ConcurrentOnlineVsPush_NoDeadlock"] = "PASS"
     $report.Integration_Scenarios["Scenario14_ConcurrentOnlineVsOnline_StaleWritePrevented"] = "PASS"
     $report.Integration_Scenarios["Scenario15_MultiMutationBatch_AtomicityRollbackOnStale"] = "PASS"
+    $report.Integration_Scenarios["Scenario16_SingleTickDateTimeDifference_TriggersAuthoritativeConcurrencyConflict"] = "PASS"
 
-    Write-Host "`nAll 15 Authoritative Tracking integration scenarios PASSED with zero defects!" -ForegroundColor Green
+    Write-Host "`nAll 16 Authoritative Tracking integration scenarios PASSED with zero defects!" -ForegroundColor Green
 
 } catch {
     $allPassed = $false

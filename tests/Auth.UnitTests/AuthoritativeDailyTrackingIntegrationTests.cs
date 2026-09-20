@@ -1488,6 +1488,102 @@ namespace Auth.UnitTests
 
         #endregion
 
+        #region Scenario 16: Single-Tick DateTime Difference Triggers Concurrency Conflict
+
+        [Fact]
+        public async Task Scenario16_SingleTickDateTimeDifference_TriggersAuthoritativeConcurrencyConflict()
+        {
+            var dailySyncId = Guid.NewGuid();
+            var startingVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+
+            // Base timestamp T rounded to 100ns / 7 digits precision (SQL datetime2(7) resolution)
+            var baseTime = new DateTime(2026, 6, 15, 10, 30, 0, DateTimeKind.Utc);
+            var updatedTimeT = baseTime.AddTicks(1234567); // Exact 7-decimal-digit fraction
+
+            // 1. Pre-seed Daily in DB with UpdatedAt = T
+            await using (var seedConn = new SqlConnection(RemoteConnStr2026))
+            {
+                await seedConn.OpenAsync();
+                await using var seedCmd = seedConn.CreateCommand();
+                seedCmd.CommandText = @"
+                    INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [CreatedBy], [CreatedAt], [UpdatedAt], [UpdatedBy], [IsActive], [SyncId])
+                    VALUES ('Initial Daily Name', '2026-06-01T00:00:00Z', 0, 'Seed', SYSUTCDATETIME(), @UpdatedAt, 'Seed', 1, @SyncId);";
+                seedCmd.Parameters.Add(new SqlParameter("@UpdatedAt", SqlDbType.DateTime2) { Value = updatedTimeT });
+                seedCmd.Parameters.AddWithValue("@SyncId", dailySyncId);
+                await seedCmd.ExecuteNonQueryAsync();
+            }
+
+            // 2. UnitOfWork Online context reads Daily; OriginalSnapshot captures UpdatedAt = T
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+            using var context = CreateContext(RemoteConnStr2026, trackingEnabled: true, syncProviderMock.Object);
+            var uow = CreateUnitOfWork(context, syncProviderMock.Object);
+
+            var loadedDaily = await context.Set<Daily>().FirstAsync(d => d.SyncId == dailySyncId);
+            Assert.Equal(updatedTimeT.Ticks, loadedDaily.UpdatedAt?.Ticks);
+
+            // 3. Before SaveChanges, external connection updates ONLY: UpdatedAt = T.AddTicks(1)
+            var updatedTimeTPlusOneTick = updatedTimeT.AddTicks(1);
+            await using (var extConn = new SqlConnection(RemoteConnStr2026))
+            {
+                await extConn.OpenAsync();
+                await using var extCmd = extConn.CreateCommand();
+                extCmd.CommandText = @"
+                    UPDATE [dbo].[Daily]
+                    SET [UpdatedAt] = @NewUpdatedAt
+                    WHERE [SyncId] = @SyncId;";
+                extCmd.Parameters.Add(new SqlParameter("@NewUpdatedAt", SqlDbType.DateTime2) { Value = updatedTimeTPlusOneTick });
+                extCmd.Parameters.AddWithValue("@SyncId", dailySyncId);
+                await extCmd.ExecuteNonQueryAsync();
+            }
+
+            // 4. Online context tries to modify Name
+            loadedDaily.Name = "Online Attempting Overwrite After Single Tick Shift";
+
+            // 5. Must FAIL CLOSED with AuthoritativeConcurrencyConflictException
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(async () =>
+            {
+                await uow.SaveChangesAsync();
+            });
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains("UpdatedAt", ex.Message);
+
+            // 6. Verify ServerState.CurrentVersion was NOT advanced
+            var finalVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+            Assert.Equal(startingVersion, finalVersion);
+
+            // 7. Verify zero new feed rows created for this failed write
+            await using (var verifyConn = new SqlConnection(RemoteConnStr2026))
+            {
+                await verifyConn.OpenAsync();
+                await using var feedCmd = verifyConn.CreateCommand();
+                feedCmd.CommandText = @"
+                    SELECT COUNT(1) FROM [sync].[ServerChangeFeed]
+                    WHERE DatabaseId = '2026' AND ServerVersion > @StartingVer;";
+                feedCmd.Parameters.AddWithValue("@StartingVer", startingVersion);
+                var feedCount = Convert.ToInt32(await feedCmd.ExecuteScalarAsync());
+                Assert.Equal(0, feedCount);
+
+                // 8. Verify Daily Name was NOT modified
+                await using var checkCmd = verifyConn.CreateCommand();
+                checkCmd.CommandText = "SELECT [Name], [UpdatedAt] FROM [dbo].[Daily] WHERE [SyncId] = @SyncId;";
+                checkCmd.Parameters.AddWithValue("@SyncId", dailySyncId);
+                await using var reader = await checkCmd.ExecuteReaderAsync();
+                Assert.True(await reader.ReadAsync());
+                var actualName = reader.GetString(0);
+                var actualUpdatedAt = reader.GetDateTime(1);
+
+                Assert.Equal("Initial Daily Name", actualName);
+                Assert.Equal(updatedTimeTPlusOneTick.Ticks, actualUpdatedAt.Ticks);
+            }
+        }
+
+        #endregion
+
         private static SqlException? ExtractSqlException(Exception? ex)
         {
             while (ex != null)

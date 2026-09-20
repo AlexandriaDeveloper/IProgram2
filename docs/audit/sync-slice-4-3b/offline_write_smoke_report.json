@@ -1,7 +1,7 @@
 ﻿{
     "Slice":  "4.3B",
     "Title":  "Offline Write + Transactional Outbox Pilot Smoke Verification",
-    "TimestampUtc":  "2026-09-20T21:24:09Z",
+    "TimestampUtc":  "2026-09-20T21:51:03Z",
     "Engine_Compatibility":  {
                                  "2026_CompatLevel":  120,
                                  "2027_CompatLevel":  120
@@ -18,7 +18,7 @@
                                         "Year_2026":  {
                                                           "Status":  "PASS",
                                                           "DailyId":  1110,
-                                                          "EntitySyncId":  "1ed5a99b-2bd8-41e1-859a-cd222edc4106",
+                                                          "EntitySyncId":  "6d74c505-9041-4a4b-9faf-f73b194fdf18",
                                                           "DeviceId":  "c8e9833f-801b-463b-8898-2448e284e4e3",
                                                           "BaseServerVersion":  0,
                                                           "AddOutboxCreated":  true,
@@ -32,7 +32,7 @@
                                         "Year_2027":  {
                                                           "Status":  "PASS",
                                                           "DailyId":  3123,
-                                                          "EntitySyncId":  "0b337c5b-62a9-4812-a8ac-c18294107cd1",
+                                                          "EntitySyncId":  "c8a1f04b-ad9d-49a9-b0af-906ad940d498",
                                                           "DatabaseId":  "2027",
                                                           "DeviceId":  "a71ce869-0300-4a07-b70e-1938b5fa42f2",
                                                           "BaseServerVersion":  0,
