@@ -26,6 +26,7 @@ namespace Auth.Infrastructure.Services
         }
 
         public bool IsLocalFirstEnabled => _configuration.GetValue<bool>("LocalFirst:Enabled", false);
+        public bool IsReadOnlyMode => _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
 
         public string GetSelectedDatabaseId()
         {
@@ -276,10 +277,11 @@ namespace Auth.Infrastructure.Services
                     throw new InvalidDatabaseSelectionException($"Invalid database selection '{candidate}' from source '{selectorSource}'.");
                 }
 
+                bool routeToLocal = IsLocalFirstEnabled || IsReadOnlyMode;
                 string resolvedConnStr;
                 string connStrName;
 
-                if (IsLocalFirstEnabled)
+                if (routeToLocal)
                 {
                     resolvedConnStr = GetLocalConnectionString(matched.Id);
                     connStrName = $"LocalConnection{matched.Id}";
@@ -301,10 +303,11 @@ namespace Auth.Infrastructure.Services
             {
                 // No explicit selector provided: resolve to default configured database (first item)
                 var defaultDb = databases[0];
+                bool routeToLocal = IsLocalFirstEnabled || IsReadOnlyMode;
                 string resolvedConnStr;
                 string connStrName;
 
-                if (IsLocalFirstEnabled)
+                if (routeToLocal)
                 {
                     resolvedConnStr = GetLocalConnectionString(defaultDb.Id);
                     connStrName = $"LocalConnection{defaultDb.Id}";

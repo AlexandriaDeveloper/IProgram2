@@ -88,6 +88,11 @@ namespace Auth.Infrastructure.Services
 
         public async Task<string> UploadFileAsync(Stream fileStream, string fileName, string folderName = "DailyReferences")
         {
+            if (_configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false))
+            {
+                throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. رفع المرفقات معطل.");
+            }
+
             try
             {
                 if (fileStream.Position > 0)
@@ -213,6 +218,11 @@ namespace Auth.Infrastructure.Services
 
         public async Task<bool> DeleteFileAsync(string fileUrl, string folderName)
         {
+            if (_configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false))
+            {
+                throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. حذف المرفقات معطل.");
+            }
+
             try
             {
                 if (string.IsNullOrWhiteSpace(fileUrl)) return false;

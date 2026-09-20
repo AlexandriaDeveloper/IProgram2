@@ -15,6 +15,7 @@ export class AuthService {
   apiUrl = environment.apiUrl;
   currentUserSig = signal<any | undefined | null>(undefined);
   userRoles = signal<string[]>([]);
+  runtimeStatusSig = signal<{ isReadOnly: boolean; isLocalFirst: boolean; runtimeMode: string; selectedDatabase: string } | null>(null);
   constructor() {
     const userString = localStorage.getItem('user');
     const token = localStorage.getItem('token');
@@ -23,6 +24,13 @@ export class AuthService {
       this.currentUserSig.set(user);
       this.userRoles.set(this.getUserRoles(token));
     }
+    this.loadRuntimeStatus();
+  }
+  loadRuntimeStatus() {
+    this.http.get<any>(this.apiUrl + 'account/runtime-status').subscribe({
+      next: (status) => this.runtimeStatusSig.set(status),
+      error: (err) => console.log('Runtime status not available', err)
+    });
   }
   login(model) {
     this.http.post(environment.apiUrl + 'account/login', model).
@@ -32,6 +40,7 @@ export class AuthService {
           localStorage.setItem('user', JSON.stringify(res));
           this.currentUserSig.set(res);
           this.userRoles.set(this.getUserRoles(res.token));
+          this.loadRuntimeStatus();
           this.router.navigateByUrl('/');
         },
         error: (err) => console.log(err)

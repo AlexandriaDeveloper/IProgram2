@@ -1,0 +1,54 @@
+﻿{
+    "Gate":  "Slice_4_3A_OfflineReadOnlySmoke",
+    "TimestampUtc":  "2026-09-20T12:01:57.5622574Z",
+    "LocalEngine":  "localhost (SQL Server 2014)",
+    "Databases":  [
+                      "IProgramLocalDb2026",
+                      "IProgramLocalDb2027"
+                  ],
+    "Tests":  {
+                  "SqlServer_Compatibility":  {
+                                                  "Status":  "PASS",
+                                                  "Db2026Compatibility":  120,
+                                                  "Db2027Compatibility":  120
+                                              },
+                  "Local_Identity":  {
+                                         "Status":  "PASS",
+                                         "Db2026":  {
+                                                        "Users":  2,
+                                                        "Roles":  2
+                                                    },
+                                         "Db2027":  {
+                                                        "Users":  2,
+                                                        "Roles":  2
+                                                    }
+                                     },
+                  "Local_Business_Data":  {
+                                              "Status":  "PASS",
+                                              "Db2026":  {
+                                                             "Employees":  12308,
+                                                             "Daily":  30
+                                                         },
+                                              "Db2027":  {
+                                                             "Employees":  12353,
+                                                             "Daily":  14
+                                                         }
+                                          },
+                  "Offline_ReadOnly_Unit_Suite":  {
+                                                      "Status":  "PASS",
+                                                      "Filter":  "FullyQualifiedName~OfflineReadOnlyRuntimeTests",
+                                                      "Passed":  32,
+                                                      "Failed":  0,
+                                                      "Skipped":  0,
+                                                      "Total":  32
+                                                  },
+                  "Security_Endpoints_Suite":  {
+                                                   "Status":  "PASS",
+                                                   "Filter":  "FullyQualifiedName~SecurityEndpointsTests"
+                                               },
+                  "Script_Syntax":  {
+                                        "Status":  "PASS"
+                                    }
+              },
+    "OverallStatus":  "PASS"
+}

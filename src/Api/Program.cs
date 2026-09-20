@@ -112,9 +112,10 @@ using (var scope = app.Services.CreateScope())
 {
     var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var isReadOnly = app.Configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
     try 
     { 
-        await SeedData.EnsureSeedData(roleMgr); 
+        await SeedData.EnsureSeedData(roleMgr, isReadOnly); 
     } 
     catch (Exception ex) 
     { 
@@ -174,6 +175,9 @@ app.UseAuthorization();
 
 // Output Cache MUST be placed after Authentication & Authorization
 app.UseOutputCache();
+
+// Enforce Read-Only Mode server-side guard
+app.UseMiddleware<Auth.Api.Middleware.ReadOnlyModeMiddleware>();
 
 if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
 {

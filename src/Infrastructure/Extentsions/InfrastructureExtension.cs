@@ -52,13 +52,15 @@ public static class InfrastructureExtension
         services.AddScoped<Core.Interfaces.ILocalBootstrapWriteGate>(sp =>
             new Sync.LocalBootstrapWriteGate(sp.GetRequiredService<Sync.ILocalSyncContextFactory>()));
         services.AddScoped<Sync.LocalBootstrapWriteGateInterceptor>();
+        services.AddScoped<Sync.ReadOnlyDbCommandInterceptor>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();
             var writeGateInterceptor = serviceProvider.GetRequiredService<Sync.LocalBootstrapWriteGateInterceptor>();
+            var readOnlyCommandInterceptor = serviceProvider.GetRequiredService<Sync.ReadOnlyDbCommandInterceptor>();
 
-            options.AddInterceptors(writeGateInterceptor);
+            options.AddInterceptors(writeGateInterceptor, readOnlyCommandInterceptor);
             options.UseSqlServer(dbProvider.GetConnectionString(), o =>
             {
                 o.UseCompatibilityLevel(120);

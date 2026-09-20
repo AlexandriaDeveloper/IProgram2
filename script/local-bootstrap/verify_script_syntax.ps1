@@ -10,7 +10,8 @@ $targetScripts = @(
     "script/local-bootstrap/adopt_2027_clone.ps1",
     "script/local-bootstrap/cleanup_azure_sync_tables_local_2027.ps1",
     "script/local-bootstrap/verify_bootstrap_integrity.ps1",
-    "script/local-bootstrap/smoke_test_local_2026.ps1"
+    "script/local-bootstrap/smoke_test_local_2026.ps1",
+    "script/local-bootstrap/verify_offline_readonly_smoke.ps1"
 )
 
 Write-Host "============================================================" -ForegroundColor Cyan
