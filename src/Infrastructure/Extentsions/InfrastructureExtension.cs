@@ -62,15 +62,21 @@ public static class InfrastructureExtension
         services.AddScoped<Sync.Push.ILocalPushLeaseManager, Sync.Push.LocalPushLeaseManager>();
         services.AddScoped<Sync.Push.ILocalOutboxPushService, Sync.Push.LocalOutboxPushService>();
 
+        // Slice 4.4A - Authoritative Azure Daily Mutation Tracking
+        services.AddScoped<Core.Interfaces.IAuthoritativeDailyMutationTracker, Sync.Authoritative.AuthoritativeDailyMutationTracker>();
+        services.AddScoped<Core.Interfaces.IAuthoritativeDatabaseBindingGuard, Sync.Authoritative.AuthoritativeDatabaseBindingGuard>();
+        services.AddScoped<Sync.Authoritative.AuthoritativeTrackingSafetyInterceptor>();
+
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();
             var writeGateInterceptor = serviceProvider.GetRequiredService<Sync.LocalBootstrapWriteGateInterceptor>();
             var writeSafetyInterceptor = serviceProvider.GetRequiredService<Sync.LocalWriteSafetyInterceptor>();
+            var authSafetyInterceptor = serviceProvider.GetRequiredService<Sync.Authoritative.AuthoritativeTrackingSafetyInterceptor>();
             var readOnlyCommandInterceptor = serviceProvider.GetRequiredService<Sync.ReadOnlyDbCommandInterceptor>();
             var readOnlyConnectionInterceptor = serviceProvider.GetRequiredService<Sync.ReadOnlyDbConnectionInterceptor>();
 
-            options.AddInterceptors(writeGateInterceptor, writeSafetyInterceptor, readOnlyCommandInterceptor, readOnlyConnectionInterceptor);
+            options.AddInterceptors(writeGateInterceptor, writeSafetyInterceptor, authSafetyInterceptor, readOnlyCommandInterceptor, readOnlyConnectionInterceptor);
             options.UseSqlServer(dbProvider.GetConnectionString(), o =>
             {
                 o.UseCompatibilityLevel(120);

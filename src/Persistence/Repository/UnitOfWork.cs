@@ -11,8 +11,10 @@ using Auth.Infrastructure;
 using Core.Exceptions;
 using Core.Interfaces;
 using Core.Models;
+using Core.Models.Sync;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Configuration;
 
 namespace Persistence.Repository
 {
@@ -20,25 +22,47 @@ namespace Persistence.Repository
     {
         private readonly ApplicationContext _context;
         private readonly IDbConnectionProvider? _dbConnectionProvider;
+        private readonly IAuthoritativeDailyMutationTracker? _authoritativeTracker;
+        private readonly IAuthoritativeDatabaseBindingGuard? _bindingGuard;
+        private readonly IConfiguration? _configuration;
 
-        public UnitOfWork(ApplicationContext context, IDbConnectionProvider? dbConnectionProvider = null)
+        public UnitOfWork(
+            ApplicationContext context,
+            IDbConnectionProvider? dbConnectionProvider = null,
+            IAuthoritativeDailyMutationTracker? authoritativeTracker = null,
+            IAuthoritativeDatabaseBindingGuard? bindingGuard = null,
+            IConfiguration? configuration = null)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _dbConnectionProvider = dbConnectionProvider;
+            _authoritativeTracker = authoritativeTracker;
+            _bindingGuard = bindingGuard;
+            _configuration = configuration;
         }
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            // If LocalFirst is not active, or in ReadOnlyMode, proceed through standard EF Core save pipeline
-            if (_dbConnectionProvider is not ISyncConnectionProvider syncProvider ||
-                !syncProvider.IsLocalFirstEnabled ||
-                syncProvider.IsReadOnlyMode)
+            // 1. OfflineReadWritePilot mode: coordinate transactional outbox
+            if (_dbConnectionProvider is ISyncConnectionProvider syncProvider &&
+                syncProvider.IsLocalFirstEnabled &&
+                !syncProvider.IsReadOnlyMode)
             {
-                return await _context.SaveChangesAsync(cancellationToken);
+                return await SaveChangesInOfflineWritePilotAsync(syncProvider, cancellationToken);
             }
 
-            // OfflineReadWritePilot mode: coordinate transactional outbox
-            return await SaveChangesInOfflineWritePilotAsync(syncProvider, cancellationToken);
+            // 2. Online mode with Authoritative Tracking enabled: coordinate authoritative Azure sync tracking
+            if (_dbConnectionProvider is ISyncConnectionProvider onlineSyncProvider &&
+                !onlineSyncProvider.IsLocalFirstEnabled &&
+                !onlineSyncProvider.IsReadOnlyMode &&
+                _configuration?.GetValue<bool>("Sync:AuthoritativeTrackingEnabled", false) == true &&
+                _authoritativeTracker != null &&
+                _bindingGuard != null)
+            {
+                return await SaveChangesInAuthoritativeOnlineAsync(onlineSyncProvider, cancellationToken);
+            }
+
+            // 3. Otherwise (ReadOnlyMode, or Online with gate off, or standard provider): standard EF Core save pipeline
+            return await _context.SaveChangesAsync(cancellationToken);
         }
 
         private async Task<int> SaveChangesInOfflineWritePilotAsync(
@@ -167,6 +191,139 @@ namespace Persistence.Repository
                     }
 
                     // Step D: Commit transaction atomically (both business write and outbox write succeed together)
+                    await transaction.CommitAsync(cancellationToken);
+
+                    // Step E: Accept tracked changes only after successful commit
+                    _context.ChangeTracker.AcceptAllChanges();
+
+                    return saveResult;
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw;
+                }
+            });
+        }
+
+        private async Task<int> SaveChangesInAuthoritativeOnlineAsync(
+            ISyncConnectionProvider syncProvider,
+            CancellationToken cancellationToken)
+        {
+            // 1. Detect pending modifications
+            if (!_context.ChangeTracker.HasChanges())
+            {
+                return 0;
+            }
+
+            // 2. Capture and classify Daily mutations
+            var entries = _context.ChangeTracker.Entries()
+                .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                .ToList();
+
+            var capturedMutations = new List<CapturedAuthoritativeDailyMutation>();
+
+            foreach (var entry in entries)
+            {
+                if (entry.Entity is Daily daily)
+                {
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (daily.SyncId == Guid.Empty)
+                        {
+                            daily.SyncId = Guid.NewGuid();
+                        }
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            Daily = daily,
+                            OperationType = "INSERT",
+                            EntitySyncId = daily.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Modified)
+                    {
+                        var syncIdProperty = entry.Property(nameof(Daily.SyncId));
+                        if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                        {
+                            throw new AuthoritativeTrackingException("تعديل SyncId لسجل يومية موجود محظور تماماً (SyncId is immutable).");
+                        }
+
+                        if (daily.SyncId == Guid.Empty)
+                        {
+                            throw new AuthoritativeTrackingException("Daily entity has empty SyncId on modification.");
+                        }
+
+                        var isActiveProperty = entry.Property(nameof(Daily.IsActive));
+                        bool isSoftDelete = isActiveProperty.OriginalValue is true && daily.IsActive == false;
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            Daily = daily,
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            EntitySyncId = daily.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Deleted)
+                    {
+                        var syncIdProperty = entry.Property(nameof(Daily.SyncId));
+                        var syncId = (Guid)(syncIdProperty.OriginalValue ?? daily.SyncId);
+                        if (syncId == Guid.Empty)
+                        {
+                            throw new AuthoritativeTrackingException("Daily entity has empty SyncId on hard delete.");
+                        }
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            Daily = daily,
+                            OperationType = "HARD_DELETE",
+                            EntitySyncId = syncId
+                        });
+                    }
+                }
+            }
+
+            // If no Daily mutations are present, normal online SaveChanges proceeds (e.g. Employee, Form)
+            if (capturedMutations.Count == 0)
+            {
+                return await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            // 3. Coordinate atomic transaction using EF Core execution strategy
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                using var scope = AuthoritativeWriteScopeContext.BeginScope();
+                await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    var dbConnection = _context.Database.GetDbConnection();
+                    if (dbConnection.State != ConnectionState.Open)
+                    {
+                        await dbConnection.OpenAsync(cancellationToken);
+                    }
+
+                    var databaseId = syncProvider.GetSelectedDatabaseId();
+                    if (string.IsNullOrWhiteSpace(databaseId))
+                    {
+                        throw new InvalidDatabaseSelectionException("Canonical database ID is missing for authoritative tracking.");
+                    }
+
+                    // Step A: Enforce physical Azure binding validation
+                    _bindingGuard!.ValidateAuthoritativeAzureBinding(databaseId, dbConnection.DataSource, dbConnection.Database);
+
+                    // Step B: Save business changes without accepting changes yet
+                    var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
+
+                    // Step C: Apply authoritative sync tracking metadata (ServerState, ServerChangeFeed, Tombstones)
+                    await _authoritativeTracker!.TrackDailyMutationsAsync(
+                        dbConnection,
+                        transaction.GetDbTransaction(),
+                        databaseId,
+                        capturedMutations,
+                        cancellationToken);
+
+                    // Step D: Commit transaction atomically
                     await transaction.CommitAsync(cancellationToken);
 
                     // Step E: Accept tracked changes only after successful commit
