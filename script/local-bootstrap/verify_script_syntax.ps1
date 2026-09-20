@@ -12,7 +12,8 @@ $targetScripts = @(
     "script/local-bootstrap/verify_bootstrap_integrity.ps1",
     "script/local-bootstrap/smoke_test_local_2026.ps1",
     "script/local-bootstrap/verify_offline_readonly_smoke.ps1",
-    "script/local-bootstrap/verify_offline_write_smoke.ps1"
+    "script/local-bootstrap/verify_offline_write_smoke.ps1",
+    "script/local-bootstrap/verify_offline_push_smoke.ps1"
 )
 
 Write-Host "============================================================" -ForegroundColor Cyan

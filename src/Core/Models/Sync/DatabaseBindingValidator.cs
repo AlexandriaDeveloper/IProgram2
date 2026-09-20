@@ -179,6 +179,33 @@ namespace Core.Models.Sync
             return !IsLocalServerEndpoint(serverOrDataSource);
         }
 
+        public static bool IsAzureSqlEndpoint(string? serverOrDataSource)
+        {
+            if (string.IsNullOrWhiteSpace(serverOrDataSource)) return false;
+
+            var endpoint = serverOrDataSource.Trim();
+
+            // Strip protocol prefixes (e.g. "tcp:")
+            if (endpoint.StartsWith("tcp:", StringComparison.OrdinalIgnoreCase))
+                endpoint = endpoint.Substring(4).Trim();
+
+            // Strip port suffix via comma
+            var commaIdx = endpoint.IndexOf(',');
+            if (commaIdx >= 0)
+            {
+                endpoint = endpoint.Substring(0, commaIdx).Trim();
+            }
+
+            // Strip port suffix via colon
+            var colonIdx = endpoint.IndexOf(':');
+            if (colonIdx >= 0)
+            {
+                endpoint = endpoint.Substring(0, colonIdx).Trim();
+            }
+
+            return endpoint.EndsWith(".database.windows.net", StringComparison.OrdinalIgnoreCase);
+        }
+
         public static void ValidateAzureBinding(string? serverOrDataSource, string? physicalDbName)
         {
             if (string.IsNullOrWhiteSpace(physicalDbName))
@@ -208,6 +235,12 @@ namespace Core.Models.Sync
             {
                 throw new InvalidOperationException(
                     $"Security violation: AzureSyncContext requires a valid remote server endpoint, but found '{serverOrDataSource}'.");
+            }
+
+            if (!IsAzureSqlEndpoint(serverOrDataSource))
+            {
+                throw new InvalidOperationException(
+                    $"Security violation: Azure production push target MUST be an Azure SQL endpoint (*.database.windows.net), but found '{serverOrDataSource}'.");
             }
         }
 

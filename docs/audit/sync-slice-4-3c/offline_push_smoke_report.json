@@ -1,0 +1,43 @@
+﻿{
+    "Slice":  "4.3C",
+    "Title":  "Idempotent Daily Outbox Push to Azure Smoke Verification",
+    "TimestampUtc":  "2026-09-20T19:55:43Z",
+    "Engine_Compatibility":  {
+                                 "2026_CompatLevel":  120,
+                                 "2027_CompatLevel":  120
+                             },
+    "Isolated_Databases":  {
+                               "Local_SmokeTest_DBs":  "CREATED",
+                               "Remote_SmokeTest_DBs":  "CREATED"
+                           },
+    "Gate_And_Middleware_Verification":  {
+                                             "Anonymous_Push_Blocked_401":  "PASS (401)",
+                                             "OfflineReadOnly_SyncPush_Blocked":  "PASS (403)",
+                                             "PushDisabled_SyncPush_Blocked":  "PASS (403)"
+                                         },
+    "Integration_Scenarios":  {
+                                  "Scenario01_NormalInsert":  "PASS",
+                                  "Scenario02_NormalUpdate":  "PASS",
+                                  "Scenario03_NormalSoftDelete":  "PASS",
+                                  "Scenario04_IdempotentReplay":  "PASS",
+                                  "Scenario05_OperationIdReuseAttack":  "PASS",
+                                  "Scenario06_VersionConflictDetection":  "PASS",
+                                  "Scenario07_RemoteTransactionFailureRollback":  "PASS",
+                                  "Scenario08_CrashRecoverySimulation":  "PASS",
+                                  "Scenario09_QueueOrderingFIFO":  "PASS",
+                                  "Scenario10_LocalPushLeaseConcurrency":  "PASS",
+                                  "Scenario11_YearIsolation":  "PASS",
+                                  "Scenario12_ConcurrentIdempotencyRace":  "PASS",
+                                  "Scenario13_MetadataMismatchFailClosed":  "PASS",
+                                  "Scenario14_CorruptResponseJsonFailClosed":  "PASS",
+                                  "Scenario15_LeaseLostAfterRemoteCommit":  "PASS",
+                                  "Scenario16_LocalAckAffectedRowsZeroRollback":  "PASS",
+                                  "Scenario17_ClaimWithStaleLeaseRejected":  "PASS",
+                                  "Scenario18_QueueHeadClaimFailureHaltsQueue":  "PASS",
+                                  "Scenario19_CorruptReplayResponseVariantsFailClosed":  "PASS",
+                                  "Scenario20_FIFOLockedInProgressHeadHaltsUntilExpired":  "PASS",
+                                  "Scenario21_SoftDeleteTimestampFidelity":  "PASS"
+                              },
+    "Cleanup_Status":  "COMPLETED",
+    "Overall_Status":  "PASS"
+}
