@@ -1,0 +1,110 @@
+﻿{
+    "Slice":  "4.3B",
+    "Title":  "Offline Write + Transactional Outbox Pilot Smoke Verification",
+    "TimestampUtc":  "2026-09-20T16:09:15Z",
+    "Engine_Compatibility":  {
+                                 "2026_CompatLevel":  120,
+                                 "2027_CompatLevel":  120
+                             },
+    "Atomic_Rollback_Proof":  {
+                                  "Status":  "PASS",
+                                  "ApiCallFailedAsExpected":  true,
+                                  "HttpStatusReturned":  500,
+                                  "BusinessRowCountUnchanged":  true,
+                                  "OutboxRowCountUnchanged":  true,
+                                  "RollbackConfirmed":  true
+                              },
+    "Positive_Integration_Matrix":  {
+                                        "Year_2026":  {
+                                                          "Status":  "PASS",
+                                                          "DailyId":  1110,
+                                                          "EntitySyncId":  "ba5125dd-99c9-4e2e-aa5c-cadf88f91efe",
+                                                          "AddOutboxCreated":  true,
+                                                          "EditOutboxCreated":  true,
+                                                          "CloseStatusVerified":  true,
+                                                          "UncloseStatusVerified":  true,
+                                                          "SoftDeleteVerified":  true
+                                                      },
+                                        "Year_2027":  {
+                                                          "Status":  "PASS",
+                                                          "DailyId":  3123,
+                                                          "EntitySyncId":  "65a525f4-f2d8-4023-9501-a09334077754",
+                                                          "DatabaseId":  "2027",
+                                                          "AddOutboxCreated":  true,
+                                                          "SoftDeleteVerified":  true
+                                                      }
+                                    },
+    "FailClosed_Scope_Rejection":  {
+                                       "Form_POST":  {
+                                                         "Status":  "PASS",
+                                                         "HttpMethod":  "POST",
+                                                         "Path":  "/api/Form",
+                                                         "ResponseStatusCode":  403,
+                                                         "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                         "RejectedFailClosed":  true
+                                                     },
+                                       "Employee_POST":  {
+                                                             "Status":  "PASS",
+                                                             "HttpMethod":  "POST",
+                                                             "Path":  "/api/Employee",
+                                                             "ResponseStatusCode":  403,
+                                                             "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                             "RejectedFailClosed":  true
+                                                         },
+                                       "Account_ChangePassword_PUT":  {
+                                                                          "Status":  "PASS",
+                                                                          "HttpMethod":  "PUT",
+                                                                          "Path":  "/api/account/ChangePassword",
+                                                                          "ResponseStatusCode":  403,
+                                                                          "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                                          "RejectedFailClosed":  true
+                                                                      },
+                                       "Daily_Copy_POST":  {
+                                                               "Status":  "PASS",
+                                                               "HttpMethod":  "POST",
+                                                               "Path":  "/api/Daily/copy/1110",
+                                                               "ResponseStatusCode":  403,
+                                                               "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                               "RejectedFailClosed":  true
+                                                           },
+                                       "Beneficiary_Comment_PUT":  {
+                                                                       "Status":  "PASS",
+                                                                       "HttpMethod":  "PUT",
+                                                                       "Path":  "/api/Daily/1110/beneficiary-comment",
+                                                                       "ResponseStatusCode":  403,
+                                                                       "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                                       "RejectedFailClosed":  true
+                                                                   },
+                                       "Beneficiary_NetPay_PUT":  {
+                                                                      "Status":  "PASS",
+                                                                      "HttpMethod":  "PUT",
+                                                                      "Path":  "/api/Daily/1110/beneficiary-netpay",
+                                                                      "ResponseStatusCode":  403,
+                                                                      "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                                      "RejectedFailClosed":  true
+                                                                  },
+                                       "VerifyPdf_POST":  {
+                                                              "Status":  "PASS",
+                                                              "HttpMethod":  "POST",
+                                                              "Path":  "/api/Daily/1110/verify-pdf",
+                                                              "ResponseStatusCode":  403,
+                                                              "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                              "RejectedFailClosed":  true
+                                                          },
+                                       "ResetReviews_POST":  {
+                                                                 "Status":  "PASS",
+                                                                 "HttpMethod":  "POST",
+                                                                 "Path":  "/api/Daily/1110/reset-reviews",
+                                                                 "ResponseStatusCode":  403,
+                                                                 "ErrorCode":  "OFFLINE_WRITE_SCOPE_BLOCKED",
+                                                                 "RejectedFailClosed":  true
+                                                             }
+                                   },
+    "Zero_Azure_Connections_Proof":  {
+                                         "Status":  "PASS",
+                                         "RemoteAzureEndpointsConfigured":  "127.0.0.1:9999 (Blackholed)",
+                                         "RemoteAttemptsMade":  0,
+                                         "ZeroAzureWritesVerified":  true
+                                     },
+    "Overall_Status":  "PASS"
+}

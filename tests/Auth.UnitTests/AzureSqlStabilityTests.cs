@@ -438,9 +438,10 @@ namespace Auth.UnitTests
                 }
             }
 
-            // Only EmployeeService.cs contains a manual transaction, and it is strictly wrapped in CreateExecutionStrategy
-            Assert.Single(filesWithTransaction);
-            Assert.Equal("EmployeeService.cs", filesWithTransaction[0]);
+            // EmployeeService.cs and UnitOfWork.cs (Slice 4.3B) contain manual transactions, and both are strictly wrapped in CreateExecutionStrategy
+            Assert.Equal(2, filesWithTransaction.Count);
+            Assert.Contains("EmployeeService.cs", filesWithTransaction);
+            Assert.Contains("UnitOfWork.cs", filesWithTransaction);
         }
     }
 }

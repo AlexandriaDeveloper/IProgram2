@@ -88,9 +88,15 @@ namespace Auth.Infrastructure.Services
 
         public async Task<string> UploadFileAsync(Stream fileStream, string fileName, string folderName = "DailyReferences")
         {
-            if (_configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false))
+            bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
+            bool isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
+            if (isReadOnly)
             {
                 throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. رفع المرفقات معطل.");
+            }
+            if (isLocalFirst)
+            {
+                throw new Core.Exceptions.OfflineWriteScopeException("رفع المرفقات إلى التخزين السحابي معطل في الوضع المحلي.");
             }
 
             if (_cloudinary == null)
@@ -209,9 +215,10 @@ namespace Auth.Infrastructure.Services
 
                 // 2. In offline/read-only mode or without Cloudinary configuration: do not attempt outbound network calls
                 bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
-                if (isReadOnly || _cloudinary == null)
+                bool isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
+                if (isReadOnly || isLocalFirst || _cloudinary == null)
                 {
-                    Console.WriteLine($"[INFO] Offline mode: Remote attachment '{safeFileName}' is not cached locally; omitting outbound request.");
+                    Console.WriteLine($"[INFO] Offline/Local mode: Remote attachment '{safeFileName}' is not cached locally; omitting outbound request.");
                     return null;
                 }
 
@@ -248,9 +255,15 @@ namespace Auth.Infrastructure.Services
 
         public async Task<bool> DeleteFileAsync(string fileUrl, string folderName)
         {
-            if (_configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false))
+            bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
+            bool isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
+            if (isReadOnly)
             {
                 throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. حذف المرفقات معطل.");
+            }
+            if (isLocalFirst)
+            {
+                throw new Core.Exceptions.OfflineWriteScopeException("حذف المرفقات من التخزين السحابي معطل في الوضع المحلي.");
             }
 
             if (_cloudinary == null)

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -9,6 +10,11 @@ namespace Auth.Api.Middleware
 {
     public class ReadOnlyModeMiddleware
     {
+        private static readonly Regex CloseDailyRegex = new Regex(@"^/api/daily/closedaily/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex UncloseDailyRegex = new Regex(@"^/api/daily/unclosedaily/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex DeleteDailyRegex = new Regex(@"^/api/daily/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex SoftDeleteDailyRegex = new Regex(@"^/api/daily/softdelete/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private readonly RequestDelegate _next;
         private readonly IConfiguration _configuration;
         private readonly ILogger<ReadOnlyModeMiddleware> _logger;
@@ -25,8 +31,11 @@ namespace Auth.Api.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
+            var isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
             var isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
-            if (!isReadOnly)
+
+            // Online mode: unhindered
+            if (!isLocalFirst && !isReadOnly)
             {
                 await _next(context);
                 return;
@@ -35,7 +44,7 @@ namespace Auth.Api.Middleware
             var method = context.Request.Method;
             var path = context.Request.Path.Value?.TrimEnd('/') ?? "";
 
-            // 1. Block known mutating GET routes (e.g. archiving/copying forms)
+            // 1. Block known mutating GET routes (e.g. archiving/copying forms) in all local modes
             if (path.StartsWith("/api/form/copyformtoarchive", StringComparison.OrdinalIgnoreCase))
             {
                 var blockedTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
@@ -49,8 +58,8 @@ namespace Auth.Api.Middleware
                 var blockedPayload = new
                 {
                     statusCode = StatusCodes.Status403Forbidden,
-                    message = "النظام يعمل حالياً في وضع القراءة المحلية فقط. جميع عمليات الإضافة والتعديل والحذف والأرشفة معطلة.",
-                    code = "READ_ONLY_MODE_BLOCKED",
+                    message = "العملية المطلوبة غير مسموحة في الوضع المحلي. جميع عمليات الأرشفة معطلة.",
+                    code = isReadOnly ? "READ_ONLY_MODE_BLOCKED" : "OFFLINE_WRITE_SCOPE_BLOCKED",
                     traceId = blockedTraceId
                 };
 
@@ -67,7 +76,7 @@ namespace Auth.Api.Middleware
                 return;
             }
 
-            // 3. Exact allowlist for permitted POST operations (Login, Logout, and read-only Export)
+            // 3. Exact allowlist for permitted non-mutating POST operations (Login, Logout, and read-only Export)
             if (HttpMethods.IsPost(method))
             {
                 if (string.Equals(path, "/api/account/login", StringComparison.OrdinalIgnoreCase) ||
@@ -79,24 +88,90 @@ namespace Auth.Api.Middleware
                 }
             }
 
-            // All other mutating requests (POST, PUT, DELETE, PATCH) are rejected
-            var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+            // 4. OfflineReadOnly mode: all other mutating requests are blocked fail-closed
+            if (isReadOnly)
+            {
+                var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+                _logger.LogWarning(
+                    "Write request blocked by ReadOnlyModeMiddleware: {Method} {Path} (TraceId: {TraceId})",
+                    method, path, traceId);
+
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json; charset=utf-8";
+
+                var responsePayload = new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    message = "النظام يعمل حالياً في وضع القراءة المحلية فقط. جميع عمليات الإضافة والتعديل والحذف والمراجعة والإغلاق وإدارة المستخدمين والمرفقات معطلة.",
+                    code = "READ_ONLY_MODE_BLOCKED",
+                    traceId
+                };
+
+                await context.Response.WriteAsJsonAsync(responsePayload);
+                return;
+            }
+
+            // 5. OfflineReadWritePilot mode (isLocalFirst == true && isReadOnly == false):
+            // Strictly check allowlist for permitted Daily pilot operations
+            if (IsPermittedOfflineWritePilotRoute(method, path))
+            {
+                await _next(context);
+                return;
+            }
+
+            // All non-pilot mutating requests in OfflineReadWritePilot are rejected fail-closed
+            var blockedScopeTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
             _logger.LogWarning(
-                "Write request blocked by ReadOnlyModeMiddleware: {Method} {Path} (TraceId: {TraceId})",
-                method, path, traceId);
+                "Write request blocked by OfflineWritePilot scope guard: {Method} {Path} (TraceId: {TraceId})",
+                method, path, blockedScopeTraceId);
 
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json; charset=utf-8";
 
-            var responsePayload = new
+            var scopeResponsePayload = new
             {
                 statusCode = StatusCodes.Status403Forbidden,
-                message = "النظام يعمل حالياً في وضع القراءة المحلية فقط. جميع عمليات الإضافة والتعديل والحذف والمراجعة والإغلاق وإدارة المستخدمين والمرفقات معطلة.",
-                code = "READ_ONLY_MODE_BLOCKED",
-                traceId
+                message = "العملية المطلوبة غير مسموحة في وضع Offline Read-Write Pilot. العمليات المصرح بها محصورة في اليوميات (Daily) فقط.",
+                code = "OFFLINE_WRITE_SCOPE_BLOCKED",
+                traceId = blockedScopeTraceId
             };
 
-            await context.Response.WriteAsJsonAsync(responsePayload);
+            await context.Response.WriteAsJsonAsync(scopeResponsePayload);
+        }
+
+        public static bool IsPermittedOfflineWritePilotRoute(string method, string path)
+        {
+            if (HttpMethods.IsPost(method))
+            {
+                return string.Equals(path, "/api/daily", StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (HttpMethods.IsPut(method))
+            {
+                if (string.Equals(path, "/api/daily", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (CloseDailyRegex.IsMatch(path) || UncloseDailyRegex.IsMatch(path))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (HttpMethods.IsDelete(method))
+            {
+                if (DeleteDailyRegex.IsMatch(path) || SoftDeleteDailyRegex.IsMatch(path))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            return false;
         }
     }
 }

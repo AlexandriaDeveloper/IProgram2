@@ -105,7 +105,7 @@ namespace Auth.Infrastructure.Sync
 
         private void EnforceLocalConnection(DbConnection connection)
         {
-            if (_syncConnectionProvider == null || !_syncConnectionProvider.IsReadOnlyMode)
+            if (_syncConnectionProvider == null || (!_syncConnectionProvider.IsLocalFirstEnabled && !_syncConnectionProvider.IsReadOnlyMode))
             {
                 return;
             }

@@ -24,9 +24,13 @@ document.createElement('video');
                   <mat-icon>login</mat-icon>
                 </a>
                 <span> Please Login</span>
-                <span *ngIf="auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly'" class="readonly-badge"
                   matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط.">
                   🔒 محلي — قراءة فقط
+                </span>
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadWritePilot'" class="pilot-badge"
+                  matTooltip="التعديلات يتم حفظها محلياً ولم يتم رفعها للسحابة بعد.">
+                  🟠 محلي — تعديلات غير متزامنة
                 </span>
               </div>
             </ng-container>
@@ -41,16 +45,16 @@ document.createElement('video');
                   <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
                 </button>
                 <!-- Sync to Cloud Button (Push) -->
-                <button *ngIf="auth?.isUserAdmin() && !auth.runtimeStatusSig()?.isReadOnly" mat-icon-button class="sync-btn push-btn" aria-label="Push to Cloud"
+                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.runtimeMode === 'Online'" mat-icon-button class="sync-btn push-btn" aria-label="Push to Cloud"
                   (click)="syncToCloud()" [disabled]="syncService.isSyncing()"
                   [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'رفع للسحابة ☁️⬆️'">
                   <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'push'"
-                    style="color: #4CAF50 !important">cloud_upload</mat-icon>
+                     style="color: #4CAF50 !important">cloud_upload</mat-icon>
                   <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'push'"
                     diameter="24"></mat-spinner>
                 </button>
                 <!-- Pull from Cloud Button -->
-                <button *ngIf="auth?.isUserAdmin() && !auth.runtimeStatusSig()?.isReadOnly" mat-icon-button class="sync-btn pull-btn"
+                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.runtimeMode === 'Online'" mat-icon-button class="sync-btn pull-btn"
                   aria-label="Pull from Cloud" (click)="pullFromCloud()" [disabled]="syncService.isSyncing()"
                   [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'تنزيل من السحابة ☁️⬇️'">
                   <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'pull'"
@@ -58,9 +62,13 @@ document.createElement('video');
                   <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'pull'"
                     diameter="24"></mat-spinner>
                 </button>
-                <span *ngIf="auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly'" class="readonly-badge"
                   matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط. التعديلات معطلة والبيانات غير متزامنة مع السحابة.">
                   🔒 محلي — قراءة فقط
+                </span>
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadWritePilot'" class="pilot-badge"
+                  matTooltip="التعديلات يتم حفظها محلياً ولم يتم رفعها للسحابة بعد.">
+                  🟠 محلي — تعديلات غير متزامنة
                 </span>
                 <span *ngIf="syncMessage || syncService.isSyncing()" class="sync-message"
                   [class.success]="syncMessage.includes('✅')" [class.error]="syncMessage.includes('❌')">
