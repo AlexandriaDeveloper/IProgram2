@@ -1,6 +1,6 @@
 ﻿{
     "Gate":  "Gate7_SmokeTest",
-    "TimestampUtc":  "2026-09-20T09:14:14.7132633Z",
+    "TimestampUtc":  "2026-09-20T11:25:20.2034403Z",
     "TargetDatabase":  "IProgramLocalDb2027",
     "LocalEngine":  "localhost (SQL Server 2014)",
     "Tests":  {

@@ -332,6 +332,7 @@ foreach ($t in $azureDb.Tables) {
     $schema = $t.Schema
     $name = $t.Name
     
+    foreach ($fk in $t.ForeignKeys) {
         # Check if foreign key exists on parent table in target (object-qualified by schema, table, and FK name)
         $cmdFkCheck = $connTarget.CreateCommand()
         $cmdFkCheck.CommandText = @"
