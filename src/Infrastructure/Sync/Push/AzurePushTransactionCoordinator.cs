@@ -26,12 +26,14 @@ namespace Auth.Infrastructure.Sync.Push
             LocalOutbox outboxItem,
             long expectedServerVersion,
             string requestHash,
+            Guid expectedDeviceId,
             CancellationToken cancellationToken)
         {
             if (connection == null) throw new ArgumentNullException(nameof(connection));
             if (outboxItem == null) throw new ArgumentNullException(nameof(outboxItem));
             if (string.IsNullOrWhiteSpace(databaseId)) throw new ArgumentException("DatabaseId is required.", nameof(databaseId));
             if (string.IsNullOrWhiteSpace(requestHash)) throw new ArgumentException("RequestHash is required.", nameof(requestHash));
+            if (expectedDeviceId == Guid.Empty) throw new ArgumentException("ExpectedDeviceId is required.", nameof(expectedDeviceId));
 
             // =========================================================================
             // STEP 0: Validate Metadata Consistency & Parse Envelope V1 Upfront
@@ -49,6 +51,12 @@ namespace Auth.Infrastructure.Sync.Push
             }
 
             var parsedPayload = ParseAndValidatePayload(outboxItem);
+
+            if (parsedPayload.DeviceId != expectedDeviceId)
+            {
+                throw new SyncMetadataMismatchException(
+                    $"Metadata mismatch: payload deviceId '{parsedPayload.DeviceId}' does not match expected LocalState DeviceId '{expectedDeviceId}'.");
+            }
 
             var expectedCommandName = parsedPayload.OperationType.ToUpperInvariant() switch
             {
@@ -140,19 +148,44 @@ namespace Auth.Infrastructure.Sync.Push
                             try
                             {
                                 using var respDoc = JsonDocument.Parse(existingResponseJson);
-                                if (respDoc.RootElement.TryGetProperty("serverVersion", out var svProp) && svProp.TryGetInt64(out var sv))
-                                {
-                                    storedVersion = sv;
-                                }
-                                else
+                                var rootResp = respDoc.RootElement;
+
+                                if (!rootResp.TryGetProperty("clientOperationId", out var opProp) ||
+                                    !Guid.TryParse(opProp.GetString(), out var storedOpId) ||
+                                    storedOpId != outboxItem.ClientOperationId)
                                 {
                                     throw new SyncCorruptResponseJsonException(
-                                        $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' is missing 'serverVersion'.");
+                                        $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' has mismatched or missing 'clientOperationId'.");
                                 }
+
+                                if (!rootResp.TryGetProperty("entitySyncId", out var esProp) ||
+                                    !Guid.TryParse(esProp.GetString(), out var storedSyncId) ||
+                                    storedSyncId != outboxItem.EntitySyncId)
+                                {
+                                    throw new SyncCorruptResponseJsonException(
+                                        $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' has mismatched or missing 'entitySyncId'.");
+                                }
+
+                                if (!rootResp.TryGetProperty("result", out var resProp) ||
+                                    !string.Equals(resProp.GetString(), "SUCCESS", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    throw new SyncCorruptResponseJsonException(
+                                        $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' has invalid result status.");
+                                }
+
+                                if (!rootResp.TryGetProperty("serverVersion", out var svProp) ||
+                                    !svProp.TryGetInt64(out var sv) ||
+                                    sv <= 0)
+                                {
+                                    throw new SyncCorruptResponseJsonException(
+                                        $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' is missing valid positive 'serverVersion'.");
+                                }
+                                storedVersion = sv;
                             }
                             catch (Exception ex) when (ex is not SyncCorruptResponseJsonException)
                             {
-                                _logger.LogError(ex, "Failed to parse stored responseJson for ClientOperationId {ClientOperationId}.", outboxItem.ClientOperationId);
+                                _logger.LogError("Corrupt responseJson detected: DatabaseId {DatabaseId}, ClientOperationId {ClientOperationId}, ErrorType {ErrorType}.",
+                                    databaseId, outboxItem.ClientOperationId, ex.GetType().Name);
                                 throw new SyncCorruptResponseJsonException(
                                     $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' is corrupt.", ex);
                             }
@@ -480,6 +513,13 @@ namespace Auth.Infrastructure.Sync.Push
                     throw new SyncPayloadValidationException($"Unsupported entityType '{entityType}'. Expected 'Daily'.");
                 }
 
+                var databaseIdStr = root.TryGetProperty("databaseId", out var dbIdProp) ? dbIdProp.GetString() : null;
+                if (string.IsNullOrWhiteSpace(databaseIdStr) || !string.Equals(databaseIdStr, outboxItem.DatabaseId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new SyncMetadataMismatchException(
+                        $"Metadata mismatch: payload databaseId '{databaseIdStr}' does not match outbox DatabaseId '{outboxItem.DatabaseId}'.");
+                }
+
                 var entitySyncIdStr = root.GetProperty("entitySyncId").GetString();
                 if (!Guid.TryParse(entitySyncIdStr, out var entitySyncId) || entitySyncId == Guid.Empty || entitySyncId != outboxItem.EntitySyncId)
                 {
@@ -494,6 +534,18 @@ namespace Auth.Infrastructure.Sync.Push
                 }
 
                 var entityData = root.GetProperty("entityData");
+
+                if (entityData.TryGetProperty("SyncId", out var edSyncIdProp) || entityData.TryGetProperty("syncId", out edSyncIdProp))
+                {
+                    if (edSyncIdProp.ValueKind != JsonValueKind.String ||
+                        !Guid.TryParse(edSyncIdProp.GetString(), out var edSyncId) ||
+                        edSyncId != entitySyncId ||
+                        edSyncId != outboxItem.EntitySyncId)
+                    {
+                        throw new SyncMetadataMismatchException("Metadata mismatch: entityData SyncId does not match envelope entitySyncId or outbox EntitySyncId.");
+                    }
+                }
+
                 string name = string.Empty;
                 DateTime dailyDate;
 
@@ -534,8 +586,20 @@ namespace Auth.Infrastructure.Sync.Push
                 }
 
                 bool isActive;
-                if (string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(operationType, "INSERT", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || iaProp.ValueKind != JsonValueKind.True)
+                    {
+                        throw new SyncPayloadValidationException("INSERT operation requires IsActive to be explicitly true. Deactivation must be performed via SOFT_DELETE.");
+                    }
+                    isActive = true;
+                }
+                else if (string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || iaProp.ValueKind != JsonValueKind.False)
+                    {
+                        throw new SyncPayloadValidationException("SOFT_DELETE operation requires entityData.IsActive to be explicitly false.");
+                    }
                     isActive = false;
                 }
                 else
@@ -600,7 +664,7 @@ namespace Auth.Infrastructure.Sync.Push
                     DeactivatedBy = deactivatedBy
                 };
             }
-            catch (Exception ex) when (ex is not SyncPayloadValidationException)
+            catch (Exception ex) when (ex is not SyncDomainException)
             {
                 throw new SyncPayloadValidationException($"Payload validation error: {ex.Message}", ex);
             }

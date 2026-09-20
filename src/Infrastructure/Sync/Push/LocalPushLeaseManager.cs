@@ -157,8 +157,8 @@ namespace Auth.Infrastructure.Sync.Push
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to gracefully release push lease for DatabaseId {DatabaseId} (token: {LeaseToken}). Lease will expire automatically.",
-                    databaseId, leaseToken);
+                _logger.LogWarning("Failed to gracefully release push lease for DatabaseId {DatabaseId} (token: {LeaseToken}), ErrorType: {ErrorType}. Lease will expire automatically.",
+                    databaseId, leaseToken, ex.GetType().Name);
             }
         }
     }

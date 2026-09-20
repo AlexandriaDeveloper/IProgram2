@@ -30,6 +30,12 @@ namespace Auth.Infrastructure.Sync.Push
             var builder = new SqlConnectionStringBuilder(remoteConnStr);
 
             // Strict production binding validation: physical target must be remote Azure (IProgramDb2026 / IProgramDb2027)
+            var expectedRemoteDb = DatabaseBindingValidator.GetExpectedRemoteDatabaseName(databaseId);
+            if (!string.Equals(builder.InitialCatalog, expectedRemoteDb, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PhysicalDatabaseMismatchException(
+                    $"Physical database mismatch: Remote Azure target for '{databaseId}' must be '{expectedRemoteDb}', but found '{builder.InitialCatalog}'.");
+            }
             DatabaseBindingValidator.ValidateAzureBinding(builder.DataSource, builder.InitialCatalog);
 
             var connection = new SqlConnection(remoteConnStr);

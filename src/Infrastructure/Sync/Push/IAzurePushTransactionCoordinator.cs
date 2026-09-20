@@ -22,6 +22,7 @@ namespace Auth.Infrastructure.Sync.Push
             LocalOutbox outboxItem,
             long expectedServerVersion,
             string requestHash,
+            Guid expectedDeviceId,
             CancellationToken cancellationToken);
     }
 }

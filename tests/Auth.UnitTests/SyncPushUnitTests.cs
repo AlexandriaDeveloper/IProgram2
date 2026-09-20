@@ -284,7 +284,8 @@ namespace Auth.UnitTests
         {
             var item = new LocalOutbox
             {
-                PayloadJson = "{\"schemaVersion\":1,\"entityType\":\"Daily\",\"operationType\":\"INSERT\",\"deviceId\":\"" + Guid.NewGuid() + "\",\"entitySyncId\":\"00000000-0000-0000-0000-000000000000\",\"entityData\":{}}",
+                DatabaseId = "2026",
+                PayloadJson = "{\"schemaVersion\":1,\"entityType\":\"Daily\",\"operationType\":\"INSERT\",\"databaseId\":\"2026\",\"deviceId\":\"" + Guid.NewGuid() + "\",\"entitySyncId\":\"00000000-0000-0000-0000-000000000000\",\"entityData\":{}}",
                 ClientOperationId = Guid.NewGuid(),
                 EntitySyncId = Guid.Empty,
                 CommandName = "Daily.Insert"
@@ -304,6 +305,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = deviceId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -321,6 +323,7 @@ namespace Auth.UnitTests
 
             var item = new LocalOutbox
             {
+                DatabaseId = "2026",
                 PayloadJson = JsonSerializer.Serialize(payload),
                 ClientOperationId = Guid.NewGuid(),
                 EntitySyncId = syncId,
@@ -337,7 +340,7 @@ namespace Auth.UnitTests
         }
 
         [Fact]
-        public void ParsePayload_Enforces_SoftDelete_SetsIsActiveFalse()
+        public void ParsePayload_SoftDelete_WithIsActiveFalse_Succeeds()
         {
             var syncId = Guid.NewGuid();
             var deviceId = Guid.NewGuid();
@@ -346,6 +349,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "SOFT_DELETE",
+                databaseId = "2026",
                 deviceId = deviceId,
                 entitySyncId = syncId,
                 baseServerVersion = 1,
@@ -355,13 +359,14 @@ namespace Auth.UnitTests
                     Name = "يومية 2026-05-01",
                     DailyDate = "2026-05-01T00:00:00Z",
                     Closed = false,
-                    IsActive = true, // Attempt to set IsActive=true during SOFT_DELETE
+                    IsActive = false,
                     CreatedAt = "2026-05-01T10:00:00Z"
                 }
             };
 
             var item = new LocalOutbox
             {
+                DatabaseId = "2026",
                 PayloadJson = JsonSerializer.Serialize(payload),
                 ClientOperationId = Guid.NewGuid(),
                 EntitySyncId = syncId,
@@ -369,13 +374,297 @@ namespace Auth.UnitTests
             };
 
             var parsed = AzurePushTransactionCoordinator.ParseAndValidatePayload(item);
-            // SOFT_DELETE forces IsActive to false
             Assert.False(parsed.IsActive);
+        }
+
+        [Fact]
+        public void ParsePayload_Insert_WithIsActiveFalse_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 0,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = false,
+                    IsActive = false, // Deactivation in INSERT must be rejected
+                    CreatedAt = "2026-05-01T10:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Insert"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+        }
+
+        [Fact]
+        public void ParsePayload_SoftDelete_WithIsActiveTrue_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "SOFT_DELETE",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 1,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = false,
+                    IsActive = true, // SOFT_DELETE must carry IsActive = false explicitly
+                    CreatedAt = "2026-05-01T10:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.SoftDelete"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+        }
+
+        [Fact]
+        public void ParsePayload_SoftDelete_WithoutIsActive_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "SOFT_DELETE",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 1,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = false,
+                    // Missing IsActive
+                    CreatedAt = "2026-05-01T10:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.SoftDelete"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+        }
+
+        [Fact]
+        public void ParsePayload_DatabaseIdMismatch_ThrowsSyncMetadataMismatchException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2027", // Mismatched from outbox.DatabaseId = "2026"
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 0,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = false,
+                    IsActive = true,
+                    CreatedAt = "2026-05-01T10:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Insert"
+            };
+
+            var ex = Assert.Throws<SyncMetadataMismatchException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_METADATA_MISMATCH", ex.ErrorCode);
+        }
+
+        [Fact]
+        public void ParsePayload_EntityDataSyncIdMismatch_ThrowsSyncMetadataMismatchException()
+        {
+            var rootSyncId = Guid.NewGuid();
+            var entityDataSyncId = Guid.NewGuid(); // Mismatched
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = rootSyncId,
+                baseServerVersion = 0,
+                entityData = new
+                {
+                    SyncId = entityDataSyncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = false,
+                    IsActive = true,
+                    CreatedAt = "2026-05-01T10:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = rootSyncId,
+                CommandName = "Daily.Insert"
+            };
+
+            var ex = Assert.Throws<SyncMetadataMismatchException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_METADATA_MISMATCH", ex.ErrorCode);
+        }
+
+        [Fact]
+        public async Task ApplyOperationAsync_ThrowsSyncMetadataMismatch_WhenPayloadDeviceId_DiffersFromLocalDeviceId()
+        {
+            var syncId = Guid.NewGuid();
+            var payloadDeviceId = Guid.NewGuid();
+            var expectedDeviceId = Guid.NewGuid(); // Different from payloadDeviceId
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = payloadDeviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 0,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = false,
+                    IsActive = true,
+                    CreatedAt = "2026-05-01T10:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Insert",
+                AggregateType = "Daily"
+            };
+
+            var coordinator = new AzurePushTransactionCoordinator(NullLogger<AzurePushTransactionCoordinator>.Instance);
+            var mockConn = new Mock<DbConnection>();
+
+            var ex = await Assert.ThrowsAsync<SyncMetadataMismatchException>(async () =>
+            {
+                await coordinator.ApplyOperationAsync(
+                    mockConn.Object,
+                    "2026",
+                    item,
+                    0,
+                    "fake-hash",
+                    expectedDeviceId,
+                    CancellationToken.None);
+            });
+
+            Assert.Equal("SYNC_METADATA_MISMATCH", ex.ErrorCode);
+            Assert.Contains("does not match expected LocalState DeviceId", ex.Message);
         }
 
         #endregion
 
         #region 5. Connection and Binding Isolation Tests
+
+        [Fact]
+        public void DatabaseBindingValidator_EnforcesAzureSqlEndpoint()
+        {
+            // Valid Azure SQL endpoints
+            Assert.True(DatabaseBindingValidator.IsAzureSqlEndpoint("mycompany.database.windows.net"));
+            Assert.True(DatabaseBindingValidator.IsAzureSqlEndpoint("tcp:mycompany.database.windows.net,1433"));
+            Assert.True(DatabaseBindingValidator.IsAzureSqlEndpoint("mycompany.database.windows.net:1433"));
+
+            // Invalid / non-Azure endpoints
+            Assert.False(DatabaseBindingValidator.IsAzureSqlEndpoint("localhost"));
+            Assert.False(DatabaseBindingValidator.IsAzureSqlEndpoint("127.0.0.1"));
+            Assert.False(DatabaseBindingValidator.IsAzureSqlEndpoint("sqlserver.mycorp.local"));
+            Assert.False(DatabaseBindingValidator.IsAzureSqlEndpoint("evil-azure.database.windows.net.attacker.com"));
+            Assert.False(DatabaseBindingValidator.IsAzureSqlEndpoint(""));
+            Assert.False(DatabaseBindingValidator.IsAzureSqlEndpoint(null));
+        }
+
+        [Fact]
+        public void DatabaseBindingValidator_ValidateAzureBinding_RejectsNonAzureEndpoints()
+        {
+            // Valid Azure binding passes
+            DatabaseBindingValidator.ValidateAzureBinding("myserver.database.windows.net", "IProgramDb2026");
+
+            // Non-Azure endpoints must throw InvalidOperationException
+            Assert.Throws<InvalidOperationException>(() =>
+                DatabaseBindingValidator.ValidateAzureBinding("localhost", "IProgramDb2026"));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                DatabaseBindingValidator.ValidateAzureBinding("internal-server.local", "IProgramDb2026"));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                DatabaseBindingValidator.ValidateAzureBinding("myserver.database.windows.net", "IProgramDb_Unknown"));
+        }
 
         [Fact]
         public async Task AzureConnectionFactory_Throws_OnInvalidOrNonAzureBinding()

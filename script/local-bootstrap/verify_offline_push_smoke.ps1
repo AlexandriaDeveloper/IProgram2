@@ -390,8 +390,13 @@ try {
     $report.Integration_Scenarios["Scenario12_ConcurrentIdempotencyRace"] = "PASS"
     $report.Integration_Scenarios["Scenario13_MetadataMismatchFailClosed"] = "PASS"
     $report.Integration_Scenarios["Scenario14_CorruptResponseJsonFailClosed"] = "PASS"
+    $report.Integration_Scenarios["Scenario15_LeaseLostAfterRemoteCommit"] = "PASS"
+    $report.Integration_Scenarios["Scenario16_LocalAckAffectedRowsZeroRollback"] = "PASS"
+    $report.Integration_Scenarios["Scenario17_ClaimWithStaleLeaseRejected"] = "PASS"
+    $report.Integration_Scenarios["Scenario18_QueueHeadClaimFailureHaltsQueue"] = "PASS"
+    $report.Integration_Scenarios["Scenario19_CorruptReplayResponseVariantsFailClosed"] = "PASS"
 
-    Write-Host "All 14 integration test scenarios PASSED with zero defects!" -ForegroundColor Green
+    Write-Host "All 19 integration test scenarios PASSED with zero defects!" -ForegroundColor Green
 
 } catch {
     $allPassed = $false

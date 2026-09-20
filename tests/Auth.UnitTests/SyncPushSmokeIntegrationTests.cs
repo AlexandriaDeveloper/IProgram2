@@ -18,6 +18,7 @@ using Xunit;
 namespace Auth.UnitTests
 {
     [Trait("Category", "LocalDbRequired")]
+    [Collection("SyncPushSmokeIntegration")]
     public class SyncPushSmokeIntegrationTests : IAsyncLifetime
     {
         private const string LocalConnStr2026 = "Server=localhost;Database=IProgramLocalDb2026_SmokeTest;Integrated Security=True;TrustServerCertificate=True;";
@@ -29,12 +30,29 @@ namespace Auth.UnitTests
 
         public async Task InitializeAsync()
         {
-            // Verify connections are accessible
+            // Verify connections are accessible and clear active lease
             await using var conn = new SqlConnection(RemoteConnStr2026);
             await conn.OpenAsync();
+
+            await using var localConn = new SqlConnection(LocalConnStr2026);
+            await localConn.OpenAsync();
+            await using var cmd = localConn.CreateCommand();
+            cmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+            await cmd.ExecuteNonQueryAsync();
         }
 
-        public Task DisposeAsync() => Task.CompletedTask;
+        public async Task DisposeAsync()
+        {
+            try
+            {
+                await using var localConn = new SqlConnection(LocalConnStr2026);
+                await localConn.OpenAsync();
+                await using var cmd = localConn.CreateCommand();
+                cmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch { }
+        }
 
         #region Scenario 1, 2, 3: Normal INSERT, UPDATE, SOFT_DELETE
 
@@ -50,6 +68,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -82,7 +101,7 @@ namespace Auth.UnitTests
             await conn.OpenAsync();
 
             var curVer = await GetServerVersionAsync(conn, "2026");
-            var result = await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, CancellationToken.None);
+            var result = await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
 
             Assert.False(result.IsReplay);
             Assert.Equal(curVer + 1, result.ServerVersion);
@@ -132,6 +151,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -163,7 +183,7 @@ namespace Auth.UnitTests
                 CreatedAtUtc = DateTime.UtcNow,
                 Status = "IN_PROGRESS"
             };
-            var insertRes = await _coordinator.ApplyOperationAsync(conn, "2026", insertOutbox, curVer, insertHash, CancellationToken.None);
+            var insertRes = await _coordinator.ApplyOperationAsync(conn, "2026", insertOutbox, curVer, insertHash, devId, CancellationToken.None);
 
             // Now apply UPDATE
             var updateOpId = Guid.NewGuid();
@@ -172,6 +192,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "UPDATE",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = insertRes.ServerVersion,
@@ -199,7 +220,7 @@ namespace Auth.UnitTests
                 Status = "IN_PROGRESS"
             };
 
-            var updateRes = await _coordinator.ApplyOperationAsync(conn, "2026", updateOutbox, insertRes.ServerVersion, updateHash, CancellationToken.None);
+            var updateRes = await _coordinator.ApplyOperationAsync(conn, "2026", updateOutbox, insertRes.ServerVersion, updateHash, devId, CancellationToken.None);
 
             Assert.False(updateRes.IsReplay);
             Assert.Equal(insertRes.ServerVersion + 1, updateRes.ServerVersion);
@@ -227,6 +248,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -257,7 +279,7 @@ namespace Auth.UnitTests
                 CreatedAtUtc = DateTime.UtcNow,
                 Status = "IN_PROGRESS"
             };
-            var insertRes = await _coordinator.ApplyOperationAsync(conn, "2026", insertOutbox, curVer, insertHash, CancellationToken.None);
+            var insertRes = await _coordinator.ApplyOperationAsync(conn, "2026", insertOutbox, curVer, insertHash, devId, CancellationToken.None);
 
             // Now apply SOFT_DELETE
             var deleteOpId = Guid.NewGuid();
@@ -266,6 +288,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "SOFT_DELETE",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = insertRes.ServerVersion,
@@ -291,7 +314,7 @@ namespace Auth.UnitTests
                 Status = "IN_PROGRESS"
             };
 
-            var deleteRes = await _coordinator.ApplyOperationAsync(conn, "2026", deleteOutbox, insertRes.ServerVersion, deleteHash, CancellationToken.None);
+            var deleteRes = await _coordinator.ApplyOperationAsync(conn, "2026", deleteOutbox, insertRes.ServerVersion, deleteHash, devId, CancellationToken.None);
 
             Assert.False(deleteRes.IsReplay);
             Assert.Equal(insertRes.ServerVersion + 1, deleteRes.ServerVersion);
@@ -320,6 +343,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -352,7 +376,7 @@ namespace Auth.UnitTests
             };
 
             // First run
-            var firstRes = await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, CancellationToken.None);
+            var firstRes = await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
             Assert.False(firstRes.IsReplay);
 
             var verAfterFirst = await GetServerVersionAsync(conn, "2026");
@@ -360,7 +384,7 @@ namespace Auth.UnitTests
             var dailyCountAfterFirst = await CountRowsAsync(conn, $"SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = '{syncId}';");
 
             // Second run (Replay with same hash, even with stale expectedServerVersion 0)
-            var secondRes = await _coordinator.ApplyOperationAsync(conn, "2026", outbox, 0, hash, CancellationToken.None);
+            var secondRes = await _coordinator.ApplyOperationAsync(conn, "2026", outbox, 0, hash, devId, CancellationToken.None);
 
             Assert.True(secondRes.IsReplay);
             Assert.Equal(firstRes.ServerVersion, secondRes.ServerVersion);
@@ -392,6 +416,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId1,
                 baseServerVersion = 0,
@@ -423,7 +448,7 @@ namespace Auth.UnitTests
                 Status = "IN_PROGRESS"
             };
 
-            await _coordinator.ApplyOperationAsync(conn, "2026", outbox1, curVer, hash1, CancellationToken.None);
+            await _coordinator.ApplyOperationAsync(conn, "2026", outbox1, curVer, hash1, devId, CancellationToken.None);
 
             // Attacker / corruption: same ClientOperationId, different payload/hash
             var payload2 = JsonSerializer.Serialize(new
@@ -431,6 +456,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId2,
                 baseServerVersion = 0,
@@ -460,7 +486,7 @@ namespace Auth.UnitTests
 
             var ex = await Assert.ThrowsAsync<SyncOperationIdReuseException>(async () =>
             {
-                await _coordinator.ApplyOperationAsync(conn, "2026", outbox2, curVer + 1, hash2, CancellationToken.None);
+                await _coordinator.ApplyOperationAsync(conn, "2026", outbox2, curVer + 1, hash2, devId, CancellationToken.None);
             });
 
             Assert.Contains(sharedOpId.ToString(), ex.Message);
@@ -486,6 +512,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -521,7 +548,7 @@ namespace Auth.UnitTests
             // Intentionally pass an incorrect ExpectedServerVersion (e.g. curVer + 999)
             var conflictEx = await Assert.ThrowsAsync<SyncVersionConflictException>(async () =>
             {
-                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer + 999, hash, CancellationToken.None);
+                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer + 999, hash, devId, CancellationToken.None);
             });
 
             Assert.Equal(curVer + 999, conflictEx.ExpectedVersion);
@@ -551,6 +578,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -604,7 +632,7 @@ namespace Auth.UnitTests
 
                 await Assert.ThrowsAnyAsync<Exception>(async () =>
                 {
-                    await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, CancellationToken.None);
+                    await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
                 });
 
                 // PROOF: Daily mutation was rolled back, ServerChangeFeed was rolled back, ProcessedOperations was rolled back, ServerState unchanged
@@ -643,6 +671,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -693,7 +722,7 @@ namespace Auth.UnitTests
             };
 
             // PRE-CONDITION: Remote transaction committed successfully (first attempt succeeded on remote)
-            var remoteResult = await _coordinator.ApplyOperationAsync(remoteConn, "2026", outbox, curVer, hash, CancellationToken.None);
+            var remoteResult = await _coordinator.ApplyOperationAsync(remoteConn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
             Assert.False(remoteResult.IsReplay);
             var committedVer = remoteResult.ServerVersion;
 
@@ -825,6 +854,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId1,
                 baseServerVersion = curVer,
@@ -837,6 +867,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId2,
                 baseServerVersion = curVer,
@@ -849,6 +880,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId3,
                 baseServerVersion = curVer,
@@ -958,6 +990,14 @@ namespace Auth.UnitTests
         [Fact]
         public async Task Scenario10_ConcurrentLease_SecondAttemptRejected()
         {
+            await using (var localConn = new SqlConnection(LocalConnStr2026))
+            {
+                await localConn.OpenAsync();
+                await using var resetCmd = localConn.CreateCommand();
+                resetCmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+                await resetCmd.ExecuteNonQueryAsync();
+            }
+
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(LocalConnStr2026);
 
@@ -1003,6 +1043,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -1039,7 +1080,7 @@ namespace Auth.UnitTests
             var curVer2027 = await GetServerVersionAsync(conn2027, "2027");
 
             // Apply 2026 operation to 2026 remote DB
-            var res2026 = await _coordinator.ApplyOperationAsync(conn2026, "2026", outbox, curVer2026, hash, CancellationToken.None);
+            var res2026 = await _coordinator.ApplyOperationAsync(conn2026, "2026", outbox, curVer2026, hash, devId, CancellationToken.None);
             Assert.Equal(curVer2026 + 1, res2026.ServerVersion);
 
             // Verify written to 2026 DB
@@ -1070,6 +1111,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -1105,8 +1147,8 @@ namespace Auth.UnitTests
             };
 
             // Run both operations concurrently with same ClientOperationId and same RequestHash
-            var task1 = Task.Run(() => _coordinator.ApplyOperationAsync(conn1, "2026", outbox, curVer, hash, CancellationToken.None));
-            var task2 = Task.Run(() => _coordinator.ApplyOperationAsync(conn2, "2026", outbox, curVer, hash, CancellationToken.None));
+            var task1 = Task.Run(() => _coordinator.ApplyOperationAsync(conn1, "2026", outbox, curVer, hash, devId, CancellationToken.None));
+            var task2 = Task.Run(() => _coordinator.ApplyOperationAsync(conn2, "2026", outbox, curVer, hash, devId, CancellationToken.None));
 
             var results = await Task.WhenAll(task1, task2);
 
@@ -1151,6 +1193,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -1177,7 +1220,7 @@ namespace Auth.UnitTests
 
             await Assert.ThrowsAsync<SyncMetadataMismatchException>(async () =>
             {
-                await _coordinator.ApplyOperationAsync(conn, "2027", outboxMismatchDb, curVer, hash, CancellationToken.None);
+                await _coordinator.ApplyOperationAsync(conn, "2027", outboxMismatchDb, curVer, hash, devId, CancellationToken.None);
             });
 
             // CommandName mismatch: CommandName is Daily.Update but payload is INSERT
@@ -1195,7 +1238,7 @@ namespace Auth.UnitTests
 
             await Assert.ThrowsAsync<SyncMetadataMismatchException>(async () =>
             {
-                await _coordinator.ApplyOperationAsync(conn, "2026", outboxMismatchCmd, curVer, hash, CancellationToken.None);
+                await _coordinator.ApplyOperationAsync(conn, "2026", outboxMismatchCmd, curVer, hash, devId, CancellationToken.None);
             });
         }
 
@@ -1215,6 +1258,7 @@ namespace Auth.UnitTests
                 schemaVersion = 1,
                 entityType = "Daily",
                 operationType = "INSERT",
+                databaseId = "2026",
                 deviceId = devId,
                 entitySyncId = syncId,
                 baseServerVersion = 0,
@@ -1256,8 +1300,514 @@ namespace Auth.UnitTests
             // Attempting to process this replay MUST fail closed with SyncCorruptResponseJsonException
             await Assert.ThrowsAsync<SyncCorruptResponseJsonException>(async () =>
             {
-                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, CancellationToken.None);
+                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
             });
+        }
+
+        #endregion
+
+        #region Scenario 15: Lease Lost After Remote Commit (P0 Proof)
+
+        [Fact]
+        public async Task Scenario15_LeaseLostAfterRemoteCommit_OldSessionFailsAck_NoMutationOrOutboxReset()
+        {
+            var syncId = Guid.NewGuid();
+            var devId = Guid.NewGuid();
+            var opId = Guid.NewGuid();
+            var oldLeaseToken = Guid.NewGuid();
+            var newLeaseToken = Guid.NewGuid();
+
+            var payload = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId,
+                baseServerVersion = 0,
+                entityData = new { SyncId = syncId, Name = "Lease Lost Test", DailyDate = "2026-06-01T00:00:00Z", Closed = false, IsActive = true, CreatedAt = DateTime.UtcNow.ToString("O") }
+            });
+            var hash = LocalOutboxPushService.ComputeRequestHash("2026", devId, "Daily.Insert", "Daily", syncId, payload);
+
+            await using var remoteConn = new SqlConnection(RemoteConnStr2026);
+            await remoteConn.OpenAsync();
+            var curVer = await GetServerVersionAsync(remoteConn, "2026");
+
+            // 1. Remote commit succeeds
+            var outbox = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                ClientOperationId = opId,
+                CommandName = "Daily.Insert",
+                AggregateType = "Daily",
+                EntitySyncId = syncId,
+                PayloadJson = payload,
+                CreatedAtUtc = DateTime.UtcNow,
+                Status = "IN_PROGRESS"
+            };
+            var remoteResult = await _coordinator.ApplyOperationAsync(remoteConn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
+            Assert.Equal(curVer + 1, remoteResult.ServerVersion);
+
+            // 2. Local DB setup: row is IN_PROGRESS with oldLeaseToken
+            await using var localConn = new SqlConnection(LocalConnStr2026);
+            await localConn.OpenAsync();
+            await using (var initCmd = localConn.CreateCommand())
+            {
+                initCmd.CommandText = @"
+                    DELETE FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026';
+                    UPDATE [sync].[LocalState]
+                    SET LastServerVersion = @CurVer,
+                        DeviceId = @DevId,
+                        ActiveLeaseToken = @NewLeaseToken,
+                        LeaseExpiresAtUtc = DATEADD(MINUTE, 5, SYSUTCDATETIME())
+                    WHERE DatabaseId = '2026';
+
+                    INSERT INTO [sync].[LocalOutbox]
+                    (ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount, LockToken, LockedUntilUtc)
+                    VALUES
+                    (@OpId, '2026', 'Daily', 'Daily.Insert', @SyncId, @Payload, SYSUTCDATETIME(), 'IN_PROGRESS', 0, @OldLeaseToken, DATEADD(MINUTE, 5, SYSUTCDATETIME()));";
+                initCmd.Parameters.AddWithValue("@CurVer", curVer);
+                initCmd.Parameters.AddWithValue("@DevId", devId);
+                initCmd.Parameters.AddWithValue("@NewLeaseToken", newLeaseToken);
+                initCmd.Parameters.AddWithValue("@OldLeaseToken", oldLeaseToken);
+                initCmd.Parameters.AddWithValue("@OpId", opId);
+                initCmd.Parameters.AddWithValue("@SyncId", syncId);
+                initCmd.Parameters.AddWithValue("@Payload", payload);
+                await initCmd.ExecuteNonQueryAsync();
+            }
+
+            try
+            {
+                // 3. Old session attempts local ack with oldLeaseToken -> MUST FAIL with SyncLeaseExpiredException
+                await Assert.ThrowsAsync<SyncLeaseExpiredException>(async () =>
+                {
+                    await LocalOutboxPushService.AcknowledgeSuccessLocallyAsync(
+                        LocalConnStr2026,
+                        "2026",
+                        opId,
+                        remoteResult.ServerVersion,
+                        oldLeaseToken,
+                        CancellationToken.None);
+                });
+
+                // 4. PROOF: Old session MUST NOT reset outbox, clear lock, or advance version
+                await using (var verifyCmd = localConn.CreateCommand())
+                {
+                    verifyCmd.CommandText = "SELECT Status, LockToken FROM [sync].[LocalOutbox] WHERE ClientOperationId = @OpId;";
+                    verifyCmd.Parameters.AddWithValue("@OpId", opId);
+                    await using var reader = await verifyCmd.ExecuteReaderAsync();
+                    Assert.True(await reader.ReadAsync());
+                    Assert.Equal("IN_PROGRESS", reader.GetString(0));
+                    Assert.Equal(oldLeaseToken, reader.GetGuid(1)); // Lock remains unchanged!
+                    await reader.CloseAsync();
+
+                    verifyCmd.Parameters.Clear();
+                    verifyCmd.CommandText = "SELECT LastServerVersion, ActiveLeaseToken FROM [sync].[LocalState] WHERE DatabaseId = '2026';";
+                    await using var stateReader = await verifyCmd.ExecuteReaderAsync();
+                    Assert.True(await stateReader.ReadAsync());
+                    Assert.Equal(curVer, stateReader.GetInt64(0)); // Version unchanged!
+                    Assert.Equal(newLeaseToken, stateReader.GetGuid(1)); // New owner lease intact!
+                }
+            }
+            finally
+            {
+                await using var resetCmd = localConn.CreateCommand();
+                resetCmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+                await resetCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        #endregion
+
+        #region Scenario 16: Local Ack AffectedRows=0 Rollback (P0 Proof)
+
+        [Fact]
+        public async Task Scenario16_LocalAck_AffectedRowsZero_RollsBackLocalState()
+        {
+            var devId = Guid.NewGuid();
+            var opId = Guid.NewGuid();
+            var leaseToken = Guid.NewGuid();
+            var differentToken = Guid.NewGuid();
+
+            await using var localConn = new SqlConnection(LocalConnStr2026);
+            await localConn.OpenAsync();
+
+            try
+            {
+                // LocalState at version 500, active lease = leaseToken
+                await using (var initCmd = localConn.CreateCommand())
+                {
+                    initCmd.CommandText = @"
+                        DELETE FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026';
+                        UPDATE [sync].[LocalState]
+                        SET LastServerVersion = 500,
+                            DeviceId = @DevId,
+                            ActiveLeaseToken = @LeaseToken,
+                            LeaseExpiresAtUtc = DATEADD(MINUTE, 5, SYSUTCDATETIME())
+                        WHERE DatabaseId = '2026';
+
+                        -- Outbox row has a DIFFERENT LockToken (or is PENDING)
+                        INSERT INTO [sync].[LocalOutbox]
+                        (ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount, LockToken, LockedUntilUtc)
+                        VALUES
+                        (@OpId, '2026', 'Daily', 'Daily.Insert', NEWID(), '{}', SYSUTCDATETIME(), 'IN_PROGRESS', 0, @DifferentToken, DATEADD(MINUTE, 5, SYSUTCDATETIME()));";
+                    initCmd.Parameters.AddWithValue("@DevId", devId);
+                    initCmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
+                    initCmd.Parameters.AddWithValue("@DifferentToken", differentToken);
+                    initCmd.Parameters.AddWithValue("@OpId", opId);
+                    await initCmd.ExecuteNonQueryAsync();
+                }
+
+                // Acknowledge attempt with leaseToken must find affectedRows = 0 on outbox and throw
+                var ex = await Assert.ThrowsAsync<SyncLeaseExpiredException>(async () =>
+                {
+                    await LocalOutboxPushService.AcknowledgeSuccessLocallyAsync(
+                        LocalConnStr2026,
+                        "2026",
+                        opId,
+                        501,
+                        leaseToken,
+                        CancellationToken.None);
+                });
+
+                Assert.Contains("Affected rows: 0", ex.Message);
+
+                // PROOF OF TRANSACTION ROLLBACK: LocalState.LastServerVersion MUST still be 500, NOT 501
+                await using (var checkCmd = localConn.CreateCommand())
+                {
+                    checkCmd.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2026';";
+                    var versionAfter = (long)(await checkCmd.ExecuteScalarAsync())!;
+                    Assert.Equal(500, versionAfter);
+                }
+            }
+            finally
+            {
+                await using var resetCmd = localConn.CreateCommand();
+                resetCmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+                await resetCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        #endregion
+
+        #region Scenario 17: Claim With Stale or Expired Lease (P0 Proof)
+
+        [Fact]
+        public async Task Scenario17_ClaimWithStaleOrExpiredLease_CannotClaimRow()
+        {
+            var opId = Guid.NewGuid();
+            var activeLease = Guid.NewGuid();
+            var staleLease = Guid.NewGuid();
+
+            await using var localConn = new SqlConnection(LocalConnStr2026);
+            await localConn.OpenAsync();
+
+            try
+            {
+                await using (var initCmd = localConn.CreateCommand())
+                {
+                    initCmd.CommandText = @"
+                        DELETE FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026';
+                        UPDATE [sync].[LocalState]
+                        SET ActiveLeaseToken = @ActiveLease,
+                            LeaseExpiresAtUtc = DATEADD(MINUTE, 5, SYSUTCDATETIME())
+                        WHERE DatabaseId = '2026';
+
+                        INSERT INTO [sync].[LocalOutbox]
+                        (ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount)
+                        VALUES
+                        (@OpId, '2026', 'Daily', 'Daily.Insert', NEWID(), '{}', SYSUTCDATETIME(), 'PENDING', 0);";
+                    initCmd.Parameters.AddWithValue("@ActiveLease", activeLease);
+                    initCmd.Parameters.AddWithValue("@OpId", opId);
+                    await initCmd.ExecuteNonQueryAsync();
+                }
+
+                // 1. Claim with stale lease token MUST return false
+                var claimedWithStale = await LocalOutboxPushService.TryClaimOutboxInProgressAsync(
+                    LocalConnStr2026,
+                    "2026",
+                    opId,
+                    staleLease,
+                    CancellationToken.None);
+                Assert.False(claimedWithStale);
+
+                // 2. Set lease to expired in the past
+                await using (var expireCmd = localConn.CreateCommand())
+                {
+                    expireCmd.CommandText = @"
+                        UPDATE [sync].[LocalState]
+                        SET LeaseExpiresAtUtc = DATEADD(MINUTE, -1, SYSUTCDATETIME())
+                        WHERE DatabaseId = '2026';";
+                    await expireCmd.ExecuteNonQueryAsync();
+                }
+
+                // 3. Claim with expired active lease token MUST return false
+                var claimedWithExpired = await LocalOutboxPushService.TryClaimOutboxInProgressAsync(
+                    LocalConnStr2026,
+                    "2026",
+                    opId,
+                    activeLease,
+                    CancellationToken.None);
+                Assert.False(claimedWithExpired);
+
+                // Status must remain PENDING
+                var status = await GetOutboxStatusAsync(localConn, opId);
+                Assert.Equal("PENDING", status.status);
+            }
+            finally
+            {
+                await using var resetCmd = localConn.CreateCommand();
+                resetCmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+                await resetCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        #endregion
+
+        #region Scenario 18: Queue Head Claim Failure Halts Processing (P0 Proof)
+
+        [Fact]
+        public async Task Scenario18_ClaimFailureOnQueueHead_HaltsQueueProcessing_PreservesFIFO()
+        {
+            var devId = Guid.NewGuid();
+            var op1Id = Guid.NewGuid();
+            var op2Id = Guid.NewGuid();
+            var syncId1 = Guid.NewGuid();
+            var syncId2 = Guid.NewGuid();
+
+            await using var remoteConn = new SqlConnection(RemoteConnStr2026);
+            await remoteConn.OpenAsync();
+            var curVer = await GetServerVersionAsync(remoteConn, "2026");
+
+            var p1 = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId1,
+                baseServerVersion = curVer,
+                entityData = new { SyncId = syncId1, Name = "Op 1", DailyDate = "2026-06-01T00:00:00Z", Closed = false, IsActive = true, CreatedAt = DateTime.UtcNow.ToString("O") }
+            });
+
+            var p2 = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId2,
+                baseServerVersion = curVer,
+                entityData = new { SyncId = syncId2, Name = "Op 2", DailyDate = "2026-06-01T00:00:00Z", Closed = false, IsActive = true, CreatedAt = DateTime.UtcNow.ToString("O") }
+            });
+
+            await using var localConn = new SqlConnection(LocalConnStr2026);
+            await localConn.OpenAsync();
+
+            try
+            {
+                // Initialize LocalState with matching DevId and curVer, but with a different lease token so TryClaim fails
+                var actualDbLease = Guid.NewGuid();
+                await using (var initCmd = localConn.CreateCommand())
+                {
+                    initCmd.CommandText = @"
+                        DELETE FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026';
+                        UPDATE [sync].[LocalState]
+                        SET LastServerVersion = @CurVer,
+                            DeviceId = @DevId,
+                            ActiveLeaseToken = @DbLease,
+                            LeaseExpiresAtUtc = DATEADD(MINUTE, 5, SYSUTCDATETIME())
+                        WHERE DatabaseId = '2026';
+
+                        INSERT INTO [sync].[LocalOutbox]
+                        (ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount)
+                        VALUES
+                        (@Op1, '2026', 'Daily', 'Daily.Insert', @S1, @P1, DATEADD(MINUTE, -2, SYSUTCDATETIME()), 'PENDING', 0),
+                        (@Op2, '2026', 'Daily', 'Daily.Insert', @S2, @P2, DATEADD(MINUTE, -1, SYSUTCDATETIME()), 'PENDING', 0);";
+                    initCmd.Parameters.AddWithValue("@CurVer", curVer);
+                    initCmd.Parameters.AddWithValue("@DevId", devId);
+                    initCmd.Parameters.AddWithValue("@DbLease", actualDbLease);
+                    initCmd.Parameters.AddWithValue("@Op1", op1Id);
+                    initCmd.Parameters.AddWithValue("@S1", syncId1);
+                    initCmd.Parameters.AddWithValue("@P1", p1);
+                    initCmd.Parameters.AddWithValue("@Op2", op2Id);
+                    initCmd.Parameters.AddWithValue("@S2", syncId2);
+                    initCmd.Parameters.AddWithValue("@P2", p2);
+                    await initCmd.ExecuteNonQueryAsync();
+                }
+
+                var syncProviderMock = new Mock<ISyncConnectionProvider>();
+                syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+                syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+                syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+                syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(LocalConnStr2026);
+
+                var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+                remoteFactoryMock.Setup(f => f.CreateOpenConnectionAsync("2026", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(() =>
+                    {
+                        var c = new SqlConnection(RemoteConnStr2026);
+                        c.Open();
+                        return c;
+                    });
+
+                var inMemoryConfig = new ConfigurationBuilder()
+                    .AddInMemoryCollection(new Dictionary<string, string?> { ["Sync:PushEnabled"] = "true" })
+                    .Build();
+
+                // Mock lease manager returns an unowned lease token, but claims to renew/validate successfully
+                var unownedLease = Guid.NewGuid();
+                var leaseManagerMock = new Mock<ILocalPushLeaseManager>();
+                leaseManagerMock.Setup(m => m.AcquireLeaseAsync(It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(unownedLease);
+                leaseManagerMock.Setup(m => m.RenewLeaseAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+                    .Returns(Task.CompletedTask);
+                leaseManagerMock.Setup(m => m.ValidateLeaseOwnershipAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                    .Returns(Task.CompletedTask);
+                leaseManagerMock.Setup(m => m.ReleaseLeaseAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                    .Returns(Task.CompletedTask);
+
+                var pushService = new LocalOutboxPushService(
+                    syncProviderMock.Object,
+                    remoteFactoryMock.Object,
+                    _coordinator,
+                    leaseManagerMock.Object,
+                    inMemoryConfig,
+                    NullLogger<LocalOutboxPushService>.Instance);
+
+                // Queue processing MUST HALT on Op1 claim failure and throw SyncLeaseExpiredException
+                var ex = await Assert.ThrowsAsync<SyncLeaseExpiredException>(async () =>
+                {
+                    await pushService.PushPendingOutboxAsync(CancellationToken.None);
+                });
+
+                Assert.Contains("Queue processing halted", ex.Message);
+
+                // STRICT FIFO ASSERTION: Op1 and Op2 were NEVER claimed, modified, or processed!
+                var op1Status = await GetOutboxStatusAsync(localConn, op1Id);
+                Assert.Equal("PENDING", op1Status.status);
+                Assert.Equal(0, op1Status.retryCount);
+
+                var op2Status = await GetOutboxStatusAsync(localConn, op2Id);
+                Assert.Equal("PENDING", op2Status.status);
+                Assert.Equal(0, op2Status.retryCount);
+
+                // Remote DB has ZERO writes
+                Assert.Equal(0, await CountRowsAsync(remoteConn, $"SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId IN ('{syncId1}', '{syncId2}');"));
+            }
+            finally
+            {
+                await using var resetCmd = localConn.CreateCommand();
+                resetCmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+                await resetCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        #endregion
+
+        #region Scenario 19: Corrupt Replay ResponseJson Hardened Validation (P1 Proof)
+
+        [Fact]
+        public async Task Scenario19_CorruptedReplayResponseJson_Variants_FailClosed()
+        {
+            var syncId = Guid.NewGuid();
+            var devId = Guid.NewGuid();
+            var opId = Guid.NewGuid();
+
+            var payload = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId,
+                baseServerVersion = 0,
+                entityData = new { SyncId = syncId, Name = "Replay Hardening", DailyDate = "2026-06-01T00:00:00Z", Closed = false, IsActive = true, CreatedAt = DateTime.UtcNow.ToString("O") }
+            });
+            var hash = LocalOutboxPushService.ComputeRequestHash("2026", devId, "Daily.Insert", "Daily", syncId, payload);
+
+            await using var conn = new SqlConnection(RemoteConnStr2026);
+            await conn.OpenAsync();
+            var curVer = await GetServerVersionAsync(conn, "2026");
+
+            var outbox = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                ClientOperationId = opId,
+                CommandName = "Daily.Insert",
+                AggregateType = "Daily",
+                EntitySyncId = syncId,
+                PayloadJson = payload,
+                CreatedAtUtc = DateTime.UtcNow,
+                Status = "IN_PROGRESS"
+            };
+
+            // Test Case 1: Wrong ClientOperationId in ResponseJson
+            await SetProcessedOperationResponseJsonAsync(conn, opId, devId, hash, syncId,
+                $"{{\"clientOperationId\":\"{Guid.NewGuid()}\",\"entitySyncId\":\"{syncId}\",\"result\":\"SUCCESS\",\"serverVersion\":{curVer + 1}}}");
+
+            var ex1 = await Assert.ThrowsAsync<SyncCorruptResponseJsonException>(async () =>
+            {
+                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
+            });
+            Assert.Contains("clientOperationId", ex1.Message);
+
+            // Test Case 2: Wrong EntitySyncId in ResponseJson
+            await SetProcessedOperationResponseJsonAsync(conn, opId, devId, hash, syncId,
+                $"{{\"clientOperationId\":\"{opId}\",\"entitySyncId\":\"{Guid.NewGuid()}\",\"result\":\"SUCCESS\",\"serverVersion\":{curVer + 1}}}");
+
+            var ex2 = await Assert.ThrowsAsync<SyncCorruptResponseJsonException>(async () =>
+            {
+                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
+            });
+            Assert.Contains("entitySyncId", ex2.Message);
+
+            // Test Case 3: Result is NOT 'SUCCESS'
+            await SetProcessedOperationResponseJsonAsync(conn, opId, devId, hash, syncId,
+                $"{{\"clientOperationId\":\"{opId}\",\"entitySyncId\":\"{syncId}\",\"result\":\"FAILED\",\"serverVersion\":{curVer + 1}}}");
+
+            var ex3 = await Assert.ThrowsAsync<SyncCorruptResponseJsonException>(async () =>
+            {
+                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
+            });
+            Assert.Contains("result", ex3.Message);
+
+            // Test Case 4: ServerVersion is <= 0
+            await SetProcessedOperationResponseJsonAsync(conn, opId, devId, hash, syncId,
+                $"{{\"clientOperationId\":\"{opId}\",\"entitySyncId\":\"{syncId}\",\"result\":\"SUCCESS\",\"serverVersion\":0}}");
+
+            var ex4 = await Assert.ThrowsAsync<SyncCorruptResponseJsonException>(async () =>
+            {
+                await _coordinator.ApplyOperationAsync(conn, "2026", outbox, curVer, hash, devId, CancellationToken.None);
+            });
+            Assert.Contains("serverVersion", ex4.Message);
+        }
+
+        private static async Task SetProcessedOperationResponseJsonAsync(
+            SqlConnection conn,
+            Guid opId,
+            Guid devId,
+            string hash,
+            Guid syncId,
+            string responseJson)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                DELETE FROM [sync].[ProcessedOperations] WHERE ClientOperationId = @OpId;
+                INSERT INTO [sync].[ProcessedOperations]
+                (DatabaseId, ClientOperationId, DeviceId, CommandName, RequestHash, EntityType, EntitySyncId, ProcessedAtUtc, ResultStatus, ResponseJson)
+                VALUES
+                ('2026', @OpId, @DevId, 'Daily.Insert', @Hash, 'Daily', @SyncId, SYSUTCDATETIME(), 'SUCCESS', @ResponseJson);";
+            cmd.Parameters.AddWithValue("@OpId", opId);
+            cmd.Parameters.AddWithValue("@DevId", devId);
+            cmd.Parameters.AddWithValue("@Hash", hash);
+            cmd.Parameters.AddWithValue("@SyncId", syncId);
+            cmd.Parameters.AddWithValue("@ResponseJson", responseJson);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         #endregion

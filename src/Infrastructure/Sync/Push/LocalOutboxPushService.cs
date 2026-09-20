@@ -102,17 +102,22 @@ namespace Auth.Infrastructure.Sync.Push
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Step 8a: Claim outbox row atomically (handles both PENDING and expired IN_PROGRESS)
-                    var claimed = await TryClaimOutboxInProgressAsync(localConnStr, outboxItem.ClientOperationId, leaseToken, cancellationToken);
+                    // Step 8a: Renew lease & validate ownership before attempting to process/claim
+                    await _leaseManager.RenewLeaseAsync(databaseId, leaseToken, leaseDuration, cancellationToken);
+                    await _leaseManager.ValidateLeaseOwnershipAsync(databaseId, leaseToken, cancellationToken);
+
+                    // Step 8b: Claim outbox row atomically with lease fencing (handles both PENDING and expired IN_PROGRESS)
+                    var claimed = await TryClaimOutboxInProgressAsync(localConnStr, databaseId, outboxItem.ClientOperationId, leaseToken, cancellationToken);
                     if (!claimed)
                     {
                         _logger.LogWarning(
-                            "Outbox operation {ClientOperationId} was already claimed or updated by another session. Skipping.",
-                            outboxItem.ClientOperationId);
-                        continue;
+                            "Outbox queue head operation {ClientOperationId} could not be claimed with active lease {LeaseToken}. Halting queue processing to preserve strict FIFO.",
+                            outboxItem.ClientOperationId, leaseToken);
+                        throw new SyncLeaseExpiredException(
+                            $"Failed to claim queue head outbox operation '{outboxItem.ClientOperationId}' with active lease '{leaseToken}'. Queue processing halted.");
                     }
 
-                    // Step 8b: Compute deterministic RequestHash (SHA-256)
+                    // Step 8c: Compute deterministic RequestHash (SHA-256)
                     var requestHash = ComputeRequestHash(
                         databaseId,
                         localDeviceId,
@@ -123,18 +128,22 @@ namespace Auth.Infrastructure.Sync.Push
 
                     try
                     {
-                        // Step 8c: Apply operation atomically on remote database
+                        // Step 8d: Apply operation atomically on remote database (passing validated localDeviceId)
                         var applyResult = await _transactionCoordinator.ApplyOperationAsync(
                             remoteConnection,
                             databaseId,
                             outboxItem,
                             expectedServerVersion,
                             requestHash,
+                            localDeviceId,
                             cancellationToken);
 
                         var returnedServerVersion = applyResult.ServerVersion;
 
-                        // Step 8d: Atomically mark outbox COMPLETED locally and advance LocalState with lease fencing
+                        // Step 8e: Validate lease ownership again before acknowledging locally
+                        await _leaseManager.ValidateLeaseOwnershipAsync(databaseId, leaseToken, cancellationToken);
+
+                        // Step 8f: Atomically mark outbox COMPLETED locally and advance LocalState with lease fencing
                         await AcknowledgeSuccessLocallyAsync(
                             localConnStr,
                             databaseId,
@@ -166,12 +175,20 @@ namespace Auth.Infrastructure.Sync.Push
                         var sanitizedError = SanitizeErrorMessage(ex);
                         var errorCode = (ex as SyncDomainException)?.ErrorCode ?? ex.GetType().Name;
 
+                        if (ex is SyncLeaseExpiredException)
+                        {
+                            _logger.LogWarning(
+                                "Lease expired or ownership lost for ClientOperationId {ClientOperationId}, ErrorCode: {ErrorCode}. Skipping local failure record to prevent modifying state belonging to a newer lease owner.",
+                                outboxItem.ClientOperationId, errorCode);
+                            throw;
+                        }
+
                         _logger.LogError(
                             "Push failed for ClientOperationId {ClientOperationId}, ErrorCode: {ErrorCode}. Message: {Error}",
                             outboxItem.ClientOperationId, errorCode, sanitizedError);
 
-                        // Atomically mark outbox failure and update LocalState error in single local transaction
-                        await RecordFailureLocallyAsync(localConnStr, databaseId, outboxItem.ClientOperationId, sanitizedError, cancellationToken);
+                        // Atomically mark outbox failure and update LocalState error with lease fencing
+                        await RecordFailureLocallyAsync(localConnStr, databaseId, outboxItem.ClientOperationId, leaseToken, sanitizedError, cancellationToken);
 
                         batchResult.TotalProcessed++;
                         batchResult.Failed++;
@@ -280,25 +297,31 @@ namespace Auth.Infrastructure.Sync.Push
             return list;
         }
 
-        private static async Task<bool> TryClaimOutboxInProgressAsync(string localConnStr, Guid clientOperationId, Guid leaseToken, CancellationToken ct)
+        public static async Task<bool> TryClaimOutboxInProgressAsync(string localConnStr, string databaseId, Guid clientOperationId, Guid leaseToken, CancellationToken ct)
         {
             await using var conn = new SqlConnection(localConnStr);
             await conn.OpenAsync(ct);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                UPDATE [sync].[LocalOutbox]
-                SET Status = 'IN_PROGRESS',
-                    LockToken = @LockToken,
-                    LockedUntilUtc = DATEADD(SECOND, 60, SYSUTCDATETIME())
-                WHERE ClientOperationId = @ClientOperationId
-                  AND (Status = 'PENDING' OR (Status = 'IN_PROGRESS' AND (LockedUntilUtc IS NULL OR LockedUntilUtc < SYSUTCDATETIME())));";
+                UPDATE o
+                SET o.Status = 'IN_PROGRESS',
+                    o.LockToken = @LockToken,
+                    o.LockedUntilUtc = DATEADD(SECOND, 60, SYSUTCDATETIME())
+                FROM [sync].[LocalOutbox] o
+                INNER JOIN [sync].[LocalState] s ON s.DatabaseId = o.DatabaseId
+                WHERE o.DatabaseId = @DatabaseId
+                  AND o.ClientOperationId = @ClientOperationId
+                  AND s.ActiveLeaseToken = @LockToken
+                  AND s.LeaseExpiresAtUtc >= SYSUTCDATETIME()
+                  AND (o.Status = 'PENDING' OR (o.Status = 'IN_PROGRESS' AND (o.LockedUntilUtc IS NULL OR o.LockedUntilUtc < SYSUTCDATETIME())));";
             cmd.Parameters.AddWithValue("@LockToken", leaseToken);
+            cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
             cmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
             var rows = await cmd.ExecuteNonQueryAsync(ct);
             return rows > 0;
         }
 
-        private static async Task AcknowledgeSuccessLocallyAsync(
+        public static async Task AcknowledgeSuccessLocallyAsync(
             string localConnStr,
             string databaseId,
             Guid clientOperationId,
@@ -338,7 +361,7 @@ namespace Auth.Infrastructure.Sync.Push
                     }
                 }
 
-                // 2. Mark Outbox COMPLETED in same local transaction
+                // 2. Mark Outbox COMPLETED in same local transaction with strict fencing
                 await using (var outboxCmd = conn.CreateCommand())
                 {
                     outboxCmd.Transaction = transaction;
@@ -349,10 +372,21 @@ namespace Auth.Infrastructure.Sync.Push
                             LockToken = NULL,
                             LockedUntilUtc = NULL,
                             LastError = NULL
-                        WHERE ClientOperationId = @ClientOperationId;";
+                        WHERE DatabaseId = @DatabaseId
+                          AND ClientOperationId = @ClientOperationId
+                          AND Status = 'IN_PROGRESS'
+                          AND LockToken = @LeaseToken;";
 
+                    outboxCmd.Parameters.AddWithValue("@DatabaseId", databaseId);
                     outboxCmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
-                    await outboxCmd.ExecuteNonQueryAsync(ct);
+                    outboxCmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
+
+                    var outboxRows = await outboxCmd.ExecuteNonQueryAsync(ct);
+                    if (outboxRows != 1)
+                    {
+                        throw new SyncLeaseExpiredException(
+                            $"Outbox ownership lost or row not in IN_PROGRESS state for ClientOperationId '{clientOperationId}' and LeaseToken '{leaseToken}'. Affected rows: {outboxRows}. Transaction rolled back.");
+                    }
                 }
 
                 await transaction.CommitAsync(ct);
@@ -364,10 +398,11 @@ namespace Auth.Infrastructure.Sync.Push
             }
         }
 
-        private static async Task RecordFailureLocallyAsync(
+        public static async Task RecordFailureLocallyAsync(
             string localConnStr,
             string databaseId,
             Guid clientOperationId,
+            Guid leaseToken,
             string sanitizedError,
             CancellationToken ct)
         {
@@ -388,9 +423,14 @@ namespace Auth.Infrastructure.Sync.Push
                                 LastError = @LastError,
                                 LockToken = NULL,
                                 LockedUntilUtc = NULL
-                            WHERE ClientOperationId = @ClientOperationId;";
+                            WHERE DatabaseId = @DatabaseId
+                              AND ClientOperationId = @ClientOperationId
+                              AND Status = 'IN_PROGRESS'
+                              AND LockToken = @LeaseToken;";
                         outboxCmd.Parameters.AddWithValue("@LastError", sanitizedError);
+                        outboxCmd.Parameters.AddWithValue("@DatabaseId", databaseId);
                         outboxCmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
+                        outboxCmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
                         await outboxCmd.ExecuteNonQueryAsync(ct);
                     }
 
@@ -401,9 +441,11 @@ namespace Auth.Infrastructure.Sync.Push
                             UPDATE [sync].[LocalState]
                             SET LastSyncError = @LastError,
                                 LastSyncAttemptUtc = SYSUTCDATETIME()
-                            WHERE DatabaseId = @DatabaseId;";
+                            WHERE DatabaseId = @DatabaseId
+                              AND ActiveLeaseToken = @LeaseToken;";
                         stateCmd.Parameters.AddWithValue("@LastError", sanitizedError);
                         stateCmd.Parameters.AddWithValue("@DatabaseId", databaseId);
+                        stateCmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
                         await stateCmd.ExecuteNonQueryAsync(ct);
                     }
 
