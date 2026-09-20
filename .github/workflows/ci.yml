@@ -35,7 +35,7 @@ jobs:
         run: dotnet build IProgram.sln --no-restore --configuration Release
 
       - name: Run unit tests
-        run: dotnet test tests/Auth.UnitTests/Auth.UnitTests.csproj --no-build --configuration Release --verbosity normal
+        run: dotnet test tests/Auth.UnitTests/Auth.UnitTests.csproj --no-build --configuration Release --verbosity normal --filter "Category!=LocalDbRequired"
 
   frontend:
     name: Frontend (Angular 17 Build)

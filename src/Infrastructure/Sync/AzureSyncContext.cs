@@ -13,7 +13,22 @@ namespace Auth.Infrastructure.Sync
         public DbSet<ServerTombstone> Tombstones { get; set; }
         public DbSet<ProcessedOperation> ProcessedOperations { get; set; }
 
-        public AzureSyncContext(DbContextOptions<AzureSyncContext> options) : base(options) { }
+        public AzureSyncContext(DbContextOptions<AzureSyncContext> options) : base(options)
+        {
+            ValidateAzureDatabaseConnection();
+        }
+
+        public void ValidateAzureDatabaseConnection()
+        {
+            if (Database.IsRelational())
+            {
+                var connection = Database.GetDbConnection();
+                var physicalDbName = connection?.Database;
+                var dataSource = connection?.DataSource;
+
+                DatabaseBindingValidator.ValidateAzureBinding(dataSource, physicalDbName);
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

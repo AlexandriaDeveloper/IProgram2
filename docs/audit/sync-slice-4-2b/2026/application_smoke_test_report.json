@@ -1,0 +1,50 @@
+﻿{
+    "Gate":  "Gate7_SmokeTest",
+    "TimestampUtc":  "2026-09-20T06:59:17.1479946Z",
+    "TargetDatabase":  "IProgramLocalDb2026",
+    "LocalEngine":  "localhost (SQL Server 2014)",
+    "Tests":  {
+                  "ApplicationContext_Read":  {
+                                                  "Status":  "PASS",
+                                                  "EmployeesCount":  12308
+                                              },
+                  "Identity_Tables":  {
+                                          "Status":  "PASS",
+                                          "UsersCount":  2,
+                                          "RolesCount":  2
+                                      },
+                  "Representative_Entities":  {
+                                                  "Status":  "PASS",
+                                                  "Counts":  {
+                                                                 "Daily":  30,
+                                                                 "DailyReference":  46,
+                                                                 "Departments":  8,
+                                                                 "EmployeeBank":  478,
+                                                                 "EmployeeNetPays":  3670,
+                                                                 "Form":  1590,
+                                                                 "FormDetails":  29392
+                                                             }
+                                              },
+                  "TSql_Patterns_2014":  {
+                                             "Status":  "PASS",
+                                             "GroupRowsReturned":  5
+                                         },
+                  "LocalSync_Metadata":  {
+                                             "Status":  "PASS",
+                                             "BootstrapStatus":  "VERIFIED_READY",
+                                             "IsWriteAllowed":  true,
+                                             "ServerVersionCheckpoint":  0,
+                                             "LocalOutboxCount":  0
+                                         },
+                  "AzureSync_Guard":  {
+                                          "Status":  "PASS",
+                                          "Description":  "AzureSyncContext strictly rejects local database name IProgramLocalDb2026"
+                                      },
+                  "DotNet_LocalDbRequired_Suite":  {
+                                                       "Status":  "PASS",
+                                                       "Filter":  "Category=LocalDbRequired",
+                                                       "RequireLocalDb":  true
+                                                   }
+              },
+    "OverallStatus":  "PASS"
+}
