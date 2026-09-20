@@ -174,8 +174,9 @@ namespace Auth.UnitTests
                         // The ONLY permitted anonymous endpoints are:
                         // 1. AccountController.Login
                         // 2. AccountController.GetDatabases
-                        // 3. FallbackController.Index
-                        var permitted = (controller.Name == nameof(AccountController) && (method.Name == "Login" || method.Name == "GetDatabases"))
+                        // 3. AccountController.GetRuntimeStatus
+                        // 4. FallbackController.Index
+                        var permitted = (controller.Name == nameof(AccountController) && (method.Name == "Login" || method.Name == "GetDatabases" || method.Name == "GetRuntimeStatus"))
                                      || (controller.Name == nameof(FallbackController) && method.Name == "Index");
 
                         Assert.True(permitted, $"Endpoint '{controller.Name}.{method.Name}' has [AllowAnonymous] but is not in the whitelist of permitted anonymous endpoints.");

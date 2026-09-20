@@ -5,13 +5,17 @@ namespace Persistence.Services
 {
     public static class SeedData
     {
-        public static async Task EnsureSeedData(RoleManager<IdentityRole> roleMgr)
+        public static async Task EnsureSeedData(RoleManager<IdentityRole> roleMgr, bool isReadOnly = false)
         {
             string[] roles = { "Admin", "User" };
             foreach (var role in roles)
             {
                 if (!await roleMgr.RoleExistsAsync(role))
                 {
+                    if (isReadOnly)
+                    {
+                        continue;
+                    }
                     await roleMgr.CreateAsync(new IdentityRole(role));
                 }
             }

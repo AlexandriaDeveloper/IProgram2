@@ -73,6 +73,29 @@ namespace Auth.Api.Middleware
                 return true;
             }
 
+            if (exception is Core.Exceptions.ReadOnlyModeException)
+            {
+                int readOnlyCode = StatusCodes.Status403Forbidden;
+                string readOnlyMessage = exception.Message;
+
+                _logger.LogWarning(
+                    "Write attempt blocked by ReadOnlyMode at {RequestPath} with TraceId {TraceId}. StatusCode: {StatusCode}",
+                    requestPath, traceId, readOnlyCode);
+
+                httpContext.Response.StatusCode = readOnlyCode;
+                httpContext.Response.ContentType = "application/json; charset=utf-8";
+
+                var readOnlyPayload = new ErrorResponseDto
+                {
+                    StatusCode = readOnlyCode,
+                    Message = readOnlyMessage,
+                    TraceId = traceId
+                };
+
+                await httpContext.Response.WriteAsJsonAsync(readOnlyPayload, cancellationToken);
+                return true;
+            }
+
             bool isTransientDbFailure = IsTransientDatabaseFailure(exception);
             int statusCode = isTransientDbFailure
                 ? StatusCodes.Status503ServiceUnavailable

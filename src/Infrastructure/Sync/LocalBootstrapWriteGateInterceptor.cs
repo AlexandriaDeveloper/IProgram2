@@ -44,6 +44,18 @@ namespace Auth.Infrastructure.Sync
 
         private void EnforceWriteGate(DbContextEventData eventData)
         {
+            // 0. If ReadOnlyMode is enabled and modifications exist in change tracker: unconditionally block
+            if (_syncConnectionProvider != null && _syncConnectionProvider.IsReadOnlyMode)
+            {
+                var ctx = eventData.Context;
+                if (ctx != null && ctx.ChangeTracker.HasChanges())
+                {
+                    var dbId = _syncConnectionProvider.GetSelectedDatabaseId();
+                    throw new ReadOnlyModeException($"النظام يعمل حالياً في وضع القراءة المحلية فقط للعام {dbId}. جميع عمليات الإضافة والتعديل والحذف معطلة.");
+                }
+                return;
+            }
+
             // 1. If LocalFirst is not enabled, do not gate writes (Azure production path proceeds unaffected)
             if (_syncConnectionProvider == null || !_syncConnectionProvider.IsLocalFirstEnabled)
             {

@@ -18,12 +18,16 @@ document.createElement('video');
       <div class="nav-bar-container">
         <mat-toolbar>
           <div>
-            <ng-container *ngIf="(auth.currentUserSig())===null">
+            <ng-container *ngIf="!auth.isAuthenticated()">
               <div class="auth-user">
                 <a mat-icon-button color="primary" routerLink="/account/login">
                   <mat-icon>login</mat-icon>
                 </a>
                 <span> Please Login</span>
+                <span *ngIf="auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
+                  matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط.">
+                  🔒 محلي — قراءة فقط
+                </span>
               </div>
             </ng-container>
             <ng-container *ngIf="(auth.isAuthenticated()) as user">
@@ -37,7 +41,7 @@ document.createElement('video');
                   <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
                 </button>
                 <!-- Sync to Cloud Button (Push) -->
-                <button *ngIf="auth?.isUserAdmin()" mat-icon-button class="sync-btn push-btn" aria-label="Push to Cloud"
+                <button *ngIf="auth?.isUserAdmin() && !auth.runtimeStatusSig()?.isReadOnly" mat-icon-button class="sync-btn push-btn" aria-label="Push to Cloud"
                   (click)="syncToCloud()" [disabled]="syncService.isSyncing()"
                   [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'رفع للسحابة ☁️⬆️'">
                   <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'push'"
@@ -46,7 +50,7 @@ document.createElement('video');
                     diameter="24"></mat-spinner>
                 </button>
                 <!-- Pull from Cloud Button -->
-                <button *ngIf="auth?.isUserAdmin()" mat-icon-button class="sync-btn pull-btn"
+                <button *ngIf="auth?.isUserAdmin() && !auth.runtimeStatusSig()?.isReadOnly" mat-icon-button class="sync-btn pull-btn"
                   aria-label="Pull from Cloud" (click)="pullFromCloud()" [disabled]="syncService.isSyncing()"
                   [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'تنزيل من السحابة ☁️⬇️'">
                   <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'pull'"
@@ -54,6 +58,10 @@ document.createElement('video');
                   <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'pull'"
                     diameter="24"></mat-spinner>
                 </button>
+                <span *ngIf="auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
+                  matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط. التعديلات معطلة والبيانات غير متزامنة مع السحابة.">
+                  🔒 محلي — قراءة فقط
+                </span>
                 <span *ngIf="syncMessage || syncService.isSyncing()" class="sync-message"
                   [class.success]="syncMessage.includes('✅')" [class.error]="syncMessage.includes('❌')">
                   <span *ngIf="syncService.isSyncing()">🔄 {{syncService.syncLog() || 'جاري الاتصال...'}}</span>

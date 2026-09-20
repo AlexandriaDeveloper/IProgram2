@@ -52,6 +52,21 @@ namespace Api.Controllers
             return Ok(_dbProvider.GetAvailableDatabases());
         }
 
+        [AllowAnonymous]
+        [HttpGet("runtime-status")]
+        public IActionResult GetRuntimeStatus()
+        {
+            var isReadOnly = _dbProvider is ISyncConnectionProvider syncProvider && syncProvider.IsReadOnlyMode;
+            var isLocalFirst = _dbProvider is ISyncConnectionProvider syncProv && syncProv.IsLocalFirstEnabled;
+            return Ok(new
+            {
+                isReadOnly,
+                isLocalFirst,
+                runtimeMode = isReadOnly ? "OfflineReadOnly" : (isLocalFirst ? "LocalFirst" : "Online"),
+                selectedDatabase = _dbProvider.GetSelectedDatabaseId()
+            });
+        }
+
 
         [HttpGet]
         [Authorize]

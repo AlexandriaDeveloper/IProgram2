@@ -13,13 +13,20 @@ namespace Persistence.Repository
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly IDbConnectionProvider _dbConnectionProvider;
 
-        public AccountRepository(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, SignInManager<ApplicationUser> signInManager, ApplicationContext context)
+        public AccountRepository(
+            UserManager<ApplicationUser> userManager,
+            RoleManager<IdentityRole> roleManager,
+            SignInManager<ApplicationUser> signInManager,
+            ApplicationContext context,
+            IDbConnectionProvider dbConnectionProvider)
         {
             this._signInManager = signInManager;
             this._roleManager = roleManager;
             this._userManager = userManager;
             this._context = context;
+            this._dbConnectionProvider = dbConnectionProvider;
         }
         public async Task AssignUserToRole(ApplicationUser user, string roleName)
         {
@@ -59,10 +66,26 @@ namespace Persistence.Repository
         {
             var user = await _userManager.FindByNameAsync(username);
             if (user == null) return null;
+
+            bool isReadOnly = _dbConnectionProvider is ISyncConnectionProvider syncProvider && syncProvider.IsReadOnlyMode;
+            if (isReadOnly)
+            {
+                if (string.IsNullOrEmpty(user.PasswordHash)) return null;
+
+                var verificationResult = _userManager.PasswordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
+                if (verificationResult == PasswordVerificationResult.Failed)
+                {
+                    return null;
+                }
+
+                // In ReadOnlyMode: both Success and SuccessRehashNeeded authenticate successfully
+                // WITHOUT invoking _userManager.UpdateAsync(user) or mutating user.PasswordHash in the database.
+                return user;
+            }
+
             var result = await _userManager.CheckPasswordAsync(user, password);
             if (!result) return null;
             return user;
-
         }
 
         public async Task<IdentityResult> RegisterUser(ApplicationUser user, string Password, List<string> roles)
