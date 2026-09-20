@@ -282,7 +282,8 @@ namespace Persistence.Repository
                         {
                             Daily = daily,
                             OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
-                            EntitySyncId = daily.SyncId
+                            EntitySyncId = daily.SyncId,
+                            OriginalSnapshot = CaptureDailyOriginalSnapshot(entry)
                         });
                     }
                     else if (entry.State == EntityState.Deleted)
@@ -298,7 +299,8 @@ namespace Persistence.Repository
                         {
                             Daily = daily,
                             OperationType = "HARD_DELETE",
-                            EntitySyncId = syncId
+                            EntitySyncId = syncId,
+                            OriginalSnapshot = CaptureDailyOriginalSnapshot(entry)
                         });
                     }
                 }
@@ -534,6 +536,25 @@ namespace Persistence.Repository
             };
 
             return JsonSerializer.Serialize(envelope);
+        }
+
+        internal static AuthoritativeDailyOriginalSnapshot CaptureDailyOriginalSnapshot(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry)
+        {
+            var originalValues = entry.OriginalValues;
+            return new AuthoritativeDailyOriginalSnapshot
+            {
+                SyncId = (Guid)originalValues[nameof(Daily.SyncId)]!,
+                Name = (string)originalValues[nameof(Daily.Name)]!,
+                DailyDate = (DateTime)originalValues[nameof(Daily.DailyDate)]!,
+                Closed = (bool)originalValues[nameof(Daily.Closed)]!,
+                CreatedAt = (DateTime)originalValues[nameof(Daily.CreatedAt)]!,
+                CreatedBy = (string?)originalValues[nameof(Daily.CreatedBy)],
+                UpdatedAt = (DateTime?)originalValues[nameof(Daily.UpdatedAt)],
+                UpdatedBy = (string?)originalValues[nameof(Daily.UpdatedBy)],
+                DeactivatedAt = (DateTime?)originalValues[nameof(Daily.DeactivatedAt)],
+                DeactivatedBy = (string?)originalValues[nameof(Daily.DeactivatedBy)],
+                IsActive = (bool)originalValues[nameof(Daily.IsActive)]!
+            };
         }
 
         private sealed class CapturedDailyMutation

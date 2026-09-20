@@ -125,3 +125,25 @@ Production Push (`Sync:PushEnabled = true`) cannot and MUST NOT be enabled in pr
 Both feature gates remain **disabled** (`false`) by default:
 - `Sync:AuthoritativeTrackingEnabled = false`
 - `Sync:PushEnabled = false`
+
+---
+
+## 9. Authoritative Optimistic Concurrency Guard & Lost Update Prevention (P0)
+To prevent stale authoritative writes from overwriting newer changes (Lost Updates):
+1. **Immutable EF OriginalValues Snapshot:**
+   When `UnitOfWork` captures `UPDATE`, `SOFT_DELETE`, or `HARD_DELETE` mutations, it captures an immutable `AuthoritativeDailyOriginalSnapshot` directly from `EntityEntry.OriginalValues` before `DbContext.SaveChangesAsync`.
+2. **Unified Lock Ordering with Row-Level Holding:**
+   - **Step 1:** Acquire `[sync].[ServerState] WITH (UPDLOCK, HOLDLOCK)`.
+   - **Step 2:** Deterministically order mutations (`EntitySyncId ASC`).
+   - **Step 3 (INSERT):** Verify tombstone safety + verify Daily does not already exist with target `SyncId` under `WITH (UPDLOCK, HOLDLOCK)`.
+   - **Step 4 (UPDATE / DELETE):** Execute `SELECT ... FROM [dbo].[Daily] WITH (UPDLOCK, HOLDLOCK) WHERE SyncId = @SyncId`.
+3. **Optimistic Snapshot Validation:**
+   The current authoritative database row is compared against `OriginalSnapshot` for all authoritative scalar fields:
+   `Name`, `DailyDate`, `Closed`, `CreatedAt`, `CreatedBy`, `UpdatedAt`, `UpdatedBy`, `DeactivatedAt`, `DeactivatedBy`, `IsActive`.
+   - If the database row does not exist or has been deleted $\to$ fail-closed with `AuthoritativeConcurrencyConflictException` (`AUTHORITATIVE_CONCURRENCY_CONFLICT`).
+   - If any scalar field differs $\to$ fail-closed with `AuthoritativeConcurrencyConflictException` (`AUTHORITATIVE_CONCURRENCY_CONFLICT`).
+4. **Row Lock Held Until Commit:**
+   The `UPDLOCK, HOLDLOCK` on `Daily` is acquired in `PrepareAuthoritativeBatchAsync` on the transaction and held continuously throughout EF Core `SaveChangesAsync` and `CompleteAuthoritativeBatchAsync` until commit or rollback.
+5. **Multi-Mutation Batch Atomicity:**
+   If any mutation in a multi-mutation batch is stale or missing, the entire transaction is aborted and rolled back. Zero partial mutations, zero change feed rows, zero tombstones, and zero version increments are committed.
+

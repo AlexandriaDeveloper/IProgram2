@@ -8,11 +8,27 @@ using Core.Models;
 
 namespace Core.Interfaces
 {
+    public sealed class AuthoritativeDailyOriginalSnapshot
+    {
+        public required Guid SyncId { get; init; }
+        public required string Name { get; init; }
+        public required DateTime DailyDate { get; init; }
+        public required bool Closed { get; init; }
+        public required DateTime CreatedAt { get; init; }
+        public string? CreatedBy { get; init; }
+        public DateTime? UpdatedAt { get; init; }
+        public string? UpdatedBy { get; init; }
+        public DateTime? DeactivatedAt { get; init; }
+        public string? DeactivatedBy { get; init; }
+        public required bool IsActive { get; init; }
+    }
+
     public sealed class CapturedAuthoritativeDailyMutation
     {
         public Daily? Daily { get; init; }
         public required string OperationType { get; init; } // INSERT, UPDATE, SOFT_DELETE, HARD_DELETE
         public required Guid EntitySyncId { get; init; }
+        public AuthoritativeDailyOriginalSnapshot? OriginalSnapshot { get; init; }
     }
 
     public sealed class AuthoritativeTrackingReservation

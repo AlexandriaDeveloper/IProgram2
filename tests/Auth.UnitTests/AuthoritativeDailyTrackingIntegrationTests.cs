@@ -1167,33 +1167,33 @@ namespace Auth.UnitTests
                     var procCount = Convert.ToInt32(await procCmd.ExecuteScalarAsync());
                     Assert.Equal(0, procCount);
                 }
-                else if (onlineException == null && pushException == null)
+                else if (onlineException is AuthoritativeConcurrencyConflictException concConflictEx && pushException == null)
                 {
                     // OUTCOME B: Push acquired ServerState first
-                    // Push succeeded (version + 1) -> Online waited safely -> Online proceeded afterwards (version + 2)
+                    // Push succeeded (version + 1) -> Online waited safely -> Online detected stale OriginalSnapshot -> FAILED CLOSED
+                    Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", concConflictEx.ErrorCode);
                     Assert.NotNull(pushResult);
                     Assert.False(pushResult!.IsReplay);
                     Assert.Equal(startingVersion + 1, pushResult.ServerVersion);
-                    Assert.Equal(startingVersion + 2, finalVersion);
+                    Assert.Equal(startingVersion + 1, finalVersion); // ServerVersion remains V+1
 
-                    // Daily was updated by Push then Online, so final value is Online's
+                    // Daily was updated by Push, and Online was rejected (NO lost update!)
                     await using var verifyConn = new SqlConnection(RemoteConnStr2026);
                     await verifyConn.OpenAsync();
                     await using var checkCmd = verifyConn.CreateCommand();
                     checkCmd.CommandText = "SELECT Name FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
                     checkCmd.Parameters.AddWithValue("@SyncId", baseDailySyncId);
                     var actualName = (string?)await checkCmd.ExecuteScalarAsync();
-                    Assert.Equal($"Updated By Online Race {iteration}", actualName);
+                    Assert.Equal($"Updated By Push Race {iteration}", actualName);
 
-                    // Verify contiguous versions in ChangeFeed: v+1 (Push) and v+2 (Online)
+                    // Verify exactly ONE feed entry in ChangeFeed at V+1 from Push (zero Online feed)
                     await using var feedCmd = verifyConn.CreateCommand();
                     feedCmd.CommandText = @"
                         SELECT ServerVersion, OriginDeviceId
                         FROM [sync].[ServerChangeFeed]
-                        WHERE DatabaseId = '2026' AND ServerVersion IN (@V1, @V2)
+                        WHERE DatabaseId = '2026' AND ServerVersion >= @V1
                         ORDER BY ServerVersion ASC;";
                     feedCmd.Parameters.AddWithValue("@V1", startingVersion + 1);
-                    feedCmd.Parameters.AddWithValue("@V2", startingVersion + 2);
 
                     var feedList = new List<(long Version, Guid DevId)>();
                     await using (var reader = await feedCmd.ExecuteReaderAsync())
@@ -1204,11 +1204,9 @@ namespace Auth.UnitTests
                         }
                     }
 
-                    Assert.Equal(2, feedList.Count);
+                    Assert.Single(feedList);
                     Assert.Equal(startingVersion + 1, feedList[0].Version);
                     Assert.Equal(devId, feedList[0].DevId); // From Push
-                    Assert.Equal(startingVersion + 2, feedList[1].Version);
-                    Assert.Equal(Guid.Empty, feedList[1].DevId); // From Online
 
                     // Verify ProcessedOperations contains SUCCESS for Push
                     await using var procCmd = verifyConn.CreateCommand();
@@ -1224,6 +1222,272 @@ namespace Auth.UnitTests
             }
         }
 
+        #endregion
+
+        #region Scenario 14: Real Concurrent Online <-> Online Concurrency Test
+
+        [Fact]
+        public async Task Scenario14_ConcurrentOnlineVsOnline_StaleWriteRejection_ExactlyOneSucceeds()
+        {
+            for (int iteration = 1; iteration <= 3; iteration++)
+            {
+                var baseDailySyncId = Guid.NewGuid();
+
+                // 1. Pre-seed a base Daily row on remote DB
+                var startingVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+                await using (var seedConn = new SqlConnection(RemoteConnStr2026))
+                {
+                    await seedConn.OpenAsync();
+                    await using var seedCmd = seedConn.CreateCommand();
+                    seedCmd.CommandText = @"
+                        INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [CreatedBy], [CreatedAt], [IsActive], [SyncId])
+                        VALUES (@Name, '2026-06-01T00:00:00Z', 0, 'Seed', SYSUTCDATETIME(), 1, @SyncId);";
+                    seedCmd.Parameters.AddWithValue("@Name", $"Base Daily OnlineRace {iteration}");
+                    seedCmd.Parameters.AddWithValue("@SyncId", baseDailySyncId);
+                    await seedCmd.ExecuteNonQueryAsync();
+                }
+
+                // 2. Prepare Session A
+                var syncProviderMockA = new Mock<ISyncConnectionProvider>();
+                syncProviderMockA.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+                syncProviderMockA.Setup(p => p.IsReadOnlyMode).Returns(false);
+                syncProviderMockA.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+                using var contextA = CreateContext(RemoteConnStr2026, trackingEnabled: true, syncProviderMockA.Object);
+                var uowA = CreateUnitOfWork(contextA, syncProviderMockA.Object);
+                var dailyA = await contextA.Set<Daily>().FirstAsync(d => d.SyncId == baseDailySyncId);
+                dailyA.Name = $"Updated By Session A {iteration}";
+
+                // 3. Prepare Session B (reads same base Daily in same initial state)
+                var syncProviderMockB = new Mock<ISyncConnectionProvider>();
+                syncProviderMockB.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+                syncProviderMockB.Setup(p => p.IsReadOnlyMode).Returns(false);
+                syncProviderMockB.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+                using var contextB = CreateContext(RemoteConnStr2026, trackingEnabled: true, syncProviderMockB.Object);
+                var uowB = CreateUnitOfWork(contextB, syncProviderMockB.Object);
+                var dailyB = await contextB.Set<Daily>().FirstAsync(d => d.SyncId == baseDailySyncId);
+                dailyB.Name = $"Updated By Session B {iteration}";
+
+                // 4. Concurrently launch both SaveChanges with 15s timeout
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                var ct = cts.Token;
+
+                Exception? exA = null;
+                Exception? exB = null;
+
+                var barrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                var taskA = Task.Run(async () =>
+                {
+                    await barrier.Task;
+                    try
+                    {
+                        await uowA.SaveChangesAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        exA = ex;
+                    }
+                }, ct);
+
+                var taskB = Task.Run(async () =>
+                {
+                    await barrier.Task;
+                    try
+                    {
+                        await uowB.SaveChangesAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        exB = ex;
+                    }
+                }, ct);
+
+                barrier.SetResult();
+                await Task.WhenAll(taskA, taskB);
+
+                // 5. Zero SQL 1205 deadlocks
+                if (exA != null)
+                {
+                    var sqlEx = ExtractSqlException(exA);
+                    if (sqlEx != null) Assert.NotEqual(1205, sqlEx.Number);
+                }
+                if (exB != null)
+                {
+                    var sqlEx = ExtractSqlException(exB);
+                    if (sqlEx != null) Assert.NotEqual(1205, sqlEx.Number);
+                }
+
+                // 6. Exactly ONE succeeds, the second fails with AUTHORITATIVE_CONCURRENCY_CONFLICT
+                bool aWon = exA == null && exB is AuthoritativeConcurrencyConflictException conflictB && conflictB.ErrorCode == "AUTHORITATIVE_CONCURRENCY_CONFLICT";
+                bool bWon = exB == null && exA is AuthoritativeConcurrencyConflictException conflictA && conflictA.ErrorCode == "AUTHORITATIVE_CONCURRENCY_CONFLICT";
+
+                Assert.True(aWon ^ bWon, $"Exactly one writer must succeed. exA={exA?.Message}, exB={exB?.Message}");
+
+                // 7. Verify ServerVersion advanced by exactly +1
+                var finalVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+                Assert.Equal(startingVersion + 1, finalVersion);
+
+                // 8. Verify exactly ONE ChangeFeed row for startingVersion + 1
+                await using var verifyConn = new SqlConnection(RemoteConnStr2026);
+                await verifyConn.OpenAsync();
+                await using var feedCmd = verifyConn.CreateCommand();
+                feedCmd.CommandText = @"
+                    SELECT ServerVersion, OriginDeviceId
+                    FROM [sync].[ServerChangeFeed]
+                    WHERE DatabaseId = '2026' AND ServerVersion = @Ver;";
+                feedCmd.Parameters.AddWithValue("@Ver", startingVersion + 1);
+
+                int feedCount = 0;
+                await using (var reader = await feedCmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        feedCount++;
+                        Assert.Equal(Guid.Empty, reader.GetGuid(1));
+                    }
+                }
+                Assert.Equal(1, feedCount);
+
+                // 9. Verify final Daily matches the winner's value (no silent overwrite!)
+                await using var checkCmd = verifyConn.CreateCommand();
+                checkCmd.CommandText = "SELECT Name FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                checkCmd.Parameters.AddWithValue("@SyncId", baseDailySyncId);
+                var actualName = (string?)await checkCmd.ExecuteScalarAsync();
+
+                string expectedWinnerName = aWon ? $"Updated By Session A {iteration}" : $"Updated By Session B {iteration}";
+                Assert.Equal(expectedWinnerName, actualName);
+            }
+        }
+
+        #endregion
+
+        #region Scenario 15: Multi-Mutation Batch Atomicity on Concurrency Conflict
+
+        [Fact]
+        public async Task Scenario15_MultiMutationBatch_StaleItemFailsEntireBatch_RollsBackAll()
+        {
+            var daily1SyncId = Guid.NewGuid();
+            var daily2SyncId = Guid.NewGuid();
+            var daily3SyncId = Guid.NewGuid();
+
+            // 1. Pre-seed Daily 1 and Daily 2 directly in DB
+            var startingVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+            await using (var seedConn = new SqlConnection(RemoteConnStr2026))
+            {
+                await seedConn.OpenAsync();
+                await using var seedCmd = seedConn.CreateCommand();
+                seedCmd.CommandText = @"
+                    INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [CreatedBy], [CreatedAt], [IsActive], [SyncId])
+                    VALUES 
+                        ('Original Daily 1', '2026-06-01T00:00:00Z', 0, 'Seed', SYSUTCDATETIME(), 1, @SyncId1),
+                        ('Original Daily 2', '2026-06-01T00:00:00Z', 0, 'Seed', SYSUTCDATETIME(), 1, @SyncId2);";
+                seedCmd.Parameters.AddWithValue("@SyncId1", daily1SyncId);
+                seedCmd.Parameters.AddWithValue("@SyncId2", daily2SyncId);
+                await seedCmd.ExecuteNonQueryAsync();
+            }
+
+            // 2. Prepare UnitOfWork context that loads both Daily 1 and Daily 2
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+            using var context = CreateContext(RemoteConnStr2026, trackingEnabled: true, syncProviderMock.Object);
+            var uow = CreateUnitOfWork(context, syncProviderMock.Object);
+
+            var d1 = await context.Set<Daily>().FirstAsync(d => d.SyncId == daily1SyncId);
+            var d2 = await context.Set<Daily>().FirstAsync(d => d.SyncId == daily2SyncId);
+
+            // 3. External concurrent actor modifies Daily 1 in DB, making Context's snapshot of Daily 1 stale!
+            await using (var extConn = new SqlConnection(RemoteConnStr2026))
+            {
+                await extConn.OpenAsync();
+                await using var extCmd = extConn.CreateCommand();
+                extCmd.CommandText = @"
+                    UPDATE [dbo].[Daily]
+                    SET [Name] = 'External Actor Concurrently Modified Daily 1', [UpdatedAt] = SYSUTCDATETIME()
+                    WHERE [SyncId] = @SyncId;";
+                extCmd.Parameters.AddWithValue("@SyncId", daily1SyncId);
+                await extCmd.ExecuteNonQueryAsync();
+            }
+
+            // 4. Batch in Context:
+            // - Daily 1: Updated (stale!)
+            // - Daily 2: Updated (fresh/valid)
+            // - Daily 3: Added (fresh/valid)
+            d1.Name = "Context Trying To Update Stale Daily 1";
+            d2.Name = "Context Updating Valid Daily 2";
+            context.Set<Daily>().Add(new Daily
+            {
+                Name = "Context Adding Valid Daily 3",
+                DailyDate = DateTime.UtcNow.Date,
+                Closed = false,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                SyncId = daily3SyncId
+            });
+
+            // 5. Calling SaveChangesAsync must FAIL CLOSED on the entire batch!
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(async () =>
+            {
+                await uow.SaveChangesAsync();
+            });
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains(daily1SyncId.ToString(), ex.Message);
+
+            // 6. Verify ServerState.CurrentVersion did NOT advance (zero increments)
+            var finalVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+            Assert.Equal(startingVersion, finalVersion);
+
+            // 7. Verify zero new feed rows created for this batch
+            await using (var verifyConn = new SqlConnection(RemoteConnStr2026))
+            {
+                await verifyConn.OpenAsync();
+                await using var feedCmd = verifyConn.CreateCommand();
+                feedCmd.CommandText = @"
+                    SELECT COUNT(1) FROM [sync].[ServerChangeFeed]
+                    WHERE DatabaseId = '2026' AND ServerVersion > @StartingVer;";
+                feedCmd.Parameters.AddWithValue("@StartingVer", startingVersion);
+                var feedCount = Convert.ToInt32(await feedCmd.ExecuteScalarAsync());
+                Assert.Equal(0, feedCount);
+
+                // 8. Verify Daily 1 retained external actor's value
+                await using var checkD1Cmd = verifyConn.CreateCommand();
+                checkD1Cmd.CommandText = "SELECT Name FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                checkD1Cmd.Parameters.AddWithValue("@SyncId", daily1SyncId);
+                var actualD1Name = (string?)await checkD1Cmd.ExecuteScalarAsync();
+                Assert.Equal("External Actor Concurrently Modified Daily 1", actualD1Name);
+
+                // 9. Verify Daily 2 was NOT modified (retained original value)
+                await using var checkD2Cmd = verifyConn.CreateCommand();
+                checkD2Cmd.CommandText = "SELECT Name FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                checkD2Cmd.Parameters.AddWithValue("@SyncId", daily2SyncId);
+                var actualD2Name = (string?)await checkD2Cmd.ExecuteScalarAsync();
+                Assert.Equal("Original Daily 2", actualD2Name);
+
+                // 10. Verify Daily 3 was NOT inserted
+                await using var checkD3Cmd = verifyConn.CreateCommand();
+                checkD3Cmd.CommandText = "SELECT COUNT(1) FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                checkD3Cmd.Parameters.AddWithValue("@SyncId", daily3SyncId);
+                var d3Count = Convert.ToInt32(await checkD3Cmd.ExecuteScalarAsync());
+                Assert.Equal(0, d3Count);
+
+                // 11. Zero tombstones created
+                await using var tombCmd = verifyConn.CreateCommand();
+                tombCmd.CommandText = "SELECT COUNT(1) FROM [sync].[Tombstones] WHERE DatabaseId = '2026' AND EntitySyncId IN (@S1, @S2, @S3);";
+                tombCmd.Parameters.AddWithValue("@S1", daily1SyncId);
+                tombCmd.Parameters.AddWithValue("@S2", daily2SyncId);
+                tombCmd.Parameters.AddWithValue("@S3", daily3SyncId);
+                var tombCount = Convert.ToInt32(await tombCmd.ExecuteScalarAsync());
+                Assert.Equal(0, tombCount);
+            }
+        }
+
+        #endregion
+
         private static SqlException? ExtractSqlException(Exception? ex)
         {
             while (ex != null)
@@ -1233,7 +1497,5 @@ namespace Auth.UnitTests
             }
             return null;
         }
-
-        #endregion
     }
 }

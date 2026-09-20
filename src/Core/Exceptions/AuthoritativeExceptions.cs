@@ -54,4 +54,17 @@ namespace Core.Exceptions
         {
         }
     }
+
+    public class AuthoritativeConcurrencyConflictException : Exception
+    {
+        public string ErrorCode { get; } = "AUTHORITATIVE_CONCURRENCY_CONFLICT";
+
+        public AuthoritativeConcurrencyConflictException(string message) : base(message)
+        {
+        }
+
+        public AuthoritativeConcurrencyConflictException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+    }
 }

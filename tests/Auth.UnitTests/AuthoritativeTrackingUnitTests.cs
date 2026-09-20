@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Moq.Protected;
 using Persistence.Repository;
 using Xunit;
 
@@ -539,6 +540,75 @@ namespace Auth.UnitTests
 
         #region 7. Pre-Open Physical Azure Binding Guard Tests (P0)
 
+#nullable disable
+        private class FakeDbTransaction : System.Data.Common.DbTransaction
+        {
+            protected override System.Data.Common.DbConnection DbConnection => null;
+            public override System.Data.IsolationLevel IsolationLevel => System.Data.IsolationLevel.ReadCommitted;
+            public override void Commit() { }
+            public override void Rollback() { }
+            public override Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public override Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        }
+
+        private class FakeDbParameterCollection : System.Data.Common.DbParameterCollection
+        {
+            private readonly List<System.Data.Common.DbParameter> _parameters = new();
+            public override int Count => _parameters.Count;
+            public override object SyncRoot => this;
+            public override int Add(object value) { _parameters.Add((System.Data.Common.DbParameter)value); return _parameters.Count - 1; }
+            public override void AddRange(Array values) { foreach (var v in values) Add(v); }
+            public override void Clear() => _parameters.Clear();
+            public override bool Contains(object value) => _parameters.Contains((System.Data.Common.DbParameter)value);
+            public override bool Contains(string value) => _parameters.Any(p => p.ParameterName == value);
+            public override void CopyTo(Array array, int index) => ((System.Collections.ICollection)_parameters).CopyTo(array, index);
+            public override System.Collections.IEnumerator GetEnumerator() => _parameters.GetEnumerator();
+            public override int IndexOf(object value) => _parameters.IndexOf((System.Data.Common.DbParameter)value);
+            public override int IndexOf(string parameterName) => _parameters.FindIndex(p => p.ParameterName == parameterName);
+            public override void Insert(int index, object value) => _parameters.Insert(index, (System.Data.Common.DbParameter)value);
+            public override void Remove(object value) => _parameters.Remove((System.Data.Common.DbParameter)value);
+            public override void RemoveAt(int index) => _parameters.RemoveAt(index);
+            public override void RemoveAt(string parameterName) { int idx = IndexOf(parameterName); if (idx >= 0) _parameters.RemoveAt(idx); }
+            protected override System.Data.Common.DbParameter GetParameter(int index) => _parameters[index];
+            protected override System.Data.Common.DbParameter GetParameter(string parameterName) => _parameters.First(p => p.ParameterName == parameterName);
+            protected override void SetParameter(int index, System.Data.Common.DbParameter value) => _parameters[index] = value;
+            protected override void SetParameter(string parameterName, System.Data.Common.DbParameter value) { int idx = IndexOf(parameterName); if (idx >= 0) _parameters[idx] = value; else _parameters.Add(value); }
+        }
+
+        private class FakeDbParameter : System.Data.Common.DbParameter
+        {
+            public override System.Data.DbType DbType { get; set; }
+            public override System.Data.ParameterDirection Direction { get; set; }
+            public override bool IsNullable { get; set; }
+            public override string ParameterName { get; set; } = string.Empty;
+            public override string SourceColumn { get; set; } = string.Empty;
+            public override object Value { get; set; }
+            public override bool SourceColumnNullMapping { get; set; }
+            public override int Size { get; set; }
+            public override void ResetDbType() { }
+        }
+
+        private class FakeDbCommand : System.Data.Common.DbCommand
+        {
+            private readonly FakeDbParameterCollection _parameters = new();
+            public override string CommandText { get; set; } = string.Empty;
+            public override int CommandTimeout { get; set; }
+            public override System.Data.CommandType CommandType { get; set; }
+            public override bool DesignTimeVisible { get; set; }
+            public override System.Data.UpdateRowSource UpdatedRowSource { get; set; }
+            protected override System.Data.Common.DbConnection DbConnection { get; set; }
+            protected override System.Data.Common.DbParameterCollection DbParameterCollection => _parameters;
+            protected override System.Data.Common.DbTransaction DbTransaction { get; set; }
+            public override void Cancel() { }
+            public override int ExecuteNonQuery() => 1;
+            public override object ExecuteScalar() => 1L;
+            public override Task<object> ExecuteScalarAsync(CancellationToken cancellationToken) => Task.FromResult<object>(1L);
+            public override void Prepare() { }
+            protected override System.Data.Common.DbParameter CreateDbParameter() => new FakeDbParameter();
+            protected override System.Data.Common.DbDataReader ExecuteDbDataReader(System.Data.CommandBehavior behavior) => throw new NotImplementedException();
+        }
+#nullable restore
+
         private class CountingDbConnection : System.Data.Common.DbConnection
         {
             private string _connectionString;
@@ -574,8 +644,8 @@ namespace Auth.UnitTests
 
             public override void Close() { }
             public override void ChangeDatabase(string databaseName) { }
-            protected override System.Data.Common.DbTransaction BeginDbTransaction(System.Data.IsolationLevel isolationLevel) => throw new NotImplementedException();
-            protected override System.Data.Common.DbCommand CreateDbCommand() => throw new NotImplementedException();
+            protected override System.Data.Common.DbTransaction BeginDbTransaction(System.Data.IsolationLevel isolationLevel) => new FakeDbTransaction();
+            protected override System.Data.Common.DbCommand CreateDbCommand() => new FakeDbCommand();
         }
 
         [Fact]
@@ -683,6 +753,288 @@ namespace Auth.UnitTests
             Assert.True(violations.Count == 0,
                 $"Detected unauthorized direct Daily DML in runtime application code outside AzurePushTransactionCoordinator:\n" +
                 string.Join("\n", violations));
+        }
+
+        #endregion
+
+        #region 9. Authoritative Optimistic Concurrency Guard Tests (P0)
+
+#nullable disable
+        private class FakeDbDataReader : System.Data.Common.DbDataReader
+        {
+            private readonly List<object[]> _rows;
+            private int _currentIndex = -1;
+
+            public FakeDbDataReader(List<object[]> rows)
+            {
+                _rows = rows;
+            }
+
+            public override int Depth => 0;
+            public override bool NextResult() => false;
+            public override Task<bool> NextResultAsync(CancellationToken cancellationToken) => Task.FromResult(false);
+
+            public override int FieldCount => _rows.Count > 0 ? _rows[0].Length : 0;
+            public override bool HasRows => _rows.Count > 0;
+            public override bool IsClosed => false;
+            public override int RecordsAffected => _rows.Count;
+
+            public override bool Read()
+            {
+                _currentIndex++;
+                return _currentIndex < _rows.Count;
+            }
+
+            public override Task<bool> ReadAsync(CancellationToken cancellationToken)
+            {
+                return Task.FromResult(Read());
+            }
+
+            public override object this[int ordinal] => _rows[_currentIndex][ordinal] ?? DBNull.Value;
+            public override object this[string name] => throw new NotImplementedException();
+            public override bool GetBoolean(int ordinal) => Convert.ToBoolean(_rows[_currentIndex][ordinal]);
+            public override byte GetByte(int ordinal) => Convert.ToByte(_rows[_currentIndex][ordinal]);
+            public override long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length) => throw new NotImplementedException();
+            public override char GetChar(int ordinal) => Convert.ToChar(_rows[_currentIndex][ordinal]);
+            public override long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length) => throw new NotImplementedException();
+            public override string GetDataTypeName(int ordinal) => "text";
+            public override DateTime GetDateTime(int ordinal) => Convert.ToDateTime(_rows[_currentIndex][ordinal]);
+            public override decimal GetDecimal(int ordinal) => Convert.ToDecimal(_rows[_currentIndex][ordinal]);
+            public override double GetDouble(int ordinal) => Convert.ToDouble(_rows[_currentIndex][ordinal]);
+            public override Type GetFieldType(int ordinal) => typeof(object);
+            public override float GetFloat(int ordinal) => Convert.ToSingle(_rows[_currentIndex][ordinal]);
+            public override Guid GetGuid(int ordinal) => (Guid)_rows[_currentIndex][ordinal];
+            public override short GetInt16(int ordinal) => Convert.ToInt16(_rows[_currentIndex][ordinal]);
+            public override int GetInt32(int ordinal) => Convert.ToInt32(_rows[_currentIndex][ordinal]);
+            public override long GetInt64(int ordinal) => Convert.ToInt64(_rows[_currentIndex][ordinal]);
+            public override string GetName(int ordinal) => ordinal.ToString();
+            public override int GetOrdinal(string name) => 0;
+            public override string GetString(int ordinal) => _rows[_currentIndex][ordinal]?.ToString() ?? string.Empty;
+            public override object GetValue(int ordinal) => _rows[_currentIndex][ordinal] ?? DBNull.Value;
+            public override int GetValues(object[] values) => throw new NotImplementedException();
+            public override bool IsDBNull(int ordinal) => _rows[_currentIndex][ordinal] == null || _rows[_currentIndex][ordinal] == DBNull.Value;
+            public override System.Collections.IEnumerator GetEnumerator() => throw new NotImplementedException();
+        }
+
+        private class ConfigurableFakeDbCommand : FakeDbCommand
+        {
+            public Func<string, object> ScalarHandler { get; set; }
+            public Func<string, System.Data.Common.DbDataReader> ReaderHandler { get; set; }
+
+            public override Task<object> ExecuteScalarAsync(CancellationToken cancellationToken)
+            {
+                if (ScalarHandler != null)
+                {
+                    return Task.FromResult(ScalarHandler(CommandText));
+                }
+                return base.ExecuteScalarAsync(cancellationToken);
+            }
+
+            protected override System.Data.Common.DbDataReader ExecuteDbDataReader(System.Data.CommandBehavior behavior)
+            {
+                if (ReaderHandler != null)
+                {
+                    return ReaderHandler(CommandText);
+                }
+                return new FakeDbDataReader(new List<object[]>());
+            }
+
+            protected override Task<System.Data.Common.DbDataReader> ExecuteDbDataReaderAsync(System.Data.CommandBehavior behavior, CancellationToken cancellationToken)
+            {
+                return Task.FromResult(ExecuteDbDataReader(behavior));
+            }
+        }
+#nullable restore
+
+        private class ConfigurableCountingDbConnection : CountingDbConnection
+        {
+            public Func<string, object?>? ScalarHandler { get; set; }
+            public Func<string, System.Data.Common.DbDataReader>? ReaderHandler { get; set; }
+
+            public ConfigurableCountingDbConnection() : base("Server=localhost;Database=IProgramTest;Integrated Security=True;") { }
+
+            protected override System.Data.Common.DbCommand CreateDbCommand()
+            {
+                return new ConfigurableFakeDbCommand
+                {
+                    ScalarHandler = this.ScalarHandler!,
+                    ReaderHandler = this.ReaderHandler!
+                };
+            }
+        }
+
+        [Fact]
+        public void AuthoritativeConcurrencyConflictException_HasExpectedErrorCode()
+        {
+            var ex = new AuthoritativeConcurrencyConflictException("Test conflict");
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+        }
+
+        [Fact]
+        public async Task Tracker_PrepareBatch_MissingOriginalSnapshotOnUpdate_ThrowsAuthoritativeTrackingException()
+        {
+            var tracker = new AuthoritativeDailyMutationTracker(NullLogger<AuthoritativeDailyMutationTracker>.Instance);
+            var conn = new ConfigurableCountingDbConnection
+            {
+                ScalarHandler = sql => 1L // Return server version 1
+            };
+            var trans = new FakeDbTransaction();
+
+            var mutations = new List<CapturedAuthoritativeDailyMutation>
+            {
+                new CapturedAuthoritativeDailyMutation
+                {
+                    Daily = new Daily { Name = "Updated Name" },
+                    OperationType = "UPDATE",
+                    EntitySyncId = Guid.NewGuid(),
+                    OriginalSnapshot = null // Missing snapshot!
+                }
+            };
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeTrackingException>(() =>
+                tracker.PrepareAuthoritativeBatchAsync(conn, trans, "2026", mutations, CancellationToken.None));
+
+            Assert.Contains("OriginalSnapshot is required", ex.Message);
+        }
+
+        [Fact]
+        public async Task Tracker_PrepareBatch_MissingRowOnUpdate_ThrowsAuthoritativeConcurrencyConflictException()
+        {
+            var tracker = new AuthoritativeDailyMutationTracker(NullLogger<AuthoritativeDailyMutationTracker>.Instance);
+            var conn = new ConfigurableCountingDbConnection
+            {
+                ScalarHandler = sql => 1L,
+                ReaderHandler = sql => new FakeDbDataReader(new List<object[]>()) // Empty reader: row not found!
+            };
+            var trans = new FakeDbTransaction();
+
+            var mutations = new List<CapturedAuthoritativeDailyMutation>
+            {
+                new CapturedAuthoritativeDailyMutation
+                {
+                    Daily = new Daily { Name = "Updated Name" },
+                    OperationType = "UPDATE",
+                    EntitySyncId = Guid.NewGuid(),
+                    OriginalSnapshot = new AuthoritativeDailyOriginalSnapshot
+                    {
+                        SyncId = Guid.NewGuid(),
+                        Name = "Original Name",
+                        DailyDate = DateTime.UtcNow,
+                        Closed = false,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = "Admin",
+                        IsActive = true
+                    }
+                }
+            };
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(() =>
+                tracker.PrepareAuthoritativeBatchAsync(conn, trans, "2026", mutations, CancellationToken.None));
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains("no longer exists", ex.Message);
+        }
+
+        [Fact]
+        public async Task Tracker_PrepareBatch_ScalarFieldMismatch_ThrowsAuthoritativeConcurrencyConflictException()
+        {
+            var tracker = new AuthoritativeDailyMutationTracker(NullLogger<AuthoritativeDailyMutationTracker>.Instance);
+            var syncId = Guid.NewGuid();
+            var now = DateTime.UtcNow;
+
+            var conn = new ConfigurableCountingDbConnection
+            {
+                ScalarHandler = sql => 1L,
+                ReaderHandler = sql => new FakeDbDataReader(new List<object?[]>
+                {
+                    new object?[]
+                    {
+                        "Modified By Push Concurrent", // 0: Name (mismatched!)
+                        now,                           // 1: DailyDate
+                        false,                         // 2: Closed
+                        now,                           // 3: CreatedAt
+                        "Admin",                       // 4: CreatedBy
+                        null,                          // 5: UpdatedAt
+                        null,                          // 6: UpdatedBy
+                        null,                          // 7: DeactivatedAt
+                        null,                          // 8: DeactivatedBy
+                        true                           // 9: IsActive
+                    }
+                })
+            };
+            var trans = new FakeDbTransaction();
+
+            var mutations = new List<CapturedAuthoritativeDailyMutation>
+            {
+                new CapturedAuthoritativeDailyMutation
+                {
+                    Daily = new Daily { Name = "Online New Name", SyncId = syncId },
+                    OperationType = "UPDATE",
+                    EntitySyncId = syncId,
+                    OriginalSnapshot = new AuthoritativeDailyOriginalSnapshot
+                    {
+                        SyncId = syncId,
+                        Name = "Original Name Before Push",
+                        DailyDate = now,
+                        Closed = false,
+                        CreatedAt = now,
+                        CreatedBy = "Admin",
+                        IsActive = true
+                    }
+                }
+            };
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(() =>
+                tracker.PrepareAuthoritativeBatchAsync(conn, trans, "2026", mutations, CancellationToken.None));
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains("Database current values do not match original snapshot", ex.Message);
+            Assert.Contains("Field 'Name' differed", ex.Message);
+        }
+
+        [Fact]
+        public void UnitOfWork_CapturesOriginalSnapshot_DirectlyFromEntityEntry()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            var syncId = Guid.NewGuid();
+            var originalDate = new DateTime(2026, 6, 1, 10, 0, 0, DateTimeKind.Utc);
+            var createdAt = new DateTime(2026, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+
+            using var context = new ApplicationContext(options);
+            var daily = new Daily
+            {
+                Id = 501,
+                Name = "Original Name Before Modification",
+                DailyDate = originalDate,
+                Closed = false,
+                CreatedAt = createdAt,
+                CreatedBy = "Seeder",
+                IsActive = true,
+                SyncId = syncId
+            };
+            context.Set<Daily>().Add(daily);
+            context.SaveChanges();
+
+            // Mutate the entity in the tracking graph
+            daily.Name = "Modified Name";
+            daily.Closed = true;
+
+            var entry = context.Entry(daily);
+            Assert.Equal(EntityState.Modified, entry.State);
+
+            var snapshot = UnitOfWork.CaptureDailyOriginalSnapshot(entry);
+
+            // Snapshot MUST reflect the original values, NOT the modified values
+            Assert.Equal(syncId, snapshot.SyncId);
+            Assert.Equal("Original Name Before Modification", snapshot.Name);
+            Assert.Equal(originalDate, snapshot.DailyDate);
+            Assert.False(snapshot.Closed);
+            Assert.Equal(createdAt, snapshot.CreatedAt);
+            Assert.Equal("Seeder", snapshot.CreatedBy);
+            Assert.True(snapshot.IsActive);
         }
 
         #endregion

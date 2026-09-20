@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Infrastructure\Auth.Infrastructure.csproj" />
@@ -15,6 +15,10 @@
 
   <ItemGroup>
     <PackageReference Include="NetCore.AutoRegisterDi" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Auth.UnitTests" />
   </ItemGroup>
 
   <PropertyGroup>
