@@ -485,9 +485,9 @@ namespace Auth.Infrastructure.Sync.Push
                     WHERE [SyncId] = @SyncId;";
 
                 AddParam(deleteCmd, "@DeactivatedBy", (object?)payload.DeactivatedBy ?? DBNull.Value);
-                AddParam(deleteCmd, "@DeactivatedAt", (object?)payload.DeactivatedAt ?? DateTime.UtcNow);
+                AddParam(deleteCmd, "@DeactivatedAt", (object?)payload.DeactivatedAt ?? DBNull.Value);
                 AddParam(deleteCmd, "@UpdatedBy", (object?)payload.UpdatedBy ?? DBNull.Value);
-                AddParam(deleteCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DateTime.UtcNow);
+                AddParam(deleteCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DBNull.Value);
                 AddParam(deleteCmd, "@SyncId", payload.SyncId);
 
                 await deleteCmd.ExecuteNonQueryAsync(ct);
@@ -547,7 +547,7 @@ namespace Auth.Infrastructure.Sync.Push
                 }
 
                 string name = string.Empty;
-                DateTime dailyDate;
+                DateTime? dailyDate;
 
                 if (!string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
                 {
@@ -557,22 +557,11 @@ namespace Auth.Infrastructure.Sync.Push
                         throw new SyncPayloadValidationException("Daily Name is required and cannot be empty.");
                     }
 
-                    if (!entityData.TryGetProperty("DailyDate", out var ddProp) || !ddProp.TryGetDateTime(out dailyDate))
-                    {
-                        throw new SyncPayloadValidationException("Valid DailyDate is required in entityData.");
-                    }
+                    dailyDate = ParseRequiredTimestamp(entityData, "DailyDate");
                 }
                 else
                 {
-                    // For SOFT_DELETE, DailyDate can be read if present, or defaults to UtcNow
-                    if (entityData.TryGetProperty("DailyDate", out var ddProp) && ddProp.TryGetDateTime(out var parsedDd))
-                    {
-                        dailyDate = parsedDd;
-                    }
-                    else
-                    {
-                        dailyDate = DateTime.UtcNow.Date;
-                    }
+                    dailyDate = ParseOptionalTimestamp(entityData, "DailyDate");
                 }
 
                 bool closed = false;
@@ -611,40 +600,39 @@ namespace Auth.Infrastructure.Sync.Push
                     isActive = iaProp.GetBoolean();
                 }
 
-                DateTime createdAt;
+                DateTime? createdAt;
                 if (string.Equals(operationType, "INSERT", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!entityData.TryGetProperty("CreatedAt", out var caProp) || !caProp.TryGetDateTime(out createdAt))
-                    {
-                        throw new SyncPayloadValidationException("Valid CreatedAt timestamp is required in entityData.");
-                    }
+                    createdAt = ParseRequiredTimestamp(entityData, "CreatedAt");
                 }
                 else
                 {
-                    if (entityData.TryGetProperty("CreatedAt", out var caProp) && caProp.TryGetDateTime(out var parsedCa))
-                    {
-                        createdAt = parsedCa;
-                    }
-                    else
-                    {
-                        createdAt = DateTime.UtcNow;
-                    }
+                    createdAt = ParseOptionalTimestamp(entityData, "CreatedAt");
                 }
 
                 string? createdBy = entityData.TryGetProperty("CreatedBy", out var cbProp) && cbProp.ValueKind == JsonValueKind.String ? cbProp.GetString() : null;
                 string? updatedBy = entityData.TryGetProperty("UpdatedBy", out var ubProp) && ubProp.ValueKind == JsonValueKind.String ? ubProp.GetString() : null;
 
-                DateTime? updatedAt = null;
-                if (entityData.TryGetProperty("UpdatedAt", out var uaProp) && uaProp.ValueKind == JsonValueKind.String && DateTime.TryParse(uaProp.GetString(), out var parsedUa))
+                DateTime? updatedAt;
+                if (string.Equals(operationType, "UPDATE", StringComparison.OrdinalIgnoreCase))
                 {
-                    updatedAt = parsedUa;
+                    updatedAt = ParseRequiredTimestamp(entityData, "UpdatedAt");
+                }
+                else
+                {
+                    updatedAt = ParseOptionalTimestamp(entityData, "UpdatedAt");
                 }
 
                 string? deactivatedBy = entityData.TryGetProperty("DeactivatedBy", out var dbProp) && dbProp.ValueKind == JsonValueKind.String ? dbProp.GetString() : null;
-                DateTime? deactivatedAt = null;
-                if (entityData.TryGetProperty("DeactivatedAt", out var daProp) && daProp.ValueKind == JsonValueKind.String && DateTime.TryParse(daProp.GetString(), out var parsedDa))
+
+                DateTime? deactivatedAt;
+                if (string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
                 {
-                    deactivatedAt = parsedDa;
+                    deactivatedAt = ParseRequiredTimestamp(entityData, "DeactivatedAt");
+                }
+                else
+                {
+                    deactivatedAt = ParseOptionalTimestamp(entityData, "DeactivatedAt");
                 }
 
                 return new ParsedDailyPayload
@@ -670,6 +658,46 @@ namespace Auth.Infrastructure.Sync.Push
             }
         }
 
+        private static DateTime? ParseOptionalTimestamp(JsonElement element, string propName)
+        {
+            if (!element.TryGetProperty(propName, out var prop) || prop.ValueKind == JsonValueKind.Null)
+            {
+                return null;
+            }
+
+            if (prop.ValueKind != JsonValueKind.String)
+            {
+                throw new SyncPayloadValidationException($"Malformed {propName} timestamp in entityData.");
+            }
+
+            if (prop.TryGetDateTime(out var dt) || DateTime.TryParse(prop.GetString(), out dt))
+            {
+                return dt;
+            }
+
+            throw new SyncPayloadValidationException($"Malformed {propName} timestamp in entityData.");
+        }
+
+        private static DateTime ParseRequiredTimestamp(JsonElement element, string propName)
+        {
+            if (!element.TryGetProperty(propName, out var prop) || prop.ValueKind == JsonValueKind.Null)
+            {
+                throw new SyncPayloadValidationException($"Valid {propName} timestamp is required in entityData.");
+            }
+
+            if (prop.ValueKind != JsonValueKind.String)
+            {
+                throw new SyncPayloadValidationException($"Malformed {propName} timestamp in entityData.");
+            }
+
+            if (prop.TryGetDateTime(out var dt) || DateTime.TryParse(prop.GetString(), out dt))
+            {
+                return dt;
+            }
+
+            throw new SyncPayloadValidationException($"Malformed {propName} timestamp in entityData.");
+        }
+
         private static void AddParam(DbCommand cmd, string name, object? value)
         {
             var p = cmd.CreateParameter();
@@ -684,10 +712,10 @@ namespace Auth.Infrastructure.Sync.Push
             public required Guid DeviceId { get; init; }
             public required string OperationType { get; init; }
             public required string Name { get; init; }
-            public required DateTime DailyDate { get; init; }
+            public DateTime? DailyDate { get; init; }
             public required bool Closed { get; init; }
             public required bool IsActive { get; init; }
-            public required DateTime CreatedAt { get; init; }
+            public DateTime? CreatedAt { get; init; }
             public string? CreatedBy { get; init; }
             public DateTime? UpdatedAt { get; init; }
             public string? UpdatedBy { get; init; }

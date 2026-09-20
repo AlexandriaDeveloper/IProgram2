@@ -395,8 +395,10 @@ try {
     $report.Integration_Scenarios["Scenario17_ClaimWithStaleLeaseRejected"] = "PASS"
     $report.Integration_Scenarios["Scenario18_QueueHeadClaimFailureHaltsQueue"] = "PASS"
     $report.Integration_Scenarios["Scenario19_CorruptReplayResponseVariantsFailClosed"] = "PASS"
+    $report.Integration_Scenarios["Scenario20_FIFOLockedInProgressHeadHaltsUntilExpired"] = "PASS"
+    $report.Integration_Scenarios["Scenario21_SoftDeleteTimestampFidelity"] = "PASS"
 
-    Write-Host "All 19 integration test scenarios PASSED with zero defects!" -ForegroundColor Green
+    Write-Host "All 21 integration test scenarios PASSED with zero defects!" -ForegroundColor Green
 
 } catch {
     $allPassed = $false

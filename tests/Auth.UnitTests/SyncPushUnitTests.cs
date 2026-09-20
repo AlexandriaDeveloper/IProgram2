@@ -360,7 +360,8 @@ namespace Auth.UnitTests
                     DailyDate = "2026-05-01T00:00:00Z",
                     Closed = false,
                     IsActive = false,
-                    CreatedAt = "2026-05-01T10:00:00Z"
+                    CreatedAt = "2026-05-01T10:00:00Z",
+                    DeactivatedAt = "2026-05-01T11:00:00Z"
                 }
             };
 
@@ -375,6 +376,284 @@ namespace Auth.UnitTests
 
             var parsed = AzurePushTransactionCoordinator.ParseAndValidatePayload(item);
             Assert.False(parsed.IsActive);
+            Assert.NotNull(parsed.DeactivatedAt);
+        }
+
+        [Fact]
+        public void ParsePayload_SoftDelete_MalformedDeactivatedAt_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "SOFT_DELETE",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 1,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    Closed = false,
+                    IsActive = false,
+                    DeactivatedAt = "malformed-not-a-date" // Malformed timestamp
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.SoftDelete"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+            Assert.Contains("Malformed DeactivatedAt timestamp", ex.Message);
+        }
+
+        [Fact]
+        public void ParsePayload_SoftDelete_MissingDeactivatedAt_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "SOFT_DELETE",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 1,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    Closed = false,
+                    IsActive = false
+                    // Missing DeactivatedAt
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.SoftDelete"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+            Assert.Contains("DeactivatedAt timestamp is required", ex.Message);
+        }
+
+        [Fact]
+        public void ParsePayload_Update_WithValidUpdatedAt_Succeeds()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "UPDATE",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 1,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01 معدلة",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = true,
+                    IsActive = true,
+                    UpdatedAt = "2026-05-01T12:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Update"
+            };
+
+            var parsed = AzurePushTransactionCoordinator.ParseAndValidatePayload(item);
+            Assert.Equal("UPDATE", parsed.OperationType);
+            Assert.NotNull(parsed.UpdatedAt);
+        }
+
+        [Fact]
+        public void ParsePayload_Update_MissingUpdatedAt_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "UPDATE",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 1,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01 معدلة",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = true,
+                    IsActive = true
+                    // Missing UpdatedAt
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Update"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+            Assert.Contains("UpdatedAt timestamp is required", ex.Message);
+        }
+
+        [Fact]
+        public void ParsePayload_Update_MalformedUpdatedAt_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "UPDATE",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 1,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01 معدلة",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = true,
+                    IsActive = true,
+                    UpdatedAt = "corrupt-timestamp"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Update"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+            Assert.Contains("Malformed UpdatedAt timestamp", ex.Message);
+        }
+
+        [Fact]
+        public void ParsePayload_Insert_MalformedDailyDate_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 0,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "not-a-valid-date",
+                    Closed = false,
+                    IsActive = true,
+                    CreatedAt = "2026-05-01T10:00:00Z"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Insert"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+            Assert.Contains("Malformed DailyDate timestamp", ex.Message);
+        }
+
+        [Fact]
+        public void ParsePayload_Insert_MalformedCreatedAt_ThrowsSyncPayloadValidationException()
+        {
+            var syncId = Guid.NewGuid();
+            var deviceId = Guid.NewGuid();
+            var payload = new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = deviceId,
+                entitySyncId = syncId,
+                baseServerVersion = 0,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "يومية 2026-05-01",
+                    DailyDate = "2026-05-01T00:00:00Z",
+                    Closed = false,
+                    IsActive = true,
+                    CreatedAt = "corrupt-date-string"
+                }
+            };
+
+            var item = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                PayloadJson = JsonSerializer.Serialize(payload),
+                ClientOperationId = Guid.NewGuid(),
+                EntitySyncId = syncId,
+                CommandName = "Daily.Insert"
+            };
+
+            var ex = Assert.Throws<SyncPayloadValidationException>(() =>
+                AzurePushTransactionCoordinator.ParseAndValidatePayload(item));
+            Assert.Equal("SYNC_PAYLOAD_INVALID", ex.ErrorCode);
+            Assert.Contains("Malformed CreatedAt timestamp", ex.Message);
         }
 
         [Fact]

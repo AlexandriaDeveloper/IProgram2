@@ -274,7 +274,7 @@ namespace Auth.Infrastructure.Sync.Push
                 SELECT ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount
                 FROM [sync].[LocalOutbox]
                 WHERE DatabaseId = @DatabaseId
-                  AND (Status = 'PENDING' OR (Status = 'IN_PROGRESS' AND (LockedUntilUtc IS NULL OR LockedUntilUtc < SYSUTCDATETIME())))
+                  AND Status IN ('PENDING', 'IN_PROGRESS')
                 ORDER BY CreatedAtUtc ASC, ClientOperationId ASC;";
             cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
 

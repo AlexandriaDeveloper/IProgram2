@@ -1812,6 +1812,281 @@ namespace Auth.UnitTests
 
         #endregion
 
+        #region Scenario 20: FIFO Timing Race - Locked IN_PROGRESS Head Halts Queue Until Lock Expires (P0 Proof)
+
+        [Fact]
+        public async Task Scenario20_FIFO_LockedInProgressHead_HaltsQueue_UntilLockExpires()
+        {
+            var devId = Guid.NewGuid();
+            var op1Id = Guid.NewGuid();
+            var op2Id = Guid.NewGuid();
+            var syncId1 = Guid.NewGuid();
+            var syncId2 = Guid.NewGuid();
+            var oldSessionToken = Guid.NewGuid();
+
+            await using var remoteConn = new SqlConnection(RemoteConnStr2026);
+            await remoteConn.OpenAsync();
+            var curVer = await GetServerVersionAsync(remoteConn, "2026");
+
+            var p1 = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId1,
+                baseServerVersion = curVer,
+                entityData = new { SyncId = syncId1, Name = "Op 1 Crash Locked", DailyDate = "2026-06-01T00:00:00Z", Closed = false, IsActive = true, CreatedAt = DateTime.UtcNow.ToString("O") }
+            });
+
+            var p2 = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId2,
+                baseServerVersion = curVer,
+                entityData = new { SyncId = syncId2, Name = "Op 2 Pending", DailyDate = "2026-06-01T00:00:00Z", Closed = false, IsActive = true, CreatedAt = DateTime.UtcNow.ToString("O") }
+            });
+
+            await using var localConn = new SqlConnection(LocalConnStr2026);
+            await localConn.OpenAsync();
+
+            try
+            {
+                // Setup:
+                // LocalState: active lease cleared (Session A crashed, its DB lease expired)
+                // Op1: Oldest CreatedAtUtc, IN_PROGRESS, LockedUntilUtc in future (+5 min), LockToken = oldSessionToken
+                // Op2: Newer CreatedAtUtc, PENDING
+                await using (var initCmd = localConn.CreateCommand())
+                {
+                    initCmd.CommandText = @"
+                        DELETE FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026';
+                        UPDATE [sync].[LocalState]
+                        SET LastServerVersion = @CurVer,
+                            DeviceId = @DevId,
+                            ActiveLeaseToken = NULL,
+                            LeaseExpiresAtUtc = NULL
+                        WHERE DatabaseId = '2026';
+
+                        INSERT INTO [sync].[LocalOutbox]
+                        (ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount, LockToken, LockedUntilUtc)
+                        VALUES
+                        (@Op1, '2026', 'Daily', 'Daily.Insert', @S1, @P1, DATEADD(MINUTE, -2, SYSUTCDATETIME()), 'IN_PROGRESS', 0, @OldToken, DATEADD(MINUTE, 5, SYSUTCDATETIME())),
+                        (@Op2, '2026', 'Daily', 'Daily.Insert', @S2, @P2, DATEADD(MINUTE, -1, SYSUTCDATETIME()), 'PENDING', 0, NULL, NULL);";
+                    initCmd.Parameters.AddWithValue("@CurVer", curVer);
+                    initCmd.Parameters.AddWithValue("@DevId", devId);
+                    initCmd.Parameters.AddWithValue("@OldToken", oldSessionToken);
+                    initCmd.Parameters.AddWithValue("@Op1", op1Id);
+                    initCmd.Parameters.AddWithValue("@S1", syncId1);
+                    initCmd.Parameters.AddWithValue("@P1", p1);
+                    initCmd.Parameters.AddWithValue("@Op2", op2Id);
+                    initCmd.Parameters.AddWithValue("@S2", syncId2);
+                    initCmd.Parameters.AddWithValue("@P2", p2);
+                    await initCmd.ExecuteNonQueryAsync();
+                }
+
+                var syncProviderMock = new Mock<ISyncConnectionProvider>();
+                syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+                syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+                syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+                syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(LocalConnStr2026);
+
+                var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+                remoteFactoryMock.Setup(f => f.CreateOpenConnectionAsync("2026", It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(() =>
+                    {
+                        var c = new SqlConnection(RemoteConnStr2026);
+                        c.Open();
+                        return c;
+                    });
+
+                var inMemoryConfig = new ConfigurationBuilder()
+                    .AddInMemoryCollection(new Dictionary<string, string?> { ["Sync:PushEnabled"] = "true" })
+                    .Build();
+
+                var leaseManager = new LocalPushLeaseManager(syncProviderMock.Object, NullLogger<LocalPushLeaseManager>.Instance);
+                var pushService = new LocalOutboxPushService(
+                    syncProviderMock.Object,
+                    remoteFactoryMock.Object,
+                    _coordinator,
+                    leaseManager,
+                    inMemoryConfig,
+                    NullLogger<LocalOutboxPushService>.Instance);
+
+                // FIRST ATTEMPT: Session B runs push.
+                // Expected: Queue head Op1 is IN_PROGRESS with unexpired lock.
+                // Must throw SyncLeaseExpiredException ("Queue processing halted") and MUST NOT push Op2!
+                var ex = await Assert.ThrowsAsync<SyncLeaseExpiredException>(async () =>
+                {
+                    await pushService.PushPendingOutboxAsync(CancellationToken.None);
+                });
+
+                Assert.Contains("Queue processing halted", ex.Message);
+
+                // PROOFS OF STRICT FIFO HALTING:
+                // 1. Op1 was NOT pushed to remote
+                Assert.Equal(0, await CountRowsAsync(remoteConn, $"SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = '{syncId1}';"));
+                // 2. Op2 was NOT pushed to remote
+                Assert.Equal(0, await CountRowsAsync(remoteConn, $"SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = '{syncId2}';"));
+                // 3. Op2 remains untouched in PENDING state
+                var op2StatusBefore = await GetOutboxStatusAsync(localConn, op2Id);
+                Assert.Equal("PENDING", op2StatusBefore.status);
+                Assert.Equal(0, op2StatusBefore.retryCount);
+                // 4. ServerVersion is unchanged
+                Assert.Equal(curVer, await GetServerVersionAsync(remoteConn, "2026"));
+
+                // NOW: Manually expire Op1's LockedUntilUtc (simulating time passing past the lock window)
+                await using (var expireCmd = localConn.CreateCommand())
+                {
+                    expireCmd.CommandText = "UPDATE [sync].[LocalOutbox] SET LockedUntilUtc = DATEADD(MINUTE, -1, SYSUTCDATETIME()) WHERE ClientOperationId = @Op1;";
+                    expireCmd.Parameters.AddWithValue("@Op1", op1Id);
+                    await expireCmd.ExecuteNonQueryAsync();
+                }
+
+                // SECOND ATTEMPT: Run push again.
+                // Expected: Op1 is now reclaimed and processed first. Only then is Op2 processed!
+                var batchResult = await pushService.PushPendingOutboxAsync(CancellationToken.None);
+
+                Assert.Equal(2, batchResult.TotalProcessed);
+                Assert.Equal(2, batchResult.Succeeded);
+                Assert.Equal(0, batchResult.Failed);
+
+                // Both Op1 and Op2 now exist in remote database
+                Assert.Equal(1, await CountRowsAsync(remoteConn, $"SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = '{syncId1}';"));
+                Assert.Equal(1, await CountRowsAsync(remoteConn, $"SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = '{syncId2}';"));
+
+                // Both Op1 and Op2 are COMPLETED locally
+                var op1StatusAfter = await GetOutboxStatusAsync(localConn, op1Id);
+                Assert.Equal("COMPLETED", op1StatusAfter.status);
+
+                var op2StatusAfter = await GetOutboxStatusAsync(localConn, op2Id);
+                Assert.Equal("COMPLETED", op2StatusAfter.status);
+
+                // ServerVersion advanced by exactly 2
+                Assert.Equal(curVer + 2, await GetServerVersionAsync(remoteConn, "2026"));
+            }
+            finally
+            {
+                await using var resetCmd = localConn.CreateCommand();
+                resetCmd.CommandText = "UPDATE [sync].[LocalState] SET ActiveLeaseToken = NULL, LeaseExpiresAtUtc = NULL WHERE DatabaseId = '2026';";
+                await resetCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        #endregion
+
+        #region Scenario 21: SOFT_DELETE Timestamp Fidelity (P1 Proof)
+
+        [Fact]
+        public async Task Scenario21_SoftDelete_TimestampFidelity_PreservesLocalDeactivatedAt_AndNullUpdatedAt()
+        {
+            var syncId = Guid.NewGuid();
+            var devId = Guid.NewGuid();
+            var insertOpId = Guid.NewGuid();
+            var deleteOpId = Guid.NewGuid();
+
+            await using var remoteConn = new SqlConnection(RemoteConnStr2026);
+            await remoteConn.OpenAsync();
+            var curVer = await GetServerVersionAsync(remoteConn, "2026");
+
+            // 1. Initial INSERT
+            var insertPayload = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "INSERT",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId,
+                baseServerVersion = curVer,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    Name = "Daily Fidelity Test",
+                    DailyDate = "2026-06-01T00:00:00Z",
+                    Closed = false,
+                    IsActive = true,
+                    CreatedAt = "2026-06-01T10:00:00.0000000Z"
+                }
+            });
+            var insertHash = LocalOutboxPushService.ComputeRequestHash("2026", devId, "Daily.Insert", "Daily", syncId, insertPayload);
+            var insertOutbox = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                ClientOperationId = insertOpId,
+                CommandName = "Daily.Insert",
+                AggregateType = "Daily",
+                EntitySyncId = syncId,
+                PayloadJson = insertPayload,
+                CreatedAtUtc = DateTime.UtcNow,
+                Status = "IN_PROGRESS"
+            };
+            var insertRes = await _coordinator.ApplyOperationAsync(remoteConn, "2026", insertOutbox, curVer, insertHash, devId, CancellationToken.None);
+
+            // 2. SOFT_DELETE with exact DeactivatedAt timestamp T1 and UpdatedAt = null
+            var expectedDeactivatedAt = new DateTime(2026, 6, 1, 15, 30, 45, DateTimeKind.Utc);
+            var deletePayload = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                entityType = "Daily",
+                operationType = "SOFT_DELETE",
+                databaseId = "2026",
+                deviceId = devId,
+                entitySyncId = syncId,
+                baseServerVersion = insertRes.ServerVersion,
+                entityData = new
+                {
+                    SyncId = syncId,
+                    IsActive = false,
+                    DeactivatedAt = expectedDeactivatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+                    DeactivatedBy = "AuditUser123",
+                    UpdatedAt = (string?)null
+                }
+            });
+            var deleteHash = LocalOutboxPushService.ComputeRequestHash("2026", devId, "Daily.SoftDelete", "Daily", syncId, deletePayload);
+            var deleteOutbox = new LocalOutbox
+            {
+                DatabaseId = "2026",
+                ClientOperationId = deleteOpId,
+                CommandName = "Daily.SoftDelete",
+                AggregateType = "Daily",
+                EntitySyncId = syncId,
+                PayloadJson = deletePayload,
+                CreatedAtUtc = DateTime.UtcNow,
+                Status = "IN_PROGRESS"
+            };
+            await _coordinator.ApplyOperationAsync(remoteConn, "2026", deleteOutbox, insertRes.ServerVersion, deleteHash, devId, CancellationToken.None);
+
+            // 3. FIDELITY PROOF: Verify Remote row in [dbo].[Daily]
+            await using var queryCmd = remoteConn.CreateCommand();
+            queryCmd.CommandText = "SELECT IsActive, DeactivatedAt, DeactivatedBy, UpdatedAt FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+            queryCmd.Parameters.AddWithValue("@SyncId", syncId);
+
+            await using var reader = await queryCmd.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.False(reader.GetBoolean(0)); // IsActive = false
+
+            // Remote DeactivatedAt must match local T1 exactly (no coordinator UtcNow generation)
+            var actualDeactivatedAt = reader.GetDateTime(1);
+            Assert.Equal(expectedDeactivatedAt.Year, actualDeactivatedAt.Year);
+            Assert.Equal(expectedDeactivatedAt.Month, actualDeactivatedAt.Month);
+            Assert.Equal(expectedDeactivatedAt.Day, actualDeactivatedAt.Day);
+            Assert.Equal(expectedDeactivatedAt.Hour, actualDeactivatedAt.Hour);
+            Assert.Equal(expectedDeactivatedAt.Minute, actualDeactivatedAt.Minute);
+            Assert.Equal(expectedDeactivatedAt.Second, actualDeactivatedAt.Second);
+
+            Assert.Equal("AuditUser123", reader.GetString(2));
+
+            // Remote UpdatedAt MUST BE NULL (no coordinator UtcNow fallback generation)
+            Assert.True(reader.IsDBNull(3));
+        }
+
+        #endregion
+
         #region Helper Methods
 
         private static async Task<long> GetServerVersionAsync(SqlConnection conn, string databaseId)
