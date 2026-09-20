@@ -56,6 +56,12 @@ public static class InfrastructureExtension
         services.AddScoped<Sync.ReadOnlyDbCommandInterceptor>();
         services.AddScoped<Sync.ReadOnlyDbConnectionInterceptor>();
 
+        // Slice 4.3C - Idempotent Daily Outbox Push to Azure
+        services.AddScoped<Sync.Push.IRemoteDatabaseConnectionFactory, Sync.Push.AzureRemoteDatabaseConnectionFactory>();
+        services.AddScoped<Sync.Push.IAzurePushTransactionCoordinator, Sync.Push.AzurePushTransactionCoordinator>();
+        services.AddScoped<Sync.Push.ILocalPushLeaseManager, Sync.Push.LocalPushLeaseManager>();
+        services.AddScoped<Sync.Push.ILocalOutboxPushService, Sync.Push.LocalOutboxPushService>();
+
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();

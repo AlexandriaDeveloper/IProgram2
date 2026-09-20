@@ -1,6 +1,6 @@
 ﻿{
     "Gate":  "Slice_4_3A_OfflineReadOnlySmoke",
-    "TimestampUtc":  "2026-09-20T14:44:19.6304799Z",
+    "TimestampUtc":  "2026-09-20T17:48:01.0612198Z",
     "LocalEngine":  "localhost (SQL Server 2014)",
     "Databases":  [
                       "IProgramLocalDb2026",
@@ -32,22 +32,22 @@
                                                          "Employees":  {
                                                                            "RowCount":  12308,
                                                                            "Sha256Hash":  "992CFDD6401E48C9D81417243DF8A6183CF6005EF679BCAF3C15BEFFA41A009B",
-                                                                           "ElapsedSec":  0.1131
+                                                                           "ElapsedSec":  0.108
                                                                        },
                                                          "Daily":  {
                                                                        "RowCount":  30,
                                                                        "Sha256Hash":  "EFF7746D5434E789154FB901513722849477DA98C7450D013A8670BC4E9D2206",
-                                                                       "ElapsedSec":  0.0126
+                                                                       "ElapsedSec":  0.0129
                                                                    },
                                                          "Form":  {
                                                                       "RowCount":  1590,
                                                                       "Sha256Hash":  "794DF6472584D8DD952E0D999C8CF8BF90BC6148495BA75A0894AA61F0EE5A04",
-                                                                      "ElapsedSec":  0.0215
+                                                                      "ElapsedSec":  0.0219
                                                                   },
                                                          "FormDetails":  {
                                                                              "RowCount":  29392,
                                                                              "Sha256Hash":  "295DB86379458A5F1BCDDFC920DE904FBD859958990A0E00E158E30CD86015E7",
-                                                                             "ElapsedSec":  0.3073
+                                                                             "ElapsedSec":  0.3184
                                                                          },
                                                          "Departments":  {
                                                                              "RowCount":  8,
@@ -57,79 +57,22 @@
                                                          "EmployeeBank":  {
                                                                               "RowCount":  478,
                                                                               "Sha256Hash":  "0B98FE78892B76C39EB5E57D64E0E60CC4B0E1C4629618011EEA025D9E83A67B",
-                                                                              "ElapsedSec":  0.0135
+                                                                              "ElapsedSec":  0.0143
                                                                           },
                                                          "EmployeeNetPays":  {
                                                                                  "RowCount":  3670,
                                                                                  "Sha256Hash":  "C1F52B72F2E1354EAAB2A9F9195E5849F843776E7892825CD29C280F774B877D",
-                                                                                 "ElapsedSec":  0.0282
+                                                                                 "ElapsedSec":  0.0283
                                                                              },
                                                          "EmployeeRefernce":  {
                                                                                   "RowCount":  0,
                                                                                   "Sha256Hash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-                                                                                  "ElapsedSec":  0.012
+                                                                                  "ElapsedSec":  0.0119
                                                                               },
                                                          "AspNetUsers":  {
                                                                              "RowCount":  2,
                                                                              "Sha256Hash":  "380BEDB871370AFD203440407099C7DE36FEF1D3F4A1452DEF648FD591823770",
                                                                              "ElapsedSec":  0.0007
-                                                                         },
-                                                         "AspNetRoles":  {
-                                                                             "RowCount":  2,
-                                                                             "Sha256Hash":  "A8BBA7BDA1FA907229F572DB2B68576C5EED349B711E8AFF6927929225046DFB",
-                                                                             "ElapsedSec":  0.0005
-                                                                         },
-                                                         "AspNetUserRoles":  {
-                                                                                 "RowCount":  3,
-                                                                                 "Sha256Hash":  "8AD10BCB3123096E8AEA7C466B490D9340AFCB26F4D73F03CE6122CD5416A5D0",
-                                                                                 "ElapsedSec":  0.0006
-                                                                             }
-                                                     },
-                      "PreTest_Sha256_Hashes_2027":  {
-                                                         "Employees":  {
-                                                                           "RowCount":  12353,
-                                                                           "Sha256Hash":  "2212BF92E003BE0F4017405DF0E2EDA5F9E8E00D6E5735E5D40B6A2060B38F59",
-                                                                           "ElapsedSec":  0.0919
-                                                                       },
-                                                         "Daily":  {
-                                                                       "RowCount":  14,
-                                                                       "Sha256Hash":  "2A2DDFFBB83AE214B66519ACD339680E1166EDEE7CA76042A70BF8CB17FBC9C8",
-                                                                       "ElapsedSec":  0.0114
-                                                                   },
-                                                         "Form":  {
-                                                                      "RowCount":  580,
-                                                                      "Sha256Hash":  "09327F3F0AC66E5E3302BEDE8199D04B943049EFADDE6EBDE5D4F3A100531148",
-                                                                      "ElapsedSec":  0.014
-                                                                  },
-                                                         "FormDetails":  {
-                                                                             "RowCount":  7877,
-                                                                             "Sha256Hash":  "2A013FCED82261122614A06014C4E147787C99C3DE388C2185723E9BF9B08755",
-                                                                             "ElapsedSec":  0.0788
-                                                                         },
-                                                         "Departments":  {
-                                                                             "RowCount":  9,
-                                                                             "Sha256Hash":  "D965E110C043BC31ED9185A8E34D17A4A47DA0EB2E884CBC76B9DBE5FF03E21C",
-                                                                             "ElapsedSec":  0.0009
-                                                                         },
-                                                         "EmployeeBank":  {
-                                                                              "RowCount":  478,
-                                                                              "Sha256Hash":  "E8C6ABE24B4E38594FE0C884016141E047051EABE9C3E83DC43D89336C14AE93",
-                                                                              "ElapsedSec":  0.0139
-                                                                          },
-                                                         "EmployeeNetPays":  {
-                                                                                 "RowCount":  4098,
-                                                                                 "Sha256Hash":  "164A14A503449E1E517D0420BA27FB28EBDA87D9B68D5F0274451BD982284F8D",
-                                                                                 "ElapsedSec":  0.0292
-                                                                             },
-                                                         "EmployeeRefernce":  {
-                                                                                  "RowCount":  0,
-                                                                                  "Sha256Hash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-                                                                                  "ElapsedSec":  0.0108
-                                                                              },
-                                                         "AspNetUsers":  {
-                                                                             "RowCount":  2,
-                                                                             "Sha256Hash":  "380BEDB871370AFD203440407099C7DE36FEF1D3F4A1452DEF648FD591823770",
-                                                                             "ElapsedSec":  0.0011
                                                                          },
                                                          "AspNetRoles":  {
                                                                              "RowCount":  2,
@@ -140,6 +83,63 @@
                                                                                  "RowCount":  3,
                                                                                  "Sha256Hash":  "8AD10BCB3123096E8AEA7C466B490D9340AFCB26F4D73F03CE6122CD5416A5D0",
                                                                                  "ElapsedSec":  0.0005
+                                                                             }
+                                                     },
+                      "PreTest_Sha256_Hashes_2027":  {
+                                                         "Employees":  {
+                                                                           "RowCount":  12353,
+                                                                           "Sha256Hash":  "2212BF92E003BE0F4017405DF0E2EDA5F9E8E00D6E5735E5D40B6A2060B38F59",
+                                                                           "ElapsedSec":  0.0938
+                                                                       },
+                                                         "Daily":  {
+                                                                       "RowCount":  14,
+                                                                       "Sha256Hash":  "2A2DDFFBB83AE214B66519ACD339680E1166EDEE7CA76042A70BF8CB17FBC9C8",
+                                                                       "ElapsedSec":  0.0126
+                                                                   },
+                                                         "Form":  {
+                                                                      "RowCount":  580,
+                                                                      "Sha256Hash":  "09327F3F0AC66E5E3302BEDE8199D04B943049EFADDE6EBDE5D4F3A100531148",
+                                                                      "ElapsedSec":  0.0153
+                                                                  },
+                                                         "FormDetails":  {
+                                                                             "RowCount":  7877,
+                                                                             "Sha256Hash":  "2A013FCED82261122614A06014C4E147787C99C3DE388C2185723E9BF9B08755",
+                                                                             "ElapsedSec":  0.0828
+                                                                         },
+                                                         "Departments":  {
+                                                                             "RowCount":  9,
+                                                                             "Sha256Hash":  "D965E110C043BC31ED9185A8E34D17A4A47DA0EB2E884CBC76B9DBE5FF03E21C",
+                                                                             "ElapsedSec":  0.0016
+                                                                         },
+                                                         "EmployeeBank":  {
+                                                                              "RowCount":  478,
+                                                                              "Sha256Hash":  "E8C6ABE24B4E38594FE0C884016141E047051EABE9C3E83DC43D89336C14AE93",
+                                                                              "ElapsedSec":  0.0171
+                                                                          },
+                                                         "EmployeeNetPays":  {
+                                                                                 "RowCount":  4098,
+                                                                                 "Sha256Hash":  "164A14A503449E1E517D0420BA27FB28EBDA87D9B68D5F0274451BD982284F8D",
+                                                                                 "ElapsedSec":  0.033
+                                                                             },
+                                                         "EmployeeRefernce":  {
+                                                                                  "RowCount":  0,
+                                                                                  "Sha256Hash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                                                  "ElapsedSec":  0.0128
+                                                                              },
+                                                         "AspNetUsers":  {
+                                                                             "RowCount":  2,
+                                                                             "Sha256Hash":  "380BEDB871370AFD203440407099C7DE36FEF1D3F4A1452DEF648FD591823770",
+                                                                             "ElapsedSec":  0.0008
+                                                                         },
+                                                         "AspNetRoles":  {
+                                                                             "RowCount":  2,
+                                                                             "Sha256Hash":  "A8BBA7BDA1FA907229F572DB2B68576C5EED349B711E8AFF6927929225046DFB",
+                                                                             "ElapsedSec":  0.0004
+                                                                         },
+                                                         "AspNetUserRoles":  {
+                                                                                 "RowCount":  3,
+                                                                                 "Sha256Hash":  "8AD10BCB3123096E8AEA7C466B490D9340AFCB26F4D73F03CE6122CD5416A5D0",
+                                                                                 "ElapsedSec":  0.0006
                                                                              }
                                                      }
                   },
@@ -177,7 +177,7 @@
                                                  },
                               "Year_2026_Flow":  {
                                                      "Status":  "PASS",
-                                                     "ExportBytes":  4597
+                                                     "ExportBytes":  4599
                                                  },
                               "Year_2027_Flow":  {
                                                      "Status":  "PASS",
@@ -223,7 +223,7 @@
                                                                     "DisallowedRemoteConnections":  0,
                                                                     "SampleRecords":  [
                                                                                           {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:38.8253872Z",
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.652515Z",
                                                                                               "database":  "IProgramLocalDb2027_SmokeTest",
                                                                                               "dataSource":  "localhost",
                                                                                               "isLocal":  true,
@@ -231,7 +231,7 @@
                                                                                               "allowed":  true
                                                                                           },
                                                                                           {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:38.8182541Z",
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.6469958Z",
                                                                                               "database":  "IProgramLocalDb2027_SmokeTest",
                                                                                               "dataSource":  "localhost",
                                                                                               "isLocal":  true,
@@ -239,7 +239,7 @@
                                                                                               "allowed":  true
                                                                                           },
                                                                                           {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:38.7993644Z",
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.632474Z",
                                                                                               "database":  "IProgramLocalDb2027_SmokeTest",
                                                                                               "dataSource":  "localhost",
                                                                                               "isLocal":  true,
@@ -247,7 +247,7 @@
                                                                                               "allowed":  true
                                                                                           },
                                                                                           {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:38.7908756Z",
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.6186633Z",
                                                                                               "database":  "IProgramLocalDb2027_SmokeTest",
                                                                                               "dataSource":  "localhost",
                                                                                               "isLocal":  true,
@@ -255,39 +255,7 @@
                                                                                               "allowed":  true
                                                                                           },
                                                                                           {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:36.1237952Z",
-                                                                                              "database":  "IProgramLocalDb2026_SmokeTest",
-                                                                                              "dataSource":  "localhost",
-                                                                                              "isLocal":  true,
-                                                                                              "isFallbackEndpoint":  false,
-                                                                                              "allowed":  true
-                                                                                          },
-                                                                                          {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:35.9936648Z",
-                                                                                              "database":  "IProgramLocalDb2026_SmokeTest",
-                                                                                              "dataSource":  "localhost",
-                                                                                              "isLocal":  true,
-                                                                                              "isFallbackEndpoint":  false,
-                                                                                              "allowed":  true
-                                                                                          },
-                                                                                          {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:35.8695925Z",
-                                                                                              "database":  "IProgramLocalDb2026_SmokeTest",
-                                                                                              "dataSource":  "localhost",
-                                                                                              "isLocal":  true,
-                                                                                              "isFallbackEndpoint":  false,
-                                                                                              "allowed":  true
-                                                                                          },
-                                                                                          {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:35.8096724Z",
-                                                                                              "database":  "IProgramLocalDb2026_SmokeTest",
-                                                                                              "dataSource":  "localhost",
-                                                                                              "isLocal":  true,
-                                                                                              "isFallbackEndpoint":  false,
-                                                                                              "allowed":  true
-                                                                                          },
-                                                                                          {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:38.8074723Z",
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.6160675Z",
                                                                                               "database":  "IProgramLocalDb2027_SmokeTest",
                                                                                               "dataSource":  "localhost",
                                                                                               "isLocal":  true,
@@ -295,7 +263,39 @@
                                                                                               "allowed":  true
                                                                                           },
                                                                                           {
-                                                                                              "timestampUtc":  "2026-09-20T14:44:38.7932846Z",
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.6394218Z",
+                                                                                              "database":  "IProgramLocalDb2027_SmokeTest",
+                                                                                              "dataSource":  "localhost",
+                                                                                              "isLocal":  true,
+                                                                                              "isFallbackEndpoint":  false,
+                                                                                              "allowed":  true
+                                                                                          },
+                                                                                          {
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.627493Z",
+                                                                                              "database":  "IProgramLocalDb2027_SmokeTest",
+                                                                                              "dataSource":  "localhost",
+                                                                                              "isLocal":  true,
+                                                                                              "isFallbackEndpoint":  false,
+                                                                                              "allowed":  true
+                                                                                          },
+                                                                                          {
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.6252615Z",
+                                                                                              "database":  "IProgramLocalDb2027_SmokeTest",
+                                                                                              "dataSource":  "localhost",
+                                                                                              "isLocal":  true,
+                                                                                              "isFallbackEndpoint":  false,
+                                                                                              "allowed":  true
+                                                                                          },
+                                                                                          {
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.6197974Z",
+                                                                                              "database":  "IProgramLocalDb2027_SmokeTest",
+                                                                                              "dataSource":  "localhost",
+                                                                                              "isLocal":  true,
+                                                                                              "isFallbackEndpoint":  false,
+                                                                                              "allowed":  true
+                                                                                          },
+                                                                                          {
+                                                                                              "timestampUtc":  "2026-09-20T17:48:18.5590885Z",
                                                                                               "database":  "IProgramLocalDb2027_SmokeTest",
                                                                                               "dataSource":  "localhost",
                                                                                               "isLocal":  true,
@@ -316,114 +316,114 @@
                                                          "Employees":  {
                                                                            "RowCount":  12308,
                                                                            "Sha256Hash":  "992CFDD6401E48C9D81417243DF8A6183CF6005EF679BCAF3C15BEFFA41A009B",
-                                                                           "ElapsedSec":  0.1622
+                                                                           "ElapsedSec":  0.1127
                                                                        },
                                                          "Daily":  {
                                                                        "RowCount":  30,
                                                                        "Sha256Hash":  "EFF7746D5434E789154FB901513722849477DA98C7450D013A8670BC4E9D2206",
-                                                                       "ElapsedSec":  0.0112
+                                                                       "ElapsedSec":  0.0006
                                                                    },
                                                          "Form":  {
                                                                       "RowCount":  1590,
                                                                       "Sha256Hash":  "794DF6472584D8DD952E0D999C8CF8BF90BC6148495BA75A0894AA61F0EE5A04",
-                                                                      "ElapsedSec":  0.0227
+                                                                      "ElapsedSec":  0.0108
                                                                   },
                                                          "FormDetails":  {
                                                                              "RowCount":  29392,
                                                                              "Sha256Hash":  "295DB86379458A5F1BCDDFC920DE904FBD859958990A0E00E158E30CD86015E7",
-                                                                             "ElapsedSec":  0.4029
+                                                                             "ElapsedSec":  0.2859
                                                                          },
                                                          "Departments":  {
                                                                              "RowCount":  8,
                                                                              "Sha256Hash":  "8008870EFBF290A4CA8CA77EB27240B7CE8AC0040C5DCAEE0C8C224FC44007F5",
-                                                                             "ElapsedSec":  0.0009
+                                                                             "ElapsedSec":  0.0005
                                                                          },
                                                          "EmployeeBank":  {
                                                                               "RowCount":  478,
                                                                               "Sha256Hash":  "0B98FE78892B76C39EB5E57D64E0E60CC4B0E1C4629618011EEA025D9E83A67B",
-                                                                              "ElapsedSec":  0.0134
+                                                                              "ElapsedSec":  0.0027
                                                                           },
                                                          "EmployeeNetPays":  {
                                                                                  "RowCount":  3670,
                                                                                  "Sha256Hash":  "C1F52B72F2E1354EAAB2A9F9195E5849F843776E7892825CD29C280F774B877D",
-                                                                                 "ElapsedSec":  0.0386
+                                                                                 "ElapsedSec":  0.0215
                                                                              },
                                                          "EmployeeRefernce":  {
                                                                                   "RowCount":  0,
                                                                                   "Sha256Hash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-                                                                                  "ElapsedSec":  0.0097
+                                                                                  "ElapsedSec":  0.0004
                                                                               },
                                                          "AspNetUsers":  {
                                                                              "RowCount":  2,
                                                                              "Sha256Hash":  "380BEDB871370AFD203440407099C7DE36FEF1D3F4A1452DEF648FD591823770",
-                                                                             "ElapsedSec":  0.0009
+                                                                             "ElapsedSec":  0.0005
                                                                          },
                                                          "AspNetRoles":  {
                                                                              "RowCount":  2,
                                                                              "Sha256Hash":  "A8BBA7BDA1FA907229F572DB2B68576C5EED349B711E8AFF6927929225046DFB",
-                                                                             "ElapsedSec":  0.0006
+                                                                             "ElapsedSec":  0.0003
                                                                          },
                                                          "AspNetUserRoles":  {
                                                                                  "RowCount":  3,
                                                                                  "Sha256Hash":  "8AD10BCB3123096E8AEA7C466B490D9340AFCB26F4D73F03CE6122CD5416A5D0",
-                                                                                 "ElapsedSec":  0.0005
+                                                                                 "ElapsedSec":  0.0003
                                                                              }
                                                      },
                                  "PostSha256_2027":  {
                                                          "Employees":  {
                                                                            "RowCount":  12353,
                                                                            "Sha256Hash":  "2212BF92E003BE0F4017405DF0E2EDA5F9E8E00D6E5735E5D40B6A2060B38F59",
-                                                                           "ElapsedSec":  0.1333
+                                                                           "ElapsedSec":  0.0859
                                                                        },
                                                          "Daily":  {
                                                                        "RowCount":  14,
                                                                        "Sha256Hash":  "2A2DDFFBB83AE214B66519ACD339680E1166EDEE7CA76042A70BF8CB17FBC9C8",
-                                                                       "ElapsedSec":  0.0107
+                                                                       "ElapsedSec":  0.0005
                                                                    },
                                                          "Form":  {
                                                                       "RowCount":  580,
                                                                       "Sha256Hash":  "09327F3F0AC66E5E3302BEDE8199D04B943049EFADDE6EBDE5D4F3A100531148",
-                                                                      "ElapsedSec":  0.0149
+                                                                      "ElapsedSec":  0.0032
                                                                   },
                                                          "FormDetails":  {
                                                                              "RowCount":  7877,
                                                                              "Sha256Hash":  "2A013FCED82261122614A06014C4E147787C99C3DE388C2185723E9BF9B08755",
-                                                                             "ElapsedSec":  0.1268
+                                                                             "ElapsedSec":  0.0697
                                                                          },
                                                          "Departments":  {
                                                                              "RowCount":  9,
                                                                              "Sha256Hash":  "D965E110C043BC31ED9185A8E34D17A4A47DA0EB2E884CBC76B9DBE5FF03E21C",
-                                                                             "ElapsedSec":  0.0009
+                                                                             "ElapsedSec":  0.0006
                                                                          },
                                                          "EmployeeBank":  {
                                                                               "RowCount":  478,
                                                                               "Sha256Hash":  "E8C6ABE24B4E38594FE0C884016141E047051EABE9C3E83DC43D89336C14AE93",
-                                                                              "ElapsedSec":  0.0141
+                                                                              "ElapsedSec":  0.0029
                                                                           },
                                                          "EmployeeNetPays":  {
                                                                                  "RowCount":  4098,
                                                                                  "Sha256Hash":  "164A14A503449E1E517D0420BA27FB28EBDA87D9B68D5F0274451BD982284F8D",
-                                                                                 "ElapsedSec":  0.0393
+                                                                                 "ElapsedSec":  0.0193
                                                                              },
                                                          "EmployeeRefernce":  {
                                                                                   "RowCount":  0,
                                                                                   "Sha256Hash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-                                                                                  "ElapsedSec":  0.0094
+                                                                                  "ElapsedSec":  0.0003
                                                                               },
                                                          "AspNetUsers":  {
                                                                              "RowCount":  2,
                                                                              "Sha256Hash":  "380BEDB871370AFD203440407099C7DE36FEF1D3F4A1452DEF648FD591823770",
-                                                                             "ElapsedSec":  0.0007
+                                                                             "ElapsedSec":  0.0003
                                                                          },
                                                          "AspNetRoles":  {
                                                                              "RowCount":  2,
                                                                              "Sha256Hash":  "A8BBA7BDA1FA907229F572DB2B68576C5EED349B711E8AFF6927929225046DFB",
-                                                                             "ElapsedSec":  0.0005
+                                                                             "ElapsedSec":  0.0002
                                                                          },
                                                          "AspNetUserRoles":  {
                                                                                  "RowCount":  3,
                                                                                  "Sha256Hash":  "8AD10BCB3123096E8AEA7C466B490D9340AFCB26F4D73F03CE6122CD5416A5D0",
-                                                                                 "ElapsedSec":  0.0004
+                                                                                 "ElapsedSec":  0.0002
                                                                              }
                                                      }
                              },

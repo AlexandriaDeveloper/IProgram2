@@ -428,6 +428,12 @@ namespace Auth.UnitTests
             var filesWithTransaction = new List<string>();
             foreach (var file in csFiles)
             {
+                // Raw ADO.NET transactions in Sync Push coordinator are not EF Core DbContext transactions
+                if (file.Contains(Path.Combine("Sync", "Push")))
+                {
+                    continue;
+                }
+
                 var content = File.ReadAllText(file);
                 if (content.Contains("BeginTransactionAsync") || content.Contains("BeginTransaction("))
                 {

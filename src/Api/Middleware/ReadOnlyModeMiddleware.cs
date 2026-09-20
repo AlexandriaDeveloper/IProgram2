@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -114,7 +115,7 @@ namespace Auth.Api.Middleware
 
             // 5. OfflineReadWritePilot mode (isLocalFirst == true && isReadOnly == false):
             // Strictly check allowlist for permitted Daily pilot operations
-            if (IsPermittedOfflineWritePilotRoute(method, path))
+            if (IsPermittedOfflineWritePilotRoute(method, path, _configuration))
             {
                 await _next(context);
                 return;
@@ -140,11 +141,22 @@ namespace Auth.Api.Middleware
             await context.Response.WriteAsJsonAsync(scopeResponsePayload);
         }
 
-        public static bool IsPermittedOfflineWritePilotRoute(string method, string path)
+        public static bool IsPermittedOfflineWritePilotRoute(string method, string path, IConfiguration? configuration = null)
         {
             if (HttpMethods.IsPost(method))
             {
-                return string.Equals(path, "/api/daily", StringComparison.OrdinalIgnoreCase);
+                if (string.Equals(path, "/api/daily", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (string.Equals(path, "/api/sync/push", StringComparison.OrdinalIgnoreCase) &&
+                    configuration?.GetValue<bool>("Sync:PushEnabled", false) == true)
+                {
+                    return true;
+                }
+
+                return false;
             }
 
             if (HttpMethods.IsPut(method))
