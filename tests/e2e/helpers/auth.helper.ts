@@ -160,9 +160,6 @@ export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
         return;
       }
 
-      if (text.includes('ERR_FAILED') || text.includes('ERR_ABORTED')) {
-        return;
-      }
 
       // Check if this console error corresponds to an allowed HTTP error response
       const isAllowedHttpConsoleError = options?.allowedErrors?.some(e =>
@@ -252,4 +249,5 @@ export async function loginThroughUI(page: Page, year: string = '2026') {
   expect(storedDb).toBe(year);
 
   monitor.assertNoFailures();
+  return monitor;
 }

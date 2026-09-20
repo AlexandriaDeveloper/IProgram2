@@ -48,7 +48,11 @@ namespace Core.Models.Sync
         {
             if (string.IsNullOrWhiteSpace(physicalDbName)) return false;
             return physicalDbName.Equals(LocalDb2026, StringComparison.OrdinalIgnoreCase) ||
-                   physicalDbName.Equals(LocalDb2027, StringComparison.OrdinalIgnoreCase);
+                   physicalDbName.Equals(LocalDb2027, StringComparison.OrdinalIgnoreCase) ||
+                   physicalDbName.Equals(LocalDb2026 + "_Test", StringComparison.OrdinalIgnoreCase) ||
+                   physicalDbName.Equals(LocalDb2027 + "_Test", StringComparison.OrdinalIgnoreCase) ||
+                   physicalDbName.Equals(LocalDb2026 + "_SmokeTest", StringComparison.OrdinalIgnoreCase) ||
+                   physicalDbName.Equals(LocalDb2027 + "_SmokeTest", StringComparison.OrdinalIgnoreCase);
         }
 
         public static void ValidateTargetDatabase(string canonicalDatabaseId, string physicalDbName, bool isLocalTarget)
@@ -76,10 +80,14 @@ namespace Core.Models.Sync
                 }
 
                 var expectedLocal = GetExpectedLocalDatabaseName(normId);
-                if (!normName.Equals(expectedLocal, StringComparison.OrdinalIgnoreCase))
+                bool matchesExpected = normName.Equals(expectedLocal, StringComparison.OrdinalIgnoreCase) ||
+                                       normName.Equals(expectedLocal + "_Test", StringComparison.OrdinalIgnoreCase) ||
+                                       normName.Equals(expectedLocal + "_SmokeTest", StringComparison.OrdinalIgnoreCase);
+
+                if (!matchesExpected)
                 {
                     throw new PhysicalDatabaseMismatchException(
-                        $"Physical database mismatch: Local target for '{normId}' must be '{expectedLocal}', but found '{normName}'.");
+                        $"Physical database mismatch: Local target for '{normId}' must be '{expectedLocal}' (or isolated test variant), but found '{normName}'.");
                 }
             }
             else

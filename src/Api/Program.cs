@@ -246,12 +246,13 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2E:Dia
     app.MapGet("/api/diagnostics/connection-audit", () =>
     {
         var records = Auth.Infrastructure.Sync.ConnectionAuditTracker.GetRecords();
-        var disallowed = records.Where(r => !r.Allowed || !r.IsLocal).ToList();
+        var disallowed = records.Where(r => !r.Allowed || !r.IsLocal || r.IsFallbackEndpoint).ToList();
         return Results.Ok(new
         {
             totalConnections = records.Count,
-            allowedLocalConnections = records.Count(r => r.Allowed && r.IsLocal),
+            allowedLocalConnections = records.Count(r => r.Allowed && r.IsLocal && !r.IsFallbackEndpoint),
             disallowedRemoteConnections = disallowed.Count,
+            fallbackAttempts = records.Count(r => r.IsFallbackEndpoint),
             disallowedAttempts = disallowed,
             records = records
         });

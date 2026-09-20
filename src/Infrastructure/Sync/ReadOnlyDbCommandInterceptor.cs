@@ -36,8 +36,8 @@ namespace Auth.Infrastructure.Sync
 
         public static bool IsReadOnlyPermitted(string sql, System.Data.CommandType commandType = System.Data.CommandType.Text)
         {
-            // 1. Fail-closed on StoredProcedure: stored procedures can execute hidden DML/DDL mutations
-            if (commandType == System.Data.CommandType.StoredProcedure)
+            // 1. Fail-closed on any CommandType other than Text (rejects StoredProcedure, TableDirect, etc.)
+            if (commandType != System.Data.CommandType.Text)
             {
                 return false;
             }
@@ -63,7 +63,15 @@ namespace Auth.Infrastructure.Sync
                 return false;
             }
 
-            // 4. Validate every statement across every batch against an explicit allowlist (default-deny)
+            // 4. Deep AST inspection: detect side-effect nodes anywhere in the query (e.g. NEXT VALUE FOR, SELECT INTO)
+            var visitor = new SideEffectDetectorVisitor();
+            script.Accept(visitor);
+            if (visitor.HasSideEffects)
+            {
+                return false;
+            }
+
+            // 5. Validate every statement across every batch against an explicit allowlist (default-deny)
             if (script.Batches == null || script.Batches.Count == 0)
             {
                 return true;
@@ -96,18 +104,54 @@ namespace Auth.Infrastructure.Sync
                     }
                     return true;
 
-                case Microsoft.SqlServer.TransactSql.ScriptDom.PredicateSetStatement:
                 case Microsoft.SqlServer.TransactSql.ScriptDom.SetTransactionIsolationLevelStatement:
-                case Microsoft.SqlServer.TransactSql.ScriptDom.SetVariableStatement:
-                case Microsoft.SqlServer.TransactSql.ScriptDom.SetCommandStatement:
-                case Microsoft.SqlServer.TransactSql.ScriptDom.UseStatement:
                     return true;
 
+                case Microsoft.SqlServer.TransactSql.ScriptDom.PredicateSetStatement predicateSet:
+                    return IsSafePredicateSet(predicateSet);
+
                 default:
-                    // All other statements (UpdateStatement, InsertStatement, DeleteStatement,
+                    // All other statements (UseStatement, UpdateStatement, InsertStatement, DeleteStatement,
                     // MergeStatement, ExecuteStatement, AlterTableStatement, DropTableStatement,
-                    // TruncateTableStatement, CreateTableStatement, etc.) are strictly DENIED.
+                    // TruncateTableStatement, CreateTableStatement, SetCommandStatement, SetIdentityInsertStatement,
+                    // SetVariableStatement, SetUserStatement, etc.) are strictly DENIED.
                     return false;
+            }
+        }
+
+        private static bool IsSafePredicateSet(Microsoft.SqlServer.TransactSql.ScriptDom.PredicateSetStatement stmt)
+        {
+            // Restrict SET statements to safe session options only
+            const Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions allowedOptions =
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.NoCount |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.AnsiNulls |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.AnsiPadding |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.AnsiWarnings |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.ArithAbort |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.ConcatNullYieldsNull |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.QuotedIdentifier |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.NumericRoundAbort |
+                Microsoft.SqlServer.TransactSql.ScriptDom.SetOptions.XactAbort;
+
+            return (stmt.Options & ~allowedOptions) == 0;
+        }
+
+        private class SideEffectDetectorVisitor : Microsoft.SqlServer.TransactSql.ScriptDom.TSqlConcreteFragmentVisitor
+        {
+            public bool HasSideEffects { get; private set; }
+
+            public override void ExplicitVisit(Microsoft.SqlServer.TransactSql.ScriptDom.NextValueForExpression node)
+            {
+                HasSideEffects = true;
+            }
+
+            public override void ExplicitVisit(Microsoft.SqlServer.TransactSql.ScriptDom.SelectStatement node)
+            {
+                if (node.Into != null)
+                {
+                    HasSideEffects = true;
+                }
+                base.ExplicitVisit(node);
             }
         }
 

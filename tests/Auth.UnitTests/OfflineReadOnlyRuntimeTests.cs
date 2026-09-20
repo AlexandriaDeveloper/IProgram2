@@ -394,6 +394,11 @@ namespace Auth.UnitTests
         [InlineData("SELECT '/*'; UPDATE [dbo].[FormDetails] SET [Amount]=100 WHERE [Id]=1; SELECT '*/';")]
         [InlineData("SELECT 1; DROP TABLE [dbo].[FormDetails];")]
         [InlineData("SELECT * FROM [dbo].[FormDetails]; INVALID SYNTAX ERROR !!!")]
+        [InlineData("SELECT NEXT VALUE FOR MySequence;")]
+        [InlineData("SELECT NEXT VALUE FOR [dbo].[EmpSeq], Id FROM Employees;")]
+        [InlineData("USE [IProgramDb2026]; SELECT 1;")]
+        [InlineData("SET IDENTITY_INSERT Employees ON;")]
+        [InlineData("SET @myVar = 10;")]
         public async Task ReadOnlyDbCommandInterceptor_ThrowsReadOnlyModeException_OnMutatingSql_AllExecutionTypes(string mutatingSql)
         {
             var mockSyncProvider = new Mock<ISyncConnectionProvider>();
@@ -431,8 +436,10 @@ namespace Auth.UnitTests
                 await interceptor.ScalarExecutingAsync(mockCommand.Object, null!, default));
         }
 
-        [Fact]
-        public async Task ReadOnlyDbCommandInterceptor_ThrowsReadOnlyModeException_OnStoredProcedure()
+        [Theory]
+        [InlineData(CommandType.StoredProcedure)]
+        [InlineData(CommandType.TableDirect)]
+        public async Task ReadOnlyDbCommandInterceptor_ThrowsReadOnlyModeException_OnNonTextCommandType(CommandType commandType)
         {
             var mockSyncProvider = new Mock<ISyncConnectionProvider>();
             mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(true);
@@ -440,7 +447,7 @@ namespace Auth.UnitTests
             var interceptor = new ReadOnlyDbCommandInterceptor(mockSyncProvider.Object);
 
             var mockCommand = new Mock<DbCommand>();
-            mockCommand.SetupGet(c => c.CommandType).Returns(CommandType.StoredProcedure);
+            mockCommand.SetupGet(c => c.CommandType).Returns(commandType);
             mockCommand.SetupGet(c => c.CommandText).Returns("dbo.ApplyChanges");
 
             var ex = Assert.Throws<ReadOnlyModeException>(() =>
@@ -519,7 +526,27 @@ namespace Auth.UnitTests
 
             var ex = Assert.Throws<ReadOnlyModeException>(() =>
                 interceptor.ConnectionOpening(mockConnection.Object, null!, default));
-            Assert.Contains("خارجية معطل", ex.Message);
+            Assert.Contains("معطل في وضع القراءة", ex.Message);
+        }
+
+        [Theory]
+        [InlineData("127.0.0.1,9999", "IProgramDb2026")]
+        [InlineData("localhost,9999", "IProgramDb2027")]
+        [InlineData("localhost", "IProgramDb2026")]
+        public void ReadOnlyDbConnectionInterceptor_BlocksFallbackEndpoint_InReadOnlyMode(string host, string db)
+        {
+            var mockSyncProvider = new Mock<ISyncConnectionProvider>();
+            mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(true);
+
+            var interceptor = new ReadOnlyDbConnectionInterceptor(mockSyncProvider.Object);
+
+            var mockConnection = new Mock<DbConnection>();
+            mockConnection.SetupGet(c => c.DataSource).Returns(host);
+            mockConnection.SetupGet(c => c.Database).Returns(db);
+
+            var ex = Assert.Throws<ReadOnlyModeException>(() =>
+                interceptor.ConnectionOpening(mockConnection.Object, null!, default));
+            Assert.Contains("معطل في وضع القراءة", ex.Message);
         }
 
         #endregion
