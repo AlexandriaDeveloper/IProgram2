@@ -92,34 +92,36 @@ Following verification of Phase A, the approved architectural boundary was appli
 
 ---
 
-## 3. Local Sync Metadata Schema Inventory & Adoption Hold
+---
 
-Following confirmation of metadata schema verification requirements:
-* **Physical Schema Inventory:**
-  - `sync.LocalState`: 100% exact match (10/10 columns, types, nullability, PK). Contains `DeviceId`, `DeviceName`, `LastServerVersion = 0`. Obsolete `LastSyncTimestampUtc` does NOT exist physically.
-  - `sync.LocalOutbox`: 100% exact match (13/13 columns, index `IX_LocalOutbox_Queue`, 0 rows).
-  - `sync.__EFMigrationsHistory_LocalSync`: 100% exact match (1 migration: `20260919155658_InitialLocalSyncSchema`).
-  - `sync.BootstrapManifest`: 9/10 columns match exactly. Exactly 1 safe width drift identified: `Status` column is physically `nvarchar(50)` vs EF Core model `nvarchar(20)`.
-* **Adoption Hold Applied:**
-  - `sync.BootstrapManifest.Status`: `'REVIEW_HOLD'` (11 characters <= 20).
-  - `IsWriteAllowed`: `false`.
-* **Safe Remediation Plan:**
-  - Classification: `METADATA_SAFE_MIGRATION_PROPOSED`.
-  - Proposes forward-only LocalSync migration to alter `Status` to `nvarchar(20) NOT NULL` (all values fit).
-  - Schema changes held until Architect approval.
+## 3. Local Sync Metadata Schema Alignment & Verification
+
+Following official authorization from ChatGPT Architect in Issue #14, the safe forward-only LocalSync migration was executed:
+* **Migration Applied:** `20260920070000_AlignBootstrapManifestStatusLength`
+  - Applied with SQL Server 2014 fail-closed precondition: aborts if `LEN(Status) > 20`.
+  - Column `sync.BootstrapManifest.Status` narrowed from `nvarchar(50)` to `nvarchar(20) NOT NULL`.
+  - Applied migration `20260919155658_InitialLocalSyncSchema` left untouched.
+* **Post-Migration Physical Schema Inventory:**
+  - `sync.BootstrapManifest`: 100% match. Physical `Status` verified as `nvarchar(20) NOT NULL` (`max_length = 40` bytes).
+  - `sync.LocalState`: 100% match (10/10 columns). `DeviceId`, `DeviceName`, `LastServerVersion = 0`.
+  - `sync.LocalOutbox`: 100% match (13/13 columns, index `IX_LocalOutbox_Queue`, 0 rows).
+  - `sync.__EFMigrationsHistory_LocalSync`: 100% match (contains both migrations: `20260919155658_InitialLocalSyncSchema` and `20260920070000_AlignBootstrapManifestStatusLength`).
+* **Evaluation Status:** `METADATA_SCHEMA_MATCH` (0 drifts across all 4 local sync tables).
+* **Sanitization:** All machine-specific identifiers and device IDs in public artifacts replaced with sanitized placeholders (`[SANITIZED_DEVICE_ID]`, `[LOCAL_STATION]`).
 
 *Evidence Artifact:* `docs/audit/sync-slice-4-2b/2026/local_metadata_schema_diff.json`
 
 ---
 
-## 4. Decision Gate Execution: Adoption Hold State of 2026 Clone
+## 4. Decision Gate Execution: Final Adoption of 2026 Clone
 
-1. **Current Manifest State:**
-   * Current Status: `REVIEW_HOLD` (`IsWriteAllowed = False`)
+Following completion of all verification gates:
+1. **Adoption Executed & Manifest Updated:**
+   * Final Status: `VERIFIED_READY` (`IsWriteAllowed = True`)
    * Scope: DatabaseId `2026` (`IProgramLocalDb2026`)
 2. **Sync Outbox & State Verified:**
    * `sync.LocalOutbox` count: `0`
-   * `sync.LocalState.LastServerVersion`: `0` (synchronized with Azure version 0).
+   * `sync.LocalState.LastServerVersion`: `0` (matches Azure baseline version 0).
 3. **Smoke Tests Validated (Gate 7):**
    * ApplicationContext connectivity: PASS (12,308 employees readable).
    * Security tables queryable: PASS (2 users, 2 roles).
@@ -127,7 +129,7 @@ Following confirmation of metadata schema verification requirements:
    * SQL Server 2014 T-SQL join patterns: PASS.
    * `LocalSyncContext` metadata check: PASS.
    * `AzureSyncContext` physical binding guard: PASS.
-   * `.NET 10 LocalDbRequired` unit smoke suite: PASS (enforced via `REQUIRE_LOCAL_DB=true`).
+   * `.NET 10 LocalDbRequired` unit smoke suite: PASS (6/6 tests executed and passed).
    * All 318 backend unit tests passing: PASS (`dotnet test IProgram.sln -c Release`).
    * Angular 17 build: PASS (`npm run build`).
 

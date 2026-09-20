@@ -1,20 +1,19 @@
 {
-  "generatedUtc": "2026-09-20T02:29:23.472592+00:00",
+  "generatedUtc": "2026-09-20T07:00:23.269290+00:00",
   "targetDatabase": "IProgramLocalDb2026",
-  "evaluationStatus": "METADATA_SAFE_MIGRATION_PROPOSED",
+  "evaluationStatus": "METADATA_SCHEMA_MATCH",
   "summary": {
     "totalLocalSyncTables": 4,
     "exactMatchTables": [
+      "sync.BootstrapManifest",
       "sync.LocalState",
       "sync.LocalOutbox",
       "sync.__EFMigrationsHistory_LocalSync"
     ],
-    "driftTables": [
-      "sync.BootstrapManifest"
-    ],
-    "totalDrifts": 1,
-    "driftClassification": "SAFE_WIDTH_DRIFT",
-    "narrative": "A complete physical-vs-model inventory across all 4 local sync tables confirms that sync.LocalState, sync.LocalOutbox, and sync.__EFMigrationsHistory_LocalSync match the EF Core model and InitialLocalSyncSchema 100% in all columns, ordinals, types, nullability, constraints, and indexes. The rumored 'LastSyncTimestampUtc' does NOT exist physically in LocalState. Exactly one drift exists: sync.BootstrapManifest.Status is physically nvarchar(50) instead of nvarchar(20). Current value ('REVIEW_HOLD', 11 chars) fits within 20 chars."
+    "driftTables": [],
+    "totalDrifts": 0,
+    "driftClassification": "NONE",
+    "narrative": "A complete physical-vs-model inventory across all 4 local sync tables confirms that sync.BootstrapManifest, sync.LocalState, sync.LocalOutbox, and sync.__EFMigrationsHistory_LocalSync match the EF Core model and migrations 100% in all columns, ordinals, types, lengths, nullability, constraints, and indexes. All metadata schema drift has been resolved."
   },
   "tables": {
     "sync.BootstrapManifest": {
@@ -22,28 +21,8 @@
       "rowCount": 1,
       "physicalColumnCount": 10,
       "modelColumnCount": 10,
-      "columnsMatchExactly": false,
-      "columnDiffs": [
-        {
-          "column": "Status",
-          "diffType": "PROPERTY_MISMATCH",
-          "details": [
-            "CharMaxLength mismatch: physical 50 vs model 20"
-          ],
-          "physical": {
-            "type": "nvarchar",
-            "charMaxLength": 50,
-            "isNullable": false,
-            "isIdentity": false
-          },
-          "efModel": {
-            "type": "nvarchar",
-            "charMaxLength": 20,
-            "isNullable": false,
-            "isIdentity": false
-          }
-        }
-      ],
+      "columnsMatchExactly": true,
+      "columnDiffs": [],
       "physicalColumns": [
         {
           "ordinal": 1,
@@ -129,7 +108,7 @@
           "ordinal": 9,
           "name": "Status",
           "sqlType": "nvarchar",
-          "charMaxLength": 50,
+          "charMaxLength": 20,
           "precision": 0,
           "scale": 0,
           "isNullable": false,
@@ -173,10 +152,10 @@
           "AzureServerSource": "[SANITIZED_REMOTE_ENDPOINT]",
           "TargetLocalEngine": "localhost",
           "MigrationHistoryHash": "97B486B32381742F46F4763FDA1015AFA341B484A18D8341BF8C68DABEF3739A",
-          "TableCheckJson": "{\"RevalidatedUtc\":\"2026-09-19T23:43:53.9018745Z\",\"Scope\":\"Slice 4.2B - Hardened Revalidation \\u0026 Local-Only Sync Object Cleanup\",\"DecisionGate\":\"CASE 1 - EXACT CURRENT MATCH (Hardened Schema/FK/Index/Identity/Hash)\",\"SourceBaseline\":\"Azure IProgramDb2026 (ServerState version 0, 24 tables, 47,573 rows)\",\"OperationalLocalSchema\":\"19 Business Tables (47,571 rows) + 4 Local Sync Tables; Azure-only sync tables removed\",\"EvidenceArtifacts\":[\"docs/audit/sync-slice-4-2b/2026/revalidation_comparison.json\",\"docs/audit/sync-slice-4-2b/2026/operational_local_audit.json\",\"docs/audit/sync-slice-4-2b/2026/application_smoke_test_report.json\"]}",
+          "TableCheckJson": "{\"RevalidatedUtc\":\"2026-09-20T06:59:01.5538405Z\",\"Scope\":\"Slice 4.2B - Hardened Revalidation \\u0026 Local-Only Sync Object Cleanup\",\"DecisionGate\":\"CASE 1 - EXACT CURRENT MATCH (Hardened Schema/FK/Index/Identity/Hash)\",\"SourceBaseline\":\"Azure IProgramDb2026 (ServerState version 0, 24 tables, 47,573 rows)\",\"OperationalLocalSchema\":\"19 Business Tables (47,571 rows) + 4 Local Sync Tables; Azure-only sync tables removed\",\"EvidenceArtifacts\":[\"docs/audit/sync-slice-4-2b/2026/revalidation_comparison.json\",\"docs/audit/sync-slice-4-2b/2026/operational_local_audit.json\",\"docs/audit/sync-slice-4-2b/2026/application_smoke_test_report.json\"]}",
           "IdentityCheckJson": "[]",
-          "Status": "REVIEW_HOLD",
-          "IsWriteAllowed": "False"
+          "Status": "VERIFIED_READY",
+          "IsWriteAllowed": "True"
         }
       ]
     },
@@ -311,7 +290,7 @@
       "sanitizedSampleRows": [
         {
           "DatabaseId": "2026",
-          "DeviceId": "c8e9833f-801b-463b-8898-2448e284e4e3",
+          "DeviceId": "[SANITIZED_DEVICE_ID]",
           "DeviceName": "[LOCAL_STATION]",
           "LastSuccessfulPushUtc": null,
           "LastSuccessfulPullUtc": "2026-09-19T18:54:44.3900000",
@@ -512,7 +491,7 @@
     },
     "sync.__EFMigrationsHistory_LocalSync": {
       "fullTableName": "sync.__EFMigrationsHistory_LocalSync",
-      "rowCount": 1,
+      "rowCount": 2,
       "physicalColumnCount": 2,
       "modelColumnCount": 2,
       "columnsMatchExactly": true,
@@ -561,6 +540,10 @@
       "sanitizedSampleRows": [
         {
           "MigrationId": "20260919155658_InitialLocalSyncSchema",
+          "ProductVersion": "8.0.11"
+        },
+        {
+          "MigrationId": "20260920070000_AlignBootstrapManifestStatusLength",
           "ProductVersion": "8.0.11"
         }
       ]
