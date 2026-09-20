@@ -81,7 +81,8 @@ namespace Auth.Api.Middleware
             {
                 if (string.Equals(path, "/api/account/login", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(path, "/api/account/logout", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(path, "/api/form/download-form", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(path, "/api/form/download-form", StringComparison.OrdinalIgnoreCase) ||
+                    (_configuration.GetValue<bool>("E2E:DiagnosticsEnabled", false) && string.Equals(path, "/api/diagnostics/connection-audit/clear", StringComparison.OrdinalIgnoreCase)))
                 {
                     await _next(context);
                     return;

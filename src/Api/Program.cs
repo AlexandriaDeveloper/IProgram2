@@ -258,6 +258,12 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2E:Dia
             records = records
         });
     });
+
+    app.MapPost("/api/diagnostics/connection-audit/clear", () =>
+    {
+        Auth.Infrastructure.Sync.ConnectionAuditTracker.Clear();
+        return Results.Ok(new { message = "Connection audit records cleared." });
+    });
 }
 
 app.MapControllers();

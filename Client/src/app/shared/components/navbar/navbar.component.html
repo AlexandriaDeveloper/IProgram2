@@ -24,7 +24,7 @@ document.createElement('video');
                   <mat-icon>login</mat-icon>
                 </a>
                 <span> Please Login</span>
-                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly'" class="readonly-badge"
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly' || auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
                   matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط.">
                   🔒 محلي — قراءة فقط
                 </span>
@@ -62,7 +62,7 @@ document.createElement('video');
                   <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'pull'"
                     diameter="24"></mat-spinner>
                 </button>
-                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly'" class="readonly-badge"
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly' || auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
                   matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط. التعديلات معطلة والبيانات غير متزامنة مع السحابة.">
                   🔒 محلي — قراءة فقط
                 </span>

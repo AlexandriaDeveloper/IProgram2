@@ -60,17 +60,17 @@ namespace Api.Controllers
             var isLocalFirst = _dbProvider is ISyncConnectionProvider syncProv && syncProv.IsLocalFirstEnabled;
             
             string runtimeMode;
-            if (!isLocalFirst)
-            {
-                runtimeMode = "Online";
-            }
-            else if (isReadOnly)
+            if (isReadOnly)
             {
                 runtimeMode = "OfflineReadOnly";
             }
-            else
+            else if (isLocalFirst)
             {
                 runtimeMode = "OfflineReadWritePilot";
+            }
+            else
+            {
+                runtimeMode = "Online";
             }
 
             return Ok(new

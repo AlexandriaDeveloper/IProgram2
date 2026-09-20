@@ -78,6 +78,69 @@ function Execute-LocalNonQuery([string]$database, [string]$query) {
     }
 }
 
+function Execute-LocalRow([string]$database, [string]$query) {
+    $connStr = "Server=localhost;Database=$database;Integrated Security=True;TrustServerCertificate=True;"
+    $conn = New-Object System.Data.SqlClient.SqlConnection($connStr)
+    $conn.Open()
+    try {
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = $query
+        $adapter = New-Object System.Data.SqlClient.SqlDataAdapter($cmd)
+        $dt = New-Object System.Data.DataTable
+        $null = $adapter.Fill($dt)
+        if ($dt.Rows.Count -gt 0) {
+            return $dt.Rows[0]
+        }
+        return $null
+    } finally {
+        $conn.Close()
+        $conn.Dispose()
+    }
+}
+
+function Verify-OutboxRecord([string]$database, [string]$commandName, [string]$syncId, [string]$expectedYear, [string]$expectedOp, [string]$expectedDeviceId, [long]$expectedBaseServerVersion) {
+    $row = Execute-LocalRow $database "SELECT TOP (1) Status, RetryCount, DatabaseId, EntitySyncId, PayloadJson FROM [sync].[LocalOutbox] WHERE CommandName = '$commandName' AND EntitySyncId = '$syncId' ORDER BY CreatedAtUtc DESC;"
+    if (-not $row) {
+        throw "Verification failure: No outbox record in $database for CommandName '$commandName' and EntitySyncId '$syncId'!"
+    }
+    if ($row["Status"] -ne "PENDING") {
+        throw "Outbox Status expected 'PENDING', got '$($row["Status"])'"
+    }
+    if ([int]$row["RetryCount"] -ne 0) {
+        throw "Outbox RetryCount expected 0, got $($row["RetryCount"])"
+    }
+    if ($row["DatabaseId"] -ne $expectedYear) {
+        throw "Outbox DatabaseId expected '$expectedYear', got '$($row["DatabaseId"])'"
+    }
+    if ($row["EntitySyncId"].ToString().ToLowerInvariant() -ne $syncId.ToLowerInvariant()) {
+        throw "Outbox EntitySyncId mismatch: expected '$syncId', got '$($row["EntitySyncId"])'"
+    }
+
+    $env = $row["PayloadJson"] | ConvertFrom-Json
+    if ([int]$env.schemaVersion -ne 1) {
+        throw "PayloadJson schemaVersion expected 1, got $($env.schemaVersion)"
+    }
+    if ($env.operationType -ne $expectedOp) {
+        throw "PayloadJson operationType expected '$expectedOp', got '$($env.operationType)'"
+    }
+    if ($env.databaseId -ne $expectedYear) {
+        throw "PayloadJson databaseId expected '$expectedYear', got '$($env.databaseId)'"
+    }
+    if ($env.deviceId -ne $expectedDeviceId) {
+        throw "PayloadJson deviceId expected '$expectedDeviceId', got '$($env.deviceId)'"
+    }
+    if ([long]$env.baseServerVersion -ne $expectedBaseServerVersion) {
+        throw "PayloadJson baseServerVersion expected $expectedBaseServerVersion, got $($env.baseServerVersion)"
+    }
+    if ($env.entityType -ne "Daily") {
+        throw "PayloadJson entityType expected 'Daily', got '$($env.entityType)'"
+    }
+    if ($env.entitySyncId.ToString().ToLowerInvariant() -ne $syncId.ToLowerInvariant()) {
+        throw "PayloadJson entitySyncId expected '$syncId', got '$($env.entitySyncId)'"
+    }
+    return $env
+}
+
 $allPassed = $true
 $report = [ordered]@{
     Slice = "4.3B"
@@ -146,6 +209,7 @@ $origEnv = @{
     ASPNETCORE_ENVIRONMENT = $env:ASPNETCORE_ENVIRONMENT
     LocalFirst__ReadOnlyMode = $env:LocalFirst__ReadOnlyMode
     LocalFirst__Enabled = $env:LocalFirst__Enabled
+    E2E__DiagnosticsEnabled = $env:E2E__DiagnosticsEnabled
     ConnectionStrings__DefaultConnection = $env:ConnectionStrings__DefaultConnection
     ConnectionStrings__CON2027 = $env:ConnectionStrings__CON2027
     ConnectionStrings__LocalConnection2026 = $env:ConnectionStrings__LocalConnection2026
@@ -163,6 +227,7 @@ try {
     $env:ASPNETCORE_ENVIRONMENT = "Development"
     $env:LocalFirst__ReadOnlyMode = "false"
     $env:LocalFirst__Enabled = "true"
+    $env:E2E__DiagnosticsEnabled = "true"
     $env:ConnectionStrings__LocalConnection2026 = "Server=localhost;Database=IProgramLocalDb2026_SmokeTest;Trusted_Connection=True;TrustServerCertificate=True;"
     $env:ConnectionStrings__LocalConnection2027 = "Server=localhost;Database=IProgramLocalDb2027_SmokeTest;Trusted_Connection=True;TrustServerCertificate=True;"
     # Blackhole remote Azure endpoints
@@ -189,6 +254,9 @@ try {
         throw "Isolated Auth.Api process failed to become ready at $testBaseUrl within 30 seconds."
     }
     Write-Host " PASS (Online at $testBaseUrl, runtimeMode: OfflineReadWritePilot)" -ForegroundColor Green
+
+    # Test-safe initialization: clear connection audit records before test run
+    $null = Invoke-RestMethod -Uri "$testBaseUrl/api/diagnostics/connection-audit/clear" -Method Post -TimeoutSec 5
 
     # Authenticate for Year 2026 & Year 2027
     $loginBody2026 = @{ username = $e2eUsername; password = $e2ePassword } | ConvertTo-Json
@@ -245,8 +313,8 @@ END;
     $outboxCountAfter = [int](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT COUNT(*) FROM [sync].[LocalOutbox];")
     $faultDailyExists = [int](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT COUNT(*) FROM [dbo].[Daily] WHERE [Name] = 'Fault Injection Test Daily';")
 
-    if (-not $faultOpFailed) {
-        throw "Atomic rollback verification failed: API call succeeded despite outbox fault trigger."
+    if (-not $faultOpFailed -or $faultStatusCode -ne 500) {
+        throw "Atomic rollback verification failed: API call must fail specifically with HTTP 500 (failed: $faultOpFailed, status: $faultStatusCode)."
     }
     if ($dailyCountAfter -ne $dailyCountBefore -or $faultDailyExists -ne 0) {
         throw "Atomic rollback verification failed: Business write was committed despite outbox insertion failure! (Count before: $dailyCountBefore, after: $dailyCountAfter)"
@@ -268,6 +336,17 @@ END;
     # --- [TIER 3] Positive Integration Matrix (2026 & 2027) ---
     Write-Host "`n--- [TIER 3] Positive Integration Matrix (2026 & 2027) ---" -ForegroundColor Yellow
 
+    # Retrieve LocalState metadata for Year 2026 & Year 2027
+    $localState2026 = Execute-LocalRow "IProgramLocalDb2026_SmokeTest" "SELECT DeviceId, LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2026';"
+    if (-not $localState2026) { throw "Missing [sync].[LocalState] record for DatabaseId 2026" }
+    $devId2026 = $localState2026["DeviceId"].ToString()
+    $baseVer2026 = [long]$localState2026["LastServerVersion"]
+
+    $localState2027 = Execute-LocalRow "IProgramLocalDb2027_SmokeTest" "SELECT DeviceId, LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2027';"
+    if (-not $localState2027) { throw "Missing [sync].[LocalState] record for DatabaseId 2027" }
+    $devId2027 = $localState2027["DeviceId"].ToString()
+    $baseVer2027 = [long]$localState2027["LastServerVersion"]
+
     # Test 3.1: Year 2026 Operations
     Write-Host "Test 3.1: Year 2026 Full Operation Lifecycle (Add, Edit, Close, Unclose, SoftDelete)..." -NoNewline
     $addBody2026 = @{
@@ -279,17 +358,8 @@ END;
     $createdDailyId = [int](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT TOP (1) Id FROM [dbo].[Daily] WHERE Name = 'Daily_2026_Smoke_Test_Slice43B' ORDER BY Id DESC;")
     if ($createdDailyId -le 0) { throw "Year 2026 Add Daily: Failed to retrieve created Daily ID from database." }
 
-    # Verify SQL state for Add
-    $dailyRow2026 = Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT SyncId FROM [dbo].[Daily] WHERE Id = $createdDailyId;"
-    $outboxAdd2026 = Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT TOP (1) PayloadJson FROM [sync].[LocalOutbox] WHERE CommandName = 'Daily.Insert' AND EntitySyncId = '$dailyRow2026' ORDER BY CreatedAtUtc DESC;"
-
-    if (-not $outboxAdd2026) {
-        throw "Year 2026 Add Daily: No LocalOutbox record created for Daily.Insert!"
-    }
-    $addEnvelope2026 = $outboxAdd2026 | ConvertFrom-Json
-    if ($addEnvelope2026.operationType -ne "INSERT" -or $addEnvelope2026.databaseId -ne "2026") {
-        throw "Year 2026 Add Daily outbox payload mismatch: operationType=$($addEnvelope2026.operationType), databaseId=$($addEnvelope2026.databaseId)"
-    }
+    $dailyRow2026 = (Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT SyncId FROM [dbo].[Daily] WHERE Id = $createdDailyId;").ToString()
+    $addEnv2026 = Verify-OutboxRecord "IProgramLocalDb2026_SmokeTest" "Daily.Insert" $dailyRow2026 "2026" "INSERT" $devId2026 $baseVer2026
 
     # Edit Daily
     $editBody2026 = @{
@@ -299,52 +369,60 @@ END;
     } | ConvertTo-Json
     $null = Invoke-RestMethod -Uri "$testBaseUrl/api/Daily" -Method Put -Body $editBody2026 -ContentType "application/json" -Headers $headers2026 -TimeoutSec 5
 
-    $outboxEdit2026 = Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT TOP (1) PayloadJson FROM [sync].[LocalOutbox] WHERE CommandName = 'Daily.Update' AND EntitySyncId = '$dailyRow2026' ORDER BY CreatedAtUtc DESC;"
-    if (-not $outboxEdit2026) {
-        throw "Year 2026 Edit Daily: No LocalOutbox record created for Daily.Update!"
-    }
-    $editEnvelope2026 = $outboxEdit2026 | ConvertFrom-Json
-    if ($editEnvelope2026.operationType -ne "UPDATE") {
-        throw "Year 2026 Edit Daily outbox payload mismatch: operationType=$($editEnvelope2026.operationType)"
-    }
+    $editEnv2026 = Verify-OutboxRecord "IProgramLocalDb2026_SmokeTest" "Daily.Update" $dailyRow2026 "2026" "UPDATE" $devId2026 $baseVer2026
 
     # Close Daily
     $null = Invoke-RestMethod -Uri "$testBaseUrl/api/Daily/CloseDaily/$createdDailyId" -Method Put -Headers $headers2026 -TimeoutSec 5
     $closedStatus = [bool](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT Closed FROM [dbo].[Daily] WHERE Id = $createdDailyId;")
     if (-not $closedStatus) { throw "Year 2026 CloseDaily failed to set Closed = 1 in SQL." }
 
+    $updateCountAfterClose = [int](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT COUNT(*) FROM [sync].[LocalOutbox] WHERE EntitySyncId = '$dailyRow2026' AND CommandName = 'Daily.Update';")
+    if ($updateCountAfterClose -lt 2) {
+        throw "Year 2026 CloseDaily failed to create distinct outbox record (expected >= 2, got $updateCountAfterClose)."
+    }
+    $closeEnv2026 = Verify-OutboxRecord "IProgramLocalDb2026_SmokeTest" "Daily.Update" $dailyRow2026 "2026" "UPDATE" $devId2026 $baseVer2026
+    if (-not $closeEnv2026.entityData.Closed) {
+        throw "Year 2026 CloseDaily outbox payload does not reflect Closed = true."
+    }
+
     # Unclose Daily
     $null = Invoke-RestMethod -Uri "$testBaseUrl/api/Daily/UncloseDaily/$createdDailyId" -Method Put -Headers $headers2026 -TimeoutSec 5
     $unclosedStatus = [bool](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT Closed FROM [dbo].[Daily] WHERE Id = $createdDailyId;")
     if ($unclosedStatus) { throw "Year 2026 UncloseDaily failed to set Closed = 0 in SQL." }
+
+    $updateCountAfterUnclose = [int](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT COUNT(*) FROM [sync].[LocalOutbox] WHERE EntitySyncId = '$dailyRow2026' AND CommandName = 'Daily.Update';")
+    if ($updateCountAfterUnclose -lt 3) {
+        throw "Year 2026 UncloseDaily failed to create distinct outbox record (expected >= 3, got $updateCountAfterUnclose)."
+    }
+    $uncloseEnv2026 = Verify-OutboxRecord "IProgramLocalDb2026_SmokeTest" "Daily.Update" $dailyRow2026 "2026" "UPDATE" $devId2026 $baseVer2026
+    if ($uncloseEnv2026.entityData.Closed) {
+        throw "Year 2026 UncloseDaily outbox payload does not reflect Closed = false."
+    }
 
     # Soft Delete Daily
     $null = Invoke-RestMethod -Uri "$testBaseUrl/api/Daily/softdelete/$createdDailyId" -Method Delete -Headers $headers2026 -TimeoutSec 5
     $isActiveStatus = [bool](Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT IsActive FROM [dbo].[Daily] WHERE Id = $createdDailyId;")
     if ($isActiveStatus) { throw "Year 2026 SoftDelete failed to set IsActive = 0 in SQL." }
 
-    $outboxDelete2026 = Execute-LocalScalar "IProgramLocalDb2026_SmokeTest" "SELECT TOP (1) PayloadJson FROM [sync].[LocalOutbox] WHERE CommandName = 'Daily.SoftDelete' AND EntitySyncId = '$dailyRow2026' ORDER BY CreatedAtUtc DESC;"
-    if (-not $outboxDelete2026) {
-        throw "Year 2026 SoftDelete: No LocalOutbox record created for Daily.SoftDelete!"
-    }
-    $deleteEnvelope2026 = $outboxDelete2026 | ConvertFrom-Json
-    if ($deleteEnvelope2026.operationType -ne "SOFT_DELETE") {
-        throw "Year 2026 SoftDelete outbox payload mismatch: operationType=$($deleteEnvelope2026.operationType)"
-    }
+    $deleteEnv2026 = Verify-OutboxRecord "IProgramLocalDb2026_SmokeTest" "Daily.SoftDelete" $dailyRow2026 "2026" "SOFT_DELETE" $devId2026 $baseVer2026
 
     $report.Positive_Integration_Matrix["Year_2026"] = [ordered]@{
         Status = "PASS"
         DailyId = $createdDailyId
-        EntitySyncId = $dailyRow2026.ToString()
-        AddOutboxCreated = ($outboxAdd2026 -ne $null)
-        EditOutboxCreated = ($outboxEdit2026 -ne $null)
-        CloseStatusVerified = $true
-        UncloseStatusVerified = $true
-        SoftDeleteVerified = $true
+        EntitySyncId = $dailyRow2026
+        DeviceId = $devId2026
+        BaseServerVersion = $baseVer2026
+        AddOutboxCreated = $true
+        EditOutboxCreated = $true
+        CloseOutboxCreated = $true
+        UncloseOutboxCreated = $true
+        SoftDeleteOutboxCreated = $true
+        AllOutboxStatusesPending = $true
+        AllRetryCountsZero = $true
     }
-    Write-Host " PASS (Add -> PENDING outbox, Edit -> UPDATE, Close -> Closed=1, Unclose -> Closed=0, SoftDelete -> IsActive=0 + SOFT_DELETE outbox)" -ForegroundColor Green
+    Write-Host " PASS (Add -> INSERT, Edit -> UPDATE, Close -> UPDATE [Closed=1], Unclose -> UPDATE [Closed=0], SoftDelete -> SOFT_DELETE)" -ForegroundColor Green
 
-    # Test 3.2: Year 2027 Operations
+    # Test 3.2: Year 2027 Operations (Add, Edit, SoftDelete)
     Write-Host "Test 3.2: Year 2027 Lifecycle (Add, Edit, SoftDelete)..." -NoNewline
     $addBody2027 = @{
         name = "Daily_2027_Smoke_Test_Slice43B"
@@ -355,32 +433,45 @@ END;
     $createdDailyId2027 = [int](Execute-LocalScalar "IProgramLocalDb2027_SmokeTest" "SELECT TOP (1) Id FROM [dbo].[Daily] WHERE Name = 'Daily_2027_Smoke_Test_Slice43B' ORDER BY Id DESC;")
     if ($createdDailyId2027 -le 0) { throw "Year 2027 Add Daily: Failed to retrieve created Daily ID from database." }
 
-    $dailyRow2027 = Execute-LocalScalar "IProgramLocalDb2027_SmokeTest" "SELECT SyncId FROM [dbo].[Daily] WHERE Id = $createdDailyId2027;"
-    $outboxAdd2027 = Execute-LocalScalar "IProgramLocalDb2027_SmokeTest" "SELECT TOP (1) PayloadJson FROM [sync].[LocalOutbox] WHERE CommandName = 'Daily.Insert' AND EntitySyncId = '$dailyRow2027' ORDER BY CreatedAtUtc DESC;"
-    if (-not $outboxAdd2027) { throw "Year 2027 Add Daily: No LocalOutbox record created!" }
+    $dailyRow2027 = (Execute-LocalScalar "IProgramLocalDb2027_SmokeTest" "SELECT SyncId FROM [dbo].[Daily] WHERE Id = $createdDailyId2027;").ToString()
+    $addEnv2027 = Verify-OutboxRecord "IProgramLocalDb2027_SmokeTest" "Daily.Insert" $dailyRow2027 "2027" "INSERT" $devId2027 $baseVer2027
 
-    $addEnvelope2027 = $outboxAdd2027 | ConvertFrom-Json
-    if ($addEnvelope2027.databaseId -ne "2027" -or $addEnvelope2027.operationType -ne "INSERT") {
-        throw "Year 2027 outbox envelope mismatch: databaseId=$($addEnvelope2027.databaseId)"
+    # Edit Daily for Year 2027
+    $editBody2027 = @{
+        id = $createdDailyId2027
+        name = "Daily_2027_Smoke_Test_Updated"
+        dailyDate = "2027-01-15T00:00:00"
+    } | ConvertTo-Json
+    $null = Invoke-RestMethod -Uri "$testBaseUrl/api/Daily" -Method Put -Body $editBody2027 -ContentType "application/json" -Headers $headers2027 -TimeoutSec 5
+
+    $nameInDb2027 = Execute-LocalScalar "IProgramLocalDb2027_SmokeTest" "SELECT Name FROM [dbo].[Daily] WHERE Id = $createdDailyId2027;"
+    if ($nameInDb2027 -ne "Daily_2027_Smoke_Test_Updated") {
+        throw "Year 2027 Edit Daily failed to update Name in SQL (got '$nameInDb2027')."
     }
+
+    $editEnv2027 = Verify-OutboxRecord "IProgramLocalDb2027_SmokeTest" "Daily.Update" $dailyRow2027 "2027" "UPDATE" $devId2027 $baseVer2027
 
     # Soft Delete Daily via DELETE /api/Daily/{id} route
     $null = Invoke-RestMethod -Uri "$testBaseUrl/api/Daily/$createdDailyId2027" -Method Delete -Headers $headers2027 -TimeoutSec 5
     $isActiveStatus2027 = [bool](Execute-LocalScalar "IProgramLocalDb2027_SmokeTest" "SELECT IsActive FROM [dbo].[Daily] WHERE Id = $createdDailyId2027;")
     if ($isActiveStatus2027) { throw "Year 2027 DELETE /api/Daily/{id} failed to perform soft delete in SQL." }
 
-    $outboxDelete2027 = Execute-LocalScalar "IProgramLocalDb2027_SmokeTest" "SELECT TOP (1) PayloadJson FROM [sync].[LocalOutbox] WHERE CommandName = 'Daily.SoftDelete' AND EntitySyncId = '$dailyRow2027' ORDER BY CreatedAtUtc DESC;"
-    if (-not $outboxDelete2027) { throw "Year 2027 SoftDelete outbox record missing!" }
+    $deleteEnv2027 = Verify-OutboxRecord "IProgramLocalDb2027_SmokeTest" "Daily.SoftDelete" $dailyRow2027 "2027" "SOFT_DELETE" $devId2027 $baseVer2027
 
     $report.Positive_Integration_Matrix["Year_2027"] = [ordered]@{
         Status = "PASS"
         DailyId = $createdDailyId2027
-        EntitySyncId = $dailyRow2027.ToString()
+        EntitySyncId = $dailyRow2027
         DatabaseId = "2027"
-        AddOutboxCreated = ($outboxAdd2027 -ne $null)
-        SoftDeleteVerified = $true
+        DeviceId = $devId2027
+        BaseServerVersion = $baseVer2027
+        AddOutboxCreated = $true
+        EditOutboxCreated = $true
+        SoftDeleteOutboxCreated = $true
+        AllOutboxStatusesPending = $true
+        AllRetryCountsZero = $true
     }
-    Write-Host " PASS (Add -> DatabaseId=2027 outbox, DELETE -> SoftDelete outbox)" -ForegroundColor Green
+    Write-Host " PASS (Add -> INSERT, Edit -> UPDATE, DELETE -> SOFT_DELETE - All with DatabaseId=2027)" -ForegroundColor Green
 
     # --- [TIER 4] Fail-Closed Scope Rejection Matrix ---
     Write-Host "`n--- [TIER 4] Fail-Closed Scope Rejection Matrix ---" -ForegroundColor Yellow
@@ -440,12 +531,36 @@ END;
         Write-Host " PASS (403 Forbidden, code: OFFLINE_WRITE_SCOPE_BLOCKED)" -ForegroundColor Green
     }
 
+    # --- [TIER 5] Connection Audit Verification (Zero Azure / Remote Connections) ---
+    Write-Host "`n--- [TIER 5] Connection Audit Verification (Zero Azure / Remote Connections) ---" -ForegroundColor Yellow
+    Write-Host "Test 5.1: Connection Audit Tracker Endpoint (/api/diagnostics/connection-audit)..." -NoNewline
+
+    $connAudit = Invoke-RestMethod -Uri "$testBaseUrl/api/diagnostics/connection-audit" -Method Get -TimeoutSec 5
+    if ($connAudit.fallbackAttempts -ne 0) {
+        throw "Security violation: Recorded $($connAudit.fallbackAttempts) fallback connection attempts!"
+    }
+    if ($connAudit.disallowedRemoteConnections -ne 0) {
+        throw "Security violation: Recorded $($connAudit.disallowedRemoteConnections) disallowed remote connections!"
+    }
+    if ($connAudit.allowedLocalConnections -le 0) {
+        throw "Verification failure: No allowed local connections recorded ($($connAudit.allowedLocalConnections))."
+    }
+
+    $nonLocalRecords = $connAudit.records | Where-Object { -not $_.isLocal -or $_.isFallbackEndpoint -or -not $_.allowed }
+    if ($nonLocalRecords -and $nonLocalRecords.Count -gt 0) {
+        throw "Security violation: Detected non-local connection records in audit: $($nonLocalRecords | ConvertTo-Json)"
+    }
+
     $report.Zero_Azure_Connections_Proof = [ordered]@{
         Status = "PASS"
-        RemoteAzureEndpointsConfigured = "127.0.0.1:9999 (Blackholed)"
-        RemoteAttemptsMade = 0
+        FallbackAttempts = [int]$connAudit.fallbackAttempts
+        DisallowedRemoteConnections = [int]$connAudit.disallowedRemoteConnections
+        AllowedLocalConnections = [int]$connAudit.allowedLocalConnections
+        TotalConnectionsAudited = [int]$connAudit.totalConnections
+        AllConnectionsLocalOnly = $true
         ZeroAzureWritesVerified = $true
     }
+    Write-Host " PASS (Allowed Local: $($connAudit.allowedLocalConnections), Fallback: 0, Disallowed Remote: 0)" -ForegroundColor Green
 
 } catch {
     $allPassed = $false

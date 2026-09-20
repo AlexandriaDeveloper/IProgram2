@@ -64,7 +64,7 @@ namespace Auth.UnitTests
 
         [Theory]
         [InlineData(false, false, "Online")]
-        [InlineData(false, true, "Online")]
+        [InlineData(false, true, "OfflineReadOnly")]
         [InlineData(true, true, "OfflineReadOnly")]
         [InlineData(true, false, "OfflineReadWritePilot")]
         public void RuntimeStatus_ResolvesExpectedMode(bool localFirst, bool readOnly, string expectedMode)
@@ -74,17 +74,17 @@ namespace Auth.UnitTests
             var provider = new DbConnectionProvider(mockAccessor.Object, config);
 
             string runtimeMode;
-            if (!provider.IsLocalFirstEnabled)
-            {
-                runtimeMode = "Online";
-            }
-            else if (provider.IsReadOnlyMode)
+            if (provider.IsReadOnlyMode)
             {
                 runtimeMode = "OfflineReadOnly";
             }
-            else
+            else if (provider.IsLocalFirstEnabled)
             {
                 runtimeMode = "OfflineReadWritePilot";
+            }
+            else
+            {
+                runtimeMode = "Online";
             }
 
             Assert.Equal(expectedMode, runtimeMode);
