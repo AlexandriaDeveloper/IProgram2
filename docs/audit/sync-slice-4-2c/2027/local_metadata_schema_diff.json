@@ -1,0 +1,562 @@
+{
+  "generatedUtc": "2026-09-20T08:53:04.816660+00:00",
+  "targetDatabase": "IProgramLocalDb2027",
+  "evaluationStatus": "METADATA_SCHEMA_MATCH",
+  "summary": {
+    "totalLocalSyncTables": 4,
+    "exactMatchTables": [
+      "sync.BootstrapManifest",
+      "sync.LocalState",
+      "sync.LocalOutbox",
+      "sync.__EFMigrationsHistory_LocalSync"
+    ],
+    "driftTables": [],
+    "totalDrifts": 0,
+    "driftClassification": "NONE",
+    "migrationsApplied": [
+      "20260919155658_InitialLocalSyncSchema",
+      "20260920070000_AlignBootstrapManifestStatusLength"
+    ],
+    "migrationsMatchExpected": true,
+    "narrative": "A complete physical-vs-model inventory across all 4 local sync tables confirms that sync.BootstrapManifest, sync.LocalState, sync.LocalOutbox, and sync.__EFMigrationsHistory_LocalSync match the EF Core model and migrations 100% in all columns, ordinals, types, lengths, nullability, constraints, indexes, and applied migrations history. All metadata schema drift is confirmed at ZERO."
+  },
+  "tables": {
+    "sync.BootstrapManifest": {
+      "fullTableName": "sync.BootstrapManifest",
+      "rowCount": 1,
+      "physicalColumnCount": 10,
+      "modelColumnCount": 10,
+      "columnsMatchExactly": true,
+      "columnDiffs": [],
+      "physicalColumns": [
+        {
+          "ordinal": 1,
+          "name": "Id",
+          "sqlType": "int",
+          "charMaxLength": null,
+          "precision": 10,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": true
+        },
+        {
+          "ordinal": 2,
+          "name": "DatabaseId",
+          "sqlType": "nvarchar",
+          "charMaxLength": 32,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 3,
+          "name": "BootstrapTimestampUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 4,
+          "name": "AzureServerSource",
+          "sqlType": "nvarchar",
+          "charMaxLength": 255,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 5,
+          "name": "TargetLocalEngine",
+          "sqlType": "nvarchar",
+          "charMaxLength": 100,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 6,
+          "name": "MigrationHistoryHash",
+          "sqlType": "nvarchar",
+          "charMaxLength": 64,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 7,
+          "name": "TableCheckJson",
+          "sqlType": "nvarchar",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 8,
+          "name": "IdentityCheckJson",
+          "sqlType": "nvarchar",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 9,
+          "name": "Status",
+          "sqlType": "nvarchar",
+          "charMaxLength": 20,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 10,
+          "name": "IsWriteAllowed",
+          "sqlType": "bit",
+          "charMaxLength": null,
+          "precision": 1,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        }
+      ],
+      "keyConstraints": [
+        {
+          "ConstraintName": "PK_BootstrapManifest",
+          "Type": "PRIMARY_KEY_CONSTRAINT",
+          "ColumnName": "Id",
+          "KeyOrdinal": 1
+        }
+      ],
+      "indexes": [
+        {
+          "IndexName": "PK_BootstrapManifest",
+          "IndexType": "CLUSTERED",
+          "IsUnique": true,
+          "IsPrimaryKey": true,
+          "ColumnName": "Id",
+          "KeyOrdinal": 1,
+          "IsIncluded": false
+        }
+      ],
+      "sanitizedSampleRows": [
+        {
+          "Id": "1",
+          "DatabaseId": "2027",
+          "BootstrapTimestampUtc": "2026-09-20T07:54:43.8937030",
+          "AzureServerSource": "Azure:IProgramDb2027",
+          "TargetLocalEngine": "localhost (SQL Server 2014 - Compat 120)",
+          "MigrationHistoryHash": "F20A3A31CDD47E7C7B56E62C9890775836FECD261D111F6E02082BF2AC1FE4F6",
+          "TableCheckJson": "{\"RevalidatedUtc\":\"2026-09-20T08:51:37.1105294Z\",\"RevalidationScope\":\"Slice 4.2C - Year 2027 Local Bootstrap \\u0026 Adoption\",\"Authorization\":\"Business Owner and ChatGPT Architect Confirmed\",\"CapturedAzureServerStateVersion\":0,\"ComparisonResult\":\"PASS - Exact match across 24 tables (25,473 rows)\",\"AuditArtifact\":\"docs/audit/sync-slice-4-2c/2027/revalidation_comparison.json\"}",
+          "IdentityCheckJson": "{}",
+          "Status": "VERIFIED_READY",
+          "IsWriteAllowed": "True"
+        }
+      ]
+    },
+    "sync.LocalState": {
+      "fullTableName": "sync.LocalState",
+      "rowCount": 1,
+      "physicalColumnCount": 10,
+      "modelColumnCount": 10,
+      "columnsMatchExactly": true,
+      "columnDiffs": [],
+      "physicalColumns": [
+        {
+          "ordinal": 1,
+          "name": "DatabaseId",
+          "sqlType": "nvarchar",
+          "charMaxLength": 32,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 2,
+          "name": "DeviceId",
+          "sqlType": "uniqueidentifier",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 3,
+          "name": "DeviceName",
+          "sqlType": "nvarchar",
+          "charMaxLength": 100,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 4,
+          "name": "LastSuccessfulPushUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 5,
+          "name": "LastSuccessfulPullUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 6,
+          "name": "LastServerVersion",
+          "sqlType": "bigint",
+          "charMaxLength": null,
+          "precision": 19,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 7,
+          "name": "ActiveLeaseToken",
+          "sqlType": "uniqueidentifier",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 8,
+          "name": "LeaseExpiresAtUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 9,
+          "name": "LastSyncError",
+          "sqlType": "nvarchar",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 10,
+          "name": "LastSyncAttemptUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": true,
+          "isIdentity": false
+        }
+      ],
+      "keyConstraints": [
+        {
+          "ConstraintName": "PK_LocalState",
+          "Type": "PRIMARY_KEY_CONSTRAINT",
+          "ColumnName": "DatabaseId",
+          "KeyOrdinal": 1
+        }
+      ],
+      "indexes": [
+        {
+          "IndexName": "PK_LocalState",
+          "IndexType": "CLUSTERED",
+          "IsUnique": true,
+          "IsPrimaryKey": true,
+          "ColumnName": "DatabaseId",
+          "KeyOrdinal": 1,
+          "IsIncluded": false
+        }
+      ],
+      "sanitizedSampleRows": [
+        {
+          "DatabaseId": "2027",
+          "DeviceId": "[SANITIZED_DEVICE_ID]",
+          "DeviceName": "[LOCAL_STATION]",
+          "LastSuccessfulPushUtc": null,
+          "LastSuccessfulPullUtc": null,
+          "LastServerVersion": "0",
+          "ActiveLeaseToken": null,
+          "LeaseExpiresAtUtc": null,
+          "LastSyncError": null,
+          "LastSyncAttemptUtc": null
+        }
+      ]
+    },
+    "sync.LocalOutbox": {
+      "fullTableName": "sync.LocalOutbox",
+      "rowCount": 0,
+      "physicalColumnCount": 13,
+      "modelColumnCount": 13,
+      "columnsMatchExactly": true,
+      "columnDiffs": [],
+      "physicalColumns": [
+        {
+          "ordinal": 1,
+          "name": "ClientOperationId",
+          "sqlType": "uniqueidentifier",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 2,
+          "name": "DatabaseId",
+          "sqlType": "nvarchar",
+          "charMaxLength": 32,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 3,
+          "name": "AggregateType",
+          "sqlType": "nvarchar",
+          "charMaxLength": 50,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 4,
+          "name": "CommandName",
+          "sqlType": "nvarchar",
+          "charMaxLength": 100,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 5,
+          "name": "EntitySyncId",
+          "sqlType": "uniqueidentifier",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 6,
+          "name": "PayloadJson",
+          "sqlType": "nvarchar",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 7,
+          "name": "CreatedAtUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 8,
+          "name": "Status",
+          "sqlType": "nvarchar",
+          "charMaxLength": 20,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 9,
+          "name": "RetryCount",
+          "sqlType": "int",
+          "charMaxLength": null,
+          "precision": 10,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 10,
+          "name": "LastError",
+          "sqlType": "nvarchar",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 11,
+          "name": "CompletedAtUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 12,
+          "name": "LockedUntilUtc",
+          "sqlType": "datetime2",
+          "charMaxLength": null,
+          "precision": 27,
+          "scale": 7,
+          "isNullable": true,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 13,
+          "name": "LockToken",
+          "sqlType": "uniqueidentifier",
+          "charMaxLength": null,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": true,
+          "isIdentity": false
+        }
+      ],
+      "keyConstraints": [
+        {
+          "ConstraintName": "PK_LocalOutbox",
+          "Type": "PRIMARY_KEY_CONSTRAINT",
+          "ColumnName": "ClientOperationId",
+          "KeyOrdinal": 1
+        }
+      ],
+      "indexes": [
+        {
+          "IndexName": "IX_LocalOutbox_Queue",
+          "IndexType": "NONCLUSTERED",
+          "IsUnique": false,
+          "IsPrimaryKey": false,
+          "ColumnName": "DatabaseId",
+          "KeyOrdinal": 1,
+          "IsIncluded": false
+        },
+        {
+          "IndexName": "IX_LocalOutbox_Queue",
+          "IndexType": "NONCLUSTERED",
+          "IsUnique": false,
+          "IsPrimaryKey": false,
+          "ColumnName": "Status",
+          "KeyOrdinal": 2,
+          "IsIncluded": false
+        },
+        {
+          "IndexName": "IX_LocalOutbox_Queue",
+          "IndexType": "NONCLUSTERED",
+          "IsUnique": false,
+          "IsPrimaryKey": false,
+          "ColumnName": "CreatedAtUtc",
+          "KeyOrdinal": 3,
+          "IsIncluded": false
+        },
+        {
+          "IndexName": "PK_LocalOutbox",
+          "IndexType": "CLUSTERED",
+          "IsUnique": true,
+          "IsPrimaryKey": true,
+          "ColumnName": "ClientOperationId",
+          "KeyOrdinal": 1,
+          "IsIncluded": false
+        }
+      ],
+      "sanitizedSampleRows": []
+    },
+    "sync.__EFMigrationsHistory_LocalSync": {
+      "fullTableName": "sync.__EFMigrationsHistory_LocalSync",
+      "rowCount": 2,
+      "physicalColumnCount": 2,
+      "modelColumnCount": 2,
+      "columnsMatchExactly": true,
+      "columnDiffs": [],
+      "physicalColumns": [
+        {
+          "ordinal": 1,
+          "name": "MigrationId",
+          "sqlType": "nvarchar",
+          "charMaxLength": 150,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        },
+        {
+          "ordinal": 2,
+          "name": "ProductVersion",
+          "sqlType": "nvarchar",
+          "charMaxLength": 32,
+          "precision": 0,
+          "scale": 0,
+          "isNullable": false,
+          "isIdentity": false
+        }
+      ],
+      "keyConstraints": [
+        {
+          "ConstraintName": "PK___EFMigrationsHistory_LocalSync",
+          "Type": "PRIMARY_KEY_CONSTRAINT",
+          "ColumnName": "MigrationId",
+          "KeyOrdinal": 1
+        }
+      ],
+      "indexes": [
+        {
+          "IndexName": "PK___EFMigrationsHistory_LocalSync",
+          "IndexType": "CLUSTERED",
+          "IsUnique": true,
+          "IsPrimaryKey": true,
+          "ColumnName": "MigrationId",
+          "KeyOrdinal": 1,
+          "IsIncluded": false
+        }
+      ],
+      "sanitizedSampleRows": [
+        {
+          "MigrationId": "20260919155658_InitialLocalSyncSchema",
+          "ProductVersion": "8.0.11"
+        },
+        {
+          "MigrationId": "20260920070000_AlignBootstrapManifestStatusLength",
+          "ProductVersion": "8.0.11"
+        }
+      ]
+    }
+  },
+  "appliedMigrations": [
+    "20260919155658_InitialLocalSyncSchema",
+    "20260920070000_AlignBootstrapManifestStatusLength"
+  ],
+  "migrationsMatchExpected": true
+}

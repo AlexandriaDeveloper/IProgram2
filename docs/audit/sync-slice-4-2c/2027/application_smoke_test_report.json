@@ -1,0 +1,60 @@
+﻿{
+    "Gate":  "Gate7_SmokeTest",
+    "TimestampUtc":  "2026-09-20T11:25:20.2034403Z",
+    "TargetDatabase":  "IProgramLocalDb2027",
+    "LocalEngine":  "localhost (SQL Server 2014)",
+    "Tests":  {
+                  "ApplicationContext_Read":  {
+                                                  "Status":  "PASS",
+                                                  "EmployeesCount":  12353
+                                              },
+                  "Identity_Tables":  {
+                                          "Status":  "PASS",
+                                          "UsersCount":  2,
+                                          "RolesCount":  2
+                                      },
+                  "Representative_Entities":  {
+                                                  "Status":  "PASS",
+                                                  "Counts":  {
+                                                                 "Daily":  14,
+                                                                 "DailyReference":  8,
+                                                                 "Departments":  9,
+                                                                 "EmployeeBank":  478,
+                                                                 "EmployeeNetPays":  4098,
+                                                                 "Form":  580,
+                                                                 "FormDetails":  7877
+                                                             }
+                                              },
+                  "TSql_Patterns_2014":  {
+                                             "Status":  "PASS",
+                                             "GroupRowsReturned":  5
+                                         },
+                  "LocalSync_Metadata":  {
+                                             "Status":  "PASS",
+                                             "BootstrapStatus":  "VERIFIED_READY",
+                                             "IsWriteAllowed":  true,
+                                             "ServerVersionCheckpoint":  0,
+                                             "LocalOutboxCount":  0
+                                         },
+                  "AzureSync_Guard":  {
+                                          "Status":  "PASS",
+                                          "Filter":  "FullyQualifiedName~SyncSecurityBindingTests",
+                                          "Passed":  30,
+                                          "Failed":  0,
+                                          "Skipped":  0,
+                                          "Total":  30,
+                                          "Description":  "AzureSyncContext and SyncSecurityBinding strictly enforce database and endpoint isolation"
+                                      },
+                  "DotNet_LocalDbRequired_Suite":  {
+                                                       "Status":  "PASS",
+                                                       "Filter":  "Category=LocalDbRequired",
+                                                       "RequireLocalDb":  true,
+                                                       "ExpectedTotal":  12,
+                                                       "Passed":  12,
+                                                       "Failed":  0,
+                                                       "Skipped":  0,
+                                                       "Total":  12
+                                                   }
+              },
+    "OverallStatus":  "PASS"
+}

@@ -1,0 +1,378 @@
+﻿{
+    "ReportType":  "DataIntegrityAuditReport",
+    "Slice":  "4.2C",
+    "GeneratedUtc":  "2026-09-20T07:51:51.2751866Z",
+    "Mode":  "Compare",
+    "OverallStatus":  "PASS",
+    "SourceSummary":  {
+                          "TableCount":  24,
+                          "TotalRows":  25473
+                      },
+    "TargetSummary":  {
+                          "TableCount":  24,
+                          "TotalRows":  25473
+                      },
+    "Comparisons":  {
+                        "dbo.__EFMigrationsHistory":  {
+                                                          "Status":  "PASS",
+                                                          "SourceRowCount":  15,
+                                                          "TargetRowCount":  15,
+                                                          "SourceHash":  "F20A3A31CDD47E7C7B56E62C9890775836FECD261D111F6E02082BF2AC1FE4F6",
+                                                          "TargetHash":  "F20A3A31CDD47E7C7B56E62C9890775836FECD261D111F6E02082BF2AC1FE4F6",
+                                                          "SourceIdentCurrent":  null,
+                                                          "TargetIdentCurrent":  null,
+                                                          "IdentMatch":  true,
+                                                          "ForeignKeyCount":  0,
+                                                          "IndexCount":  1,
+                                                          "Mismatches":  [
+
+                                                                         ]
+                                                      },
+                        "dbo.AspNetRoleClaims":  {
+                                                     "Status":  "PASS",
+                                                     "SourceRowCount":  0,
+                                                     "TargetRowCount":  0,
+                                                     "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "SourceIdentCurrent":  "1",
+                                                     "TargetIdentCurrent":  "1",
+                                                     "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  2,
+                                                     "Mismatches":  [
+
+                                                                    ]
+                                                 },
+                        "dbo.AspNetRoles":  {
+                                                "Status":  "PASS",
+                                                "SourceRowCount":  2,
+                                                "TargetRowCount":  2,
+                                                "SourceHash":  "A8BBA7BDA1FA907229F572DB2B68576C5EED349B711E8AFF6927929225046DFB",
+                                                "TargetHash":  "A8BBA7BDA1FA907229F572DB2B68576C5EED349B711E8AFF6927929225046DFB",
+                                                "SourceIdentCurrent":  null,
+                                                "TargetIdentCurrent":  null,
+                                                "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  2,
+                                                "Mismatches":  [
+
+                                                               ]
+                                            },
+                        "dbo.AspNetUserClaims":  {
+                                                     "Status":  "PASS",
+                                                     "SourceRowCount":  8,
+                                                     "TargetRowCount":  8,
+                                                     "SourceHash":  "15E9B6C0DE6B5540A34FCBC49A40DDB87D74C2C8797C58A958DA736764C7A703",
+                                                     "TargetHash":  "15E9B6C0DE6B5540A34FCBC49A40DDB87D74C2C8797C58A958DA736764C7A703",
+                                                     "SourceIdentCurrent":  "8",
+                                                     "TargetIdentCurrent":  "8",
+                                                     "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  2,
+                                                     "Mismatches":  [
+
+                                                                    ]
+                                                 },
+                        "dbo.AspNetUserLogins":  {
+                                                     "Status":  "PASS",
+                                                     "SourceRowCount":  0,
+                                                     "TargetRowCount":  0,
+                                                     "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "SourceIdentCurrent":  null,
+                                                     "TargetIdentCurrent":  null,
+                                                     "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  2,
+                                                     "Mismatches":  [
+
+                                                                    ]
+                                                 },
+                        "dbo.AspNetUserRoles":  {
+                                                    "Status":  "PASS",
+                                                    "SourceRowCount":  3,
+                                                    "TargetRowCount":  3,
+                                                    "SourceHash":  "8AD10BCB3123096E8AEA7C466B490D9340AFCB26F4D73F03CE6122CD5416A5D0",
+                                                    "TargetHash":  "8AD10BCB3123096E8AEA7C466B490D9340AFCB26F4D73F03CE6122CD5416A5D0",
+                                                    "SourceIdentCurrent":  null,
+                                                    "TargetIdentCurrent":  null,
+                                                    "IdentMatch":  true,
+                                                    "ForeignKeyCount":  2,
+                                                    "IndexCount":  2,
+                                                    "Mismatches":  [
+
+                                                                   ]
+                                                },
+                        "dbo.AspNetUsers":  {
+                                                "Status":  "PASS",
+                                                "SourceRowCount":  2,
+                                                "TargetRowCount":  2,
+                                                "SourceHash":  "380BEDB871370AFD203440407099C7DE36FEF1D3F4A1452DEF648FD591823770",
+                                                "TargetHash":  "380BEDB871370AFD203440407099C7DE36FEF1D3F4A1452DEF648FD591823770",
+                                                "SourceIdentCurrent":  null,
+                                                "TargetIdentCurrent":  null,
+                                                "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  3,
+                                                "Mismatches":  [
+
+                                                               ]
+                                            },
+                        "dbo.AspNetUserTokens":  {
+                                                     "Status":  "PASS",
+                                                     "SourceRowCount":  0,
+                                                     "TargetRowCount":  0,
+                                                     "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "SourceIdentCurrent":  null,
+                                                     "TargetIdentCurrent":  null,
+                                                     "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  1,
+                                                     "Mismatches":  [
+
+                                                                    ]
+                                                 },
+                        "dbo.Daily":  {
+                                          "Status":  "PASS",
+                                          "SourceRowCount":  14,
+                                          "TargetRowCount":  14,
+                                          "SourceHash":  "2A2DDFFBB83AE214B66519ACD339680E1166EDEE7CA76042A70BF8CB17FBC9C8",
+                                          "TargetHash":  "2A2DDFFBB83AE214B66519ACD339680E1166EDEE7CA76042A70BF8CB17FBC9C8",
+                                          "SourceIdentCurrent":  "3122",
+                                          "TargetIdentCurrent":  "3122",
+                                          "IdentMatch":  true,
+                                          "ForeignKeyCount":  0,
+                                          "IndexCount":  2,
+                                          "Mismatches":  [
+
+                                                         ]
+                                      },
+                        "dbo.DailyReference":  {
+                                                   "Status":  "PASS",
+                                                   "SourceRowCount":  8,
+                                                   "TargetRowCount":  8,
+                                                   "SourceHash":  "6C865588AEEF96A0E32E21A169895AE2374C93FE82B3388D7BBB8DABA7F01A24",
+                                                   "TargetHash":  "6C865588AEEF96A0E32E21A169895AE2374C93FE82B3388D7BBB8DABA7F01A24",
+                                                   "SourceIdentCurrent":  "1112",
+                                                   "TargetIdentCurrent":  "1112",
+                                                   "IdentMatch":  true,
+                                                   "ForeignKeyCount":  1,
+                                                   "IndexCount":  3,
+                                                   "Mismatches":  [
+
+                                                                  ]
+                                               },
+                        "dbo.Departments":  {
+                                                "Status":  "PASS",
+                                                "SourceRowCount":  9,
+                                                "TargetRowCount":  9,
+                                                "SourceHash":  "D965E110C043BC31ED9185A8E34D17A4A47DA0EB2E884CBC76B9DBE5FF03E21C",
+                                                "TargetHash":  "D965E110C043BC31ED9185A8E34D17A4A47DA0EB2E884CBC76B9DBE5FF03E21C",
+                                                "SourceIdentCurrent":  "16",
+                                                "TargetIdentCurrent":  "16",
+                                                "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  2,
+                                                "Mismatches":  [
+
+                                                               ]
+                                            },
+                        "dbo.EmployeeBank":  {
+                                                 "Status":  "PASS",
+                                                 "SourceRowCount":  478,
+                                                 "TargetRowCount":  478,
+                                                 "SourceHash":  "E8C6ABE24B4E38594FE0C884016141E047051EABE9C3E83DC43D89336C14AE93",
+                                                 "TargetHash":  "E8C6ABE24B4E38594FE0C884016141E047051EABE9C3E83DC43D89336C14AE93",
+                                                 "SourceIdentCurrent":  null,
+                                                 "TargetIdentCurrent":  null,
+                                                 "IdentMatch":  true,
+                                                 "ForeignKeyCount":  1,
+                                                 "IndexCount":  2,
+                                                 "Mismatches":  [
+
+                                                                ]
+                                             },
+                        "dbo.EmployeeNetPays":  {
+                                                    "Status":  "PASS",
+                                                    "SourceRowCount":  4098,
+                                                    "TargetRowCount":  4098,
+                                                    "SourceHash":  "164A14A503449E1E517D0420BA27FB28EBDA87D9B68D5F0274451BD982284F8D",
+                                                    "TargetHash":  "164A14A503449E1E517D0420BA27FB28EBDA87D9B68D5F0274451BD982284F8D",
+                                                    "SourceIdentCurrent":  "25185",
+                                                    "TargetIdentCurrent":  "25185",
+                                                    "IdentMatch":  true,
+                                                    "ForeignKeyCount":  3,
+                                                    "IndexCount":  5,
+                                                    "Mismatches":  [
+
+                                                                   ]
+                                                },
+                        "dbo.EmployeeRefernce":  {
+                                                     "Status":  "PASS",
+                                                     "SourceRowCount":  0,
+                                                     "TargetRowCount":  0,
+                                                     "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                     "SourceIdentCurrent":  "1",
+                                                     "TargetIdentCurrent":  "1",
+                                                     "IdentMatch":  true,
+                                                     "ForeignKeyCount":  1,
+                                                     "IndexCount":  3,
+                                                     "Mismatches":  [
+
+                                                                    ]
+                                                 },
+                        "dbo.Employees":  {
+                                              "Status":  "PASS",
+                                              "SourceRowCount":  12353,
+                                              "TargetRowCount":  12353,
+                                              "SourceHash":  "2212BF92E003BE0F4017405DF0E2EDA5F9E8E00D6E5735E5D40B6A2060B38F59",
+                                              "TargetHash":  "2212BF92E003BE0F4017405DF0E2EDA5F9E8E00D6E5735E5D40B6A2060B38F59",
+                                              "SourceIdentCurrent":  null,
+                                              "TargetIdentCurrent":  null,
+                                              "IdentMatch":  true,
+                                              "ForeignKeyCount":  1,
+                                              "IndexCount":  5,
+                                              "Mismatches":  [
+
+                                                             ]
+                                          },
+                        "dbo.EmployeeWatchLists":  {
+                                                       "Status":  "PASS",
+                                                       "SourceRowCount":  24,
+                                                       "TargetRowCount":  24,
+                                                       "SourceHash":  "F629F0D0897FBA01B7BF0B5ABD252187B28CFCB6CC69E4ED2C77822B464AF080",
+                                                       "TargetHash":  "F629F0D0897FBA01B7BF0B5ABD252187B28CFCB6CC69E4ED2C77822B464AF080",
+                                                       "SourceIdentCurrent":  "28",
+                                                       "TargetIdentCurrent":  "28",
+                                                       "IdentMatch":  true,
+                                                       "ForeignKeyCount":  1,
+                                                       "IndexCount":  3,
+                                                       "Mismatches":  [
+
+                                                                      ]
+                                                   },
+                        "dbo.Form":  {
+                                         "Status":  "PASS",
+                                         "SourceRowCount":  580,
+                                         "TargetRowCount":  580,
+                                         "SourceHash":  "09327F3F0AC66E5E3302BEDE8199D04B943049EFADDE6EBDE5D4F3A100531148",
+                                         "TargetHash":  "09327F3F0AC66E5E3302BEDE8199D04B943049EFADDE6EBDE5D4F3A100531148",
+                                         "SourceIdentCurrent":  "8896",
+                                         "TargetIdentCurrent":  "8896",
+                                         "IdentMatch":  true,
+                                         "ForeignKeyCount":  2,
+                                         "IndexCount":  6,
+                                         "Mismatches":  [
+
+                                                        ]
+                                     },
+                        "dbo.FormDetails":  {
+                                                "Status":  "PASS",
+                                                "SourceRowCount":  7877,
+                                                "TargetRowCount":  7877,
+                                                "SourceHash":  "2A013FCED82261122614A06014C4E147787C99C3DE388C2185723E9BF9B08755",
+                                                "TargetHash":  "2A013FCED82261122614A06014C4E147787C99C3DE388C2185723E9BF9B08755",
+                                                "SourceIdentCurrent":  "71934",
+                                                "TargetIdentCurrent":  "71934",
+                                                "IdentMatch":  true,
+                                                "ForeignKeyCount":  2,
+                                                "IndexCount":  5,
+                                                "Mismatches":  [
+
+                                                               ]
+                                            },
+                        "dbo.FormRefernce":  {
+                                                 "Status":  "PASS",
+                                                 "SourceRowCount":  0,
+                                                 "TargetRowCount":  0,
+                                                 "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                 "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                 "SourceIdentCurrent":  "1",
+                                                 "TargetIdentCurrent":  "1",
+                                                 "IdentMatch":  true,
+                                                 "ForeignKeyCount":  1,
+                                                 "IndexCount":  3,
+                                                 "Mismatches":  [
+
+                                                                ]
+                                             },
+                        "sync.__EFMigrationsHistory_AzureSync":  {
+                                                                     "Status":  "PASS",
+                                                                     "SourceRowCount":  1,
+                                                                     "TargetRowCount":  1,
+                                                                     "SourceHash":  "C247B71A0DBC39733C52CE3D3C341CA808C420408ADE613C0F06F991E4D2A450",
+                                                                     "TargetHash":  "C247B71A0DBC39733C52CE3D3C341CA808C420408ADE613C0F06F991E4D2A450",
+                                                                     "SourceIdentCurrent":  null,
+                                                                     "TargetIdentCurrent":  null,
+                                                                     "IdentMatch":  true,
+                                                                     "ForeignKeyCount":  0,
+                                                                     "IndexCount":  1,
+                                                                     "Mismatches":  [
+
+                                                                                    ]
+                                                                 },
+                        "sync.ProcessedOperations":  {
+                                                         "Status":  "PASS",
+                                                         "SourceRowCount":  0,
+                                                         "TargetRowCount":  0,
+                                                         "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                         "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                         "SourceIdentCurrent":  null,
+                                                         "TargetIdentCurrent":  null,
+                                                         "IdentMatch":  true,
+                                                         "ForeignKeyCount":  0,
+                                                         "IndexCount":  1,
+                                                         "Mismatches":  [
+
+                                                                        ]
+                                                     },
+                        "sync.ServerChangeFeed":  {
+                                                      "Status":  "PASS",
+                                                      "SourceRowCount":  0,
+                                                      "TargetRowCount":  0,
+                                                      "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                      "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                      "SourceIdentCurrent":  "1",
+                                                      "TargetIdentCurrent":  "1",
+                                                      "IdentMatch":  true,
+                                                      "ForeignKeyCount":  0,
+                                                      "IndexCount":  2,
+                                                      "Mismatches":  [
+
+                                                                     ]
+                                                  },
+                        "sync.ServerState":  {
+                                                 "Status":  "PASS",
+                                                 "SourceRowCount":  1,
+                                                 "TargetRowCount":  1,
+                                                 "SourceHash":  "98A7664376D698AB4C30A7653E28F35CFB9523ABEE6882AE5C41363A73C66B62",
+                                                 "TargetHash":  "98A7664376D698AB4C30A7653E28F35CFB9523ABEE6882AE5C41363A73C66B62",
+                                                 "SourceIdentCurrent":  null,
+                                                 "TargetIdentCurrent":  null,
+                                                 "IdentMatch":  true,
+                                                 "ForeignKeyCount":  0,
+                                                 "IndexCount":  1,
+                                                 "Mismatches":  [
+
+                                                                ]
+                                             },
+                        "sync.Tombstones":  {
+                                                "Status":  "PASS",
+                                                "SourceRowCount":  0,
+                                                "TargetRowCount":  0,
+                                                "SourceHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                "TargetHash":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                "SourceIdentCurrent":  null,
+                                                "TargetIdentCurrent":  null,
+                                                "IdentMatch":  true,
+                                                "ForeignKeyCount":  0,
+                                                "IndexCount":  2,
+                                                "Mismatches":  [
+
+                                                               ]
+                                            }
+                    },
+    "MismatchCount":  0
+}

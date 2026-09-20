@@ -154,5 +154,40 @@ namespace Auth.UnitTests
             Assert.False(DatabaseBindingValidator.IsLocalServerEndpoint("remoteserver.company.internal"));
             Assert.True(DatabaseBindingValidator.IsRemoteServerEndpoint("remoteserver.company.internal"));
         }
+
+        [Fact]
+        public void AzureSourceConnectionString_Preserves_ReadOnlyIntent_And_RemoteCatalog()
+        {
+            var remoteCs = $"Server={RemoteAzureServer};Initial Catalog=IProgramDb2027;Integrated Security=True;ApplicationIntent=ReadOnly;Connect Timeout=60;TrustServerCertificate=True;";
+            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(remoteCs);
+
+            Assert.Equal("IProgramDb2027", builder.InitialCatalog);
+            Assert.Equal(Microsoft.Data.SqlClient.ApplicationIntent.ReadOnly, builder.ApplicationIntent);
+            Assert.True(DatabaseBindingValidator.IsRemoteServerEndpoint(builder.DataSource));
+            Assert.False(DatabaseBindingValidator.IsLocalServerEndpoint(builder.DataSource));
+        }
+
+        [Theory]
+        [InlineData("IProgramDb2026")]
+        [InlineData("IProgramDb2027")]
+        public void AzureSourceConnectionString_FailsClosed_When_ApplicationIntent_IsNotReadOnly(string remoteDbName)
+        {
+            var invalidCs = $"Server={RemoteAzureServer};Database={remoteDbName};Integrated Security=True;ApplicationIntent=ReadWrite;";
+            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(invalidCs);
+
+            Assert.NotEqual(Microsoft.Data.SqlClient.ApplicationIntent.ReadOnly, builder.ApplicationIntent);
+        }
+
+        [Fact]
+        public void AzureSourceConnectionString_Rejects_LocalEndpoint_For_2027()
+        {
+            var localCs = "Server=localhost;Initial Catalog=IProgramDb2027;Integrated Security=True;ApplicationIntent=ReadOnly;";
+            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(localCs);
+
+            Assert.Equal("IProgramDb2027", builder.InitialCatalog);
+            Assert.Equal(Microsoft.Data.SqlClient.ApplicationIntent.ReadOnly, builder.ApplicationIntent);
+            Assert.True(DatabaseBindingValidator.IsLocalServerEndpoint(builder.DataSource));
+            Assert.False(DatabaseBindingValidator.IsRemoteServerEndpoint(builder.DataSource));
+        }
     }
 }

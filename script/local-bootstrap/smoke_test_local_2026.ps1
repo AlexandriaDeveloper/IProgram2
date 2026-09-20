@@ -1,14 +1,26 @@
 # Gate 7 Application Compatibility Smoke Test Runner (Local Read-Only)
 param(
-    [string]$TargetDatabase = "IProgramLocalDb2026",
+    [ValidateSet("2026", "2027")]
+    [string]$Year = "2026",
+    [string]$TargetDatabase = "",
     [string]$OutputJsonPath = ""
 )
 
 $ErrorActionPreference = "Stop"
 
+$canonicalDb = if ($Year -eq "2027") { "IProgramLocalDb2027" } else { "IProgramLocalDb2026" }
+if (-not [string]::IsNullOrWhiteSpace($TargetDatabase)) {
+    if ($TargetDatabase -ne $canonicalDb) {
+        throw "TargetDatabase mismatch: '$TargetDatabase' does not match canonical database '$canonicalDb' for Year '$Year'."
+    }
+} else {
+    $TargetDatabase = $canonicalDb
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 if (-not $OutputJsonPath) {
-    $OutputJsonPath = Join-Path $repoRoot "docs\audit\sync-slice-4-2b\2026\application_smoke_test_report.json"
+    $sliceDir = if ($Year -eq "2027") { "sync-slice-4-2c\2027" } else { "sync-slice-4-2b\2026" }
+    $OutputJsonPath = Join-Path $repoRoot "docs\audit\$sliceDir\application_smoke_test_report.json"
 }
 
 Write-Host "==========================================================================" -ForegroundColor Cyan
@@ -143,9 +155,9 @@ try {
     $conn.Open()
     $cmd = $conn.CreateCommand()
     $cmd.CommandText = @"
-SELECT Status, IsWriteAllowed FROM sync.BootstrapManifest WHERE DatabaseId = '2026';
-SELECT ServerVersionCheckpoint = LastServerVersion FROM sync.LocalState WHERE DatabaseId = '2026';
-SELECT OutboxCount = COUNT(*) FROM sync.LocalOutbox WHERE DatabaseId = '2026';
+SELECT Status, IsWriteAllowed FROM sync.BootstrapManifest WHERE DatabaseId = '$Year';
+SELECT ServerVersionCheckpoint = LastServerVersion FROM sync.LocalState WHERE DatabaseId = '$Year';
+SELECT OutboxCount = COUNT(*) FROM sync.LocalOutbox WHERE DatabaseId = '$Year';
 "@
     $reader = $cmd.ExecuteReader()
     $bStatus = ""
@@ -187,17 +199,46 @@ SELECT OutboxCount = COUNT(*) FROM sync.LocalOutbox WHERE DatabaseId = '2026';
 
 # Test 6: AzureSync Guard Rejection
 try {
-    Write-Host "Test 6: AzureSync Physical Guard Rejection..." -NoNewline
-    # Test via dotnet test
+    Write-Host "Test 6: AzureSync Physical Guard Rejection Unit Tests..." -NoNewline
+    $testProj = Join-Path $repoRoot "tests\Auth.UnitTests\Auth.UnitTests.csproj"
+    $bindingOutput = & dotnet test $testProj -c Release --filter "FullyQualifiedName~SyncSecurityBindingTests" --verbosity minimal 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Binding guard unit tests failed with exit code $LASTEXITCODE. Output: $bindingOutput"
+    }
+    
+    # Parse test count from output
+    $passed = 0
+    $failed = 0
+    $skipped = 0
+    $total = 0
+    foreach ($line in $bindingOutput) {
+        if ($line -match "Failed:\s+(\d+),\s+Passed:\s+(\d+),\s+Skipped:\s+(\d+),\s+Total:\s+(\d+)") {
+            $failed = [int]$matches[1]
+            $passed = [int]$matches[2]
+            $skipped = [int]$matches[3]
+            $total = [int]$matches[4]
+            break
+        }
+    }
+    
+    if ($total -eq 0 -or $failed -gt 0 -or $passed -eq 0) {
+        throw "Binding guard tests did not pass as expected: Passed=$passed, Failed=$failed, Skipped=$skipped, Total=$total"
+    }
+
     $report.Tests["AzureSync_Guard"] = [ordered]@{
         Status = "PASS"
-        Description = "AzureSyncContext strictly rejects local database name IProgramLocalDb2026"
+        Filter = "FullyQualifiedName~SyncSecurityBindingTests"
+        Passed = $passed
+        Failed = $failed
+        Skipped = $skipped
+        Total = $total
+        Description = "AzureSyncContext and SyncSecurityBinding strictly enforce database and endpoint isolation"
     }
-    Write-Host " PASS (Confirmed by physical binding guard)" -ForegroundColor Green
+    Write-Host " PASS ($passed binding guard tests passed)" -ForegroundColor Green
 } catch {
     $allPassed = $false
     $report.Tests["AzureSync_Guard"] = [ordered]@{ Status = "FAIL"; Error = $_.Exception.Message }
-    Write-Host " FAIL" -ForegroundColor Red
+    Write-Host " FAIL: $($_.Exception.Message)" -ForegroundColor Red
 }
 
 # Test 7: .NET LocalDbRequired Unit Smoke Tests (with REQUIRE_LOCAL_DB=true)
@@ -205,16 +246,43 @@ try {
     Write-Host "Test 7: .NET LocalDbRequired Smoke Suite (REQUIRE_LOCAL_DB=true)..." -NoNewline
     $env:REQUIRE_LOCAL_DB = "true"
     $testProj = Join-Path $repoRoot "tests\Auth.UnitTests\Auth.UnitTests.csproj"
-    $testOutput = & dotnet test $testProj --filter "Category=LocalDbRequired" --verbosity minimal 2>&1
+    $testOutput = & dotnet test $testProj -c Release --filter "Category=LocalDbRequired" --verbosity minimal 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet test failed with exit code $LASTEXITCODE. Output: $testOutput"
     }
+    
+    # Parse test counts
+    $passed = 0
+    $failed = 0
+    $skipped = 0
+    $total = 0
+    foreach ($line in $testOutput) {
+        if ($line -match "Failed:\s+(\d+),\s+Passed:\s+(\d+),\s+Skipped:\s+(\d+),\s+Total:\s+(\d+)") {
+            $failed = [int]$matches[1]
+            $passed = [int]$matches[2]
+            $skipped = [int]$matches[3]
+            $total = [int]$matches[4]
+            break
+        }
+    }
+    
+    # Strictly require exactly 12 passed tests (6 for 2026 + 6 for 2027)
+    $expectedCount = 12
+    if ($total -ne $expectedCount -or $passed -ne $expectedCount -or $failed -ne 0 -or $skipped -ne 0) {
+        throw "Exact test count assertion failed! Expected $expectedCount passed, 0 failed, 0 skipped. Actual: Passed=$passed, Failed=$failed, Skipped=$skipped, Total=$total."
+    }
+    
     $report.Tests["DotNet_LocalDbRequired_Suite"] = [ordered]@{
         Status = "PASS"
         Filter = "Category=LocalDbRequired"
         RequireLocalDb = $true
+        ExpectedTotal = $expectedCount
+        Passed = $passed
+        Failed = $failed
+        Skipped = $skipped
+        Total = $total
     }
-    Write-Host " PASS (Executed with enforced local DB presence)" -ForegroundColor Green
+    Write-Host " PASS ($passed passed, $failed failed, $skipped skipped - exact count $expectedCount verified)" -ForegroundColor Green
 } catch {
     $allPassed = $false
     $report.Tests["DotNet_LocalDbRequired_Suite"] = [ordered]@{ Status = "FAIL"; Error = $_.Exception.Message }
