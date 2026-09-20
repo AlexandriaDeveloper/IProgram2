@@ -92,13 +92,30 @@ Following verification of Phase A, the approved architectural boundary was appli
 
 ---
 
-## 3. Decision Gate Execution: Adoption of 2026 Clone
+## 3. Local Sync Metadata Schema Inventory & Adoption Hold
 
-Following the Architect's instructions for **Case 1 (Exact Current Match)**:
-1. **Quarantine Lifted & Manifest Updated:**
-   * Prior Status: `QUARANTINED_UNAUTHORIZED_BOOTSTRAP` (`IsWriteAllowed = False`)
-   * Safety Hold Status: `QUARANTINED_PENDING_ARCHITECT_REVIEW` (`IsWriteAllowed = False`)
-   * Adopted Status: `VERIFIED_READY` (`IsWriteAllowed = True`)
+Following confirmation of metadata schema verification requirements:
+* **Physical Schema Inventory:**
+  - `sync.LocalState`: 100% exact match (10/10 columns, types, nullability, PK). Contains `DeviceId`, `DeviceName`, `LastServerVersion = 0`. Obsolete `LastSyncTimestampUtc` does NOT exist physically.
+  - `sync.LocalOutbox`: 100% exact match (13/13 columns, index `IX_LocalOutbox_Queue`, 0 rows).
+  - `sync.__EFMigrationsHistory_LocalSync`: 100% exact match (1 migration: `20260919155658_InitialLocalSyncSchema`).
+  - `sync.BootstrapManifest`: 9/10 columns match exactly. Exactly 1 safe width drift identified: `Status` column is physically `nvarchar(50)` vs EF Core model `nvarchar(20)`.
+* **Adoption Hold Applied:**
+  - `sync.BootstrapManifest.Status`: `'REVIEW_HOLD'` (11 characters <= 20).
+  - `IsWriteAllowed`: `false`.
+* **Safe Remediation Plan:**
+  - Classification: `METADATA_SAFE_MIGRATION_PROPOSED`.
+  - Proposes forward-only LocalSync migration to alter `Status` to `nvarchar(20) NOT NULL` (all values fit).
+  - Schema changes held until Architect approval.
+
+*Evidence Artifact:* `docs/audit/sync-slice-4-2b/2026/local_metadata_schema_diff.json`
+
+---
+
+## 4. Decision Gate Execution: Adoption Hold State of 2026 Clone
+
+1. **Current Manifest State:**
+   * Current Status: `REVIEW_HOLD` (`IsWriteAllowed = False`)
    * Scope: DatabaseId `2026` (`IProgramLocalDb2026`)
 2. **Sync Outbox & State Verified:**
    * `sync.LocalOutbox` count: `0`
