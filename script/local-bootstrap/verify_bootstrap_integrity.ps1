@@ -1,5 +1,6 @@
 # Deterministic Data Integrity and Schema Verifier for IProgram Phase 4 Slice 4.2B
 param(
+    [ValidateSet("2026", "2027")]
     [string]$Year = "2026",
     [string]$SourceConnectionString = "",
     [string]$TargetConnectionString = "",
@@ -441,12 +442,59 @@ if ([string]::IsNullOrWhiteSpace($SourceConnectionString)) {
     }
 }
 
-if (-not [string]::IsNullOrWhiteSpace($SourceConnectionString)) {
-    $SourceConnectionString = $SourceConnectionString -replace "Connection Timeout=\d+", "Connection Timeout=60"
-    $SourceConnectionString = $SourceConnectionString -replace "TrustServerCertificate=False", "TrustServerCertificate=True"
-    if ($SourceConnectionString -notmatch "TrustServerCertificate") {
-        $SourceConnectionString += ";TrustServerCertificate=True"
+function Test-AzureSourceBinding {
+    param(
+        [string]$connectionString,
+        [string]$expectedDb
+    )
+    if ([string]::IsNullOrWhiteSpace($connectionString)) {
+        throw "ABORT: Azure connection string is null or empty."
     }
+    $b = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($connectionString)
+    $catalog = $b.InitialCatalog
+    if ([string]::IsNullOrWhiteSpace($catalog)) {
+        $catalog = $b["Database"]
+    }
+    if ($catalog -ne $expectedDb) {
+        throw "SECURITY VIOLATION: Azure binding requires database '$expectedDb', but found '$catalog'."
+    }
+    $endpoint = $b.DataSource
+    if ([string]::IsNullOrWhiteSpace($endpoint)) {
+        throw "SECURITY VIOLATION: Azure endpoint cannot be empty."
+    }
+    
+    # Strip protocol prefix
+    $ep = $endpoint.Trim()
+    if ($ep.StartsWith("tcp:", [System.StringComparison]::OrdinalIgnoreCase)) { $ep = $ep.Substring(4).Trim() }
+    elseif ($ep.StartsWith("np:", [System.StringComparison]::OrdinalIgnoreCase)) { $ep = $ep.Substring(3).Trim() }
+    elseif ($ep.StartsWith("lpc:", [System.StringComparison]::OrdinalIgnoreCase)) { $ep = $ep.Substring(4).Trim() }
+    
+    # Strip port suffix
+    $commaIdx = $ep.IndexOf(',')
+    if ($commaIdx -ge 0) { $ep = $ep.Substring(0, $commaIdx).Trim() }
+    $colonIdx = $ep.IndexOf(':')
+    if ($colonIdx -ge 0 -and $ep.IndexOf(':', $colonIdx + 1) -lt 0) { $ep = $ep.Substring(0, $colonIdx).Trim() }
+    
+    # Strip named instance
+    $slashIdx = $ep.IndexOf('\')
+    $hostPart = if ($slashIdx -ge 0) { $ep.Substring(0, $slashIdx).Trim() } else { $ep }
+    
+    $localHosts = @("localhost", ".", "(local)", "127.0.0.1", "::1", "[::1]", "(localdb)", $env:COMPUTERNAME)
+    foreach ($lh in $localHosts) {
+        if ($hostPart.Equals($lh, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "SECURITY VIOLATION: Azure binding cannot target local endpoint. Target must be a valid remote Azure endpoint."
+        }
+    }
+    
+    $b.ApplicationIntent = [System.Data.SqlClient.ApplicationIntent]::ReadOnly
+    $b["Connect Timeout"] = 60
+    $b.TrustServerCertificate = $true
+    return $b.ConnectionString
+}
+
+if ($Mode -in @("CaptureSource", "Compare")) {
+    $expectedAzureDb = if ($Year -eq "2027") { "IProgramDb2027" } else { "IProgramDb2026" }
+    $SourceConnectionString = Test-AzureSourceBinding -connectionString $SourceConnectionString -expectedDb $expectedAzureDb
 }
 
 if ([string]::IsNullOrWhiteSpace($TargetConnectionString) -and ($Mode -ne "CaptureSource")) {

@@ -21,11 +21,58 @@ if ([string]::IsNullOrWhiteSpace($azure2027Cs)) {
     exit 1
 }
 
-$azure2027Cs = $azure2027Cs -replace "Connection Timeout=\d+", "Connection Timeout=60"
-$azure2027Cs = $azure2027Cs -replace "TrustServerCertificate=False", "TrustServerCertificate=True"
-if ($azure2027Cs -notmatch "TrustServerCertificate") {
-    $azure2027Cs += ";TrustServerCertificate=True"
+function Test-AzureSourceBinding {
+    param(
+        [string]$connectionString,
+        [string]$expectedDb = "IProgramDb2027"
+    )
+    if ([string]::IsNullOrWhiteSpace($connectionString)) {
+        throw "ABORT: Azure connection string is null or empty."
+    }
+    $b = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($connectionString)
+    $catalog = $b.InitialCatalog
+    if ([string]::IsNullOrWhiteSpace($catalog)) {
+        $catalog = $b["Database"]
+    }
+    if ($catalog -ne $expectedDb) {
+        throw "SECURITY VIOLATION: Azure binding requires database '$expectedDb', but found '$catalog'."
+    }
+    $endpoint = $b.DataSource
+    if ([string]::IsNullOrWhiteSpace($endpoint)) {
+        throw "SECURITY VIOLATION: Azure endpoint cannot be empty."
+    }
+    
+    # Strip protocol prefix
+    $ep = $endpoint.Trim()
+    if ($ep.StartsWith("tcp:", [System.StringComparison]::OrdinalIgnoreCase)) { $ep = $ep.Substring(4).Trim() }
+    elseif ($ep.StartsWith("np:", [System.StringComparison]::OrdinalIgnoreCase)) { $ep = $ep.Substring(3).Trim() }
+    elseif ($ep.StartsWith("lpc:", [System.StringComparison]::OrdinalIgnoreCase)) { $ep = $ep.Substring(4).Trim() }
+    
+    # Strip port suffix
+    $commaIdx = $ep.IndexOf(',')
+    if ($commaIdx -ge 0) { $ep = $ep.Substring(0, $commaIdx).Trim() }
+    $colonIdx = $ep.IndexOf(':')
+    if ($colonIdx -ge 0 -and $ep.IndexOf(':', $colonIdx + 1) -lt 0) { $ep = $ep.Substring(0, $colonIdx).Trim() }
+    
+    # Strip named instance
+    $slashIdx = $ep.IndexOf('\')
+    $hostPart = if ($slashIdx -ge 0) { $ep.Substring(0, $slashIdx).Trim() } else { $ep }
+    
+    $localHosts = @("localhost", ".", "(local)", "127.0.0.1", "::1", "[::1]", "(localdb)", $env:COMPUTERNAME)
+    foreach ($lh in $localHosts) {
+        if ($hostPart.Equals($lh, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "SECURITY VIOLATION: Azure binding cannot target local endpoint. Target must be a valid remote Azure endpoint."
+        }
+    }
+    
+    $b.ApplicationIntent = [System.Data.SqlClient.ApplicationIntent]::ReadOnly
+    $b["Connect Timeout"] = 60
+    $b.TrustServerCertificate = $true
+    return $b.ConnectionString
 }
+
+# Validate Azure source binding (Blocker 2)
+$azure2027Cs = Test-AzureSourceBinding -connectionString $azure2027Cs -expectedDb "IProgramDb2027"
 
 $localMasterCs = "Server=localhost;Database=master;Integrated Security=True;TrustServerCertificate=True;"
 $localTargetDb = "IProgramLocalDb2027"
@@ -35,24 +82,25 @@ Write-Host "====================================================================
 Write-Host "  SLICE 4.2C: LOCAL BOOTSTRAP FOR YEAR 2027 ($localTargetDb)" -ForegroundColor Cyan
 Write-Host "==========================================================================" -ForegroundColor Cyan
 
-# 1. Create target database on localhost if it does not exist
-Write-Host "`n[Step 1] Ensuring $localTargetDb exists on localhost..." -ForegroundColor Yellow
+# 1. Require target database to be absent at start (Blocker 1: Fail closed)
+Write-Host "`n[Step 1] Ensuring $localTargetDb is absent on localhost (Fail-Closed check)..." -ForegroundColor Yellow
 $connMaster = New-Object System.Data.SqlClient.SqlConnection($localMasterCs)
 $connMaster.Open()
 $cmdMaster = $connMaster.CreateCommand()
 $cmdMaster.CommandText = "SELECT COUNT(*) FROM sys.databases WHERE name = '$localTargetDb';"
 $exists = [int]$cmdMaster.ExecuteScalar()
 
-if ($exists -eq 0) {
-    Write-Host "  Creating database $localTargetDb on localhost (Compatibility 120)..." -ForegroundColor Yellow
-    $cmdMaster.CommandText = "CREATE DATABASE [$localTargetDb] COLLATE SQL_Latin1_General_CP1_CI_AS;"
-    $cmdMaster.ExecuteNonQuery() | Out-Null
-    $cmdMaster.CommandText = "ALTER DATABASE [$localTargetDb] SET COMPATIBILITY_LEVEL = 120;"
-    $cmdMaster.ExecuteNonQuery() | Out-Null
-    Write-Host "  Database $localTargetDb created successfully." -ForegroundColor Green
-} else {
-    Write-Host "  Database $localTargetDb already exists." -ForegroundColor Cyan
+if ($exists -ne 0) {
+    $connMaster.Close()
+    throw "ABORT: Target database '$localTargetDb' already exists on localhost. Case-A bootstrap requires target to be absent at start. If '$localTargetDb' was already bootstrapped, proceed to comparison/adoption flow (script/local-bootstrap/verify_bootstrap_integrity.ps1 / script/local-bootstrap/adopt_2027_clone.ps1). Never re-bootstrap an existing database."
 }
+
+Write-Host "  Creating database $localTargetDb on localhost (Compatibility 120)..." -ForegroundColor Yellow
+$cmdMaster.CommandText = "CREATE DATABASE [$localTargetDb] COLLATE SQL_Latin1_General_CP1_CI_AS;"
+$cmdMaster.ExecuteNonQuery() | Out-Null
+$cmdMaster.CommandText = "ALTER DATABASE [$localTargetDb] SET COMPATIBILITY_LEVEL = 120;"
+$cmdMaster.ExecuteNonQuery() | Out-Null
+Write-Host "  Database $localTargetDb created successfully." -ForegroundColor Green
 $connMaster.Close()
 
 # 2. Ensure schemas exist in target

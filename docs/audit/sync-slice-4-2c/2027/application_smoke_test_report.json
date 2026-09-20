@@ -1,6 +1,6 @@
 ﻿{
     "Gate":  "Gate7_SmokeTest",
-    "TimestampUtc":  "2026-09-20T07:57:44.1555948Z",
+    "TimestampUtc":  "2026-09-20T08:53:44.7320721Z",
     "TargetDatabase":  "IProgramLocalDb2027",
     "LocalEngine":  "localhost (SQL Server 2014)",
     "Tests":  {
@@ -38,12 +38,22 @@
                                          },
                   "AzureSync_Guard":  {
                                           "Status":  "PASS",
-                                          "Description":  "AzureSyncContext strictly rejects local database name IProgramLocalDb2027"
+                                          "Filter":  "FullyQualifiedName~SyncSecurityBindingTests",
+                                          "Passed":  26,
+                                          "Failed":  0,
+                                          "Skipped":  0,
+                                          "Total":  26,
+                                          "Description":  "AzureSyncContext and SyncSecurityBinding strictly enforce database and endpoint isolation"
                                       },
                   "DotNet_LocalDbRequired_Suite":  {
                                                        "Status":  "PASS",
                                                        "Filter":  "Category=LocalDbRequired",
-                                                       "RequireLocalDb":  true
+                                                       "RequireLocalDb":  true,
+                                                       "ExpectedTotal":  12,
+                                                       "Passed":  12,
+                                                       "Failed":  0,
+                                                       "Skipped":  0,
+                                                       "Total":  12
                                                    }
               },
     "OverallStatus":  "PASS"

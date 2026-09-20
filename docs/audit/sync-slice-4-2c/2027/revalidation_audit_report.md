@@ -99,14 +99,29 @@ Key milestones delivered:
 | 3 | Representative Entities Queryable (Daily, Ref, Dept, Bank, NetPay, Form, Details) | `IProgramLocalDb2027` | **PASS** |
 | 4 | SQL Server 2014 T-SQL Compatibility (Joins, Aggregates, Grouping) | `IProgramLocalDb2027` | **PASS** |
 | 5 | LocalSync Metadata Verification (`VERIFIED_READY`, `IsWriteAllowed=true`, Version `0`) | `IProgramLocalDb2027` | **PASS** |
-| 6 | AzureSync Context Physical Binding Rejection Guard | `IProgramLocalDb2027` | **PASS** |
+| 6 | AzureSync Context Physical Binding Rejection Guard Unit Tests | `IProgramLocalDb2027` | **PASS (26/26 tests)** |
 | 7 | .NET Unit Smoke Suite (`Category=LocalDbRequired`) | Both 2026 & 2027 | **PASS (12/12 tests)** |
 
 ---
 
-## 4. Certification & Operational Sign-off
+## 4. LocalSync Metadata Schema Exactness Audit
+
+* Evaluated across all 4 local-only metadata objects in `IProgramLocalDb2027`:
+  - `sync.BootstrapManifest` (10 columns, `Status` length 20, PK `Id`, `AzureServerSource = 'Azure:IProgramDb2027'`)
+  - `sync.LocalState` (10 columns, PK `DatabaseId`, `LastServerVersion = 0`)
+  - `sync.LocalOutbox` (13 columns, PK `ClientOperationId`, index `IX_LocalOutbox_Queue`, 0 rows)
+  - `sync.__EFMigrationsHistory_LocalSync` (2 columns, PK `MigrationId`)
+* Confirmed applied migrations match expected exactly:
+  1. `20260919155658_InitialLocalSyncSchema`
+  2. `20260920070000_AlignBootstrapManifestStatusLength`
+* Total column/index/nullability/type/length drifts: **0 (100% exact match to EF Core model)**.
+* *Evidence Artifact:* `docs/audit/sync-slice-4-2c/2027/local_metadata_schema_diff.json`
+
+---
+
+## 5. Certification & Operational Sign-off
 - [x] Azure `IProgramDb2027` accessed strictly in read-only mode (zero Azure DDL/DML).
 - [x] Year 2026 databases (`IProgramDb2026`, `IProgramLocalDb2026`) completely untouched.
 - [x] `LocalFirst:Enabled` remains `false` in `appsettings.json`.
 - [x] Zero Sync Engine, conflict resolution, or background sync logic started.
-- [x] All public artifacts thoroughly sanitized (0 credentials, tokens, Device IDs, or machine names).
+- [x] All public artifacts thoroughly sanitized (0 credentials, tokens, Device IDs, machine names, or production hostnames).
