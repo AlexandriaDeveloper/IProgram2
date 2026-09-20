@@ -118,14 +118,44 @@ Write-Host "`n[Step 3] Connecting SMO to Azure IProgramDb2027 (Read-Only)..." -F
 [System.Reflection.Assembly]::LoadWithPartialName('Microsoft.SqlServer.Smo') | Out-Null
 [System.Reflection.Assembly]::LoadWithPartialName('Microsoft.SqlServer.ConnectionInfo') | Out-Null
 
-$builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($azure2027Cs)
-$serverConn = New-Object Microsoft.SqlServer.Management.Common.ServerConnection($builder.DataSource, $builder.UserID, $builder.Password)
-$serverConn.DatabaseName = $builder.InitialCatalog
-$serverConn.ConnectTimeout = 60
+# Construct SMO ServerConnection directly from validated SqlConnection preserving full connection metadata
+$azureSqlConn = New-Object System.Data.SqlClient.SqlConnection($azure2027Cs)
+
+# Fail-closed assertion: verify InitialCatalog, ApplicationIntent, and remote endpoint before connecting SMO
+$smoBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($azureSqlConn.ConnectionString)
+if ($smoBuilder.InitialCatalog -ne "IProgramDb2027") {
+    throw "SECURITY VIOLATION: SMO source catalog must be 'IProgramDb2027', found '$($smoBuilder.InitialCatalog)'."
+}
+if ($smoBuilder.ApplicationIntent -ne [System.Data.SqlClient.ApplicationIntent]::ReadOnly) {
+    throw "SECURITY VIOLATION: SMO source connection must specify ApplicationIntent=ReadOnly."
+}
+if ([string]::IsNullOrWhiteSpace($smoBuilder.DataSource)) {
+    throw "SECURITY VIOLATION: SMO source endpoint cannot be empty."
+}
+
+# Endpoint must have passed source binding validation
+$smoEp = $smoBuilder.DataSource.Trim()
+if ($smoEp.StartsWith("tcp:", [System.StringComparison]::OrdinalIgnoreCase)) { $smoEp = $smoEp.Substring(4).Trim() }
+elseif ($smoEp.StartsWith("np:", [System.StringComparison]::OrdinalIgnoreCase)) { $smoEp = $smoEp.Substring(3).Trim() }
+elseif ($smoEp.StartsWith("lpc:", [System.StringComparison]::OrdinalIgnoreCase)) { $smoEp = $smoEp.Substring(4).Trim() }
+$commaIdx = $smoEp.IndexOf(',')
+if ($commaIdx -ge 0) { $smoEp = $smoEp.Substring(0, $commaIdx).Trim() }
+$colonIdx = $smoEp.IndexOf(':')
+if ($colonIdx -ge 0 -and $smoEp.IndexOf(':', $colonIdx + 1) -lt 0) { $smoEp = $smoEp.Substring(0, $colonIdx).Trim() }
+$slashIdx = $smoEp.IndexOf('\')
+$smoHostPart = if ($slashIdx -ge 0) { $smoEp.Substring(0, $slashIdx).Trim() } else { $smoEp }
+$localHosts = @("localhost", ".", "(local)", "127.0.0.1", "::1", "[::1]", "(localdb)", $env:COMPUTERNAME)
+foreach ($lh in $localHosts) {
+    if ($smoHostPart.Equals($lh, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "SECURITY VIOLATION: SMO source endpoint cannot target local server '$lh'."
+    }
+}
+
+$serverConn = New-Object Microsoft.SqlServer.Management.Common.ServerConnection($azureSqlConn)
 $serverConn.Connect()
 
 $srv = New-Object Microsoft.SqlServer.Management.Smo.Server($serverConn)
-$azureDb = $srv.Databases[$builder.InitialCatalog]
+$azureDb = $srv.Databases[$smoBuilder.InitialCatalog]
 
 Write-Host "  SMO connected to $($azureDb.Name). Total tables: $($azureDb.Tables.Count)" -ForegroundColor Green
 
@@ -238,7 +268,7 @@ $connTarget.Close()
 Write-Host "`n[Step 6] Creating non-PK indexes in $localTargetDb..." -ForegroundColor Yellow
 $serverConn.Connect()
 $srv = New-Object Microsoft.SqlServer.Management.Smo.Server($serverConn)
-$azureDb = $srv.Databases[$builder.InitialCatalog]
+$azureDb = $srv.Databases[$smoBuilder.InitialCatalog]
 
 $connTarget = New-Object System.Data.SqlClient.SqlConnection($localTargetCs)
 $connTarget.Open()
@@ -260,9 +290,15 @@ foreach ($t in $azureDb.Tables) {
             continue
         }
         
-        # Check if index exists on target
+        # Check if index exists on target table (object-qualified by schema, table, and index name)
         $cmdIdxCheck = $connTarget.CreateCommand()
-        $cmdIdxCheck.CommandText = "SELECT COUNT(*) FROM sys.indexes WHERE name = '$($idx.Name)';"
+        $cmdIdxCheck.CommandText = @"
+SELECT COUNT(*) 
+FROM sys.indexes i
+JOIN sys.tables t ON i.object_id = t.object_id
+JOIN sys.schemas s ON t.schema_id = s.schema_id
+WHERE s.name = '$schema' AND t.name = '$name' AND i.name = '$($idx.Name)';
+"@
         $idxExists = [int]$cmdIdxCheck.ExecuteScalar()
         if ($idxExists -eq 0) {
             Write-Host "  Creating index $($idx.Name) on [$schema].[$name]..." -NoNewline
@@ -296,9 +332,15 @@ foreach ($t in $azureDb.Tables) {
     $schema = $t.Schema
     $name = $t.Name
     
-    foreach ($fk in $t.ForeignKeys) {
+        # Check if foreign key exists on parent table in target (object-qualified by schema, table, and FK name)
         $cmdFkCheck = $connTarget.CreateCommand()
-        $cmdFkCheck.CommandText = "SELECT COUNT(*) FROM sys.foreign_keys WHERE name = '$($fk.Name)';"
+        $cmdFkCheck.CommandText = @"
+SELECT COUNT(*) 
+FROM sys.foreign_keys fk
+JOIN sys.tables t ON fk.parent_object_id = t.object_id
+JOIN sys.schemas s ON t.schema_id = s.schema_id
+WHERE s.name = '$schema' AND t.name = '$name' AND fk.name = '$($fk.Name)';
+"@
         $fkExists = [int]$cmdFkCheck.ExecuteScalar()
         if ($fkExists -eq 0) {
             Write-Host "  Creating FK $($fk.Name) on [$schema].[$name]..." -NoNewline

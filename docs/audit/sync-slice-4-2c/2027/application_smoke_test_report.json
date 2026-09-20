@@ -1,6 +1,6 @@
 ﻿{
     "Gate":  "Gate7_SmokeTest",
-    "TimestampUtc":  "2026-09-20T08:53:44.7320721Z",
+    "TimestampUtc":  "2026-09-20T09:14:14.7132633Z",
     "TargetDatabase":  "IProgramLocalDb2027",
     "LocalEngine":  "localhost (SQL Server 2014)",
     "Tests":  {
@@ -39,10 +39,10 @@
                   "AzureSync_Guard":  {
                                           "Status":  "PASS",
                                           "Filter":  "FullyQualifiedName~SyncSecurityBindingTests",
-                                          "Passed":  26,
+                                          "Passed":  30,
                                           "Failed":  0,
                                           "Skipped":  0,
-                                          "Total":  26,
+                                          "Total":  30,
                                           "Description":  "AzureSyncContext and SyncSecurityBinding strictly enforce database and endpoint isolation"
                                       },
                   "DotNet_LocalDbRequired_Suite":  {

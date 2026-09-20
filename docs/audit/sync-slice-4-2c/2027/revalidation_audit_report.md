@@ -99,7 +99,7 @@ Key milestones delivered:
 | 3 | Representative Entities Queryable (Daily, Ref, Dept, Bank, NetPay, Form, Details) | `IProgramLocalDb2027` | **PASS** |
 | 4 | SQL Server 2014 T-SQL Compatibility (Joins, Aggregates, Grouping) | `IProgramLocalDb2027` | **PASS** |
 | 5 | LocalSync Metadata Verification (`VERIFIED_READY`, `IsWriteAllowed=true`, Version `0`) | `IProgramLocalDb2027` | **PASS** |
-| 6 | AzureSync Context Physical Binding Rejection Guard Unit Tests | `IProgramLocalDb2027` | **PASS (26/26 tests)** |
+| 6 | AzureSync Context Physical Binding Rejection Guard Unit Tests | `IProgramLocalDb2027` | **PASS (30/30 tests)** |
 | 7 | .NET Unit Smoke Suite (`Category=LocalDbRequired`) | Both 2026 & 2027 | **PASS (12/12 tests)** |
 
 ---
@@ -124,4 +124,6 @@ Key milestones delivered:
 - [x] Year 2026 databases (`IProgramDb2026`, `IProgramLocalDb2026`) completely untouched.
 - [x] `LocalFirst:Enabled` remains `false` in `appsettings.json`.
 - [x] Zero Sync Engine, conflict resolution, or background sync logic started.
+- [x] SMO ServerConnection constructed directly from validated SqlConnection, strictly preserving ApplicationIntent=ReadOnly.
+- [x] Non-PK index and FK existence checks strictly object-qualified by schema, target/parent table, and constraint name.
 - [x] All public artifacts thoroughly sanitized (0 credentials, tokens, Device IDs, machine names, or production hostnames).
