@@ -33,6 +33,45 @@ namespace Auth.Infrastructure.Sync.Push
             if (string.IsNullOrWhiteSpace(databaseId)) throw new ArgumentException("DatabaseId is required.", nameof(databaseId));
             if (string.IsNullOrWhiteSpace(requestHash)) throw new ArgumentException("RequestHash is required.", nameof(requestHash));
 
+            // =========================================================================
+            // STEP 0: Validate Metadata Consistency & Parse Envelope V1 Upfront
+            // =========================================================================
+            if (!string.Equals(outboxItem.DatabaseId, databaseId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new SyncMetadataMismatchException(
+                    $"Metadata mismatch: outbox DatabaseId '{outboxItem.DatabaseId}' does not match target database '{databaseId}'.");
+            }
+
+            if (!string.Equals(outboxItem.AggregateType, "Daily", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new SyncMetadataMismatchException(
+                    $"Metadata mismatch: outbox AggregateType '{outboxItem.AggregateType}' is not 'Daily'.");
+            }
+
+            var parsedPayload = ParseAndValidatePayload(outboxItem);
+
+            var expectedCommandName = parsedPayload.OperationType.ToUpperInvariant() switch
+            {
+                "INSERT" => "Daily.Insert",
+                "UPDATE" => "Daily.Update",
+                "SOFT_DELETE" => "Daily.SoftDelete",
+                _ => throw new SyncPayloadValidationException($"Unsupported operation type '{parsedPayload.OperationType}'.")
+            };
+
+            if (!string.Equals(outboxItem.CommandName, expectedCommandName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new SyncMetadataMismatchException(
+                    $"Metadata mismatch: outbox CommandName '{outboxItem.CommandName}' does not match payload operation '{parsedPayload.OperationType}'.");
+            }
+
+            if (outboxItem.EntitySyncId != parsedPayload.SyncId || parsedPayload.SyncId == Guid.Empty)
+            {
+                throw new SyncMetadataMismatchException(
+                    $"Metadata mismatch: outbox EntitySyncId '{outboxItem.EntitySyncId}' does not match payload SyncId '{parsedPayload.SyncId}'.");
+            }
+
+            Guid originDeviceId = parsedPayload.DeviceId;
+
             if (connection.State != ConnectionState.Open)
             {
                 await connection.OpenAsync(cancellationToken);
@@ -43,13 +82,14 @@ namespace Auth.Infrastructure.Sync.Push
             {
                 // =========================================================================
                 // STEP 1: Check Idempotency Ledger (ProcessedOperations) FIRST
+                // Using UPDLOCK, HOLDLOCK to protect against concurrent idempotency races
                 // =========================================================================
                 await using (var checkCmd = connection.CreateCommand())
                 {
                     checkCmd.Transaction = transaction;
                     checkCmd.CommandText = @"
                         SELECT RequestHash, ResultStatus, ResponseJson
-                        FROM [sync].[ProcessedOperations]
+                        FROM [sync].[ProcessedOperations] WITH (UPDLOCK, HOLDLOCK)
                         WHERE DatabaseId = @DatabaseId AND ClientOperationId = @ClientOperationId;";
 
                     AddParam(checkCmd, "@DatabaseId", databaseId);
@@ -84,8 +124,14 @@ namespace Auth.Infrastructure.Sync.Push
                         }
 
                         // Idempotent replay of previously successful operation
-                        if (string.Equals(resultStatus, "SUCCESS", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(existingResponseJson))
+                        if (string.Equals(resultStatus, "SUCCESS", StringComparison.OrdinalIgnoreCase))
                         {
+                            if (string.IsNullOrWhiteSpace(existingResponseJson))
+                            {
+                                throw new SyncCorruptResponseJsonException(
+                                    $"Corrupt ProcessedOperation: ResponseJson is empty for ClientOperationId '{outboxItem.ClientOperationId}'.");
+                            }
+
                             _logger.LogInformation(
                                 "Idempotent replay detected for ClientOperationId {ClientOperationId}. Returning stored server response.",
                                 outboxItem.ClientOperationId);
@@ -98,10 +144,17 @@ namespace Auth.Infrastructure.Sync.Push
                                 {
                                     storedVersion = sv;
                                 }
+                                else
+                                {
+                                    throw new SyncCorruptResponseJsonException(
+                                        $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' is missing 'serverVersion'.");
+                                }
                             }
-                            catch (Exception ex)
+                            catch (Exception ex) when (ex is not SyncCorruptResponseJsonException)
                             {
-                                _logger.LogWarning(ex, "Failed to parse stored responseJson for ClientOperationId {ClientOperationId}.", outboxItem.ClientOperationId);
+                                _logger.LogError(ex, "Failed to parse stored responseJson for ClientOperationId {ClientOperationId}.", outboxItem.ClientOperationId);
+                                throw new SyncCorruptResponseJsonException(
+                                    $"Stored ResponseJson for ClientOperationId '{outboxItem.ClientOperationId}' is corrupt.", ex);
                             }
 
                             await transaction.CommitAsync(cancellationToken);
@@ -151,11 +204,8 @@ namespace Auth.Infrastructure.Sync.Push
                 }
 
                 // =========================================================================
-                // STEP 3: Parse Envelope V1 & Apply Daily Mutation by SyncId (Whitelist Only)
+                // STEP 3: Execute Business Mutation (INSERT / UPDATE / SOFT_DELETE)
                 // =========================================================================
-                var parsedPayload = ParseAndValidatePayload(outboxItem);
-                Guid originDeviceId = parsedPayload.DeviceId;
-
                 switch (parsedPayload.OperationType.ToUpperInvariant())
                 {
                     case "INSERT":
@@ -445,30 +495,76 @@ namespace Auth.Infrastructure.Sync.Push
 
                 var entityData = root.GetProperty("entityData");
                 string name = string.Empty;
-                DateTime dailyDate = DateTime.UtcNow.Date;
+                DateTime dailyDate;
 
                 if (!string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
                 {
                     name = entityData.TryGetProperty("Name", out var nProp) ? nProp.GetString() ?? string.Empty : string.Empty;
                     if (string.IsNullOrWhiteSpace(name))
                     {
-                        throw new SyncPayloadValidationException("Daily Name is required.");
+                        throw new SyncPayloadValidationException("Daily Name is required and cannot be empty.");
                     }
 
-                    if (entityData.TryGetProperty("DailyDate", out var ddProp))
+                    if (!entityData.TryGetProperty("DailyDate", out var ddProp) || !ddProp.TryGetDateTime(out dailyDate))
                     {
-                        dailyDate = ddProp.GetDateTime();
+                        throw new SyncPayloadValidationException("Valid DailyDate is required in entityData.");
+                    }
+                }
+                else
+                {
+                    // For SOFT_DELETE, DailyDate can be read if present, or defaults to UtcNow
+                    if (entityData.TryGetProperty("DailyDate", out var ddProp) && ddProp.TryGetDateTime(out var parsedDd))
+                    {
+                        dailyDate = parsedDd;
+                    }
+                    else
+                    {
+                        dailyDate = DateTime.UtcNow.Date;
                     }
                 }
 
-                var closed = entityData.TryGetProperty("Closed", out var cProp) && cProp.GetBoolean();
-                var isActive = !string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase) &&
-                               (!entityData.TryGetProperty("IsActive", out var iaProp) || iaProp.GetBoolean());
-
-                DateTime createdAt = DateTime.UtcNow;
-                if (entityData.TryGetProperty("CreatedAt", out var caProp) && caProp.ValueKind == JsonValueKind.String)
+                bool closed = false;
+                if (!string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
                 {
-                    _ = DateTime.TryParse(caProp.GetString(), out createdAt);
+                    if (!entityData.TryGetProperty("Closed", out var cProp) || (cProp.ValueKind != JsonValueKind.True && cProp.ValueKind != JsonValueKind.False))
+                    {
+                        throw new SyncPayloadValidationException("Boolean Closed property is required in entityData.");
+                    }
+                    closed = cProp.GetBoolean();
+                }
+
+                bool isActive;
+                if (string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    isActive = false;
+                }
+                else
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || (iaProp.ValueKind != JsonValueKind.True && iaProp.ValueKind != JsonValueKind.False))
+                    {
+                        throw new SyncPayloadValidationException("Boolean IsActive property is required in entityData.");
+                    }
+                    isActive = iaProp.GetBoolean();
+                }
+
+                DateTime createdAt;
+                if (string.Equals(operationType, "INSERT", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!entityData.TryGetProperty("CreatedAt", out var caProp) || !caProp.TryGetDateTime(out createdAt))
+                    {
+                        throw new SyncPayloadValidationException("Valid CreatedAt timestamp is required in entityData.");
+                    }
+                }
+                else
+                {
+                    if (entityData.TryGetProperty("CreatedAt", out var caProp) && caProp.TryGetDateTime(out var parsedCa))
+                    {
+                        createdAt = parsedCa;
+                    }
+                    else
+                    {
+                        createdAt = DateTime.UtcNow;
+                    }
                 }
 
                 string? createdBy = entityData.TryGetProperty("CreatedBy", out var cbProp) && cbProp.ValueKind == JsonValueKind.String ? cbProp.GetString() : null;

@@ -76,7 +76,7 @@ namespace Api.Controllers
                 return StatusCode(StatusCodes.Status409Conflict, new
                 {
                     statusCode = StatusCodes.Status409Conflict,
-                    code = "SYNC_PUSH_ALREADY_RUNNING",
+                    code = ex.ErrorCode,
                     message = ex.Message
                 });
             }
@@ -85,9 +85,18 @@ namespace Api.Controllers
                 return StatusCode(StatusCodes.Status409Conflict, new
                 {
                     statusCode = StatusCodes.Status409Conflict,
-                    code = "SYNC_VERSION_CONFLICT",
+                    code = ex.ErrorCode,
                     expectedVersion = ex.ExpectedVersion,
                     currentServerVersion = ex.CurrentServerVersion,
+                    message = ex.Message
+                });
+            }
+            catch (SyncLeaseExpiredException ex)
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    statusCode = StatusCodes.Status409Conflict,
+                    code = ex.ErrorCode,
                     message = ex.Message
                 });
             }
@@ -96,7 +105,7 @@ namespace Api.Controllers
                 return StatusCode(StatusCodes.Status400BadRequest, new
                 {
                     statusCode = StatusCodes.Status400BadRequest,
-                    code = "SYNC_OPERATION_ID_REUSE",
+                    code = ex.ErrorCode,
                     message = ex.Message
                 });
             }
@@ -105,17 +114,81 @@ namespace Api.Controllers
                 return StatusCode(StatusCodes.Status403Forbidden, new
                 {
                     statusCode = StatusCodes.Status403Forbidden,
-                    code = "SYNC_PUSH_DISABLED",
+                    code = ex.ErrorCode,
                     message = ex.Message
                 });
             }
-            catch (Exception ex) when (ex is SyncEntityAlreadyExistsException or SyncEntityNotFoundException or SyncPayloadValidationException)
+            catch (SyncPayloadValidationException ex)
             {
                 return StatusCode(StatusCodes.Status400BadRequest, new
                 {
                     statusCode = StatusCodes.Status400BadRequest,
-                    code = ex.GetType().Name,
+                    code = ex.ErrorCode,
                     message = ex.Message
+                });
+            }
+            catch (SyncMetadataMismatchException ex)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncEntityAlreadyExistsException ex)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncEntityNotFoundException ex)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncLocalStateMissingException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncCorruptResponseJsonException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncDomainException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled error during push outbox execution.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = "SYNC_INTERNAL_ERROR",
+                    message = "An error occurred during push processing."
                 });
             }
         }

@@ -1,7 +1,7 @@
 ﻿{
     "Slice":  "4.3C",
     "Title":  "Idempotent Daily Outbox Push to Azure Smoke Verification",
-    "TimestampUtc":  "2026-09-20T17:55:14Z",
+    "TimestampUtc":  "2026-09-20T18:33:29Z",
     "Engine_Compatibility":  {
                                  "2026_CompatLevel":  120,
                                  "2027_CompatLevel":  120
@@ -26,7 +26,10 @@
                                   "Scenario08_CrashRecoverySimulation":  "PASS",
                                   "Scenario09_QueueOrderingFIFO":  "PASS",
                                   "Scenario10_LocalPushLeaseConcurrency":  "PASS",
-                                  "Scenario11_YearIsolation":  "PASS"
+                                  "Scenario11_YearIsolation":  "PASS",
+                                  "Scenario12_ConcurrentIdempotencyRace":  "PASS",
+                                  "Scenario13_MetadataMismatchFailClosed":  "PASS",
+                                  "Scenario14_CorruptResponseJsonFailClosed":  "PASS"
                               },
     "Cleanup_Status":  "COMPLETED",
     "Overall_Status":  "PASS"

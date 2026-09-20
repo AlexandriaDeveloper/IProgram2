@@ -36,6 +36,18 @@ namespace Auth.Infrastructure.Sync.Push
             await using var conn = new SqlConnection(localConnStr);
             await conn.OpenAsync(cancellationToken);
 
+            // Fail-closed check: LocalState row must exist
+            await using (var checkCmd = conn.CreateCommand())
+            {
+                checkCmd.CommandText = "SELECT COUNT(*) FROM [sync].[LocalState] WHERE DatabaseId = @DatabaseId;";
+                checkCmd.Parameters.AddWithValue("@DatabaseId", databaseId.Trim());
+                var existsCount = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken));
+                if (existsCount == 0)
+                {
+                    throw new SyncLocalStateMissingException($"LocalState record does not exist for DatabaseId '{databaseId}'.");
+                }
+            }
+
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
                 UPDATE [sync].[LocalState]
@@ -60,6 +72,64 @@ namespace Auth.Infrastructure.Sync.Push
                 databaseId, leaseToken, durationSeconds);
 
             return leaseToken;
+        }
+
+        public async Task RenewLeaseAsync(string databaseId, Guid leaseToken, TimeSpan duration, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(databaseId)) throw new ArgumentNullException(nameof(databaseId));
+
+            var durationSeconds = (int)Math.Max(5, duration.TotalSeconds);
+            var localConnStr = _syncConnectionProvider.GetLocalConnectionString(databaseId);
+
+            await using var conn = new SqlConnection(localConnStr);
+            await conn.OpenAsync(cancellationToken);
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE [sync].[LocalState]
+                SET LeaseExpiresAtUtc = DATEADD(SECOND, @DurationSec, SYSUTCDATETIME())
+                WHERE DatabaseId = @DatabaseId
+                  AND ActiveLeaseToken = @LeaseToken
+                  AND LeaseExpiresAtUtc >= SYSUTCDATETIME();";
+
+            cmd.Parameters.AddWithValue("@DurationSec", durationSeconds);
+            cmd.Parameters.AddWithValue("@DatabaseId", databaseId.Trim());
+            cmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
+
+            var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+            if (rows == 0)
+            {
+                _logger.LogWarning("Push lease renewal failed for DatabaseId {DatabaseId}. Lease is either expired or owned by another session.", databaseId);
+                throw new SyncLeaseExpiredException($"Push lease expired or stolen for DatabaseId '{databaseId}'.");
+            }
+        }
+
+        public async Task ValidateLeaseOwnershipAsync(string databaseId, Guid leaseToken, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(databaseId)) throw new ArgumentNullException(nameof(databaseId));
+
+            var localConnStr = _syncConnectionProvider.GetLocalConnectionString(databaseId);
+
+            await using var conn = new SqlConnection(localConnStr);
+            await conn.OpenAsync(cancellationToken);
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT COUNT(*)
+                FROM [sync].[LocalState]
+                WHERE DatabaseId = @DatabaseId
+                  AND ActiveLeaseToken = @LeaseToken
+                  AND LeaseExpiresAtUtc >= SYSUTCDATETIME();";
+
+            cmd.Parameters.AddWithValue("@DatabaseId", databaseId.Trim());
+            cmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
+
+            var validCount = Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken));
+            if (validCount == 0)
+            {
+                _logger.LogWarning("Push lease ownership validation failed for DatabaseId {DatabaseId}. Stale lease owner rejected.", databaseId);
+                throw new SyncLeaseExpiredException($"Stale push lease owner rejected for DatabaseId '{databaseId}'.");
+            }
         }
 
         public async Task ReleaseLeaseAsync(string databaseId, Guid leaseToken, CancellationToken cancellationToken)

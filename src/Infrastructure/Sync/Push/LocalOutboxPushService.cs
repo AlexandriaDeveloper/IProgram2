@@ -102,8 +102,15 @@ namespace Auth.Infrastructure.Sync.Push
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Step 8a: Mark outbox IN_PROGRESS locally
-                    await MarkOutboxInProgressAsync(localConnStr, outboxItem.ClientOperationId, leaseToken, cancellationToken);
+                    // Step 8a: Claim outbox row atomically (handles both PENDING and expired IN_PROGRESS)
+                    var claimed = await TryClaimOutboxInProgressAsync(localConnStr, outboxItem.ClientOperationId, leaseToken, cancellationToken);
+                    if (!claimed)
+                    {
+                        _logger.LogWarning(
+                            "Outbox operation {ClientOperationId} was already claimed or updated by another session. Skipping.",
+                            outboxItem.ClientOperationId);
+                        continue;
+                    }
 
                     // Step 8b: Compute deterministic RequestHash (SHA-256)
                     var requestHash = ComputeRequestHash(
@@ -127,9 +134,14 @@ namespace Auth.Infrastructure.Sync.Push
 
                         var returnedServerVersion = applyResult.ServerVersion;
 
-                        // Step 8d: Mark outbox COMPLETED locally and update LocalState
-                        await MarkOutboxCompletedAsync(localConnStr, outboxItem.ClientOperationId, cancellationToken);
-                        await UpdateLocalStateServerVersionAsync(localConnStr, databaseId, returnedServerVersion, cancellationToken);
+                        // Step 8d: Atomically mark outbox COMPLETED locally and advance LocalState with lease fencing
+                        await AcknowledgeSuccessLocallyAsync(
+                            localConnStr,
+                            databaseId,
+                            outboxItem.ClientOperationId,
+                            returnedServerVersion,
+                            leaseToken,
+                            cancellationToken);
 
                         // Advance dynamic expected server version for subsequent operation
                         expectedServerVersion = returnedServerVersion;
@@ -146,18 +158,20 @@ namespace Auth.Infrastructure.Sync.Push
                         });
 
                         _logger.LogInformation(
-                            "Push operation {ClientOperationId} succeeded ({Status}). Advanced ServerVersion to {ServerVersion}.",
+                            "Push operation {ClientOperationId} succeeded ({Status}). ServerVersion: {ServerVersion}.",
                             outboxItem.ClientOperationId, applyResult.IsReplay ? "REPLAY" : "SUCCESS", returnedServerVersion);
                     }
                     catch (Exception ex)
                     {
                         var sanitizedError = SanitizeErrorMessage(ex);
-                        _logger.LogError(ex, "Push failed for ClientOperationId {ClientOperationId}: {Error}",
-                            outboxItem.ClientOperationId, sanitizedError);
+                        var errorCode = (ex as SyncDomainException)?.ErrorCode ?? ex.GetType().Name;
 
-                        // Mark outbox failure and LocalState error
-                        await MarkOutboxFailedAsync(localConnStr, outboxItem.ClientOperationId, sanitizedError, cancellationToken);
-                        await UpdateLocalStateErrorAsync(localConnStr, databaseId, sanitizedError, cancellationToken);
+                        _logger.LogError(
+                            "Push failed for ClientOperationId {ClientOperationId}, ErrorCode: {ErrorCode}. Message: {Error}",
+                            outboxItem.ClientOperationId, errorCode, sanitizedError);
+
+                        // Atomically mark outbox failure and update LocalState error in single local transaction
+                        await RecordFailureLocallyAsync(localConnStr, databaseId, outboxItem.ClientOperationId, sanitizedError, cancellationToken);
 
                         batchResult.TotalProcessed++;
                         batchResult.Failed++;
@@ -168,13 +182,12 @@ namespace Auth.Infrastructure.Sync.Push
                             OperationType = outboxItem.CommandName,
                             Status = "FAILED",
                             ServerVersion = expectedServerVersion,
-                            ErrorCode = ex.GetType().Name,
+                            ErrorCode = errorCode,
                             ErrorMessage = sanitizedError
                         });
 
-                        // CRITICAL: Stop processing subsequent operations to enforce strict queue ordering
-                        _logger.LogWarning("Halting push queue for DatabaseId {DatabaseId} to preserve strict FIFO ordering.", databaseId);
-                        break;
+                        // Re-throw terminal error so queue halts strictly and controller emits appropriate HTTP status
+                        throw;
                     }
                 }
 
@@ -211,7 +224,10 @@ namespace Auth.Infrastructure.Sync.Push
             cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
 
             var val = await cmd.ExecuteScalarAsync(ct);
-            if (val == null || val == DBNull.Value) return 0L;
+            if (val == null || val == DBNull.Value)
+            {
+                throw new SyncLocalStateMissingException($"LocalState record is missing for DatabaseId '{databaseId}'.");
+            }
             return Convert.ToInt64(val);
         }
 
@@ -224,7 +240,10 @@ namespace Auth.Infrastructure.Sync.Push
             cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
 
             var val = await cmd.ExecuteScalarAsync(ct);
-            if (val == null || val == DBNull.Value) return Guid.Empty;
+            if (val == null || val == DBNull.Value || (Guid)val == Guid.Empty)
+            {
+                throw new SyncLocalStateMissingException($"LocalState DeviceId is missing or empty for DatabaseId '{databaseId}'.");
+            }
             return (Guid)val;
         }
 
@@ -237,7 +256,8 @@ namespace Auth.Infrastructure.Sync.Push
             cmd.CommandText = @"
                 SELECT ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount
                 FROM [sync].[LocalOutbox]
-                WHERE DatabaseId = @DatabaseId AND Status = 'PENDING'
+                WHERE DatabaseId = @DatabaseId
+                  AND (Status = 'PENDING' OR (Status = 'IN_PROGRESS' AND (LockedUntilUtc IS NULL OR LockedUntilUtc < SYSUTCDATETIME())))
                 ORDER BY CreatedAtUtc ASC, ClientOperationId ASC;";
             cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
 
@@ -260,7 +280,7 @@ namespace Auth.Infrastructure.Sync.Push
             return list;
         }
 
-        private static async Task MarkOutboxInProgressAsync(string localConnStr, Guid clientOperationId, Guid leaseToken, CancellationToken ct)
+        private static async Task<bool> TryClaimOutboxInProgressAsync(string localConnStr, Guid clientOperationId, Guid leaseToken, CancellationToken ct)
         {
             await using var conn = new SqlConnection(localConnStr);
             await conn.OpenAsync(ct);
@@ -270,82 +290,140 @@ namespace Auth.Infrastructure.Sync.Push
                 SET Status = 'IN_PROGRESS',
                     LockToken = @LockToken,
                     LockedUntilUtc = DATEADD(SECOND, 60, SYSUTCDATETIME())
-                WHERE ClientOperationId = @ClientOperationId AND Status = 'PENDING';";
+                WHERE ClientOperationId = @ClientOperationId
+                  AND (Status = 'PENDING' OR (Status = 'IN_PROGRESS' AND (LockedUntilUtc IS NULL OR LockedUntilUtc < SYSUTCDATETIME())));";
             cmd.Parameters.AddWithValue("@LockToken", leaseToken);
             cmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            var rows = await cmd.ExecuteNonQueryAsync(ct);
+            return rows > 0;
         }
 
-        private static async Task MarkOutboxCompletedAsync(string localConnStr, Guid clientOperationId, CancellationToken ct)
+        private static async Task AcknowledgeSuccessLocallyAsync(
+            string localConnStr,
+            string databaseId,
+            Guid clientOperationId,
+            long newServerVersion,
+            Guid leaseToken,
+            CancellationToken ct)
         {
             await using var conn = new SqlConnection(localConnStr);
             await conn.OpenAsync(ct);
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = @"
-                UPDATE [sync].[LocalOutbox]
-                SET Status = 'COMPLETED',
-                    CompletedAtUtc = SYSUTCDATETIME(),
-                    LockToken = NULL,
-                    LockedUntilUtc = NULL,
-                    LastError = NULL
-                WHERE ClientOperationId = @ClientOperationId;";
-            cmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            await using var transaction = (SqlTransaction)await conn.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, ct);
+            try
+            {
+                // 1. Verify lease ownership fencing and advance LocalState version in same local transaction
+                await using (var stateCmd = conn.CreateCommand())
+                {
+                    stateCmd.Transaction = transaction;
+                    stateCmd.CommandText = @"
+                        UPDATE [sync].[LocalState]
+                        SET LastServerVersion = @NewVersion,
+                            LastSuccessfulPushUtc = SYSUTCDATETIME(),
+                            LastSyncAttemptUtc = SYSUTCDATETIME(),
+                            LastSyncError = NULL,
+                            LeaseExpiresAtUtc = DATEADD(SECOND, 60, SYSUTCDATETIME())
+                        WHERE DatabaseId = @DatabaseId
+                          AND ActiveLeaseToken = @LeaseToken
+                          AND LeaseExpiresAtUtc >= SYSUTCDATETIME();";
+
+                    stateCmd.Parameters.AddWithValue("@NewVersion", newServerVersion);
+                    stateCmd.Parameters.AddWithValue("@DatabaseId", databaseId);
+                    stateCmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
+
+                    var rows = await stateCmd.ExecuteNonQueryAsync(ct);
+                    if (rows == 0)
+                    {
+                        throw new SyncLeaseExpiredException(
+                            $"Lease expired or ownership lost for DatabaseId '{databaseId}'. Local acknowledgement aborted.");
+                    }
+                }
+
+                // 2. Mark Outbox COMPLETED in same local transaction
+                await using (var outboxCmd = conn.CreateCommand())
+                {
+                    outboxCmd.Transaction = transaction;
+                    outboxCmd.CommandText = @"
+                        UPDATE [sync].[LocalOutbox]
+                        SET Status = 'COMPLETED',
+                            CompletedAtUtc = SYSUTCDATETIME(),
+                            LockToken = NULL,
+                            LockedUntilUtc = NULL,
+                            LastError = NULL
+                        WHERE ClientOperationId = @ClientOperationId;";
+
+                    outboxCmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
+                    await outboxCmd.ExecuteNonQueryAsync(ct);
+                }
+
+                await transaction.CommitAsync(ct);
+            }
+            catch
+            {
+                try { await transaction.RollbackAsync(ct); } catch { }
+                throw;
+            }
         }
 
-        private static async Task MarkOutboxFailedAsync(string localConnStr, Guid clientOperationId, string lastError, CancellationToken ct)
+        private static async Task RecordFailureLocallyAsync(
+            string localConnStr,
+            string databaseId,
+            Guid clientOperationId,
+            string sanitizedError,
+            CancellationToken ct)
         {
-            await using var conn = new SqlConnection(localConnStr);
-            await conn.OpenAsync(ct);
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = @"
-                UPDATE [sync].[LocalOutbox]
-                SET Status = 'PENDING',
-                    RetryCount = RetryCount + 1,
-                    LastError = @LastError,
-                    LockToken = NULL,
-                    LockedUntilUtc = NULL
-                WHERE ClientOperationId = @ClientOperationId;";
-            cmd.Parameters.AddWithValue("@LastError", lastError);
-            cmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
+            try
+            {
+                await using var conn = new SqlConnection(localConnStr);
+                await conn.OpenAsync(ct);
+                await using var transaction = (SqlTransaction)await conn.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, ct);
+                try
+                {
+                    await using (var outboxCmd = conn.CreateCommand())
+                    {
+                        outboxCmd.Transaction = transaction;
+                        outboxCmd.CommandText = @"
+                            UPDATE [sync].[LocalOutbox]
+                            SET Status = 'PENDING',
+                                RetryCount = RetryCount + 1,
+                                LastError = @LastError,
+                                LockToken = NULL,
+                                LockedUntilUtc = NULL
+                            WHERE ClientOperationId = @ClientOperationId;";
+                        outboxCmd.Parameters.AddWithValue("@LastError", sanitizedError);
+                        outboxCmd.Parameters.AddWithValue("@ClientOperationId", clientOperationId);
+                        await outboxCmd.ExecuteNonQueryAsync(ct);
+                    }
 
-        private static async Task UpdateLocalStateServerVersionAsync(string localConnStr, string databaseId, long newVersion, CancellationToken ct)
-        {
-            await using var conn = new SqlConnection(localConnStr);
-            await conn.OpenAsync(ct);
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = @"
-                UPDATE [sync].[LocalState]
-                SET LastServerVersion = @NewVersion,
-                    LastSuccessfulPushUtc = SYSUTCDATETIME(),
-                    LastSyncAttemptUtc = SYSUTCDATETIME(),
-                    LastSyncError = NULL
-                WHERE DatabaseId = @DatabaseId;";
-            cmd.Parameters.AddWithValue("@NewVersion", newVersion);
-            cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
+                    await using (var stateCmd = conn.CreateCommand())
+                    {
+                        stateCmd.Transaction = transaction;
+                        stateCmd.CommandText = @"
+                            UPDATE [sync].[LocalState]
+                            SET LastSyncError = @LastError,
+                                LastSyncAttemptUtc = SYSUTCDATETIME()
+                            WHERE DatabaseId = @DatabaseId;";
+                        stateCmd.Parameters.AddWithValue("@LastError", sanitizedError);
+                        stateCmd.Parameters.AddWithValue("@DatabaseId", databaseId);
+                        await stateCmd.ExecuteNonQueryAsync(ct);
+                    }
 
-        private static async Task UpdateLocalStateErrorAsync(string localConnStr, string databaseId, string error, CancellationToken ct)
-        {
-            await using var conn = new SqlConnection(localConnStr);
-            await conn.OpenAsync(ct);
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = @"
-                UPDATE [sync].[LocalState]
-                SET LastSyncError = @Error,
-                    LastSyncAttemptUtc = SYSUTCDATETIME()
-                WHERE DatabaseId = @DatabaseId;";
-            cmd.Parameters.AddWithValue("@Error", error);
-            cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
-            await cmd.ExecuteNonQueryAsync(ct);
+                    await transaction.CommitAsync(ct);
+                }
+                catch
+                {
+                    try { await transaction.RollbackAsync(ct); } catch { }
+                    throw;
+                }
+            }
+            catch
+            {
+                // Silently swallow secondary failure to record failure state so original exception bubbles up
+            }
         }
 
         private static string SanitizeErrorMessage(Exception ex)
         {
-            if (ex is SyncVersionConflictException or SyncOperationIdReuseException or SyncEntityAlreadyExistsException or SyncEntityNotFoundException or SyncPayloadValidationException or SyncPushAlreadyRunningException or SyncPushDisabledException)
+            if (ex is SyncDomainException)
             {
                 return ex.Message;
             }

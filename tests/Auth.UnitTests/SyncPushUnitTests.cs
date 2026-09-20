@@ -395,5 +395,101 @@ namespace Auth.UnitTests
         }
 
         #endregion
+
+        #region 6. Domain Exceptions and Controller Status Code Tests
+
+        [Fact]
+        public void DomainExceptions_Have_StablePublicErrorCodes()
+        {
+            Assert.Equal("SYNC_PUSH_DISABLED", new SyncPushDisabledException().ErrorCode);
+            Assert.Equal("SYNC_PUSH_ALREADY_RUNNING", new SyncPushAlreadyRunningException().ErrorCode);
+            Assert.Equal("SYNC_VERSION_CONFLICT", new SyncVersionConflictException(0, 1).ErrorCode);
+            Assert.Equal("SYNC_OPERATION_ID_REUSE", new SyncOperationIdReuseException().ErrorCode);
+            Assert.Equal("SYNC_ENTITY_ALREADY_EXISTS", new SyncEntityAlreadyExistsException().ErrorCode);
+            Assert.Equal("SYNC_ENTITY_NOT_FOUND", new SyncEntityNotFoundException().ErrorCode);
+            Assert.Equal("SYNC_PAYLOAD_INVALID", new SyncPayloadValidationException("test").ErrorCode);
+            Assert.Equal("SYNC_METADATA_MISMATCH", new SyncMetadataMismatchException("test").ErrorCode);
+            Assert.Equal("SYNC_LOCAL_STATE_MISSING", new SyncLocalStateMissingException("test").ErrorCode);
+            Assert.Equal("SYNC_LEASE_EXPIRED", new SyncLeaseExpiredException().ErrorCode);
+            Assert.Equal("SYNC_CORRUPT_RESPONSE_JSON", new SyncCorruptResponseJsonException("test").ErrorCode);
+        }
+
+        [Fact]
+        public async Task SyncController_Maps_SyncLeaseExpiredException_To_409Conflict()
+        {
+            var pushServiceMock = new Mock<ILocalOutboxPushService>();
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new SyncLeaseExpiredException());
+
+            var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
+            var controller = new SyncController(pushServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+
+            var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
+            Assert.NotNull(result);
+            Assert.Equal(StatusCodes.Status409Conflict, result.StatusCode);
+        }
+
+        [Fact]
+        public async Task SyncController_Maps_SyncMetadataMismatchException_To_400BadRequest()
+        {
+            var pushServiceMock = new Mock<ILocalOutboxPushService>();
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new SyncMetadataMismatchException("Metadata mismatch"));
+
+            var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
+            var controller = new SyncController(pushServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+
+            var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
+            Assert.NotNull(result);
+            Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
+        }
+
+        [Fact]
+        public async Task SyncController_Maps_SyncLocalStateMissingException_To_500InternalServerError()
+        {
+            var pushServiceMock = new Mock<ILocalOutboxPushService>();
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new SyncLocalStateMissingException("LocalState missing"));
+
+            var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
+            var controller = new SyncController(pushServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+
+            var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
+            Assert.NotNull(result);
+            Assert.Equal(StatusCodes.Status500InternalServerError, result.StatusCode);
+        }
+
+        [Fact]
+        public async Task SyncController_Maps_SyncCorruptResponseJsonException_To_500InternalServerError()
+        {
+            var pushServiceMock = new Mock<ILocalOutboxPushService>();
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new SyncCorruptResponseJsonException("Corrupt ResponseJson"));
+
+            var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
+            var controller = new SyncController(pushServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+
+            var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
+            Assert.NotNull(result);
+            Assert.Equal(StatusCodes.Status500InternalServerError, result.StatusCode);
+        }
+
+        #endregion
     }
 }

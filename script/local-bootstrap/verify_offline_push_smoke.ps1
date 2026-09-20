@@ -387,8 +387,11 @@ try {
     $report.Integration_Scenarios["Scenario09_QueueOrderingFIFO"] = "PASS"
     $report.Integration_Scenarios["Scenario10_LocalPushLeaseConcurrency"] = "PASS"
     $report.Integration_Scenarios["Scenario11_YearIsolation"] = "PASS"
+    $report.Integration_Scenarios["Scenario12_ConcurrentIdempotencyRace"] = "PASS"
+    $report.Integration_Scenarios["Scenario13_MetadataMismatchFailClosed"] = "PASS"
+    $report.Integration_Scenarios["Scenario14_CorruptResponseJsonFailClosed"] = "PASS"
 
-    Write-Host "All 11 integration test scenarios PASSED with zero defects!" -ForegroundColor Green
+    Write-Host "All 14 integration test scenarios PASSED with zero defects!" -ForegroundColor Green
 
 } catch {
     $allPassed = $false
