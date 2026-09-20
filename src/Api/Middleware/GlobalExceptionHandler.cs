@@ -85,14 +85,39 @@ namespace Auth.Api.Middleware
                 httpContext.Response.StatusCode = readOnlyCode;
                 httpContext.Response.ContentType = "application/json; charset=utf-8";
 
-                var readOnlyPayload = new ErrorResponseDto
+                var readOnlyPayload = new
                 {
-                    StatusCode = readOnlyCode,
-                    Message = readOnlyMessage,
-                    TraceId = traceId
+                    statusCode = readOnlyCode,
+                    message = readOnlyMessage,
+                    code = "READ_ONLY_MODE_BLOCKED",
+                    traceId = traceId
                 };
 
                 await httpContext.Response.WriteAsJsonAsync(readOnlyPayload, cancellationToken);
+                return true;
+            }
+
+            if (exception is Core.Exceptions.OfflineWriteScopeException)
+            {
+                int forbiddenCode = StatusCodes.Status403Forbidden;
+                string scopeMessage = exception.Message;
+
+                _logger.LogWarning(
+                    "Write attempt blocked by OfflineWriteScope at {RequestPath} with TraceId {TraceId}. StatusCode: {StatusCode}",
+                    requestPath, traceId, forbiddenCode);
+
+                httpContext.Response.StatusCode = forbiddenCode;
+                httpContext.Response.ContentType = "application/json; charset=utf-8";
+
+                var scopePayload = new
+                {
+                    statusCode = forbiddenCode,
+                    message = scopeMessage,
+                    code = "OFFLINE_WRITE_SCOPE_BLOCKED",
+                    traceId = traceId
+                };
+
+                await httpContext.Response.WriteAsJsonAsync(scopePayload, cancellationToken);
                 return true;
             }
 

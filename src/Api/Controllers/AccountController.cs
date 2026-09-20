@@ -58,11 +58,26 @@ namespace Api.Controllers
         {
             var isReadOnly = _dbProvider is ISyncConnectionProvider syncProvider && syncProvider.IsReadOnlyMode;
             var isLocalFirst = _dbProvider is ISyncConnectionProvider syncProv && syncProv.IsLocalFirstEnabled;
+            
+            string runtimeMode;
+            if (isReadOnly)
+            {
+                runtimeMode = "OfflineReadOnly";
+            }
+            else if (isLocalFirst)
+            {
+                runtimeMode = "OfflineReadWritePilot";
+            }
+            else
+            {
+                runtimeMode = "Online";
+            }
+
             return Ok(new
             {
                 isReadOnly,
                 isLocalFirst,
-                runtimeMode = isReadOnly ? "OfflineReadOnly" : (isLocalFirst ? "LocalFirst" : "Online"),
+                runtimeMode,
                 selectedDatabase = _dbProvider.GetSelectedDatabaseId()
             });
         }

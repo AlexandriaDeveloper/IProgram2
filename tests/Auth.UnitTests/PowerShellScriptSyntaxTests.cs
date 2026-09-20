@@ -14,7 +14,8 @@ public class PowerShellScriptSyntaxTests
         "script/local-bootstrap/cleanup_azure_sync_tables_local_2027.ps1",
         "script/local-bootstrap/verify_bootstrap_integrity.ps1",
         "script/local-bootstrap/smoke_test_local_2026.ps1",
-        "script/local-bootstrap/verify_offline_readonly_smoke.ps1"
+        "script/local-bootstrap/verify_offline_readonly_smoke.ps1",
+        "script/local-bootstrap/verify_offline_write_smoke.ps1"
     ];
 
     [Theory]
@@ -24,6 +25,7 @@ public class PowerShellScriptSyntaxTests
     [InlineData("script/local-bootstrap/verify_bootstrap_integrity.ps1")]
     [InlineData("script/local-bootstrap/smoke_test_local_2026.ps1")]
     [InlineData("script/local-bootstrap/verify_offline_readonly_smoke.ps1")]
+    [InlineData("script/local-bootstrap/verify_offline_write_smoke.ps1")]
     public void BootstrapScript_MustHaveCleanPowerShellSyntax_WithoutErrors(string relativePath)
     {
         var repoRoot = FindRepoRoot(AppContext.BaseDirectory);

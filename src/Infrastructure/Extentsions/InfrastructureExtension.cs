@@ -52,6 +52,7 @@ public static class InfrastructureExtension
         services.AddScoped<Core.Interfaces.ILocalBootstrapWriteGate>(sp =>
             new Sync.LocalBootstrapWriteGate(sp.GetRequiredService<Sync.ILocalSyncContextFactory>()));
         services.AddScoped<Sync.LocalBootstrapWriteGateInterceptor>();
+        services.AddScoped<Sync.LocalWriteSafetyInterceptor>();
         services.AddScoped<Sync.ReadOnlyDbCommandInterceptor>();
         services.AddScoped<Sync.ReadOnlyDbConnectionInterceptor>();
 
@@ -59,10 +60,11 @@ public static class InfrastructureExtension
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();
             var writeGateInterceptor = serviceProvider.GetRequiredService<Sync.LocalBootstrapWriteGateInterceptor>();
+            var writeSafetyInterceptor = serviceProvider.GetRequiredService<Sync.LocalWriteSafetyInterceptor>();
             var readOnlyCommandInterceptor = serviceProvider.GetRequiredService<Sync.ReadOnlyDbCommandInterceptor>();
             var readOnlyConnectionInterceptor = serviceProvider.GetRequiredService<Sync.ReadOnlyDbConnectionInterceptor>();
 
-            options.AddInterceptors(writeGateInterceptor, readOnlyCommandInterceptor, readOnlyConnectionInterceptor);
+            options.AddInterceptors(writeGateInterceptor, writeSafetyInterceptor, readOnlyCommandInterceptor, readOnlyConnectionInterceptor);
             options.UseSqlServer(dbProvider.GetConnectionString(), o =>
             {
                 o.UseCompatibilityLevel(120);

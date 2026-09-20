@@ -67,8 +67,9 @@ namespace Persistence.Repository
             var user = await _userManager.FindByNameAsync(username);
             if (user == null) return null;
 
-            bool isReadOnly = _dbConnectionProvider is ISyncConnectionProvider syncProvider && syncProvider.IsReadOnlyMode;
-            if (isReadOnly)
+            bool isLocalRuntime = _dbConnectionProvider is ISyncConnectionProvider syncProvider &&
+                                  (syncProvider.IsLocalFirstEnabled || syncProvider.IsReadOnlyMode);
+            if (isLocalRuntime)
             {
                 if (string.IsNullOrEmpty(user.PasswordHash)) return null;
 
@@ -78,8 +79,8 @@ namespace Persistence.Repository
                     return null;
                 }
 
-                // In ReadOnlyMode: both Success and SuccessRehashNeeded authenticate successfully
-                // WITHOUT invoking _userManager.UpdateAsync(user) or mutating user.PasswordHash in the database.
+                // In LocalFirst runtimes (ReadOnly or ReadWritePilot): both Success and SuccessRehashNeeded authenticate successfully
+                // WITHOUT invoking _userManager.UpdateAsync(user) or mutating user.PasswordHash in the local database.
                 return user;
             }
 

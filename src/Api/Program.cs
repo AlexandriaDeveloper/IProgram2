@@ -112,10 +112,11 @@ using (var scope = app.Services.CreateScope())
 {
     var roleMgr = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var isLocalFirst = app.Configuration.GetValue<bool>("LocalFirst:Enabled", false);
     var isReadOnly = app.Configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
     try 
     { 
-        await SeedData.EnsureSeedData(roleMgr, isReadOnly); 
+        await SeedData.EnsureSeedData(roleMgr, skipRoleCreation: isLocalFirst || isReadOnly); 
     } 
     catch (Exception ex) 
     { 
@@ -256,6 +257,12 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2E:Dia
             disallowedAttempts = disallowed,
             records = records
         });
+    });
+
+    app.MapPost("/api/diagnostics/connection-audit/clear", () =>
+    {
+        Auth.Infrastructure.Sync.ConnectionAuditTracker.Clear();
+        return Results.Ok(new { message = "Connection audit records cleared." });
     });
 }
 
