@@ -16,14 +16,6 @@ namespace Auth.Infrastructure.Sync
     /// </summary>
     public class ReadOnlyDbCommandInterceptor : DbCommandInterceptor
     {
-        private static readonly Regex MultiLineComments = new Regex(@"/\*[\s\S]*?\*/", RegexOptions.Compiled);
-        private static readonly Regex SingleLineComments = new Regex(@"--[^\r\n]*", RegexOptions.Compiled);
-        private static readonly Regex StringLiterals = new Regex(@"N?'([^']|'')*'", RegexOptions.Compiled);
-
-        private static readonly Regex MutatingSqlPattern = new Regex(
-            @"\b(INSERT|UPDATE|DELETE|MERGE|ALTER|DROP|TRUNCATE|CREATE|EXEC|EXECUTE)\b|\bSELECT\b[\s\S]+?\bINTO\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
         private readonly ISyncConnectionProvider _syncConnectionProvider;
 
         public ReadOnlyDbCommandInterceptor(ISyncConnectionProvider syncConnectionProvider)
@@ -31,20 +23,92 @@ namespace Auth.Infrastructure.Sync
             _syncConnectionProvider = syncConnectionProvider;
         }
 
-        public static string SanitizeSqlForAnalysis(string sql)
+        public static bool IsMutatingCommand(string commandText, System.Data.CommandType commandType = System.Data.CommandType.Text)
         {
-            if (string.IsNullOrWhiteSpace(sql)) return string.Empty;
-            var withoutComments = MultiLineComments.Replace(sql, " ");
-            withoutComments = SingleLineComments.Replace(withoutComments, " ");
-            var withoutLiterals = StringLiterals.Replace(withoutComments, "''");
-            return withoutLiterals;
+            return !IsReadOnlyPermitted(commandText, commandType);
         }
 
-        public static bool IsMutatingCommand(string commandText)
+        public static bool IsMutatingCommand(DbCommand command)
         {
-            if (string.IsNullOrWhiteSpace(commandText)) return false;
-            var sanitized = SanitizeSqlForAnalysis(commandText);
-            return MutatingSqlPattern.IsMatch(sanitized);
+            if (command == null) return false;
+            return !IsReadOnlyPermitted(command.CommandText, command.CommandType);
+        }
+
+        public static bool IsReadOnlyPermitted(string sql, System.Data.CommandType commandType = System.Data.CommandType.Text)
+        {
+            // 1. Fail-closed on StoredProcedure: stored procedures can execute hidden DML/DDL mutations
+            if (commandType == System.Data.CommandType.StoredProcedure)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(sql))
+            {
+                return true;
+            }
+
+            // 2. Parse using Microsoft's official TSql120Parser (SQL Server 2014)
+            var parser = new Microsoft.SqlServer.TransactSql.ScriptDom.TSql120Parser(initialQuotedIdentifiers: true);
+            using var reader = new System.IO.StringReader(sql);
+            var fragment = parser.Parse(reader, out var errors);
+
+            // 3. Fail-closed on syntax/parse errors
+            if (errors != null && errors.Count > 0)
+            {
+                return false;
+            }
+
+            if (fragment is not Microsoft.SqlServer.TransactSql.ScriptDom.TSqlScript script)
+            {
+                return false;
+            }
+
+            // 4. Validate every statement across every batch against an explicit allowlist (default-deny)
+            if (script.Batches == null || script.Batches.Count == 0)
+            {
+                return true;
+            }
+
+            foreach (var batch in script.Batches)
+            {
+                if (batch.Statements == null) continue;
+
+                foreach (var stmt in batch.Statements)
+                {
+                    if (!IsStatementPermittedReadOnly(stmt))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsStatementPermittedReadOnly(Microsoft.SqlServer.TransactSql.ScriptDom.TSqlStatement stmt)
+        {
+            switch (stmt)
+            {
+                case Microsoft.SqlServer.TransactSql.ScriptDom.SelectStatement selectStmt:
+                    if (selectStmt.Into != null)
+                    {
+                        return false;
+                    }
+                    return true;
+
+                case Microsoft.SqlServer.TransactSql.ScriptDom.PredicateSetStatement:
+                case Microsoft.SqlServer.TransactSql.ScriptDom.SetTransactionIsolationLevelStatement:
+                case Microsoft.SqlServer.TransactSql.ScriptDom.SetVariableStatement:
+                case Microsoft.SqlServer.TransactSql.ScriptDom.SetCommandStatement:
+                case Microsoft.SqlServer.TransactSql.ScriptDom.UseStatement:
+                    return true;
+
+                default:
+                    // All other statements (UpdateStatement, InsertStatement, DeleteStatement,
+                    // MergeStatement, ExecuteStatement, AlterTableStatement, DropTableStatement,
+                    // TruncateTableStatement, CreateTableStatement, etc.) are strictly DENIED.
+                    return false;
+            }
         }
 
         public override InterceptionResult<int> NonQueryExecuting(
@@ -111,12 +175,12 @@ namespace Auth.Infrastructure.Sync
                 return;
             }
 
-            if (command == null || string.IsNullOrWhiteSpace(command.CommandText))
+            if (command == null)
             {
                 return;
             }
 
-            if (IsMutatingCommand(command.CommandText))
+            if (IsMutatingCommand(command))
             {
                 throw new ReadOnlyModeException(
                     "النظام يعمل حالياً في وضع القراءة المحلية فقط. تنفيذ أوامر التعديل على قاعدة البيانات معطل.");

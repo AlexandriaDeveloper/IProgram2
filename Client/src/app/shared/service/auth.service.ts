@@ -13,7 +13,7 @@ export class AuthService {
   router = inject(Router);
   jwtHelper: JwtHelperService = new JwtHelperService();
   apiUrl = environment.apiUrl;
-  currentUserSig = signal<any | undefined | null>(undefined);
+  currentUserSig = signal<any | undefined | null>(null);
   userRoles = signal<string[]>([]);
   runtimeStatusSig = signal<{ isReadOnly: boolean; isLocalFirst: boolean; runtimeMode: string; selectedDatabase: string } | null>(null);
   constructor() {
@@ -86,14 +86,11 @@ export class AuthService {
     return this.jwtHelper.decodeToken(token).role;
   }
   isUserAdmin() {
-
-    if (this.currentUserSig() === undefined) {
+    const user = this.currentUserSig();
+    if (!user || !user.roles || !Array.isArray(user.roles)) {
       return false;
     }
-    let isAdmin = false;
-    isAdmin = this.currentUserSig().roles.map(x => x === 'Admin')[0] as boolean
-    //    console.log(this.currentUserSig().roles.);
-    return isAdmin
+    return user.roles.some((x: any) => x === 'Admin');
   }
   isAuthenticated() {
     return this.currentUserSig() && !this.jwtHelper.isTokenExpired(this.currentUserSig().token);

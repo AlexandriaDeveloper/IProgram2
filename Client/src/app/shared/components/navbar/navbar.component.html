@@ -18,7 +18,7 @@ document.createElement('video');
       <div class="nav-bar-container">
         <mat-toolbar>
           <div>
-            <ng-container *ngIf="(auth.currentUserSig())===null">
+            <ng-container *ngIf="!auth.isAuthenticated()">
               <div class="auth-user">
                 <a mat-icon-button color="primary" routerLink="/account/login">
                   <mat-icon>login</mat-icon>

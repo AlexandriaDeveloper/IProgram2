@@ -1,11 +1,12 @@
 ﻿{
     "Gate":  "Slice_4_3A_OfflineReadOnlySmoke",
-    "TimestampUtc":  "2026-09-20T12:57:05.4268392Z",
+    "TimestampUtc":  "2026-09-20T14:11:55.0655839Z",
     "LocalEngine":  "localhost (SQL Server 2014)",
     "Databases":  [
                       "IProgramLocalDb2026",
                       "IProgramLocalDb2027"
                   ],
+    "AuditedTablesCount":  11,
     "SQL_Smoke":  {
                       "SqlServer_Compatibility":  {
                                                       "Status":  "PASS",
@@ -23,28 +24,107 @@
                                                             "Roles":  2
                                                         }
                                          },
-                      "Baseline_Counts":  {
-                                              "Status":  "PASS",
-                                              "Db2026":  {
-                                                             "Employees":  12308,
-                                                             "Daily":  30,
-                                                             "Forms":  1590
-                                                         },
-                                              "Db2027":  {
-                                                             "Employees":  12353,
-                                                             "Daily":  14,
-                                                             "Forms":  580
-                                                         }
-                                          }
+                      "PreTest_Hashes_2026":  {
+                                                  "Employees":  {
+                                                                    "RowCount":  12308,
+                                                                    "Checksum":  -1819000208
+                                                                },
+                                                  "Daily":  {
+                                                                "RowCount":  30,
+                                                                "Checksum":  906203899
+                                                            },
+                                                  "Form":  {
+                                                               "RowCount":  1590,
+                                                               "Checksum":  1128400110
+                                                           },
+                                                  "FormDetails":  {
+                                                                      "RowCount":  29392,
+                                                                      "Checksum":  2053517181
+                                                                  },
+                                                  "Departments":  {
+                                                                      "RowCount":  8,
+                                                                      "Checksum":  1058039730
+                                                                  },
+                                                  "EmployeeBank":  {
+                                                                       "RowCount":  478,
+                                                                       "Checksum":  1639494815
+                                                                   },
+                                                  "EmployeeNetPays":  {
+                                                                          "RowCount":  3670,
+                                                                          "Checksum":  1789293423
+                                                                      },
+                                                  "EmployeeRefernce":  {
+                                                                           "RowCount":  0,
+                                                                           "Checksum":  0
+                                                                       },
+                                                  "AspNetUsers":  {
+                                                                      "RowCount":  2,
+                                                                      "Checksum":  2051094985
+                                                                  },
+                                                  "AspNetRoles":  {
+                                                                      "RowCount":  2,
+                                                                      "Checksum":  832502164
+                                                                  },
+                                                  "AspNetUserRoles":  {
+                                                                          "RowCount":  3,
+                                                                          "Checksum":  -341411631
+                                                                      }
+                                              },
+                      "PreTest_Hashes_2027":  {
+                                                  "Employees":  {
+                                                                    "RowCount":  12353,
+                                                                    "Checksum":  -1945947056
+                                                                },
+                                                  "Daily":  {
+                                                                "RowCount":  14,
+                                                                "Checksum":  1033050384
+                                                            },
+                                                  "Form":  {
+                                                               "RowCount":  580,
+                                                               "Checksum":  914183981
+                                                           },
+                                                  "FormDetails":  {
+                                                                      "RowCount":  7877,
+                                                                      "Checksum":  2069983089
+                                                                  },
+                                                  "Departments":  {
+                                                                      "RowCount":  9,
+                                                                      "Checksum":  -300441609
+                                                                  },
+                                                  "EmployeeBank":  {
+                                                                       "RowCount":  478,
+                                                                       "Checksum":  1521825859
+                                                                   },
+                                                  "EmployeeNetPays":  {
+                                                                          "RowCount":  4098,
+                                                                          "Checksum":  -1006923634
+                                                                      },
+                                                  "EmployeeRefernce":  {
+                                                                           "RowCount":  0,
+                                                                           "Checksum":  0
+                                                                       },
+                                                  "AspNetUsers":  {
+                                                                      "RowCount":  2,
+                                                                      "Checksum":  2051094985
+                                                                  },
+                                                  "AspNetRoles":  {
+                                                                      "RowCount":  2,
+                                                                      "Checksum":  832502164
+                                                                  },
+                                                  "AspNetUserRoles":  {
+                                                                          "RowCount":  3,
+                                                                          "Checksum":  -341411631
+                                                                      }
+                                              }
                   },
     "Unit_Tests":  {
                        "Offline_ReadOnly_Unit_Suite":  {
                                                            "Status":  "PASS",
                                                            "Filter":  "FullyQualifiedName~OfflineReadOnlyRuntimeTests",
-                                                           "Passed":  54,
+                                                           "Passed":  66,
                                                            "Failed":  0,
                                                            "Skipped":  0,
-                                                           "Total":  54
+                                                           "Total":  66
                                                        },
                        "Security_Endpoints_Suite":  {
                                                         "Status":  "PASS",
@@ -55,51 +135,147 @@
                                          }
                    },
     "Runtime_E2E_Smoke":  {
+                              "Outage_FailClosed_Proof":  {
+                                                              "Status":  "PASS",
+                                                              "TargetYear":  "2026",
+                                                              "LocalEndpoint":  "127.0.0.1:9998 (unreachable)",
+                                                              "FailedClosed":  true,
+                                                              "AzureConnectionsAttempted":  0
+                                                          },
                               "Runtime_Status":  {
                                                      "Status":  "PASS",
                                                      "IsReadOnly":  true,
                                                      "RuntimeMode":  "OfflineReadOnly"
                                                  },
-                              "Year_2026_E2E":  {
-                                                    "Status":  "PASS",
-                                                    "LoginSuccess":  true,
-                                                    "ExportSuccess":  true,
-                                                    "MutationsBlocked":  {
-                                                                             "PostDaily":  true,
-                                                                             "GetCopyArchive":  true,
-                                                                             "PutDaily":  true
-                                                                         }
-                                                },
-                              "Year_2027_E2E":  {
-                                                    "Status":  "PASS",
-                                                    "LoginSuccess":  true,
-                                                    "ExportSuccess":  true,
-                                                    "MutationsBlocked":  {
-                                                                             "PostDaily":  true
-                                                                         }
-                                                },
-                              "Fail_Closed_Isolation":  {
-                                                            "Status":  "PASS"
-                                                        },
-                              "Data_Invariance":  {
-                                                      "Status":  "PASS",
-                                                      "Db2026":  {
-                                                                     "PreEmployees":  12308,
-                                                                     "PostEmployees":  12308,
-                                                                     "PreDaily":  30,
-                                                                     "PostDaily":  30,
-                                                                     "PreForms":  1590,
-                                                                     "PostForms":  1590
-                                                                 },
-                                                      "Db2027":  {
-                                                                     "PreEmployees":  12353,
-                                                                     "PostEmployees":  12353,
-                                                                     "PreDaily":  14,
-                                                                     "PostDaily":  14,
-                                                                     "PreForms":  580,
-                                                                     "PostForms":  580
-                                                                 }
-                                                  }
+                              "Year_2026_Flow":  {
+                                                     "Status":  "PASS",
+                                                     "ExportBytes":  4598
+                                                 },
+                              "Year_2027_Flow":  {
+                                                     "Status":  "PASS",
+                                                     "ExportBytes":  4598
+                                                 },
+                              "Mutation_Matrix":  {
+                                                      "PostDaily_2026":  "BLOCKED_403",
+                                                      "PostDaily_2027":  "BLOCKED_403",
+                                                      "PutDaily_2026":  "BLOCKED_403",
+                                                      "DeleteDaily_2026":  "BLOCKED_403",
+                                                      "CopyArchive_2026":  "BLOCKED_403",
+                                                      "MarkReviewed_2026":  "BLOCKED_403",
+                                                      "MarkSummaryReviewed_2026":  "BLOCKED_403",
+                                                      "UserRegister_2026":  "BLOCKED_403",
+                                                      "RoleCreate_2026":  "BLOCKED_403",
+                                                      "DeleteAttachment_2026":  "BLOCKED_403"
+                                                  },
+                              "Connection_Audit":  {
+                                                       "Status":  "PASS",
+                                                       "AllowedLocalConnections":  22,
+                                                       "DisallowedRemoteConnections":  0
+                                                   },
+                              "Playwright_Browser_Suite":  {
+                                                               "Status":  "PASS",
+                                                               "Spec":  "specs/10-offline-readonly-runtime.spec.ts"
+                                                           }
                           },
+    "Post_Test_Invariance":  {
+                                 "Status":  "PASS",
+                                 "TablesAudited":  11,
+                                 "DatabasesAudited":  2,
+                                 "TotalTableSetsVerified":  22,
+                                 "MismatchesDetected":  0,
+                                 "Proof":  "100% mathematical invariance across all 22 audited table sets (Counts and Deterministic Checksums identical pre and post test)",
+                                 "PostHashes_2026":  {
+                                                         "Employees":  {
+                                                                           "RowCount":  12308,
+                                                                           "Checksum":  -1819000208
+                                                                       },
+                                                         "Daily":  {
+                                                                       "RowCount":  30,
+                                                                       "Checksum":  906203899
+                                                                   },
+                                                         "Form":  {
+                                                                      "RowCount":  1590,
+                                                                      "Checksum":  1128400110
+                                                                  },
+                                                         "FormDetails":  {
+                                                                             "RowCount":  29392,
+                                                                             "Checksum":  2053517181
+                                                                         },
+                                                         "Departments":  {
+                                                                             "RowCount":  8,
+                                                                             "Checksum":  1058039730
+                                                                         },
+                                                         "EmployeeBank":  {
+                                                                              "RowCount":  478,
+                                                                              "Checksum":  1639494815
+                                                                          },
+                                                         "EmployeeNetPays":  {
+                                                                                 "RowCount":  3670,
+                                                                                 "Checksum":  1789293423
+                                                                             },
+                                                         "EmployeeRefernce":  {
+                                                                                  "RowCount":  0,
+                                                                                  "Checksum":  0
+                                                                              },
+                                                         "AspNetUsers":  {
+                                                                             "RowCount":  2,
+                                                                             "Checksum":  2051094985
+                                                                         },
+                                                         "AspNetRoles":  {
+                                                                             "RowCount":  2,
+                                                                             "Checksum":  832502164
+                                                                         },
+                                                         "AspNetUserRoles":  {
+                                                                                 "RowCount":  3,
+                                                                                 "Checksum":  -341411631
+                                                                             }
+                                                     },
+                                 "PostHashes_2027":  {
+                                                         "Employees":  {
+                                                                           "RowCount":  12353,
+                                                                           "Checksum":  -1945947056
+                                                                       },
+                                                         "Daily":  {
+                                                                       "RowCount":  14,
+                                                                       "Checksum":  1033050384
+                                                                   },
+                                                         "Form":  {
+                                                                      "RowCount":  580,
+                                                                      "Checksum":  914183981
+                                                                  },
+                                                         "FormDetails":  {
+                                                                             "RowCount":  7877,
+                                                                             "Checksum":  2069983089
+                                                                         },
+                                                         "Departments":  {
+                                                                             "RowCount":  9,
+                                                                             "Checksum":  -300441609
+                                                                         },
+                                                         "EmployeeBank":  {
+                                                                              "RowCount":  478,
+                                                                              "Checksum":  1521825859
+                                                                          },
+                                                         "EmployeeNetPays":  {
+                                                                                 "RowCount":  4098,
+                                                                                 "Checksum":  -1006923634
+                                                                             },
+                                                         "EmployeeRefernce":  {
+                                                                                  "RowCount":  0,
+                                                                                  "Checksum":  0
+                                                                              },
+                                                         "AspNetUsers":  {
+                                                                             "RowCount":  2,
+                                                                             "Checksum":  2051094985
+                                                                         },
+                                                         "AspNetRoles":  {
+                                                                             "RowCount":  2,
+                                                                             "Checksum":  832502164
+                                                                         },
+                                                         "AspNetUserRoles":  {
+                                                                                 "RowCount":  3,
+                                                                                 "Checksum":  -341411631
+                                                                             }
+                                                     }
+                             },
     "OverallStatus":  "PASS"
 }

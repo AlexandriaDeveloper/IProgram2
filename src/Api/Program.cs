@@ -242,6 +242,20 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2E:Dia
             Databases = results
         });
     });
+
+    app.MapGet("/api/diagnostics/connection-audit", () =>
+    {
+        var records = Auth.Infrastructure.Sync.ConnectionAuditTracker.GetRecords();
+        var disallowed = records.Where(r => !r.Allowed || !r.IsLocal).ToList();
+        return Results.Ok(new
+        {
+            totalConnections = records.Count,
+            allowedLocalConnections = records.Count(r => r.Allowed && r.IsLocal),
+            disallowedRemoteConnections = disallowed.Count,
+            disallowedAttempts = disallowed,
+            records = records
+        });
+    });
 }
 
 app.MapControllers();

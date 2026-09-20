@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.Common;
 using System.IO;
 using System.Text;
@@ -389,6 +390,10 @@ namespace Auth.UnitTests
         [InlineData("SELECT * INTO [BackupTable] FROM [Employees]")]
         [InlineData("EXEC sp_custom_action")]
         [InlineData("EXECUTE [dbo].[sp_custom_action]")]
+        [InlineData("SELECT '--'; UPDATE [dbo].[FormDetails] SET [Amount]=100 WHERE [Id]=1;")]
+        [InlineData("SELECT '/*'; UPDATE [dbo].[FormDetails] SET [Amount]=100 WHERE [Id]=1; SELECT '*/';")]
+        [InlineData("SELECT 1; DROP TABLE [dbo].[FormDetails];")]
+        [InlineData("SELECT * FROM [dbo].[FormDetails]; INVALID SYNTAX ERROR !!!")]
         public async Task ReadOnlyDbCommandInterceptor_ThrowsReadOnlyModeException_OnMutatingSql_AllExecutionTypes(string mutatingSql)
         {
             var mockSyncProvider = new Mock<ISyncConnectionProvider>();
@@ -398,6 +403,7 @@ namespace Auth.UnitTests
 
             var mockCommand = new Mock<DbCommand>();
             mockCommand.SetupGet(c => c.CommandText).Returns(mutatingSql);
+            mockCommand.SetupGet(c => c.CommandType).Returns(CommandType.Text);
 
             // 1. NonQuery (Sync & Async)
             var ex1 = Assert.Throws<ReadOnlyModeException>(() =>
@@ -425,6 +431,26 @@ namespace Auth.UnitTests
                 await interceptor.ScalarExecutingAsync(mockCommand.Object, null!, default));
         }
 
+        [Fact]
+        public async Task ReadOnlyDbCommandInterceptor_ThrowsReadOnlyModeException_OnStoredProcedure()
+        {
+            var mockSyncProvider = new Mock<ISyncConnectionProvider>();
+            mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(true);
+
+            var interceptor = new ReadOnlyDbCommandInterceptor(mockSyncProvider.Object);
+
+            var mockCommand = new Mock<DbCommand>();
+            mockCommand.SetupGet(c => c.CommandType).Returns(CommandType.StoredProcedure);
+            mockCommand.SetupGet(c => c.CommandText).Returns("dbo.ApplyChanges");
+
+            var ex = Assert.Throws<ReadOnlyModeException>(() =>
+                interceptor.NonQueryExecuting(mockCommand.Object, null!, default));
+            Assert.Contains("وضع القراءة المحلية فقط", ex.Message);
+
+            await Assert.ThrowsAsync<ReadOnlyModeException>(async () =>
+                await interceptor.ReaderExecutingAsync(mockCommand.Object, null!, default));
+        }
+
         [Theory]
         [InlineData("SET NOCOUNT ON")]
         [InlineData("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")]
@@ -433,6 +459,9 @@ namespace Auth.UnitTests
         [InlineData("SELECT * FROM Employees WHERE Name = N'INSERT INTO something'")]
         [InlineData("SELECT * FROM Employees -- comment with UPDATE")]
         [InlineData("/* multi-line comment with INSERT */ SELECT COUNT(*) FROM Employees")]
+        [InlineData("WITH EmpCTE AS (SELECT Id, Name FROM Employees) SELECT * FROM EmpCTE")]
+        [InlineData("SELECT '--' AS Marker, Id FROM Employees")]
+        [InlineData("SELECT '/*' AS Marker, '*/' AS EndMarker, Id FROM Employees")]
         public void ReadOnlyDbCommandInterceptor_AllowsSafeCommands_WithCommentsAndLiterals_InReadOnlyMode(string safeSql)
         {
             var mockSyncProvider = new Mock<ISyncConnectionProvider>();
@@ -442,6 +471,7 @@ namespace Auth.UnitTests
 
             var mockCommand = new Mock<DbCommand>();
             mockCommand.SetupGet(c => c.CommandText).Returns(safeSql);
+            mockCommand.SetupGet(c => c.CommandType).Returns(CommandType.Text);
 
             // NonQuery
             var nonQueryResult = interceptor.NonQueryExecuting(mockCommand.Object, null!, default);
@@ -454,6 +484,42 @@ namespace Auth.UnitTests
             // Scalar
             var scalarResult = interceptor.ScalarExecuting(mockCommand.Object, null!, default);
             Assert.False(scalarResult.HasResult);
+        }
+
+        [Fact]
+        public void ReadOnlyDbConnectionInterceptor_AllowsLocalConnection_InReadOnlyMode()
+        {
+            var mockSyncProvider = new Mock<ISyncConnectionProvider>();
+            mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(true);
+
+            var interceptor = new ReadOnlyDbConnectionInterceptor(mockSyncProvider.Object);
+
+            var mockConnection = new Mock<DbConnection>();
+            mockConnection.SetupGet(c => c.DataSource).Returns("localhost");
+            mockConnection.SetupGet(c => c.Database).Returns("IProgramLocalDb2026");
+
+            var result = interceptor.ConnectionOpening(mockConnection.Object, null!, default);
+            Assert.False(result.IsSuppressed);
+        }
+
+        [Theory]
+        [InlineData("iprogram-sql-prod-01.database.windows.net")]
+        [InlineData("192.168.1.50")]
+        [InlineData("remoteserver.company.com")]
+        public void ReadOnlyDbConnectionInterceptor_BlocksRemoteConnection_InReadOnlyMode(string remoteHost)
+        {
+            var mockSyncProvider = new Mock<ISyncConnectionProvider>();
+            mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(true);
+
+            var interceptor = new ReadOnlyDbConnectionInterceptor(mockSyncProvider.Object);
+
+            var mockConnection = new Mock<DbConnection>();
+            mockConnection.SetupGet(c => c.DataSource).Returns(remoteHost);
+            mockConnection.SetupGet(c => c.Database).Returns("IProgramDb2026");
+
+            var ex = Assert.Throws<ReadOnlyModeException>(() =>
+                interceptor.ConnectionOpening(mockConnection.Object, null!, default));
+            Assert.Contains("خارجية معطل", ex.Message);
         }
 
         #endregion

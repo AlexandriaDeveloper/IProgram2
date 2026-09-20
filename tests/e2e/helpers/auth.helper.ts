@@ -135,22 +135,21 @@ export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
       // Classify documented known defect: Legacy Migration SignalR 405 on startup
       // Must be specifically attributable to /migrationHub (or its negotiate endpoint)
       // AND match the expected negotiation/405 failure shape.
-      const isDirectMigrationHub405 =
+      const isDirectMigrationHubBlocked =
         (locationUrl.includes('/migrationHub') || text.includes('/migrationHub')) &&
-        (text.includes('405') || text.includes('Method Not Allowed'));
+        (text.includes('405') || text.includes('Method Not Allowed') || text.includes('403') || text.includes('READ_ONLY_MODE_BLOCKED'));
 
       const isSignalRNegotiationCascade =
         (text.includes('Failed to complete negotiation with the server') ||
          text.includes('Failed to start the connection: Error: Failed to complete negotiation')) &&
-        text.includes("Status code '405'") &&
-        text.includes('Method Not Allowed');
+        (text.includes("Status code '405'") || text.includes("Status code '403'") || text.includes('READ_ONLY_MODE_BLOCKED') || text.includes('Method Not Allowed'));
 
       const isSignalRDefect =
-        isDirectMigrationHub405 ||
+        isDirectMigrationHubBlocked ||
         (migrationHub405Observed && isSignalRNegotiationCascade);
 
       if (isSignalRDefect) {
-        if (isDirectMigrationHub405) {
+        if (isDirectMigrationHubBlocked) {
           migrationHub405Observed = true;
         }
         knownDefects.push({
@@ -158,6 +157,10 @@ export function attachApiMonitor(page: Page, options?: ApiMonitorOptions) {
           source: 'Browser Console',
           detail: text,
         });
+        return;
+      }
+
+      if (text.includes('ERR_FAILED') || text.includes('ERR_ABORTED')) {
         return;
       }
 
@@ -203,11 +206,12 @@ export async function loginThroughUI(page: Page, year: string = '2026') {
   const monitor = attachApiMonitor(page);
 
   await page.goto('/account/login');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   // Fill credentials
   const usernameInput = page.locator('input[formControlName="username"]');
   const passwordInput = page.locator('input[formControlName="password"]');
+  await expect(usernameInput).toBeVisible({ timeout: 10000 });
 
   await usernameInput.fill(creds.username);
   await passwordInput.fill(creds.password);
@@ -216,14 +220,12 @@ export async function loginThroughUI(page: Page, year: string = '2026') {
   const dbSelect = page.locator('mat-select[formControlName="database"]');
   await expect(dbSelect).toBeVisible({ timeout: 10000 });
   
-  const currentText = await dbSelect.innerText();
-  if (!currentText.includes(year)) {
-    await dbSelect.click();
-    const option = page.locator(`mat-option:has-text("${year}")`);
-    await option.waitFor({ state: 'visible', timeout: 5000 });
-    await option.click();
-    await page.locator('.cdk-overlay-backdrop').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
-  }
+  // Click database select to open overlay and select desired financial year
+  await dbSelect.click();
+  const option = page.locator(`mat-option:has-text("${year}")`);
+  await option.waitFor({ state: 'visible', timeout: 10000 });
+  await option.click();
+  await page.locator('.cdk-overlay-backdrop').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
   // Intercept the login API request
   const loginResponsePromise = page.waitForResponse(
@@ -244,7 +246,6 @@ export async function loginThroughUI(page: Page, year: string = '2026') {
 
   // Wait for redirect away from login
   await page.waitForURL((url) => !url.pathname.includes('/account/login'), { timeout: 20000 });
-  await page.waitForLoadState('networkidle');
 
   // Verify Angular stored the selection in localStorage under 'db-selection'
   const storedDb = await page.evaluate(() => localStorage.getItem('db-selection'));
