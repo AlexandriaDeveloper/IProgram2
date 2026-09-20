@@ -1,0 +1,67 @@
+﻿{
+    "Year":  "2027",
+    "TimestampUtc":  "2026-09-20T22:35:57.4093085Z",
+    "Classification":  "CLEAN_BASELINE",
+    "AuthoritativeTrackingCutoverReadiness":  "YES",
+    "ReadinessIssues":  [
+
+                        ],
+    "Comparison_Summary":  {
+                               "DailyContentMatch":  true,
+                               "VersionMatch":  true,
+                               "HasPendingOutbox":  false,
+                               "Azure_Daily_Total":  14,
+                               "Azure_Daily_Active":  12,
+                               "Azure_Daily_Inactive":  2,
+                               "Azure_Daily_Sha256":  "359D518757795FDC33CE28C0678BC02AE81EC14A8CB5EE08FEBCF4A1B09BC3B1",
+                               "Local_Daily_Total":  14,
+                               "Local_Daily_Active":  12,
+                               "Local_Daily_Inactive":  2,
+                               "Local_Daily_Sha256":  "359D518757795FDC33CE28C0678BC02AE81EC14A8CB5EE08FEBCF4A1B09BC3B1",
+                               "MissingOnLocalCount":  0,
+                               "MissingOnAzureCount":  0,
+                               "DifferingFieldRowsCount":  0
+                           },
+    "Azure_Metadata":  {
+                           "SchemaComplete":  true,
+                           "SyncTables":  [
+                                              "ProcessedOperations",
+                                              "ServerChangeFeed",
+                                              "ServerState",
+                                              "Tombstones"
+                                          ],
+                           "ServerStateRowCount":  1,
+                           "DatabaseId":  "2027",
+                           "CurrentVersion":  0,
+                           "LastUpdatedUtc":  "2026-09-19T16:55:54.8597049Z",
+                           "ServerChangeFeedRows":  0,
+                           "TombstoneRows":  0,
+                           "ProcessedOperationsRows":  0
+                       },
+    "Local_Metadata":  {
+                           "DatabaseId":  "2027",
+                           "DeviceId":  "a71ce869-0300-4a07-b70e-1938b5fa42f2",
+                           "LastServerVersion":  0,
+                           "BootstrapStatus":  "VERIFIED_READY",
+                           "IsWriteAllowed":  true,
+                           "BootstrapTimestampUtc":  "2026-09-20T07:54:43.8937030Z",
+                           "LocalOutbox":  {
+                                               "InProgressCount":  0,
+                                               "FailedCount":  0,
+                                               "PendingCount":  0,
+                                               "CompletedCount":  0,
+                                               "TotalCount":  0
+                                           }
+                       },
+    "Drift_Details":  {
+                          "MissingOnLocal":  [
+
+                                             ],
+                          "MissingOnAzure":  [
+
+                                             ],
+                          "DifferingRows":  [
+
+                                            ]
+                      }
+}
