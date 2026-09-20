@@ -994,5 +994,246 @@ namespace Auth.UnitTests
         }
 
         #endregion
+
+        #region Scenario 13: Real Concurrent Online <-> Push Test (Zero Deadlock)
+
+        [Fact]
+        public async Task Scenario13_ConcurrentOnlineVsPush_NoDeadlock_DeterministicOutcome()
+        {
+            // Run multiple concurrent races to test lock arbitration under contention
+            for (int iteration = 1; iteration <= 3; iteration++)
+            {
+                var baseDailySyncId = Guid.NewGuid();
+                var devId = Guid.NewGuid();
+                var clientOpId = Guid.NewGuid();
+
+                // 1. Pre-seed a base Daily row directly on remote DB
+                var startingVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+                await using (var seedConn = new SqlConnection(RemoteConnStr2026))
+                {
+                    await seedConn.OpenAsync();
+                    await using var seedCmd = seedConn.CreateCommand();
+                    seedCmd.CommandText = @"
+                        INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [CreatedBy], [CreatedAt], [IsActive], [SyncId])
+                        VALUES (@Name, '2026-06-01T00:00:00Z', 0, 'Seed', SYSUTCDATETIME(), 1, @SyncId);";
+                    seedCmd.Parameters.AddWithValue("@Name", $"Base Daily {iteration}");
+                    seedCmd.Parameters.AddWithValue("@SyncId", baseDailySyncId);
+                    await seedCmd.ExecuteNonQueryAsync();
+                }
+
+                // 2. Prepare Session 1: Online authoritative write via UnitOfWork
+                var syncProviderMock = new Mock<ISyncConnectionProvider>();
+                syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+                syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+                syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+                using var onlineContext = CreateContext(RemoteConnStr2026, trackingEnabled: true, syncProviderMock.Object);
+                var onlineUow = CreateUnitOfWork(onlineContext, syncProviderMock.Object);
+
+                var onlineDaily = await onlineContext.Set<Daily>().FirstAsync(d => d.SyncId == baseDailySyncId);
+                onlineDaily.Name = $"Updated By Online Race {iteration}";
+
+                // 3. Prepare Session 2: Offline Push mutation via AzurePushTransactionCoordinator
+                var pushPayload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    schemaVersion = 1,
+                    entityType = "Daily",
+                    operationType = "UPDATE",
+                    databaseId = "2026",
+                    deviceId = devId,
+                    entitySyncId = baseDailySyncId,
+                    baseServerVersion = startingVersion,
+                    entityData = new
+                    {
+                        SyncId = baseDailySyncId,
+                        Name = $"Updated By Push Race {iteration}",
+                        DailyDate = "2026-06-01T00:00:00Z",
+                        Closed = false,
+                        IsActive = true,
+                        UpdatedAt = DateTime.UtcNow.ToString("O")
+                    }
+                });
+                var pushHash = LocalOutboxPushService.ComputeRequestHash("2026", devId, "Daily.Update", "Daily", baseDailySyncId, pushPayload);
+                var outbox = new LocalOutbox
+                {
+                    DatabaseId = "2026",
+                    ClientOperationId = clientOpId,
+                    CommandName = "Daily.Update",
+                    AggregateType = "Daily",
+                    EntitySyncId = baseDailySyncId,
+                    PayloadJson = pushPayload,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    Status = "IN_PROGRESS"
+                };
+
+                // 4. Concurrently launch both operations across separate connections with 15s timeout
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                var ct = cts.Token;
+
+                Exception? onlineException = null;
+                Exception? pushException = null;
+                RemoteApplyResult? pushResult = null;
+
+                // Use TaskCompletionSource to coordinate simultaneous start
+                var barrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                var onlineTask = Task.Run(async () =>
+                {
+                    await barrier.Task;
+                    try
+                    {
+                        await onlineUow.SaveChangesAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        onlineException = ex;
+                    }
+                }, ct);
+
+                var pushTask = Task.Run(async () =>
+                {
+                    await barrier.Task;
+                    try
+                    {
+                        await using var pushConn = new SqlConnection(RemoteConnStr2026);
+                        await pushConn.OpenAsync(ct);
+                        pushResult = await _pushCoordinator.ApplyOperationAsync(pushConn, "2026", outbox, startingVersion, pushHash, devId, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        pushException = ex;
+                    }
+                }, ct);
+
+                // Release barrier to trigger both operations concurrently
+                barrier.SetResult();
+                await Task.WhenAll(onlineTask, pushTask);
+
+                // 5. Verify NO SQL Error 1205 (Deadlock victim) on either side
+                if (onlineException != null)
+                {
+                    var sqlEx = ExtractSqlException(onlineException);
+                    if (sqlEx != null)
+                    {
+                        Assert.NotEqual(1205, sqlEx.Number);
+                    }
+                }
+                if (pushException != null)
+                {
+                    var sqlEx = ExtractSqlException(pushException);
+                    if (sqlEx != null)
+                    {
+                        Assert.NotEqual(1205, sqlEx.Number);
+                    }
+                }
+
+                // 6. Validate outcome: Exactly one of the two legitimate outcomes occurred
+                var finalVersion = await GetServerVersionAsync(RemoteConnStr2026, "2026");
+
+                if (onlineException == null && pushException is SyncVersionConflictException conflictEx)
+                {
+                    // OUTCOME A: Online acquired ServerState first
+                    // Online advanced version -> Push detected SYNC_VERSION_CONFLICT -> zero Push business write
+                    Assert.Equal("SYNC_VERSION_CONFLICT", conflictEx.ErrorCode);
+                    Assert.Equal(startingVersion + 1, finalVersion);
+
+                    // Verify Daily holds Online's mutation
+                    await using var verifyConn = new SqlConnection(RemoteConnStr2026);
+                    await verifyConn.OpenAsync();
+                    await using var checkCmd = verifyConn.CreateCommand();
+                    checkCmd.CommandText = "SELECT Name FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                    checkCmd.Parameters.AddWithValue("@SyncId", baseDailySyncId);
+                    var actualName = (string?)await checkCmd.ExecuteScalarAsync();
+                    Assert.Equal($"Updated By Online Race {iteration}", actualName);
+
+                    // Verify ChangeFeed has exactly 1 entry for this version with Server origin (Guid.Empty)
+                    await using var feedCmd = verifyConn.CreateCommand();
+                    feedCmd.CommandText = @"
+                        SELECT ServerVersion, OriginDeviceId
+                        FROM [sync].[ServerChangeFeed]
+                        WHERE DatabaseId = '2026' AND ServerVersion = @Ver;";
+                    feedCmd.Parameters.AddWithValue("@Ver", startingVersion + 1);
+                    await using (var reader = await feedCmd.ExecuteReaderAsync())
+                    {
+                        Assert.True(await reader.ReadAsync());
+                        Assert.Equal(Guid.Empty, reader.GetGuid(1));
+                        Assert.False(await reader.ReadAsync());
+                    }
+
+                    // Verify ProcessedOperations has NO success record for Push clientOpId
+                    await using var procCmd = verifyConn.CreateCommand();
+                    procCmd.CommandText = "SELECT COUNT(1) FROM [sync].[ProcessedOperations] WHERE DatabaseId = '2026' AND ClientOperationId = @OpId;";
+                    procCmd.Parameters.AddWithValue("@OpId", clientOpId);
+                    var procCount = Convert.ToInt32(await procCmd.ExecuteScalarAsync());
+                    Assert.Equal(0, procCount);
+                }
+                else if (onlineException == null && pushException == null)
+                {
+                    // OUTCOME B: Push acquired ServerState first
+                    // Push succeeded (version + 1) -> Online waited safely -> Online proceeded afterwards (version + 2)
+                    Assert.NotNull(pushResult);
+                    Assert.False(pushResult!.IsReplay);
+                    Assert.Equal(startingVersion + 1, pushResult.ServerVersion);
+                    Assert.Equal(startingVersion + 2, finalVersion);
+
+                    // Daily was updated by Push then Online, so final value is Online's
+                    await using var verifyConn = new SqlConnection(RemoteConnStr2026);
+                    await verifyConn.OpenAsync();
+                    await using var checkCmd = verifyConn.CreateCommand();
+                    checkCmd.CommandText = "SELECT Name FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                    checkCmd.Parameters.AddWithValue("@SyncId", baseDailySyncId);
+                    var actualName = (string?)await checkCmd.ExecuteScalarAsync();
+                    Assert.Equal($"Updated By Online Race {iteration}", actualName);
+
+                    // Verify contiguous versions in ChangeFeed: v+1 (Push) and v+2 (Online)
+                    await using var feedCmd = verifyConn.CreateCommand();
+                    feedCmd.CommandText = @"
+                        SELECT ServerVersion, OriginDeviceId
+                        FROM [sync].[ServerChangeFeed]
+                        WHERE DatabaseId = '2026' AND ServerVersion IN (@V1, @V2)
+                        ORDER BY ServerVersion ASC;";
+                    feedCmd.Parameters.AddWithValue("@V1", startingVersion + 1);
+                    feedCmd.Parameters.AddWithValue("@V2", startingVersion + 2);
+
+                    var feedList = new List<(long Version, Guid DevId)>();
+                    await using (var reader = await feedCmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            feedList.Add((reader.GetInt64(0), reader.GetGuid(1)));
+                        }
+                    }
+
+                    Assert.Equal(2, feedList.Count);
+                    Assert.Equal(startingVersion + 1, feedList[0].Version);
+                    Assert.Equal(devId, feedList[0].DevId); // From Push
+                    Assert.Equal(startingVersion + 2, feedList[1].Version);
+                    Assert.Equal(Guid.Empty, feedList[1].DevId); // From Online
+
+                    // Verify ProcessedOperations contains SUCCESS for Push
+                    await using var procCmd = verifyConn.CreateCommand();
+                    procCmd.CommandText = "SELECT ResultStatus FROM [sync].[ProcessedOperations] WHERE DatabaseId = '2026' AND ClientOperationId = @OpId;";
+                    procCmd.Parameters.AddWithValue("@OpId", clientOpId);
+                    var resultStatus = (string?)await procCmd.ExecuteScalarAsync();
+                    Assert.Equal("SUCCESS", resultStatus);
+                }
+                else
+                {
+                    Assert.Fail($"Unexpected outcome in race {iteration}: OnlineException={onlineException?.GetType().Name} ({onlineException?.Message}), PushException={pushException?.GetType().Name} ({pushException?.Message})");
+                }
+            }
+        }
+
+        private static SqlException? ExtractSqlException(Exception? ex)
+        {
+            while (ex != null)
+            {
+                if (ex is SqlException sqlEx) return sqlEx;
+                ex = ex.InnerException;
+            }
+            return null;
+        }
+
+        #endregion
     }
 }

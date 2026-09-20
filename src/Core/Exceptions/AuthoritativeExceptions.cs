@@ -41,4 +41,17 @@ namespace Core.Exceptions
         {
         }
     }
+
+    public class AuthoritativeTrackingConfigurationException : Exception
+    {
+        public string ErrorCode { get; } = "AUTHORITATIVE_TRACKING_CONFIGURATION_INVALID";
+
+        public AuthoritativeTrackingConfigurationException(string message) : base(message)
+        {
+        }
+
+        public AuthoritativeTrackingConfigurationException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+    }
 }

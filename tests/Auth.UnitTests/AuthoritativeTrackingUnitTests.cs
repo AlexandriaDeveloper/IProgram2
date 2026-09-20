@@ -394,5 +394,297 @@ namespace Auth.UnitTests
         }
 
         #endregion
+
+        #region 5. AuthoritativeWriteScopeContext Hardening Tests (P1)
+
+        [Fact]
+        public void NestedAuthoritativeScope_DepthCounterAndIdempotentDispose_Safe()
+        {
+            Assert.False(AuthoritativeWriteScopeContext.IsActive);
+
+            var outer = AuthoritativeWriteScopeContext.BeginScope();
+            Assert.True(AuthoritativeWriteScopeContext.IsActive);
+
+            var inner = AuthoritativeWriteScopeContext.BeginScope();
+            Assert.True(AuthoritativeWriteScopeContext.IsActive);
+
+            // Disposing inner scope must leave outer scope active
+            inner.Dispose();
+            Assert.True(AuthoritativeWriteScopeContext.IsActive);
+
+            // Disposing outer scope makes it inactive
+            outer.Dispose();
+            Assert.False(AuthoritativeWriteScopeContext.IsActive);
+
+            // Idempotent dispose must not drive depth below 0
+            outer.Dispose();
+            inner.Dispose();
+            Assert.False(AuthoritativeWriteScopeContext.IsActive);
+
+            // New scope immediately becomes active (not blocked by previous double-dispose)
+            using (AuthoritativeWriteScopeContext.BeginScope())
+            {
+                Assert.True(AuthoritativeWriteScopeContext.IsActive);
+            }
+            Assert.False(AuthoritativeWriteScopeContext.IsActive);
+        }
+
+        [Fact]
+        public async Task AuthoritativeScope_AsyncFlowIsolation_MaintainsScopeCorrectly()
+        {
+            Assert.False(AuthoritativeWriteScopeContext.IsActive);
+
+            using (AuthoritativeWriteScopeContext.BeginScope())
+            {
+                Assert.True(AuthoritativeWriteScopeContext.IsActive);
+
+                await Task.Run(() =>
+                {
+                    // Async flow inherits ambient scope
+                    Assert.True(AuthoritativeWriteScopeContext.IsActive);
+                });
+
+                Assert.True(AuthoritativeWriteScopeContext.IsActive);
+            }
+
+            Assert.False(AuthoritativeWriteScopeContext.IsActive);
+        }
+
+        #endregion
+
+        #region 6. Tracking Configuration Fail-Closed Tests (P0)
+
+        [Fact]
+        public async Task UnitOfWork_Online_MissingSyncConnectionProvider_ThrowsAuthoritativeTrackingConfigurationException()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+            using var context = new ApplicationContext(options);
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { { "Sync:AuthoritativeTrackingEnabled", "true" } })
+                .Build();
+
+            var mockDbProvider = new Mock<IDbConnectionProvider>(); // Not ISyncConnectionProvider!
+            var trackerMock = new Mock<IAuthoritativeDailyMutationTracker>();
+            var guardMock = new Mock<IAuthoritativeDatabaseBindingGuard>();
+
+            var uow = new UnitOfWork(context, mockDbProvider.Object, trackerMock.Object, guardMock.Object, config);
+
+            context.Set<Daily>().Add(new Daily { Name = "Test Daily", DailyDate = DateTime.UtcNow, SyncId = Guid.NewGuid(), IsActive = true });
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeTrackingConfigurationException>(() => uow.SaveChangesAsync());
+            Assert.Equal("AUTHORITATIVE_TRACKING_CONFIGURATION_INVALID", ex.ErrorCode);
+            Assert.Contains("ISyncConnectionProvider dependency is missing", ex.Message);
+        }
+
+        [Fact]
+        public async Task UnitOfWork_Online_MissingTrackerDependency_ThrowsAuthoritativeTrackingConfigurationException()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+            using var context = new ApplicationContext(options);
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { { "Sync:AuthoritativeTrackingEnabled", "true" } })
+                .Build();
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+            var guardMock = new Mock<IAuthoritativeDatabaseBindingGuard>();
+
+            var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, guardMock.Object, config);
+
+            context.Set<Daily>().Add(new Daily { Name = "Test Daily", DailyDate = DateTime.UtcNow, SyncId = Guid.NewGuid(), IsActive = true });
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeTrackingConfigurationException>(() => uow.SaveChangesAsync());
+            Assert.Equal("AUTHORITATIVE_TRACKING_CONFIGURATION_INVALID", ex.ErrorCode);
+            Assert.Contains("IAuthoritativeDailyMutationTracker dependency is missing", ex.Message);
+        }
+
+        [Fact]
+        public async Task UnitOfWork_Online_MissingBindingGuardDependency_ThrowsAuthoritativeTrackingConfigurationException()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+            using var context = new ApplicationContext(options);
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { { "Sync:AuthoritativeTrackingEnabled", "true" } })
+                .Build();
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+            var trackerMock = new Mock<IAuthoritativeDailyMutationTracker>();
+
+            var uow = new UnitOfWork(context, syncProviderMock.Object, trackerMock.Object, bindingGuard: null, config);
+
+            context.Set<Daily>().Add(new Daily { Name = "Test Daily", DailyDate = DateTime.UtcNow, SyncId = Guid.NewGuid(), IsActive = true });
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeTrackingConfigurationException>(() => uow.SaveChangesAsync());
+            Assert.Equal("AUTHORITATIVE_TRACKING_CONFIGURATION_INVALID", ex.ErrorCode);
+            Assert.Contains("IAuthoritativeDatabaseBindingGuard dependency is missing", ex.Message);
+        }
+
+        #endregion
+
+        #region 7. Pre-Open Physical Azure Binding Guard Tests (P0)
+
+        private class CountingDbConnection : System.Data.Common.DbConnection
+        {
+            private string _connectionString;
+            public int OpenCount { get; private set; }
+
+            public CountingDbConnection(string connectionString)
+            {
+                _connectionString = connectionString;
+            }
+
+            [System.Diagnostics.CodeAnalysis.AllowNull]
+            public override string ConnectionString
+            {
+                get => _connectionString;
+                set => _connectionString = value ?? string.Empty;
+            }
+
+            public override string Database => "IProgramDb2026";
+            public override string DataSource => "localhost";
+            public override string ServerVersion => "15.0";
+            public override System.Data.ConnectionState State => System.Data.ConnectionState.Closed;
+
+            public override void Open()
+            {
+                OpenCount++;
+            }
+
+            public override Task OpenAsync(CancellationToken cancellationToken)
+            {
+                OpenCount++;
+                return Task.CompletedTask;
+            }
+
+            public override void Close() { }
+            public override void ChangeDatabase(string databaseName) { }
+            protected override System.Data.Common.DbTransaction BeginDbTransaction(System.Data.IsolationLevel isolationLevel) => throw new NotImplementedException();
+            protected override System.Data.Common.DbCommand CreateDbCommand() => throw new NotImplementedException();
+        }
+
+        [Fact]
+        public async Task PreOpenBindingGuard_ZeroConnectionsOpenedOnMismatch()
+        {
+            // Endpoint points to local/unauthorized server
+            var countingConn = new CountingDbConnection("Server=localhost;Database=IProgramLocalDb2026;Integrated Security=True;TrustServerCertificate=True;");
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(countingConn)
+                .Options;
+
+            using var context = new ApplicationContext(options);
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(false);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { { "Sync:AuthoritativeTrackingEnabled", "true" } })
+                .Build();
+
+            var trackerMock = new Mock<IAuthoritativeDailyMutationTracker>();
+            var productionGuard = new AuthoritativeDatabaseBindingGuard();
+
+            var uow = new UnitOfWork(context, syncProviderMock.Object, trackerMock.Object, productionGuard, config);
+
+            // Add a Daily mutation to trigger authoritative coordination
+            context.Set<Daily>().Add(new Daily
+            {
+                Name = "Daily Attempting Invalid Server",
+                DailyDate = DateTime.UtcNow,
+                SyncId = Guid.NewGuid(),
+                IsActive = true
+            });
+
+            // Must throw AuthoritativeBindingException BEFORE opening connection
+            var ex = await Assert.ThrowsAsync<AuthoritativeBindingException>(() => uow.SaveChangesAsync());
+            Assert.Equal("AUTHORITATIVE_BINDING_MISMATCH", ex.ErrorCode);
+
+            // Open count MUST be exactly 0 (network boundary protected before connection open)
+            Assert.Equal(0, countingConn.OpenCount);
+            Assert.Equal(System.Data.ConnectionState.Closed, countingConn.State);
+        }
+
+        #endregion
+
+        #region 8. Runtime Raw-DML Audit Test (P1)
+
+        [Fact]
+        public void RawDmlAudit_NoDirectDailyDmlOutsideApprovedPushCoordinator()
+        {
+            // Locate repository root from test execution directory
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var dir = new System.IO.DirectoryInfo(baseDir);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "src")))
+            {
+                dir = dir.Parent;
+            }
+
+            Assert.NotNull(dir);
+            var srcDir = System.IO.Path.Combine(dir.FullName, "src");
+
+            // Scan all .cs files in src
+            var csFiles = System.IO.Directory.GetFiles(srcDir, "*.cs", System.IO.SearchOption.AllDirectories);
+            Assert.NotEmpty(csFiles);
+
+            // Regex pattern matching direct DML statements on [dbo].[Daily] or Daily
+            var dmlPattern = new System.Text.RegularExpressions.Regex(
+                @"\b(INSERT\s+INTO|UPDATE|DELETE(\s+FROM)?)\s+(\[?dbo\]?\.)?\[?Daily\]?\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+            var violations = new List<string>();
+
+            foreach (var file in csFiles)
+            {
+                var fileName = System.IO.Path.GetFileName(file);
+
+                // AzurePushTransactionCoordinator is the approved coordinator for Slice 4.3C
+                if (string.Equals(fileName, "AzurePushTransactionCoordinator.cs", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var lines = System.IO.File.ReadAllLines(file);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i];
+
+                    // Ignore single-line comments
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("//") || trimmed.StartsWith("///") || trimmed.StartsWith("*"))
+                    {
+                        continue;
+                    }
+
+                    if (dmlPattern.IsMatch(line))
+                    {
+                        violations.Add($"{System.IO.Path.GetRelativePath(dir.FullName, file)}:L{i + 1}: {trimmed}");
+                    }
+                }
+            }
+
+            Assert.True(violations.Count == 0,
+                $"Detected unauthorized direct Daily DML in runtime application code outside AzurePushTransactionCoordinator:\n" +
+                string.Join("\n", violations));
+        }
+
+        #endregion
     }
 }

@@ -51,14 +51,35 @@ namespace Persistence.Repository
             }
 
             // 2. Online mode with Authoritative Tracking enabled: coordinate authoritative Azure sync tracking
-            if (_dbConnectionProvider is ISyncConnectionProvider onlineSyncProvider &&
-                !onlineSyncProvider.IsLocalFirstEnabled &&
-                !onlineSyncProvider.IsReadOnlyMode &&
-                _configuration?.GetValue<bool>("Sync:AuthoritativeTrackingEnabled", false) == true &&
-                _authoritativeTracker != null &&
-                _bindingGuard != null)
+            var isAuthoritativeTrackingEnabled = _configuration?.GetValue<bool>("Sync:AuthoritativeTrackingEnabled", false) == true;
+            if (isAuthoritativeTrackingEnabled)
             {
-                return await SaveChangesInAuthoritativeOnlineAsync(onlineSyncProvider, cancellationToken);
+                var isLocalFirst = (_dbConnectionProvider as ISyncConnectionProvider)?.IsLocalFirstEnabled == true;
+                var isReadOnly = (_dbConnectionProvider as ISyncConnectionProvider)?.IsReadOnlyMode == true;
+
+                if (!isLocalFirst && !isReadOnly)
+                {
+                    // Mandatory dependency validation for Authoritative Tracking: FAIL CLOSED
+                    if (_dbConnectionProvider is not ISyncConnectionProvider onlineSyncProvider)
+                    {
+                        throw new AuthoritativeTrackingConfigurationException(
+                            "ISyncConnectionProvider dependency is missing while Sync:AuthoritativeTrackingEnabled is true.");
+                    }
+
+                    if (_authoritativeTracker == null)
+                    {
+                        throw new AuthoritativeTrackingConfigurationException(
+                            "IAuthoritativeDailyMutationTracker dependency is missing while Sync:AuthoritativeTrackingEnabled is true.");
+                    }
+
+                    if (_bindingGuard == null)
+                    {
+                        throw new AuthoritativeTrackingConfigurationException(
+                            "IAuthoritativeDatabaseBindingGuard dependency is missing while Sync:AuthoritativeTrackingEnabled is true.");
+                    }
+
+                    return await SaveChangesInAuthoritativeOnlineAsync(onlineSyncProvider, cancellationToken);
+                }
             }
 
             // 3. Otherwise (ReadOnlyMode, or Online with gate off, or standard provider): standard EF Core save pipeline
@@ -289,6 +310,43 @@ namespace Persistence.Repository
                 return await _context.SaveChangesAsync(cancellationToken);
             }
 
+            var databaseId = syncProvider.GetSelectedDatabaseId();
+            if (string.IsNullOrWhiteSpace(databaseId))
+            {
+                throw new InvalidDatabaseSelectionException("Canonical database ID is missing for authoritative tracking.");
+            }
+
+            var dbConnection = _context.Database.GetDbConnection();
+
+            // P0: Validate physical Azure binding BEFORE opening connection or beginning transaction
+            string? preDataSource = null;
+            string? preInitialCatalog = null;
+            var connStr = dbConnection.ConnectionString;
+            if (!string.IsNullOrWhiteSpace(connStr))
+            {
+                try
+                {
+                    var csb = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connStr);
+                    preDataSource = csb.DataSource;
+                    preInitialCatalog = csb.InitialCatalog;
+                }
+                catch (ArgumentException)
+                {
+                    preDataSource = dbConnection.DataSource;
+                    preInitialCatalog = dbConnection.Database;
+                }
+            }
+            else
+            {
+                preDataSource = dbConnection.DataSource;
+                preInitialCatalog = dbConnection.Database;
+            }
+
+            var tracker = _authoritativeTracker!;
+            var bindingGuard = _bindingGuard!;
+
+            bindingGuard.ValidateAuthoritativeAzureBinding(databaseId, preDataSource, preInitialCatalog);
+
             // 3. Coordinate atomic transaction using EF Core execution strategy
             var strategy = _context.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
@@ -297,30 +355,31 @@ namespace Persistence.Repository
                 await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
                 try
                 {
-                    var dbConnection = _context.Database.GetDbConnection();
                     if (dbConnection.State != ConnectionState.Open)
                     {
                         await dbConnection.OpenAsync(cancellationToken);
                     }
 
-                    var databaseId = syncProvider.GetSelectedDatabaseId();
-                    if (string.IsNullOrWhiteSpace(databaseId))
-                    {
-                        throw new InvalidDatabaseSelectionException("Canonical database ID is missing for authoritative tracking.");
-                    }
+                    // Defense-in-depth: Validate physical Azure binding on opened connection
+                    bindingGuard.ValidateAuthoritativeAzureBinding(databaseId, dbConnection.DataSource, dbConnection.Database);
 
-                    // Step A: Enforce physical Azure binding validation
-                    _bindingGuard!.ValidateAuthoritativeAzureBinding(databaseId, dbConnection.DataSource, dbConnection.Database);
-
-                    // Step B: Save business changes without accepting changes yet
-                    var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
-
-                    // Step C: Apply authoritative sync tracking metadata (ServerState, ServerChangeFeed, Tombstones)
-                    await _authoritativeTracker!.TrackDailyMutationsAsync(
+                    // P0: Lock ServerState & Prepare reservation BEFORE EF business SaveChanges (eliminates lock order inversion)
+                    var reservation = await tracker.PrepareAuthoritativeBatchAsync(
                         dbConnection,
                         transaction.GetDbTransaction(),
                         databaseId,
                         capturedMutations,
+                        cancellationToken);
+
+                    // Step B: Save business changes without accepting changes yet (ServerState lock already held!)
+                    var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
+
+                    // Step C: Apply authoritative sync tracking metadata (Tombstones, ServerChangeFeed, update ServerState)
+                    await tracker.CompleteAuthoritativeBatchAsync(
+                        dbConnection,
+                        transaction.GetDbTransaction(),
+                        databaseId,
+                        reservation,
                         cancellationToken);
 
                     // Step D: Commit transaction atomically

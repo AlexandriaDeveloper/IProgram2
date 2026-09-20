@@ -30,7 +30,7 @@ namespace Auth.Infrastructure.Sync.Authoritative
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task TrackDailyMutationsAsync(
+        public async Task<AuthoritativeTrackingReservation> PrepareAuthoritativeBatchAsync(
             DbConnection connection,
             DbTransaction transaction,
             string databaseId,
@@ -53,7 +53,12 @@ namespace Auth.Infrastructure.Sync.Authoritative
 
             if (mutations == null || mutations.Count == 0)
             {
-                return;
+                return new AuthoritativeTrackingReservation
+                {
+                    StartingServerVersion = 0,
+                    TransactionTimestampUtc = DateTime.UtcNow,
+                    OrderedMutations = Array.Empty<CapturedAuthoritativeDailyMutation>()
+                };
             }
 
             foreach (var mutation in mutations)
@@ -67,8 +72,8 @@ namespace Auth.Infrastructure.Sync.Authoritative
 
             var transactionTimestampUtc = DateTime.UtcNow;
 
-            // Step 1: Lock and read current ServerState with (UPDLOCK, HOLDLOCK)
-            long currentServerVersion;
+            // Phase 1: Lock and read current ServerState with (UPDLOCK, HOLDLOCK) BEFORE business Daily DML
+            long startingServerVersion;
             await using (var lockCmd = connection.CreateCommand())
             {
                 lockCmd.Transaction = transaction;
@@ -86,13 +91,13 @@ namespace Auth.Infrastructure.Sync.Authoritative
                         $"ServerState record not found for DatabaseId '{normDbId}'. Write transaction aborted fail-closed.");
                 }
 
-                currentServerVersion = Convert.ToInt64(scalar);
+                startingServerVersion = Convert.ToInt64(scalar);
             }
 
-            // Step 2: Deterministically order mutations by EntitySyncId ASC
+            // Deterministically order mutations by EntitySyncId ASC
             var orderedMutations = mutations.OrderBy(m => m.EntitySyncId).ToList();
 
-            // Step 3: Verify tombstone resurrection safety on INSERT mutations
+            // Verify tombstone resurrection safety on INSERT mutations
             foreach (var mutation in orderedMutations.Where(m => string.Equals(m.OperationType, "INSERT", StringComparison.OrdinalIgnoreCase)))
             {
                 await using var checkTombstoneCmd = connection.CreateCommand();
@@ -115,8 +120,41 @@ namespace Auth.Infrastructure.Sync.Authoritative
                 }
             }
 
-            // Step 4: Apply mutations sequentially, incrementing version for each
-            foreach (var mutation in orderedMutations)
+            return new AuthoritativeTrackingReservation
+            {
+                StartingServerVersion = startingServerVersion,
+                TransactionTimestampUtc = transactionTimestampUtc,
+                OrderedMutations = orderedMutations
+            };
+        }
+
+        public async Task<long> CompleteAuthoritativeBatchAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            string databaseId,
+            AuthoritativeTrackingReservation reservation,
+            CancellationToken cancellationToken)
+        {
+            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            if (transaction == null) throw new ArgumentNullException(nameof(transaction));
+            if (reservation == null) throw new ArgumentNullException(nameof(reservation));
+
+            var normDbId = databaseId?.Trim() ?? string.Empty;
+            if (normDbId != "2026" && normDbId != "2027")
+            {
+                throw new AuthoritativeTrackingException($"Unsupported canonical DatabaseId '{databaseId}'. Expected '2026' or '2027'.");
+            }
+
+            if (reservation.OrderedMutations.Count == 0)
+            {
+                return reservation.StartingServerVersion;
+            }
+
+            var currentServerVersion = reservation.StartingServerVersion;
+            var transactionTimestampUtc = reservation.TransactionTimestampUtc;
+
+            // Phase 2: Apply mutations sequentially, incrementing version for each
+            foreach (var mutation in reservation.OrderedMutations)
             {
                 currentServerVersion++;
 
@@ -172,7 +210,7 @@ namespace Auth.Infrastructure.Sync.Authoritative
                 await feedCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            // Step 5: Update ServerState with final ServerVersion and transaction timestamp
+            // Update ServerState with final ServerVersion and transaction timestamp
             await using (var updateStateCmd = connection.CreateCommand())
             {
                 updateStateCmd.Transaction = transaction;
@@ -196,7 +234,23 @@ namespace Auth.Infrastructure.Sync.Authoritative
 
             _logger.LogInformation(
                 "Authoritative Daily mutations tracked successfully: DatabaseId={DatabaseId}, Count={Count}, FinalServerVersion={FinalVersion}.",
-                normDbId, orderedMutations.Count, currentServerVersion);
+                normDbId, reservation.OrderedMutations.Count, currentServerVersion);
+
+            return currentServerVersion;
+        }
+
+        public async Task TrackDailyMutationsAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            string databaseId,
+            IReadOnlyList<CapturedAuthoritativeDailyMutation> mutations,
+            CancellationToken cancellationToken)
+        {
+            var reservation = await PrepareAuthoritativeBatchAsync(
+                connection, transaction, databaseId, mutations, cancellationToken);
+
+            await CompleteAuthoritativeBatchAsync(
+                connection, transaction, databaseId, reservation, cancellationToken);
         }
 
         private static void AddParam(DbCommand cmd, string name, object? value)
