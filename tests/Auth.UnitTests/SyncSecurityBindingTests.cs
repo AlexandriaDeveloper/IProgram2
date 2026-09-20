@@ -38,7 +38,7 @@ namespace Auth.UnitTests
         [InlineData(DatabaseBindingValidator.LocalDb2027)]
         public void AzureSyncContext_Rejects_LocalDatabaseNames(string localDbName)
         {
-            var connStr = $"Server={RemoteAzureServer};Database={localDbName};User ID=admin;Password=secret;";
+            var connStr = $"Server={RemoteAzureServer};Database={localDbName};Integrated Security=True;TrustServerCertificate=True;";
             var options = new DbContextOptionsBuilder<AzureSyncContext>()
                 .UseSqlServer(connStr)
                 .Options;
@@ -62,7 +62,7 @@ namespace Auth.UnitTests
         [Fact]
         public void AzureSyncContext_Rejects_UnapprovedRemoteDatabaseName()
         {
-            var connStr = $"Server={RemoteAzureServer};Database=SomeOtherDatabase;User ID=admin;Password=secret;";
+            var connStr = $"Server={RemoteAzureServer};Database=SomeOtherDatabase;Integrated Security=True;TrustServerCertificate=True;";
             var options = new DbContextOptionsBuilder<AzureSyncContext>()
                 .UseSqlServer(connStr)
                 .Options;
@@ -76,7 +76,7 @@ namespace Auth.UnitTests
         [InlineData(DatabaseBindingValidator.RemoteDb2027)]
         public void AzureSyncContext_Accepts_RemoteEndpoint_With_ApprovedRemoteDbName_WithoutConnecting(string remoteDbName)
         {
-            var connStr = $"Server={RemoteAzureServer};Database={remoteDbName};User ID=admin;Password=secret;";
+            var connStr = $"Server={RemoteAzureServer};Database={remoteDbName};Integrated Security=True;TrustServerCertificate=True;";
             var options = new DbContextOptionsBuilder<AzureSyncContext>()
                 .UseSqlServer(connStr)
                 .Options;
@@ -89,7 +89,7 @@ namespace Auth.UnitTests
         [Fact]
         public void LocalSyncContext_Rejects_RemoteEndpoint_EvenWithLocalDbName()
         {
-            var connStr = $"Server={RemoteAzureServer};Database={DatabaseBindingValidator.LocalDb2026};User ID=admin;Password=secret;";
+            var connStr = $"Server={RemoteAzureServer};Database={DatabaseBindingValidator.LocalDb2026};Integrated Security=True;TrustServerCertificate=True;";
             var options = new DbContextOptionsBuilder<LocalSyncContext>()
                 .UseSqlServer(connStr)
                 .Options;

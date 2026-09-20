@@ -154,7 +154,7 @@ namespace Auth.UnitTests
         {
             // Context connected to physical DB IProgramDb2026
             var options2026 = new DbContextOptionsBuilder<AzureSyncContext>()
-                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2026;User ID=u;Password=p;")
+                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2026;Integrated Security=True;TrustServerCertificate=True;")
                 .Options;
 
             using (var context2026 = new AzureSyncContext(options2026))
@@ -167,7 +167,7 @@ namespace Auth.UnitTests
 
             // Context connected to physical DB IProgramDb2027
             var options2027 = new DbContextOptionsBuilder<AzureSyncContext>()
-                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2027;User ID=u;Password=p;")
+                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2027;Integrated Security=True;TrustServerCertificate=True;")
                 .Options;
 
             using (var context2027 = new AzureSyncContext(options2027))
@@ -189,7 +189,7 @@ namespace Auth.UnitTests
             Assert.NotNull(propHash);
 
             var options = new DbContextOptionsBuilder<AzureSyncContext>()
-                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2026;User ID=u;Password=p;")
+                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2026;Integrated Security=True;TrustServerCertificate=True;")
                 .Options;
 
             using var context = new AzureSyncContext(options);
@@ -383,7 +383,7 @@ namespace Auth.UnitTests
 
             // 3. AzureSyncContext must contain ONLY Azure sync tables in 'sync' schema
             var azureOptions = new DbContextOptionsBuilder<AzureSyncContext>()
-                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2026;User ID=u;Password=p;").Options;
+                .UseSqlServer("Server=tcp:azure-server.database.windows.net,1433;Database=IProgramDb2026;Integrated Security=True;TrustServerCertificate=True;").Options;
             using var azureContext = new AzureSyncContext(azureOptions);
             var azureTypes = azureContext.Model.GetEntityTypes().Select(e => e.ClrType).ToList();
             Assert.Contains(typeof(ServerState), azureTypes);
