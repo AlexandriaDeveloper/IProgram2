@@ -14,18 +14,20 @@ using Core.Exceptions;
 using Core.Interfaces;
 using Core.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Persistence.Repository;
 using Xunit;
 
 namespace Auth.UnitTests
 {
     public class OfflineReadOnlyRuntimeTests
     {
-        private IConfiguration CreateConfiguration(bool readOnlyMode, bool localFirstEnabled = false)
+        private IConfiguration CreateConfiguration(bool readOnlyMode, bool localFirstEnabled = false, bool includeCloudinary = true)
         {
             var inMemorySettings = new Dictionary<string, string?>
             {
@@ -47,11 +49,15 @@ namespace Auth.UnitTests
                 { "LocalFirst:Databases:0:LocalConnectionStringName", "LocalConnection2026" },
                 { "LocalFirst:Databases:1:Id", "2027" },
                 { "LocalFirst:Databases:1:LocalDatabaseName", "IProgramLocalDb2027" },
-                { "LocalFirst:Databases:1:LocalConnectionStringName", "LocalConnection2027" },
-                { "Cloudinary:CloudName", "test-cloud" },
-                { "Cloudinary:ApiKey", "test-key" },
-                { "Cloudinary:ApiSecret", "test-secret" }
+                { "LocalFirst:Databases:1:LocalConnectionStringName", "LocalConnection2027" }
             };
+
+            if (includeCloudinary)
+            {
+                inMemorySettings["Cloudinary:CloudName"] = "test-cloud";
+                inMemorySettings["Cloudinary:ApiKey"] = "test-key";
+                inMemorySettings["Cloudinary:ApiSecret"] = "test-secret";
+            }
 
             return new ConfigurationBuilder()
                 .AddInMemoryCollection(inMemorySettings)
@@ -184,6 +190,85 @@ namespace Auth.UnitTests
             Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
         }
 
+        [Fact]
+        public async Task ReadOnlyModeMiddleware_Allows_DownloadFormEndpoint_When_ReadOnlyMode_IsTrue()
+        {
+            var config = CreateConfiguration(readOnlyMode: true);
+            bool nextCalled = false;
+            RequestDelegate next = (ctx) =>
+            {
+                nextCalled = true;
+                ctx.Response.StatusCode = StatusCodes.Status200OK;
+                return Task.CompletedTask;
+            };
+
+            var middleware = new ReadOnlyModeMiddleware(next, config, NullLogger<ReadOnlyModeMiddleware>.Instance);
+            var context = new DefaultHttpContext();
+            context.Request.Method = "POST";
+            context.Request.Path = "/api/form/download-form";
+
+            await middleware.InvokeAsync(context);
+
+            Assert.True(nextCalled, "POST /api/form/download-form must be allowed as a read-only export operation");
+            Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        }
+
+        [Theory]
+        [InlineData("GET", "/api/form/copyformtoarchive/1")]
+        [InlineData("GET", "/api/Form/CopyFormToArchive/123")]
+        [InlineData("GET", "/api/form/CopyFormToArchive/456/extra")]
+        public async Task ReadOnlyModeMiddleware_Blocks_CopyFormToArchive_When_ReadOnlyMode_IsTrue(string method, string path)
+        {
+            var config = CreateConfiguration(readOnlyMode: true);
+            bool nextCalled = false;
+            RequestDelegate next = (ctx) =>
+            {
+                nextCalled = true;
+                return Task.CompletedTask;
+            };
+
+            var middleware = new ReadOnlyModeMiddleware(next, config, NullLogger<ReadOnlyModeMiddleware>.Instance);
+            var context = new DefaultHttpContext();
+            context.Request.Method = method;
+            context.Request.Path = path;
+            context.Response.Body = new MemoryStream();
+
+            await middleware.InvokeAsync(context);
+
+            Assert.False(nextCalled, "Mutating GET CopyFormToArchive must be blocked in read-only mode");
+            Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+
+            context.Response.Body.Seek(0, SeekOrigin.Begin);
+            var responseBody = await new StreamReader(context.Response.Body).ReadToEndAsync();
+            Assert.Contains("READ_ONLY_MODE_BLOCKED", responseBody);
+        }
+
+        [Theory]
+        [InlineData("POST", "/api/account/login/extra")]
+        [InlineData("POST", "/api/account/login-admin")]
+        [InlineData("POST", "/api/account/logout/sub")]
+        public async Task ReadOnlyModeMiddleware_Blocks_NonExact_LoginEndpoints_When_ReadOnlyMode_IsTrue(string method, string path)
+        {
+            var config = CreateConfiguration(readOnlyMode: true);
+            bool nextCalled = false;
+            RequestDelegate next = (ctx) =>
+            {
+                nextCalled = true;
+                return Task.CompletedTask;
+            };
+
+            var middleware = new ReadOnlyModeMiddleware(next, config, NullLogger<ReadOnlyModeMiddleware>.Instance);
+            var context = new DefaultHttpContext();
+            context.Request.Method = method;
+            context.Request.Path = path;
+            context.Response.Body = new MemoryStream();
+
+            await middleware.InvokeAsync(context);
+
+            Assert.False(nextCalled, "Non-exact login paths must not bypass read-only middleware");
+            Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        }
+
         [Theory]
         [InlineData("GET", "/api/daily")]
         [InlineData("GET", "/api/form")]
@@ -292,13 +377,19 @@ namespace Auth.UnitTests
 
         [Theory]
         [InlineData("INSERT INTO Employees (Id, Name) VALUES ('1', 'test')")]
+        [InlineData("INSERT [dbo].[Employees] (Id, Name) VALUES ('1', 'test')")]
         [InlineData("UPDATE FormDetails SET Amount = 100 WHERE Id = 1")]
+        [InlineData("UPDATE [dbo].[FormDetails] SET Amount = 100 WHERE Id = 1")]
         [InlineData("DELETE FROM EmployeeBank WHERE EmployeeId = '1'")]
+        [InlineData("DELETE [dbo].[EmployeeBank] WHERE EmployeeId = '1'")]
         [InlineData("ALTER TABLE FormDetails NOCHECK CONSTRAINT ALL")]
         [InlineData("DROP TABLE SomeTable")]
         [InlineData("TRUNCATE TABLE SomeTable")]
         [InlineData("MERGE INTO TargetTable USING SourceTable ON 1=1")]
-        public async Task ReadOnlyDbCommandInterceptor_ThrowsReadOnlyModeException_OnMutatingSql(string mutatingSql)
+        [InlineData("SELECT * INTO [BackupTable] FROM [Employees]")]
+        [InlineData("EXEC sp_custom_action")]
+        [InlineData("EXECUTE [dbo].[sp_custom_action]")]
+        public async Task ReadOnlyDbCommandInterceptor_ThrowsReadOnlyModeException_OnMutatingSql_AllExecutionTypes(string mutatingSql)
         {
             var mockSyncProvider = new Mock<ISyncConnectionProvider>();
             mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(true);
@@ -308,19 +399,41 @@ namespace Auth.UnitTests
             var mockCommand = new Mock<DbCommand>();
             mockCommand.SetupGet(c => c.CommandText).Returns(mutatingSql);
 
-            var ex = Assert.Throws<ReadOnlyModeException>(() =>
+            // 1. NonQuery (Sync & Async)
+            var ex1 = Assert.Throws<ReadOnlyModeException>(() =>
                 interceptor.NonQueryExecuting(mockCommand.Object, null!, default));
-            Assert.Contains("وضع القراءة المحلية فقط", ex.Message);
+            Assert.Contains("وضع القراءة المحلية فقط", ex1.Message);
+            Assert.DoesNotContain(mutatingSql, ex1.Message); // Zero SQL snippet disclosure
 
             await Assert.ThrowsAsync<ReadOnlyModeException>(async () =>
                 await interceptor.NonQueryExecutingAsync(mockCommand.Object, null!, default));
+
+            // 2. Reader (Sync & Async)
+            var ex2 = Assert.Throws<ReadOnlyModeException>(() =>
+                interceptor.ReaderExecuting(mockCommand.Object, null!, default));
+            Assert.Contains("وضع القراءة المحلية فقط", ex2.Message);
+
+            await Assert.ThrowsAsync<ReadOnlyModeException>(async () =>
+                await interceptor.ReaderExecutingAsync(mockCommand.Object, null!, default));
+
+            // 3. Scalar (Sync & Async)
+            var ex3 = Assert.Throws<ReadOnlyModeException>(() =>
+                interceptor.ScalarExecuting(mockCommand.Object, null!, default));
+            Assert.Contains("وضع القراءة المحلية فقط", ex3.Message);
+
+            await Assert.ThrowsAsync<ReadOnlyModeException>(async () =>
+                await interceptor.ScalarExecutingAsync(mockCommand.Object, null!, default));
         }
 
         [Theory]
         [InlineData("SET NOCOUNT ON")]
         [InlineData("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")]
         [InlineData("SELECT COUNT(*) FROM Employees")]
-        public void ReadOnlyDbCommandInterceptor_AllowsSafeCommands_InReadOnlyMode(string safeSql)
+        [InlineData("SELECT * FROM Employees WHERE Notes = 'UPDATE done yesterday'")]
+        [InlineData("SELECT * FROM Employees WHERE Name = N'INSERT INTO something'")]
+        [InlineData("SELECT * FROM Employees -- comment with UPDATE")]
+        [InlineData("/* multi-line comment with INSERT */ SELECT COUNT(*) FROM Employees")]
+        public void ReadOnlyDbCommandInterceptor_AllowsSafeCommands_WithCommentsAndLiterals_InReadOnlyMode(string safeSql)
         {
             var mockSyncProvider = new Mock<ISyncConnectionProvider>();
             mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(true);
@@ -330,9 +443,117 @@ namespace Auth.UnitTests
             var mockCommand = new Mock<DbCommand>();
             mockCommand.SetupGet(c => c.CommandText).Returns(safeSql);
 
-            // Should not throw
-            var result = interceptor.NonQueryExecuting(mockCommand.Object, null!, default);
-            Assert.False(result.HasResult);
+            // NonQuery
+            var nonQueryResult = interceptor.NonQueryExecuting(mockCommand.Object, null!, default);
+            Assert.False(nonQueryResult.HasResult);
+
+            // Reader
+            var readerResult = interceptor.ReaderExecuting(mockCommand.Object, null!, default);
+            Assert.False(readerResult.HasResult);
+
+            // Scalar
+            var scalarResult = interceptor.ScalarExecuting(mockCommand.Object, null!, default);
+            Assert.False(scalarResult.HasResult);
+        }
+
+        #endregion
+
+        #region Identity Password Verification Tests
+
+        [Fact]
+        public async Task AccountRepository_Login_Succeeds_Without_UpdateAsync_When_RehashNeeded_In_ReadOnlyMode()
+        {
+            var userStore = new Mock<IUserStore<ApplicationUser>>();
+            var mockHasher = new Mock<IPasswordHasher<ApplicationUser>>();
+
+            var testUser = new ApplicationUser
+            {
+                Id = "test-user-id",
+                UserName = "admin",
+                Email = "admin@test.com",
+                PasswordHash = "AQAAAAEAACcQAAAAELegacyPasswordHash12345"
+            };
+
+            mockHasher
+                .Setup(h => h.VerifyHashedPassword(testUser, testUser.PasswordHash, "legacyPassword123"))
+                .Returns(PasswordVerificationResult.SuccessRehashNeeded);
+
+            var userManager = new Mock<UserManager<ApplicationUser>>(
+                userStore.Object, null!, mockHasher.Object, null!, null!, null!, null!, null!, null!);
+
+            userManager.Setup(u => u.FindByNameAsync("admin")).ReturnsAsync(testUser);
+
+            var mockDbProvider = new Mock<ISyncConnectionProvider>();
+            mockDbProvider.Setup(d => d.IsReadOnlyMode).Returns(true);
+
+            var mockRoleManager = new Mock<RoleManager<IdentityRole>>(Mock.Of<IRoleStore<IdentityRole>>(), null!, null!, null!, null!);
+            var mockSignInManager = new Mock<SignInManager<ApplicationUser>>(userManager.Object, Mock.Of<IHttpContextAccessor>(), Mock.Of<IUserClaimsPrincipalFactory<ApplicationUser>>(), null!, null!, null!, null!);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+            using var context = new ApplicationContext(options);
+
+            var repo = new AccountRepository(
+                userManager.Object,
+                mockRoleManager.Object,
+                mockSignInManager.Object,
+                context,
+                mockDbProvider.Object);
+
+            var loggedInUser = await repo.Login("admin", "legacyPassword123");
+
+            Assert.NotNull(loggedInUser);
+            Assert.Equal("admin", loggedInUser.UserName);
+
+            // Strictly verify: UpdateAsync was NEVER called (zero database mutations on AspNetUsers)
+            userManager.Verify(u => u.UpdateAsync(It.IsAny<ApplicationUser>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AccountRepository_Login_Fails_When_PasswordIsWrong_In_ReadOnlyMode()
+        {
+            var userStore = new Mock<IUserStore<ApplicationUser>>();
+            var mockHasher = new Mock<IPasswordHasher<ApplicationUser>>();
+
+            var testUser = new ApplicationUser
+            {
+                Id = "test-user-id",
+                UserName = "admin",
+                PasswordHash = "ValidHash"
+            };
+
+            mockHasher
+                .Setup(h => h.VerifyHashedPassword(testUser, testUser.PasswordHash, "wrongPassword"))
+                .Returns(PasswordVerificationResult.Failed);
+
+            var userManager = new Mock<UserManager<ApplicationUser>>(
+                userStore.Object, null!, mockHasher.Object, null!, null!, null!, null!, null!, null!);
+
+            userManager.Setup(u => u.FindByNameAsync("admin")).ReturnsAsync(testUser);
+
+            var mockDbProvider = new Mock<ISyncConnectionProvider>();
+            mockDbProvider.Setup(d => d.IsReadOnlyMode).Returns(true);
+
+            var mockRoleManager = new Mock<RoleManager<IdentityRole>>(Mock.Of<IRoleStore<IdentityRole>>(), null!, null!, null!, null!);
+            var mockSignInManager = new Mock<SignInManager<ApplicationUser>>(userManager.Object, Mock.Of<IHttpContextAccessor>(), Mock.Of<IUserClaimsPrincipalFactory<ApplicationUser>>(), null!, null!, null!, null!);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+            using var context = new ApplicationContext(options);
+
+            var repo = new AccountRepository(
+                userManager.Object,
+                mockRoleManager.Object,
+                mockSignInManager.Object,
+                context,
+                mockDbProvider.Object);
+
+            var result = await repo.Login("admin", "wrongPassword");
+
+            Assert.Null(result);
+            userManager.Verify(u => u.UpdateAsync(It.IsAny<ApplicationUser>()), Times.Never);
         }
 
         #endregion
@@ -340,9 +561,56 @@ namespace Auth.UnitTests
         #region File Storage Write-Rejection Tests
 
         [Fact]
+        public void CloudinaryService_InitializesGracefully_When_CredentialsAreMissing()
+        {
+            var config = CreateConfiguration(readOnlyMode: true, includeCloudinary: false);
+            // Must NOT throw when Cloudinary settings are omitted
+            var service = new CloudinaryService(config);
+            Assert.NotNull(service);
+        }
+
+        [Fact]
+        public async Task CloudinaryService_DownloadFileStreamAsync_ReturnsNull_WithoutOutboundCall_ForRemoteUrls_InReadOnlyMode()
+        {
+            var config = CreateConfiguration(readOnlyMode: true, includeCloudinary: false);
+            var service = new CloudinaryService(config);
+
+            var result = await service.DownloadFileStreamAsync("https://res.cloudinary.com/test-cloud/raw/upload/DailyReferences/test.pdf");
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task CloudinaryService_DownloadFileStreamAsync_ReadsLocalFile_WhenFileExistsOnDisk()
+        {
+            var config = CreateConfiguration(readOnlyMode: true, includeCloudinary: false);
+            var service = new CloudinaryService(config);
+
+            var tempFilePath = Path.GetTempFileName();
+            try
+            {
+                await File.WriteAllTextAsync(tempFilePath, "local attachment content");
+
+                var result = await service.DownloadFileStreamAsync(tempFilePath);
+                Assert.NotNull(result);
+
+                using var stream = result.Value.stream;
+                using var reader = new StreamReader(stream);
+                var content = await reader.ReadToEndAsync();
+                Assert.Equal("local attachment content", content);
+            }
+            finally
+            {
+                if (File.Exists(tempFilePath))
+                {
+                    File.Delete(tempFilePath);
+                }
+            }
+        }
+
+        [Fact]
         public async Task CloudinaryService_ThrowsReadOnlyModeException_OnUploadAndDownload_WhenReadOnly()
         {
-            var config = CreateConfiguration(readOnlyMode: true);
+            var config = CreateConfiguration(readOnlyMode: true, includeCloudinary: false);
             var service = new CloudinaryService(config);
 
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes("test content"));

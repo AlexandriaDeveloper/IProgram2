@@ -33,8 +33,32 @@ namespace Auth.Api.Middleware
             }
 
             var method = context.Request.Method;
+            var path = context.Request.Path.Value?.TrimEnd('/') ?? "";
 
-            // Safe read-only HTTP methods are always permitted
+            // 1. Block known mutating GET routes (e.g. archiving/copying forms)
+            if (path.StartsWith("/api/form/copyformtoarchive", StringComparison.OrdinalIgnoreCase))
+            {
+                var blockedTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
+                _logger.LogWarning(
+                    "Mutating GET request blocked by ReadOnlyModeMiddleware: {Method} {Path} (TraceId: {TraceId})",
+                    method, path, blockedTraceId);
+
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json; charset=utf-8";
+
+                var blockedPayload = new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    message = "النظام يعمل حالياً في وضع القراءة المحلية فقط. جميع عمليات الإضافة والتعديل والحذف والأرشفة معطلة.",
+                    code = "READ_ONLY_MODE_BLOCKED",
+                    traceId = blockedTraceId
+                };
+
+                await context.Response.WriteAsJsonAsync(blockedPayload);
+                return;
+            }
+
+            // 2. Safe read-only HTTP methods are permitted
             if (HttpMethods.IsGet(method) ||
                 HttpMethods.IsHead(method) ||
                 HttpMethods.IsOptions(method))
@@ -43,13 +67,16 @@ namespace Auth.Api.Middleware
                 return;
             }
 
-            // Explicit allowlist for authentication flows against local Identity
-            var path = context.Request.Path;
-            if (path.StartsWithSegments("/api/account/login", StringComparison.OrdinalIgnoreCase) ||
-                path.StartsWithSegments("/api/account/logout", StringComparison.OrdinalIgnoreCase))
+            // 3. Exact allowlist for permitted POST operations (Login, Logout, and read-only Export)
+            if (HttpMethods.IsPost(method))
             {
-                await _next(context);
-                return;
+                if (string.Equals(path, "/api/account/login", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(path, "/api/account/logout", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(path, "/api/form/download-form", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _next(context);
+                    return;
+                }
             }
 
             // All other mutating requests (POST, PUT, DELETE, PATCH) are rejected

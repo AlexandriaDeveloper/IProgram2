@@ -38,14 +38,14 @@ namespace Auth.Infrastructure.Services
                 }
                 else
                 {
-                    Console.WriteLine("Cloudinary configuration is missing in appsettings.json");
-                    throw new Exception("Cloudinary configuration is missing in appsettings.json");
+                    _cloudinary = null;
+                    Console.WriteLine("[INFO] Cloudinary configuration is absent or incomplete; running in unconfigured/offline storage mode.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[CRITICAL] Failed to initialize CloudinaryService: {ex.Message}");
-                throw;
+                _cloudinary = null;
+                Console.WriteLine($"[WARNING] Failed to initialize Cloudinary client: {ex.Message}");
             }
         }
 
@@ -91,6 +91,11 @@ namespace Auth.Infrastructure.Services
             if (_configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false))
             {
                 throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. رفع المرفقات معطل.");
+            }
+
+            if (_cloudinary == null)
+            {
+                throw new InvalidOperationException("خدمة Cloudinary غير مهيأة. لا يمكن رفع المرفقات في الوضع الحالي.");
             }
 
             try
@@ -186,6 +191,31 @@ namespace Auth.Infrastructure.Services
 
             try
             {
+                // 1. Check if file is available locally on disk
+                if (File.Exists(fileUrl))
+                {
+                    var stream = new FileStream(fileUrl, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    var fileName = Path.GetFileName(fileUrl);
+                    return (stream, "application/octet-stream", fileName);
+                }
+
+                var safeFileName = Path.GetFileName(fileUrl);
+                var localContentPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", folderName, safeFileName);
+                if (File.Exists(localContentPath))
+                {
+                    var stream = new FileStream(localContentPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return (stream, "application/octet-stream", safeFileName);
+                }
+
+                // 2. In offline/read-only mode or without Cloudinary configuration: do not attempt outbound network calls
+                bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
+                if (isReadOnly || _cloudinary == null)
+                {
+                    Console.WriteLine($"[INFO] Offline mode: Remote attachment '{safeFileName}' is not cached locally; omitting outbound request.");
+                    return null;
+                }
+
+                // 3. Normal online Cloudinary download
                 var downloadUrl = GetProtectedUrl(fileUrl, folderName);
                 using var httpClient = new System.Net.Http.HttpClient();
                 var response = await httpClient.GetAsync(downloadUrl);
@@ -201,13 +231,13 @@ namespace Auth.Infrastructure.Services
 
                 var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
                 var publicId = ExtractPublicIdFromUrl(fileUrl, folderName);
-                var fileName = Path.GetFileName(publicId);
-                if (string.IsNullOrEmpty(fileName))
+                var outFileName = Path.GetFileName(publicId);
+                if (string.IsNullOrEmpty(outFileName))
                 {
-                    fileName = Path.GetFileName(new Uri(fileUrl).AbsolutePath);
+                    outFileName = Path.GetFileName(new Uri(fileUrl).AbsolutePath);
                 }
 
-                return (memoryStream, contentType, fileName);
+                return (memoryStream, contentType, outFileName);
             }
             catch (Exception ex)
             {
@@ -221,6 +251,11 @@ namespace Auth.Infrastructure.Services
             if (_configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false))
             {
                 throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. حذف المرفقات معطل.");
+            }
+
+            if (_cloudinary == null)
+            {
+                return false;
             }
 
             try

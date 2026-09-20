@@ -1,54 +1,105 @@
 ﻿{
     "Gate":  "Slice_4_3A_OfflineReadOnlySmoke",
-    "TimestampUtc":  "2026-09-20T12:01:57.5622574Z",
+    "TimestampUtc":  "2026-09-20T12:57:05.4268392Z",
     "LocalEngine":  "localhost (SQL Server 2014)",
     "Databases":  [
                       "IProgramLocalDb2026",
                       "IProgramLocalDb2027"
                   ],
-    "Tests":  {
-                  "SqlServer_Compatibility":  {
-                                                  "Status":  "PASS",
-                                                  "Db2026Compatibility":  120,
-                                                  "Db2027Compatibility":  120
-                                              },
-                  "Local_Identity":  {
-                                         "Status":  "PASS",
-                                         "Db2026":  {
-                                                        "Users":  2,
-                                                        "Roles":  2
-                                                    },
-                                         "Db2027":  {
-                                                        "Users":  2,
-                                                        "Roles":  2
-                                                    }
-                                     },
-                  "Local_Business_Data":  {
+    "SQL_Smoke":  {
+                      "SqlServer_Compatibility":  {
+                                                      "Status":  "PASS",
+                                                      "Db2026Compatibility":  120,
+                                                      "Db2027Compatibility":  120
+                                                  },
+                      "Local_Identity":  {
+                                             "Status":  "PASS",
+                                             "Db2026":  {
+                                                            "Users":  2,
+                                                            "Roles":  2
+                                                        },
+                                             "Db2027":  {
+                                                            "Users":  2,
+                                                            "Roles":  2
+                                                        }
+                                         },
+                      "Baseline_Counts":  {
                                               "Status":  "PASS",
                                               "Db2026":  {
                                                              "Employees":  12308,
-                                                             "Daily":  30
+                                                             "Daily":  30,
+                                                             "Forms":  1590
                                                          },
                                               "Db2027":  {
                                                              "Employees":  12353,
-                                                             "Daily":  14
+                                                             "Daily":  14,
+                                                             "Forms":  580
                                                          }
-                                          },
-                  "Offline_ReadOnly_Unit_Suite":  {
+                                          }
+                  },
+    "Unit_Tests":  {
+                       "Offline_ReadOnly_Unit_Suite":  {
+                                                           "Status":  "PASS",
+                                                           "Filter":  "FullyQualifiedName~OfflineReadOnlyRuntimeTests",
+                                                           "Passed":  54,
+                                                           "Failed":  0,
+                                                           "Skipped":  0,
+                                                           "Total":  54
+                                                       },
+                       "Security_Endpoints_Suite":  {
+                                                        "Status":  "PASS",
+                                                        "Filter":  "FullyQualifiedName~SecurityEndpointsTests"
+                                                    },
+                       "Script_Syntax":  {
+                                             "Status":  "PASS"
+                                         }
+                   },
+    "Runtime_E2E_Smoke":  {
+                              "Runtime_Status":  {
+                                                     "Status":  "PASS",
+                                                     "IsReadOnly":  true,
+                                                     "RuntimeMode":  "OfflineReadOnly"
+                                                 },
+                              "Year_2026_E2E":  {
+                                                    "Status":  "PASS",
+                                                    "LoginSuccess":  true,
+                                                    "ExportSuccess":  true,
+                                                    "MutationsBlocked":  {
+                                                                             "PostDaily":  true,
+                                                                             "GetCopyArchive":  true,
+                                                                             "PutDaily":  true
+                                                                         }
+                                                },
+                              "Year_2027_E2E":  {
+                                                    "Status":  "PASS",
+                                                    "LoginSuccess":  true,
+                                                    "ExportSuccess":  true,
+                                                    "MutationsBlocked":  {
+                                                                             "PostDaily":  true
+                                                                         }
+                                                },
+                              "Fail_Closed_Isolation":  {
+                                                            "Status":  "PASS"
+                                                        },
+                              "Data_Invariance":  {
                                                       "Status":  "PASS",
-                                                      "Filter":  "FullyQualifiedName~OfflineReadOnlyRuntimeTests",
-                                                      "Passed":  32,
-                                                      "Failed":  0,
-                                                      "Skipped":  0,
-                                                      "Total":  32
-                                                  },
-                  "Security_Endpoints_Suite":  {
-                                                   "Status":  "PASS",
-                                                   "Filter":  "FullyQualifiedName~SecurityEndpointsTests"
-                                               },
-                  "Script_Syntax":  {
-                                        "Status":  "PASS"
-                                    }
-              },
+                                                      "Db2026":  {
+                                                                     "PreEmployees":  12308,
+                                                                     "PostEmployees":  12308,
+                                                                     "PreDaily":  30,
+                                                                     "PostDaily":  30,
+                                                                     "PreForms":  1590,
+                                                                     "PostForms":  1590
+                                                                 },
+                                                      "Db2027":  {
+                                                                     "PreEmployees":  12353,
+                                                                     "PostEmployees":  12353,
+                                                                     "PreDaily":  14,
+                                                                     "PostDaily":  14,
+                                                                     "PreForms":  580,
+                                                                     "PostForms":  580
+                                                                 }
+                                                  }
+                          },
     "OverallStatus":  "PASS"
 }
