@@ -7,18 +7,28 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Auth.Infrastructure;
 using Auth.Infrastructure.Sync.Pull;
 using Auth.Infrastructure.Sync.Push;
 using Core.Exceptions;
 using Core.Interfaces;
+using Core.Models;
 using Core.Models.Sync;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Persistence.Repository;
 using Xunit;
 
 namespace Auth.UnitTests
 {
+    [CollectionDefinition("DailyPullSqlIntegration", DisableParallelization = true)]
+    public class DailyPullSqlIntegrationCollection
+    {
+    }
+
     [Trait("Category", "LocalDbRequired")]
     [Collection("DailyPullSqlIntegration")]
     public class DailyPullSqlIntegrationTests
@@ -47,8 +57,8 @@ namespace Auth.UnitTests
             public static async Task<PullSqlTestContext> CreateAsync(string canonicalDbId = "2026")
             {
                 var suffix = Guid.NewGuid().ToString("N")[..8];
-                var remoteName = $"IProgramPullRemote_{suffix}";
-                var localName = $"IProgramPullLocal_{suffix}";
+                var remoteName = $"TestRemoteDb_{suffix}";
+                var localName = $"IProgramLocalDb{canonicalDbId}_Test";
 
                 var ctx = new PullSqlTestContext(remoteName, localName, canonicalDbId);
                 await ctx.InitializeDatabasesAsync();
@@ -65,12 +75,15 @@ namespace Auth.UnitTests
                     createCmd.CommandText = $@"
                         CREATE DATABASE [{RemoteDbName}];
                         ALTER DATABASE [{RemoteDbName}] SET COMPATIBILITY_LEVEL = 120;
-                        CREATE DATABASE [{LocalDbName}];
-                        ALTER DATABASE [{LocalDbName}] SET COMPATIBILITY_LEVEL = 120;";
+                        IF DB_ID('{LocalDbName}') IS NULL
+                        BEGIN
+                            CREATE DATABASE [{LocalDbName}];
+                            ALTER DATABASE [{LocalDbName}] SET COMPATIBILITY_LEVEL = 120;
+                        END;";
                     await createCmd.ExecuteNonQueryAsync();
                 }
 
-                // Initialize Remote schema & tables
+                // Initialize Remote schema & tables (matching production-relevant schema)
                 await using (var remoteConn = new SqlConnection(RemoteConnStr))
                 {
                     await remoteConn.OpenAsync();
@@ -96,7 +109,7 @@ namespace Auth.UnitTests
                         CREATE UNIQUE INDEX [IX_Remote_Daily_SyncId] ON [dbo].[Daily]([SyncId]);
 
                         CREATE TABLE [sync].[ServerState] (
-                            [DatabaseId] VARCHAR(10) NOT NULL PRIMARY KEY,
+                            [DatabaseId] NVARCHAR(32) NOT NULL PRIMARY KEY,
                             [CurrentVersion] BIGINT NOT NULL,
                             [LastUpdatedUtc] DATETIME2 NOT NULL
                         );
@@ -104,24 +117,25 @@ namespace Auth.UnitTests
                         CREATE TABLE [sync].[ServerChangeFeed] (
                             [FeedId] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
                             [ServerVersion] BIGINT NOT NULL,
-                            [DatabaseId] VARCHAR(10) NOT NULL,
-                            [EntityType] VARCHAR(50) NOT NULL,
+                            [DatabaseId] NVARCHAR(32) NOT NULL,
+                            [EntityType] NVARCHAR(50) NOT NULL,
                             [EntitySyncId] UNIQUEIDENTIFIER NOT NULL,
-                            [OperationType] VARCHAR(20) NOT NULL,
+                            [OperationType] NVARCHAR(20) NOT NULL,
                             [OriginDeviceId] UNIQUEIDENTIFIER NOT NULL,
                             [TimestampUtc] DATETIME2 NOT NULL
                         );
-                        CREATE UNIQUE INDEX [IX_Remote_Feed_Ver] ON [sync].[ServerChangeFeed]([DatabaseId], [ServerVersion]);
+                        CREATE INDEX [IX_ServerChangeFeed_Pull] ON [sync].[ServerChangeFeed]([DatabaseId], [ServerVersion]);
 
                         CREATE TABLE [sync].[Tombstones] (
-                            [TombstoneId] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                            [DatabaseId] VARCHAR(10) NOT NULL,
-                            [EntityType] VARCHAR(50) NOT NULL,
+                            [DatabaseId] NVARCHAR(32) NOT NULL,
+                            [EntityType] NVARCHAR(50) NOT NULL,
                             [EntitySyncId] UNIQUEIDENTIFIER NOT NULL,
+                            [NaturalKey] NVARCHAR(50) NULL,
                             [ServerVersion] BIGINT NOT NULL,
-                            [DeletedAtUtc] DATETIME2 NOT NULL
+                            [DeletedAtUtc] DATETIME2 NOT NULL,
+                            CONSTRAINT [PK_Tombstones] PRIMARY KEY ([DatabaseId], [EntityType], [EntitySyncId])
                         );
-                        CREATE UNIQUE INDEX [IX_Remote_Tombstone_Ver] ON [sync].[Tombstones]([DatabaseId], [EntityType], [EntitySyncId], [ServerVersion]);";
+                        CREATE INDEX [IX_Tombstones_Pull] ON [sync].[Tombstones]([DatabaseId], [ServerVersion]);";
                     await cmd.ExecuteNonQueryAsync();
 
                     // Seed initial ServerState
@@ -131,7 +145,7 @@ namespace Auth.UnitTests
                     await seedStateCmd.ExecuteNonQueryAsync();
                 }
 
-                // Initialize Local schema & tables
+                // Initialize Local schema & tables (matching production-relevant schema)
                 await using (var localConn = new SqlConnection(LocalConnStr))
                 {
                     await localConn.OpenAsync();
@@ -140,48 +154,81 @@ namespace Auth.UnitTests
                         IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sync')
                             EXEC('CREATE SCHEMA [sync]');
 
-                        CREATE TABLE [dbo].[Daily] (
-                            [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                            [Name] NVARCHAR(100) NOT NULL,
-                            [DailyDate] DATETIME2 NOT NULL,
-                            [Closed] BIT NOT NULL CONSTRAINT [DF_Local_Daily_Closed] DEFAULT(0),
-                            [CreatedBy] NVARCHAR(100) NULL,
-                            [CreatedAt] DATETIME2 NOT NULL,
-                            [UpdatedBy] NVARCHAR(100) NULL,
-                            [UpdatedAt] DATETIME2 NULL,
-                            [DeactivatedBy] NVARCHAR(100) NULL,
-                            [DeactivatedAt] DATETIME2 NULL,
-                            [IsActive] BIT NOT NULL CONSTRAINT [DF_Local_Daily_IsActive] DEFAULT(1),
-                            [SyncId] UNIQUEIDENTIFIER NOT NULL
-                        );
-                        CREATE UNIQUE INDEX [IX_Local_Daily_SyncId] ON [dbo].[Daily]([SyncId]);
+                        -- Clean up any test triggers
+                        IF OBJECT_ID('dbo.TR_Daily_RollbackTestFault', 'TR') IS NOT NULL DROP TRIGGER [dbo].[TR_Daily_RollbackTestFault];
+                        IF OBJECT_ID('dbo.TR_Daily_RejectForTest', 'TR') IS NOT NULL DROP TRIGGER [dbo].[TR_Daily_RejectForTest];
 
-                        CREATE TABLE [sync].[LocalState] (
-                            [DatabaseId] VARCHAR(10) NOT NULL PRIMARY KEY,
-                            [LastServerVersion] BIGINT NOT NULL,
-                            [LastSuccessfulPullUtc] DATETIME2 NULL,
-                            [LastSyncAttemptUtc] DATETIME2 NULL,
-                            [LastSyncError] NVARCHAR(MAX) NULL,
-                            [ActiveLeaseToken] UNIQUEIDENTIFIER NULL,
-                            [LeaseExpiresAtUtc] DATETIME2 NULL,
-                            [RowVersion] ROWVERSION
-                        );
+                        IF OBJECT_ID('[dbo].[Daily]', 'U') IS NULL
+                        BEGIN
+                            CREATE TABLE [dbo].[Daily] (
+                                [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                                [Name] NVARCHAR(100) NOT NULL,
+                                [DailyDate] DATETIME2 NOT NULL,
+                                [Closed] BIT NOT NULL CONSTRAINT [DF_Local_Daily_Closed] DEFAULT(0),
+                                [CreatedBy] NVARCHAR(100) NULL,
+                                [CreatedAt] DATETIME2 NOT NULL,
+                                [UpdatedBy] NVARCHAR(100) NULL,
+                                [UpdatedAt] DATETIME2 NULL,
+                                [DeactivatedBy] NVARCHAR(100) NULL,
+                                [DeactivatedAt] DATETIME2 NULL,
+                                [IsActive] BIT NOT NULL CONSTRAINT [DF_Local_Daily_IsActive] DEFAULT(1),
+                                [SyncId] UNIQUEIDENTIFIER NOT NULL
+                            );
+                            CREATE UNIQUE INDEX [IX_Local_Daily_SyncId] ON [dbo].[Daily]([SyncId]);
+                        END
+                        ELSE
+                        BEGIN
+                            DELETE FROM [dbo].[Daily];
+                        END
 
-                        CREATE TABLE [sync].[LocalOutbox] (
-                            [OutboxId] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                            [DatabaseId] VARCHAR(10) NOT NULL,
-                            [EntityType] VARCHAR(50) NOT NULL,
-                            [EntitySyncId] UNIQUEIDENTIFIER NOT NULL,
-                            [OperationType] VARCHAR(20) NOT NULL,
-                            [Status] VARCHAR(20) NOT NULL,
-                            [CreatedAtUtc] DATETIME2 NOT NULL,
-                            [ProcessedAtUtc] DATETIME2 NULL
-                        );";
+                        IF OBJECT_ID('[sync].[LocalState]', 'U') IS NULL
+                        BEGIN
+                            CREATE TABLE [sync].[LocalState] (
+                                [DatabaseId] NVARCHAR(32) NOT NULL PRIMARY KEY,
+                                [DeviceId] UNIQUEIDENTIFIER NOT NULL,
+                                [DeviceName] NVARCHAR(100) NOT NULL,
+                                [LastSuccessfulPushUtc] DATETIME2 NULL,
+                                [LastSuccessfulPullUtc] DATETIME2 NULL,
+                                [LastServerVersion] BIGINT NOT NULL,
+                                [ActiveLeaseToken] UNIQUEIDENTIFIER NULL,
+                                [LeaseExpiresAtUtc] DATETIME2 NULL,
+                                [LastSyncError] NVARCHAR(MAX) NULL,
+                                [LastSyncAttemptUtc] DATETIME2 NULL
+                            );
+                        END
+                        ELSE
+                        BEGIN
+                            DELETE FROM [sync].[LocalState];
+                        END
+
+                        IF OBJECT_ID('[sync].[LocalOutbox]', 'U') IS NULL
+                        BEGIN
+                            CREATE TABLE [sync].[LocalOutbox] (
+                                [ClientOperationId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                                [DatabaseId] NVARCHAR(32) NOT NULL,
+                                [AggregateType] NVARCHAR(50) NOT NULL,
+                                [CommandName] NVARCHAR(100) NOT NULL,
+                                [EntitySyncId] UNIQUEIDENTIFIER NOT NULL,
+                                [PayloadJson] NVARCHAR(MAX) NOT NULL,
+                                [CreatedAtUtc] DATETIME2 NOT NULL,
+                                [Status] NVARCHAR(20) NOT NULL,
+                                [RetryCount] INT NOT NULL,
+                                [LastError] NVARCHAR(MAX) NULL,
+                                [CompletedAtUtc] DATETIME2 NULL,
+                                [LockedUntilUtc] DATETIME2 NULL,
+                                [LockToken] UNIQUEIDENTIFIER NULL
+                            );
+                            CREATE INDEX [IX_LocalOutbox_Queue] ON [sync].[LocalOutbox] ([DatabaseId], [Status], [CreatedAtUtc]);
+                        END
+                        ELSE
+                        BEGIN
+                            DELETE FROM [sync].[LocalOutbox];
+                        END;";
                     await cmd.ExecuteNonQueryAsync();
 
                     // Seed initial LocalState
                     await using var seedLocalCmd = localConn.CreateCommand();
-                    seedLocalCmd.CommandText = "INSERT INTO [sync].[LocalState] (DatabaseId, LastServerVersion) VALUES (@DatabaseId, 0);";
+                    seedLocalCmd.CommandText = "INSERT INTO [sync].[LocalState] (DatabaseId, DeviceId, DeviceName, LastServerVersion) VALUES (@DatabaseId, NEWID(), 'IntegrationTestDevice', 0);";
                     seedLocalCmd.Parameters.AddWithValue("@DatabaseId", CanonicalDbId);
                     await seedLocalCmd.ExecuteNonQueryAsync();
                 }
@@ -189,30 +236,48 @@ namespace Auth.UnitTests
 
             public async ValueTask DisposeAsync()
             {
-                // Safety assertion: Refuse to drop any database that is not an isolated test variant
-                if (!RemoteDbName.StartsWith("IProgramPullRemote_") || !LocalDbName.StartsWith("IProgramPullLocal_"))
+                // Safety assertion: Refuse to drop any production database
+                if (RemoteDbName.Equals("IProgramDb2026", StringComparison.OrdinalIgnoreCase) ||
+                    RemoteDbName.Equals("IProgramDb2027", StringComparison.OrdinalIgnoreCase) ||
+                    LocalDbName.Equals("IProgramLocalDb2026", StringComparison.OrdinalIgnoreCase) ||
+                    LocalDbName.Equals("IProgramLocalDb2027", StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidOperationException("CRITICAL SAFETY VIOLATION: Refusing to drop database without test prefix.");
+                    throw new InvalidOperationException("CRITICAL SAFETY VIOLATION: Refusing to drop production database.");
                 }
 
                 try
                 {
+                    // Clean local tables
+                    await using (var localConn = new SqlConnection(LocalConnStr))
+                    {
+                        await localConn.OpenAsync();
+                        await using var cleanCmd = localConn.CreateCommand();
+                        cleanCmd.CommandText = @"
+                            IF OBJECT_ID('[sync].[LocalOutbox]', 'U') IS NOT NULL DELETE FROM [sync].[LocalOutbox];
+                            IF OBJECT_ID('[sync].[LocalState]', 'U') IS NOT NULL DELETE FROM [sync].[LocalState];
+                            IF OBJECT_ID('[dbo].[Daily]', 'U') IS NOT NULL DELETE FROM [dbo].[Daily];
+                            IF OBJECT_ID('dbo.TR_Daily_RollbackTestFault', 'TR') IS NOT NULL DROP TRIGGER [dbo].[TR_Daily_RollbackTestFault];
+                            IF OBJECT_ID('dbo.TR_Daily_RejectForTest', 'TR') IS NOT NULL DROP TRIGGER [dbo].[TR_Daily_RejectForTest];";
+                        await cleanCmd.ExecuteNonQueryAsync();
+                    }
+
+                    // Drop Remote isolated DB
                     await using var masterConn = new SqlConnection(MasterConnStr);
                     await masterConn.OpenAsync();
 
-                    await using var dropCmd = masterConn.CreateCommand();
-                    dropCmd.CommandText = $@"
-                        IF DB_ID('{RemoteDbName}') IS NOT NULL
-                        BEGIN
-                            ALTER DATABASE [{RemoteDbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-                            DROP DATABASE [{RemoteDbName}];
-                        END;
-                        IF DB_ID('{LocalDbName}') IS NOT NULL
-                        BEGIN
-                            ALTER DATABASE [{LocalDbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-                            DROP DATABASE [{LocalDbName}];
-                        END;";
-                    await dropCmd.ExecuteNonQueryAsync();
+                    if (RemoteDbName.StartsWith("TestRemoteDb_"))
+                    {
+                        await using var dropCmd = masterConn.CreateCommand();
+                        dropCmd.CommandText = $@"
+                            IF DB_ID('{RemoteDbName}') IS NOT NULL
+                            BEGIN
+                                ALTER DATABASE [{RemoteDbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                                DROP DATABASE [{RemoteDbName}];
+                            END;";
+                        await dropCmd.ExecuteNonQueryAsync();
+                    }
+
+                    SqlConnection.ClearAllPools();
                 }
                 catch
                 {
@@ -222,6 +287,40 @@ namespace Auth.UnitTests
 
             public IRemoteDatabaseConnectionFactory CreateRemoteFactory() => new TestRemoteDatabaseConnectionFactory(RemoteConnStr);
             public ISyncConnectionProvider CreateSyncProvider() => new TestSyncConnectionProvider(LocalConnStr, RemoteConnStr, CanonicalDbId);
+            public ISyncConnectionProvider SyncConnectionProvider => CreateSyncProvider();
+            public LocalPullLeaseManager CreateActualPullLeaseManager() => new(CreateSyncProvider(), NullLogger<LocalPullLeaseManager>.Instance);
+
+            public ApplicationContext CreateApplicationContext()
+            {
+                var options = new DbContextOptionsBuilder<ApplicationContext>()
+                    .UseSqlServer(LocalConnStr)
+                    .Options;
+                return new ApplicationContext(options);
+            }
+
+            public UnitOfWork CreateUnitOfWork(ApplicationContext context)
+            {
+                var configDict = new Dictionary<string, string?>
+                {
+                    { "LocalFirst:Enabled", "true" },
+                    { "LocalFirst:ReadOnlyMode", "false" },
+                    { "Sync:AuthoritativeTrackingEnabled", "false" }
+                };
+                var config = new ConfigurationBuilder().AddInMemoryCollection(configDict).Build();
+
+                var mockSyncProvider = new Mock<ISyncConnectionProvider>();
+                mockSyncProvider.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+                mockSyncProvider.Setup(p => p.IsReadOnlyMode).Returns(false);
+                mockSyncProvider.Setup(p => p.GetSelectedDatabaseId()).Returns(CanonicalDbId);
+                mockSyncProvider.Setup(p => p.GetLocalConnectionString(CanonicalDbId)).Returns(LocalConnStr);
+
+                return new UnitOfWork(
+                    context: context,
+                    dbConnectionProvider: mockSyncProvider.Object,
+                    authoritativeTracker: null,
+                    bindingGuard: null,
+                    configuration: config);
+            }
 
             public LocalDailyPullService CreateActualPullService(IConfiguration? config = null)
             {
@@ -694,14 +793,11 @@ namespace Auth.UnitTests
         {
             await using var ctx = await PullSqlTestContext.CreateAsync("2026");
 
-            // Drop unique index temporarily to insert duplicate version in feed
             await using (var remoteConn = new SqlConnection(ctx.RemoteConnStr))
             {
                 await remoteConn.OpenAsync();
                 await using var cmd = remoteConn.CreateCommand();
                 cmd.CommandText = @"
-                    DROP INDEX [IX_Remote_Feed_Ver] ON [sync].[ServerChangeFeed];
-
                     UPDATE [sync].[ServerState] SET CurrentVersion = 2, LastUpdatedUtc = SYSUTCDATETIME() WHERE DatabaseId = '2026';
 
                     INSERT INTO [sync].[ServerChangeFeed]
@@ -771,16 +867,16 @@ namespace Auth.UnitTests
         {
             await using var ctx = await PullSqlTestContext.CreateAsync("2026");
 
-            // Seed Local Outbox with a real SQL row
+            // Seed Local Outbox with a real SQL row matching production schema
             await using (var localConn = new SqlConnection(ctx.LocalConnStr))
             {
                 await localConn.OpenAsync();
                 await using var cmd = localConn.CreateCommand();
                 cmd.CommandText = @"
                     INSERT INTO [sync].[LocalOutbox]
-                    (DatabaseId, EntityType, EntitySyncId, OperationType, Status, CreatedAtUtc)
+                    (ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount)
                     VALUES
-                    ('2026', 'Daily', NEWID(), 'INSERT', @Status, SYSUTCDATETIME());";
+                    (NEWID(), '2026', 'Daily', 'Daily.Insert', NEWID(), '{}', SYSUTCDATETIME(), @Status, 0);";
                 cmd.Parameters.AddWithValue("@Status", status);
                 await cmd.ExecuteNonQueryAsync();
             }
@@ -1114,7 +1210,7 @@ namespace Auth.UnitTests
             var dailyHashBefore = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT Id, Name, DailyDate, Closed, IsActive, SyncId FROM [dbo].[Daily] ORDER BY Id;");
             var serverStateBefore = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT DatabaseId, CurrentVersion FROM [sync].[ServerState] ORDER BY DatabaseId;");
             var feedHashBefore = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT FeedId, ServerVersion, DatabaseId, EntityType, EntitySyncId, OperationType FROM [sync].[ServerChangeFeed] ORDER BY FeedId;");
-            var tombstonesHashBefore = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT TombstoneId, DatabaseId, EntityType, EntitySyncId, ServerVersion FROM [sync].[Tombstones] ORDER BY TombstoneId;");
+            var tombstonesHashBefore = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT DatabaseId, EntityType, EntitySyncId, ServerVersion, DeletedAtUtc FROM [sync].[Tombstones] ORDER BY DatabaseId, EntityType, EntitySyncId, ServerVersion;");
 
             // Execute actual AzureFencedBatchReader
             var reader = new AzureFencedBatchReader(ctx.CreateRemoteFactory(), NullLogger<AzureFencedBatchReader>.Instance);
@@ -1127,7 +1223,7 @@ namespace Auth.UnitTests
             var dailyHashAfter = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT Id, Name, DailyDate, Closed, IsActive, SyncId FROM [dbo].[Daily] ORDER BY Id;");
             var serverStateAfter = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT DatabaseId, CurrentVersion FROM [sync].[ServerState] ORDER BY DatabaseId;");
             var feedHashAfter = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT FeedId, ServerVersion, DatabaseId, EntityType, EntitySyncId, OperationType FROM [sync].[ServerChangeFeed] ORDER BY FeedId;");
-            var tombstonesHashAfter = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT TombstoneId, DatabaseId, EntityType, EntitySyncId, ServerVersion FROM [sync].[Tombstones] ORDER BY TombstoneId;");
+            var tombstonesHashAfter = await ComputeTableHashAsync(ctx.RemoteConnStr, "SELECT DatabaseId, EntityType, EntitySyncId, ServerVersion, DeletedAtUtc FROM [sync].[Tombstones] ORDER BY DatabaseId, EntityType, EntitySyncId, ServerVersion;");
 
             // Assert exact invariance
             Assert.Equal(dailyHashBefore, dailyHashAfter);
@@ -1188,6 +1284,280 @@ namespace Auth.UnitTests
             // Wait for Connection 2 to finish
             await updateTask;
             Assert.True(updateCompleted, "Concurrent UPDATE must complete after fence lock is released.");
+        }
+
+        #endregion
+
+        #region Scenario 17: Pull Lease Blocks Offline Write
+
+        [Fact]
+        public async Task Scenario17_PullLease_BlocksOfflineWrite_ThrowsBlockedActiveSync()
+        {
+            await using var ctx = await PullSqlTestContext.CreateAsync("2026");
+            var leaseManager = ctx.CreateActualPullLeaseManager();
+
+            // 1. Acquire actual Pull lease
+            var leaseToken = await leaseManager.AcquireLeaseAsync("2026", TimeSpan.FromMinutes(1), CancellationToken.None);
+            Assert.NotEqual(Guid.Empty, leaseToken);
+
+            // 2. Try actual Offline UnitOfWork Daily write
+            await using var appCtx = ctx.CreateApplicationContext();
+            var uow = ctx.CreateUnitOfWork(appCtx);
+
+            var daily = new Daily
+            {
+                Name = "Offline Blocked Daily",
+                DailyDate = DateTime.UtcNow.Date,
+                Closed = false,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "OfflineUser",
+                IsActive = true,
+                SyncId = Guid.NewGuid()
+            };
+            appCtx.Set<Daily>().Add(daily);
+
+            // 3. Expected: LOCAL_WRITE_BLOCKED_ACTIVE_SYNC, Daily unchanged, LocalOutbox unchanged
+            var ex = await Assert.ThrowsAsync<SyncLocalWriteBlockedActiveSyncException>(() =>
+                uow.SaveChangesAsync(CancellationToken.None));
+            Assert.Equal("LOCAL_WRITE_BLOCKED_ACTIVE_SYNC", ex.ErrorCode);
+
+            // Verify 0 rows in dbo.Daily and sync.LocalOutbox
+            var dailyCount = await GetRowCountAsync(ctx.LocalConnStr, "[dbo].[Daily]");
+            Assert.Equal(0, dailyCount);
+
+            var outboxCount = await GetRowCountAsync(ctx.LocalConnStr, "[sync].[LocalOutbox]");
+            Assert.Equal(0, outboxCount);
+
+            await leaseManager.ReleaseLeaseAsync("2026", leaseToken, CancellationToken.None);
+        }
+
+        #endregion
+
+        #region Scenario 18: Push Lease Blocks Offline Write
+
+        [Fact]
+        public async Task Scenario18_PushLease_BlocksOfflineWrite_ThrowsBlockedActiveSync()
+        {
+            await using var ctx = await PullSqlTestContext.CreateAsync("2026");
+            var pushLeaseManager = new LocalPushLeaseManager(ctx.SyncConnectionProvider, NullLogger<LocalPushLeaseManager>.Instance);
+
+            // 1. Acquire actual Push lease
+            var leaseToken = await pushLeaseManager.AcquireLeaseAsync("2026", TimeSpan.FromMinutes(1), CancellationToken.None);
+            Assert.NotEqual(Guid.Empty, leaseToken);
+
+            // 2. Try actual Offline UnitOfWork Daily write
+            await using var appCtx = ctx.CreateApplicationContext();
+            var uow = ctx.CreateUnitOfWork(appCtx);
+
+            var daily = new Daily
+            {
+                Name = "Offline Blocked By Push",
+                DailyDate = DateTime.UtcNow.Date,
+                Closed = false,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "OfflineUser",
+                IsActive = true,
+                SyncId = Guid.NewGuid()
+            };
+            appCtx.Set<Daily>().Add(daily);
+
+            // 3. Expected: LOCAL_WRITE_BLOCKED_ACTIVE_SYNC, Daily unchanged, LocalOutbox unchanged
+            var ex = await Assert.ThrowsAsync<SyncLocalWriteBlockedActiveSyncException>(() =>
+                uow.SaveChangesAsync(CancellationToken.None));
+            Assert.Equal("LOCAL_WRITE_BLOCKED_ACTIVE_SYNC", ex.ErrorCode);
+
+            // Verify 0 rows in dbo.Daily and sync.LocalOutbox
+            var dailyCount = await GetRowCountAsync(ctx.LocalConnStr, "[dbo].[Daily]");
+            Assert.Equal(0, dailyCount);
+
+            var outboxCount = await GetRowCountAsync(ctx.LocalConnStr, "[sync].[LocalOutbox]");
+            Assert.Equal(0, outboxCount);
+
+            await pushLeaseManager.ReleaseLeaseAsync("2026", leaseToken, CancellationToken.None);
+        }
+
+        #endregion
+
+        #region Scenario 19: Offline Write Starts First - Pull Waits and Gets Blocked By Outbox
+
+        [Fact]
+        public async Task Scenario19_OfflineWriteStartsFirst_HoldsLock_PullWaits_ThenBlockedByPendingOutbox()
+        {
+            await using var ctx = await PullSqlTestContext.CreateAsync("2026");
+            var pullLeaseManager = ctx.CreateActualPullLeaseManager();
+
+            // 1. Offline transaction starts and locks LocalState with UPDLOCK, HOLDLOCK
+            await using var txConn = new SqlConnection(ctx.LocalConnStr);
+            await txConn.OpenAsync();
+            await using var tx = txConn.BeginTransaction(IsolationLevel.ReadCommitted);
+
+            await using (var lockCmd = txConn.CreateCommand())
+            {
+                lockCmd.Transaction = tx;
+                lockCmd.CommandText = @"
+                    SELECT TOP (1) [DeviceId], [LastServerVersion], [ActiveLeaseToken], [LeaseExpiresAtUtc],
+                        CASE WHEN [ActiveLeaseToken] IS NOT NULL AND [LeaseExpiresAtUtc] >= SYSUTCDATETIME() THEN 1 ELSE 0 END AS [IsActiveSyncLease]
+                    FROM [sync].[LocalState] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [DatabaseId] = '2026';";
+                using var reader = await lockCmd.ExecuteReaderAsync();
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(0, reader.GetInt32(4)); // No active sync lease
+            }
+
+            // 2. Concurrent Pull AcquireLease starts in a separate task
+            // It must wait on the UPDLOCK, HOLDLOCK row lock!
+            var acquireTask = Task.Run(async () =>
+            {
+                return await pullLeaseManager.AcquireLeaseAsync("2026", TimeSpan.FromMinutes(1), CancellationToken.None);
+            });
+
+            // Verify it does not complete immediately while transaction is open
+            var delayTask = Task.Delay(250);
+            var completedFirst = await Task.WhenAny(acquireTask, delayTask);
+            Assert.Same(delayTask, completedFirst); // acquireTask is still waiting for row lock!
+
+            // 3. Inside tx: complete Offline write and insert PENDING outbox row
+            await using (var insertCmd = txConn.CreateCommand())
+            {
+                insertCmd.Transaction = tx;
+                insertCmd.CommandText = @"
+                    INSERT INTO [dbo].[Daily] (Name, DailyDate, Closed, CreatedAt, IsActive, SyncId)
+                    VALUES ('Concurrent Offline Daily', '2026-03-01', 0, SYSUTCDATETIME(), 1, NEWID());
+
+                    INSERT INTO [sync].[LocalOutbox]
+                    (ClientOperationId, DatabaseId, AggregateType, CommandName, EntitySyncId, PayloadJson, CreatedAtUtc, Status, RetryCount)
+                    VALUES
+                    (NEWID(), '2026', 'Daily', 'Daily.Insert', NEWID(), '{}', SYSUTCDATETIME(), 'PENDING', 0);";
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+
+            // 4. Commit offline transaction
+            await tx.CommitAsync();
+
+            // 5. Now acquireTask unblocks and acquires the lease!
+            var pullToken = await acquireTask;
+            Assert.NotEqual(Guid.Empty, pullToken);
+
+            // Release lease so pull service can run its regular cycle
+            await pullLeaseManager.ReleaseLeaseAsync("2026", pullToken, CancellationToken.None);
+
+            // 6. Pull proceeds, but is blocked by the newly committed PENDING outbox!
+            var pullService = ctx.CreateActualPullService();
+            var ex = await Assert.ThrowsAsync<SyncPullBlockedLocalChangesPendingException>(() =>
+                pullService.PullDailyChangesAsync(CancellationToken.None));
+            Assert.Equal("PULL_BLOCKED_LOCAL_CHANGES_PENDING", ex.ErrorCode);
+
+            // Local checkpoint remains 0
+            var localVer = await GetLocalServerVersionAsync(ctx.LocalConnStr, "2026");
+            Assert.Equal(0, localVer);
+        }
+
+        #endregion
+
+        #region Scenario 20: Expired Lease Permits Offline Write Safely
+
+        [Fact]
+        public async Task Scenario20_ExpiredLease_PermitsOfflineWriteSafely()
+        {
+            await using var ctx = await PullSqlTestContext.CreateAsync("2026");
+
+            // 1. Seed expired lease in LocalState
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE [sync].[LocalState]
+                    SET ActiveLeaseToken = NEWID(),
+                        LeaseExpiresAtUtc = DATEADD(MINUTE, -10, SYSUTCDATETIME())
+                    WHERE DatabaseId = '2026';";
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 2. Perform actual Offline UnitOfWork Daily write
+            await using var appCtx = ctx.CreateApplicationContext();
+            var uow = ctx.CreateUnitOfWork(appCtx);
+
+            var daily = new Daily
+            {
+                Name = "Offline Daily With Expired Lease",
+                DailyDate = DateTime.UtcNow.Date,
+                Closed = false,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "OfflineUser",
+                IsActive = true,
+                SyncId = Guid.NewGuid()
+            };
+            appCtx.Set<Daily>().Add(daily);
+
+            // 3. Write succeeds without throwing SyncLocalWriteBlockedActiveSyncException!
+            var result = await uow.SaveChangesAsync(CancellationToken.None);
+            Assert.True(result > 0);
+
+            // Verify row in dbo.Daily and sync.LocalOutbox
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Daily] WHERE Name = 'Offline Daily With Expired Lease';";
+                Assert.Equal(1, Convert.ToInt32(await cmd.ExecuteScalarAsync()));
+
+                cmd.CommandText = "SELECT COUNT(*) FROM [sync].[LocalOutbox] WHERE Status = 'PENDING';";
+                Assert.Equal(1, Convert.ToInt32(await cmd.ExecuteScalarAsync()));
+            }
+        }
+
+        #endregion
+
+        #region Scenario 21: Retry After Successful Pull Returns NO-OP
+
+        [Fact]
+        public async Task Scenario21_RetryAfterSuccessfulPull_ReturnsNoOp()
+        {
+            await using var ctx = await PullSqlTestContext.CreateAsync("2026");
+            var syncId = Guid.NewGuid();
+
+            // 1. Seed Remote with 1 INSERT mutation
+            await using (var remoteConn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await remoteConn.OpenAsync();
+                await using var cmd = remoteConn.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE [sync].[ServerState] SET CurrentVersion = 1, LastUpdatedUtc = SYSUTCDATETIME() WHERE DatabaseId = '2026';
+
+                    INSERT INTO [sync].[ServerChangeFeed]
+                    (ServerVersion, DatabaseId, EntityType, EntitySyncId, OperationType, OriginDeviceId, TimestampUtc)
+                    VALUES
+                    (1, '2026', 'Daily', @SyncId, 'INSERT', NEWID(), SYSUTCDATETIME());
+
+                    INSERT INTO [dbo].[Daily]
+                    (SyncId, Name, DailyDate, Closed, CreatedAt, IsActive)
+                    VALUES
+                    (@SyncId, 'Initial Daily For Retry Test', '2026-03-01', 0, SYSUTCDATETIME(), 1);";
+                cmd.Parameters.AddWithValue("@SyncId", syncId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            var pullService = ctx.CreateActualPullService();
+
+            // 2. First Pull: Applies changes
+            var firstResult = await pullService.PullDailyChangesAsync(CancellationToken.None);
+            Assert.False(firstResult.IsNoOp);
+            Assert.Equal(1, firstResult.FinalServerVersion);
+            Assert.Single(firstResult.Operations);
+            Assert.Equal("SUCCESS", firstResult.Operations[0].Status);
+
+            var verAfterFirst = await GetLocalServerVersionAsync(ctx.LocalConnStr, "2026");
+            Assert.Equal(1, verAfterFirst);
+
+            // 3. Immediate Retry: Must return NO-OP without re-applying or mutating
+            var retryResult = await pullService.PullDailyChangesAsync(CancellationToken.None);
+            Assert.True(retryResult.IsNoOp);
+            Assert.Equal(1, retryResult.FinalServerVersion);
+            Assert.Empty(retryResult.Operations);
+
+            var verAfterRetry = await GetLocalServerVersionAsync(ctx.LocalConnStr, "2026");
+            Assert.Equal(1, verAfterRetry);
         }
 
         #endregion

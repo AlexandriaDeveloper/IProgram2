@@ -41,8 +41,7 @@ namespace Core.Models.Sync
         {
             if (string.IsNullOrWhiteSpace(physicalDbName)) return false;
             return physicalDbName.Equals(RemoteDb2026, StringComparison.OrdinalIgnoreCase) ||
-                   physicalDbName.Equals(RemoteDb2027, StringComparison.OrdinalIgnoreCase) ||
-                   physicalDbName.StartsWith("IProgramPullRemote_", StringComparison.OrdinalIgnoreCase);
+                   physicalDbName.Equals(RemoteDb2027, StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool IsLocalDatabaseName(string physicalDbName)
@@ -53,8 +52,7 @@ namespace Core.Models.Sync
                    physicalDbName.Equals(LocalDb2026 + "_Test", StringComparison.OrdinalIgnoreCase) ||
                    physicalDbName.Equals(LocalDb2027 + "_Test", StringComparison.OrdinalIgnoreCase) ||
                    physicalDbName.Equals(LocalDb2026 + "_SmokeTest", StringComparison.OrdinalIgnoreCase) ||
-                   physicalDbName.Equals(LocalDb2027 + "_SmokeTest", StringComparison.OrdinalIgnoreCase) ||
-                   physicalDbName.StartsWith("IProgramPullLocal_", StringComparison.OrdinalIgnoreCase);
+                   physicalDbName.Equals(LocalDb2027 + "_SmokeTest", StringComparison.OrdinalIgnoreCase);
         }
 
         public static void ValidateTargetDatabase(string canonicalDatabaseId, string physicalDbName, bool isLocalTarget)
@@ -84,8 +82,7 @@ namespace Core.Models.Sync
                 var expectedLocal = GetExpectedLocalDatabaseName(normId);
                 bool matchesExpected = normName.Equals(expectedLocal, StringComparison.OrdinalIgnoreCase) ||
                                        normName.Equals(expectedLocal + "_Test", StringComparison.OrdinalIgnoreCase) ||
-                                       normName.Equals(expectedLocal + "_SmokeTest", StringComparison.OrdinalIgnoreCase) ||
-                                       normName.StartsWith("IProgramPullLocal_", StringComparison.OrdinalIgnoreCase);
+                                       normName.Equals(expectedLocal + "_SmokeTest", StringComparison.OrdinalIgnoreCase);
 
                 if (!matchesExpected)
                 {
@@ -103,13 +100,10 @@ namespace Core.Models.Sync
                 }
 
                 var expectedRemote = GetExpectedRemoteDatabaseName(normId);
-                bool matchesExpected = normName.Equals(expectedRemote, StringComparison.OrdinalIgnoreCase) ||
-                                       normName.StartsWith("IProgramPullRemote_", StringComparison.OrdinalIgnoreCase);
-
-                if (!matchesExpected)
+                if (!normName.Equals(expectedRemote, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new PhysicalDatabaseMismatchException(
-                        $"Physical database mismatch: Remote Azure target for '{normId}' must be '{expectedRemote}' (or isolated test variant), but found '{normName}'.");
+                        $"Physical database mismatch: Remote Azure target for '{normId}' must be '{expectedRemote}', but found '{normName}'.");
                 }
             }
         }

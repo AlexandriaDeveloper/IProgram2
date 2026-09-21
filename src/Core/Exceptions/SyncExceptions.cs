@@ -190,6 +190,13 @@ namespace Core.Exceptions
         public override string ErrorCode => "PULL_FEED_MALFORMED";
         public SyncPullFeedMalformedException(string message) : base(message) { }
     }
+
+    public class SyncLocalWriteBlockedActiveSyncException : SyncDomainException
+    {
+        public override string ErrorCode => "LOCAL_WRITE_BLOCKED_ACTIVE_SYNC";
+        public SyncLocalWriteBlockedActiveSyncException(string message = "عملية الكتابة المحلية متوقفة لوجود عملية مزامنة نشطة قيد التنفيذ تحت قيد الـ Lease.") : base(message) { }
+    }
 }
+
 
 
