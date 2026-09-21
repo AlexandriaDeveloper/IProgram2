@@ -194,7 +194,8 @@ namespace Auth.UnitTests
         private ApplicationContext CreateContext(
             string connectionString,
             bool trackingEnabled,
-            ISyncConnectionProvider syncProvider)
+            ISyncConnectionProvider syncProvider,
+            IAuthoritativeCutoverGuard? cutoverGuard = null)
         {
             var configDict = new Dictionary<string, string?>
             {
@@ -202,7 +203,9 @@ namespace Auth.UnitTests
             };
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(configDict).Build();
 
-            var interceptor = new AuthoritativeTrackingSafetyInterceptor(syncProvider, configuration);
+            // When tracking is enabled, cutover guard must NEVER be invoked. Strict mock guarantees this.
+            var guard = cutoverGuard ?? new Mock<IAuthoritativeCutoverGuard>(MockBehavior.Strict).Object;
+            var interceptor = new AuthoritativeTrackingSafetyInterceptor(syncProvider, configuration, guard);
 
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseSqlServer(connectionString)

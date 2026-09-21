@@ -1,0 +1,57 @@
+﻿{
+    "AuditMetadata":  {
+                          "DatabaseId":  "2026",
+                          "AuditTimestampUtc":  "2026-09-21T04:43:21.7397368Z",
+                          "Classification":  "TRACKED_VERSION_GAP"
+                      },
+    "AuthoritativeVersionReconciliation":  {
+                                               "AzureServerVersion":  2,
+                                               "LocalLastServerVersion":  0,
+                                               "CutoverReconciliation":  "TRACKED_VERSION_GAP",
+                                               "VersionAdvancementProof":  "v0 -\u003e v1 (Insert) -\u003e v2 (HardDelete)"
+                                           },
+    "ChangeFeedEvidence":  {
+                               "TotalEntries":  2,
+                               "Entries":  [
+                                               {
+                                                   "ServerVersion":  1,
+                                                   "OperationType":  "INSERT",
+                                                   "OriginDeviceId":  "00000000-0000-0000-0000-000000000000",
+                                                   "CanarySyncIdHash":  "318B361637144461"
+                                               },
+                                               {
+                                                   "ServerVersion":  2,
+                                                   "OperationType":  "HARD_DELETE",
+                                                   "OriginDeviceId":  "00000000-0000-0000-0000-000000000000",
+                                                   "CanarySyncIdHash":  "318B361637144461"
+                                               }
+                                           ],
+                               "SyncIdIntegrityVerified":  true
+                           },
+    "TombstoneEvidence":  {
+                              "TombstoneCount":  1,
+                              "ServerVersion":  2,
+                              "EntityType":  "Daily",
+                              "CanarySyncIdHash":  "318B361637144461",
+                              "TombstoneMatchesHardDelete":  true
+                          },
+    "ZeroContaminationProofs":  {
+                                    "CanaryDailyRowsRemaining":  0,
+                                    "ProcessedOperationsCount":  0,
+                                    "LocalOutboxCount":  0
+                                },
+    "BusinessDataParity":  {
+                               "AzureDailyRowCount":  30,
+                               "LocalDailyRowCount":  30,
+                               "DailyScalarHashMatch":  true,
+                               "ParityStatus":  "EXACT_PARITY_CONFIRMED"
+                           },
+    "RuntimeTrackingClassification":  {
+                                          "Classification":  "TRANSIENT_CUTOVER_PROCESS_ONLY",
+                                          "FactualActivationMechanism":  "Transient in-memory process configuration during controlled cutover execution",
+                                          "CommittedDefaultInGit":  false,
+                                          "CommittedPushDefault":  false,
+                                          "CommittedLegacyMigrationDefault":  false,
+                                          "FailClosedGuardStatus":  "ENFORCED_VIA_AUTHORITATIVE_CUTOVER_GUARD"
+                                      }
+}

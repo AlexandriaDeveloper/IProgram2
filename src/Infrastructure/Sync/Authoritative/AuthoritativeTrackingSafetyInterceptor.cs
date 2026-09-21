@@ -15,19 +15,24 @@ namespace Auth.Infrastructure.Sync.Authoritative
 {
     /// <summary>
     /// EF Core SaveChangesInterceptor that prevents direct SaveChanges bypass for Daily mutations
-    /// during Online mode when Sync:AuthoritativeTrackingEnabled is true.
+    /// during Online mode when Sync:AuthoritativeTrackingEnabled is true, and prevents un-tracked
+    /// Daily writes when tracking is disabled after authoritative cutover has been committed.
     /// </summary>
     public class AuthoritativeTrackingSafetyInterceptor : SaveChangesInterceptor
     {
         private readonly ISyncConnectionProvider _syncConnectionProvider;
         private readonly IConfiguration _configuration;
+        private readonly IAuthoritativeCutoverGuard _cutoverGuard;
+
 
         public AuthoritativeTrackingSafetyInterceptor(
             ISyncConnectionProvider syncConnectionProvider,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IAuthoritativeCutoverGuard cutoverGuard)
         {
             _syncConnectionProvider = syncConnectionProvider ?? throw new ArgumentNullException(nameof(syncConnectionProvider));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _cutoverGuard = cutoverGuard ?? throw new ArgumentNullException(nameof(cutoverGuard));
         }
 
         public override InterceptionResult<int> SavingChanges(
@@ -38,26 +43,19 @@ namespace Auth.Infrastructure.Sync.Authoritative
             return base.SavingChanges(eventData, result);
         }
 
-        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,
             InterceptionResult<int> result,
             CancellationToken cancellationToken = default)
         {
-            EnforceAuthoritativeTrackingSafety(eventData);
-            return base.SavingChangesAsync(eventData, result, cancellationToken);
+            await EnforceAuthoritativeTrackingSafetyAsync(eventData, cancellationToken).ConfigureAwait(false);
+            return await base.SavingChangesAsync(eventData, result, cancellationToken).ConfigureAwait(false);
         }
 
         private void EnforceAuthoritativeTrackingSafety(DbContextEventData eventData)
         {
-            // Only active in Online mode (not LocalFirst, not ReadOnlyMode)
+            // 1. Only active in Online mode (not LocalFirst, not ReadOnlyMode)
             if (_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
-            {
-                return;
-            }
-
-            // Only active when gate is enabled
-            var isTrackingEnabled = _configuration.GetValue<bool>("Sync:AuthoritativeTrackingEnabled", false);
-            if (!isTrackingEnabled)
             {
                 return;
             }
@@ -68,15 +66,78 @@ namespace Auth.Infrastructure.Sync.Authoritative
                 return;
             }
 
-            // Check if any Daily mutation is part of this SaveChanges call
+            // 2. Check first whether SaveChanges contains a Daily mutation (Added, Modified, Deleted)
+            // If no Daily mutation, do NOT perform any cutover query or change behavior.
             var hasDailyMutation = context.ChangeTracker.Entries()
                 .Any(e => e.Entity is Daily && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
 
-            if (hasDailyMutation && !AuthoritativeWriteScopeContext.IsActive)
+            if (!hasDailyMutation)
             {
-                throw new AuthoritativeWriteScopeException(
-                    "عمليات الحفظ المباشرة (Direct SaveChanges) لـ Daily محظورة في وضع Online مع تفعيل Authoritative Tracking. يجب أن تمر جميع تعديلات Daily عبر UnitOfWork Transaction Coordinator.");
+                return;
             }
+
+            var isTrackingEnabled = _configuration.GetValue<bool>("Sync:AuthoritativeTrackingEnabled", false);
+
+            // 3. If Tracking Enabled == true:
+            if (isTrackingEnabled)
+            {
+                if (!AuthoritativeWriteScopeContext.IsActive)
+                {
+                    throw new AuthoritativeWriteScopeException(
+                        "عمليات الحفظ المباشرة (Direct SaveChanges) لـ Daily محظورة في وضع Online مع تفعيل Authoritative Tracking. يجب أن تمر جميع تعديلات Daily عبر UnitOfWork Transaction Coordinator.");
+                }
+                return;
+            }
+
+            // 4. If Tracking Enabled == false AND hasDailyMutation == true:
+            // Verify authoritative cutover state synchronously before allowing save
+            var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
+            _cutoverGuard.ValidateCutoverState(context, databaseId);
+        }
+
+        private async Task EnforceAuthoritativeTrackingSafetyAsync(
+            DbContextEventData eventData,
+            CancellationToken cancellationToken)
+        {
+            // 1. Only active in Online mode (not LocalFirst, not ReadOnlyMode)
+            if (_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
+            {
+                return;
+            }
+
+            var context = eventData.Context;
+            if (context == null || !context.ChangeTracker.HasChanges())
+            {
+                return;
+            }
+
+            // 2. Check first whether SaveChanges contains a Daily mutation (Added, Modified, Deleted)
+            // If no Daily mutation, do NOT perform any cutover query or change behavior.
+            var hasDailyMutation = context.ChangeTracker.Entries()
+                .Any(e => e.Entity is Daily && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+
+            if (!hasDailyMutation)
+            {
+                return;
+            }
+
+            var isTrackingEnabled = _configuration.GetValue<bool>("Sync:AuthoritativeTrackingEnabled", false);
+
+            // 3. If Tracking Enabled == true:
+            if (isTrackingEnabled)
+            {
+                if (!AuthoritativeWriteScopeContext.IsActive)
+                {
+                    throw new AuthoritativeWriteScopeException(
+                        "عمليات الحفظ المباشرة (Direct SaveChanges) لـ Daily محظورة في وضع Online مع تفعيل Authoritative Tracking. يجب أن تمر جميع تعديلات Daily عبر UnitOfWork Transaction Coordinator.");
+                }
+                return;
+            }
+
+            // 4. If Tracking Enabled == false AND hasDailyMutation == true:
+            // Verify authoritative cutover state asynchronously before allowing save
+            var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
+            await _cutoverGuard.ValidateCutoverStateAsync(context, databaseId, cancellationToken).ConfigureAwait(false);
         }
     }
 }
