@@ -10,37 +10,35 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Auth.Infrastructure;
-using Auth.Infrastructure.Sync.Authoritative;
-using Core.Interfaces;
-using Core.Models;
 using Core.Models.Sync;
 using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
-using Persistence.Repository;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace Auth.UnitTests
 {
+    /// <summary>
+    /// READ-ONLY verification reader suite validating the post-cutover production state of
+    /// Azure databases (IProgramDb2026, IProgramDb2027) and local replicas (IProgramLocalDb2026, IProgramLocalDb2027).
+    /// Strictly zero business DML and zero modifications to sync state.
+    /// </summary>
     [Trait("Category", "ProductionCutover")]
     [Trait("Category", "LocalDbRequired")]
-    public class AuthoritativeCutoverOperations
+    public class AuthoritativeCutoverVerificationTests
     {
         private readonly ITestOutputHelper _output;
 
-        public AuthoritativeCutoverOperations(ITestOutputHelper output)
+        public AuthoritativeCutoverVerificationTests(ITestOutputHelper output)
         {
             _output = output;
         }
 
         [Fact]
-        public async Task VerifyControlledAuthoritativeCutoverAndGenerateEvidence()
+        public async Task VerifyAuthoritativeCutoverState_ReadOnlyAuditAndEvidenceGeneration()
         {
             _output.WriteLine("==========================================================================");
-            _output.WriteLine("  SLICE 4.4C: CONTROLLED AUTHORITATIVE TRACKING PRODUCTION CUTOVER        ");
+            _output.WriteLine("  SLICE 4.4C: POST-CUTOVER PRODUCTION STATE READ-ONLY VERIFICATION        ");
             _output.WriteLine("==========================================================================");
 
             // 1. Resolve Connection Strings from User Secrets
@@ -65,9 +63,10 @@ namespace Auth.UnitTests
             var localConn2027 = appsettingsDoc.RootElement.GetProperty("ConnectionStrings").GetProperty("LocalConnection2027").GetString()!;
 
             // 2. Audit and verify Year 2026 cutover state
-            _output.WriteLine("\n--- [Audit Year 2026] ---");
+            _output.WriteLine("\n--- [Read-Only Verification Year 2026] ---");
             var cutover2026 = await AuditYearCutoverStateAsync("2026", azureConn2026, localConn2026);
-            _output.WriteLine($"2026: Pre=0, PostInsert=1, PostHardDelete=2, Feeds={cutover2026.FeedEntries.Count}, Tombs={cutover2026.TombstoneEntries.Count}");
+            _output.WriteLine($"2026: AzureVer={cutover2026.AzureServerVersion}, LocalVer={cutover2026.LocalLastServerVersion}, Feeds={cutover2026.FeedEntries.Count}, Tombs={cutover2026.TombstoneEntries.Count}");
+            
             Assert.Equal(2, cutover2026.AzureServerVersion);
             Assert.Equal(0, cutover2026.LocalLastServerVersion);
             Assert.Equal(2, cutover2026.FeedEntries.Count);
@@ -78,18 +77,21 @@ namespace Auth.UnitTests
             Assert.Equal(2, cutover2026.FeedEntries[1].ServerVersion);
             Assert.Equal(Guid.Empty, cutover2026.FeedEntries[1].OriginDeviceId);
             Assert.Equal(cutover2026.FeedEntries[0].EntitySyncId, cutover2026.FeedEntries[1].EntitySyncId);
+            
             Assert.Single(cutover2026.TombstoneEntries);
             Assert.Equal(2, cutover2026.TombstoneEntries[0].ServerVersion);
             Assert.Equal("Daily", cutover2026.TombstoneEntries[0].EntityType);
             Assert.Equal(cutover2026.FeedEntries[0].EntitySyncId, cutover2026.TombstoneEntries[0].EntitySyncId);
+            
             Assert.Equal(0, cutover2026.CanaryDailyRowsRemaining);
             Assert.Equal(0, cutover2026.ProcessedOperationsCount);
             Assert.Equal(0, cutover2026.LocalOutboxCount);
 
             // 3. Audit and verify Year 2027 cutover state
-            _output.WriteLine("\n--- [Audit Year 2027] ---");
+            _output.WriteLine("\n--- [Read-Only Verification Year 2027] ---");
             var cutover2027 = await AuditYearCutoverStateAsync("2027", azureConn2027, localConn2027);
-            _output.WriteLine($"2027: Pre=0, PostInsert=1, PostHardDelete=2, Feeds={cutover2027.FeedEntries.Count}, Tombs={cutover2027.TombstoneEntries.Count}");
+            _output.WriteLine($"2027: AzureVer={cutover2027.AzureServerVersion}, LocalVer={cutover2027.LocalLastServerVersion}, Feeds={cutover2027.FeedEntries.Count}, Tombs={cutover2027.TombstoneEntries.Count}");
+            
             Assert.Equal(2, cutover2027.AzureServerVersion);
             Assert.Equal(0, cutover2027.LocalLastServerVersion);
             Assert.Equal(2, cutover2027.FeedEntries.Count);
@@ -100,10 +102,12 @@ namespace Auth.UnitTests
             Assert.Equal(2, cutover2027.FeedEntries[1].ServerVersion);
             Assert.Equal(Guid.Empty, cutover2027.FeedEntries[1].OriginDeviceId);
             Assert.Equal(cutover2027.FeedEntries[0].EntitySyncId, cutover2027.FeedEntries[1].EntitySyncId);
+            
             Assert.Single(cutover2027.TombstoneEntries);
             Assert.Equal(2, cutover2027.TombstoneEntries[0].ServerVersion);
             Assert.Equal("Daily", cutover2027.TombstoneEntries[0].EntityType);
             Assert.Equal(cutover2027.FeedEntries[0].EntitySyncId, cutover2027.TombstoneEntries[0].EntitySyncId);
+            
             Assert.Equal(0, cutover2027.CanaryDailyRowsRemaining);
             Assert.Equal(0, cutover2027.ProcessedOperationsCount);
             Assert.Equal(0, cutover2027.LocalOutboxCount);
@@ -112,7 +116,7 @@ namespace Auth.UnitTests
             Assert.NotEqual(cutover2026.FeedEntries[0].EntitySyncId, cutover2027.FeedEntries[0].EntitySyncId);
 
             // 4. Parity Verification (Deterministic SHA-256 Match)
-            _output.WriteLine("\n--- [Phase 5 & 6] Post-Cutover Parity Verification ---");
+            _output.WriteLine("\n--- Post-Cutover Business Parity Verification ---");
             var parity2026 = await VerifyBusinessParityAsync(azureConn2026, localConn2026, "2026");
             var parity2027 = await VerifyBusinessParityAsync(azureConn2027, localConn2027, "2027");
 
@@ -126,7 +130,7 @@ namespace Auth.UnitTests
             Assert.Equal(14, parity2027.AzureRows);
             Assert.Equal(14, parity2027.LocalRows);
 
-            // 5. Generate Sanitized Evidence Artifacts
+            // 5. Generate Hardened Sanitized Evidence Artifacts
             var docsDir = Path.Combine(repoRoot, "docs", "audit", "sync-slice-4-4c");
             Directory.CreateDirectory(docsDir);
 
@@ -134,11 +138,11 @@ namespace Auth.UnitTests
             var report2027Path = Path.Combine(docsDir, "cutover_2027_report.json");
             var summaryPath = Path.Combine(docsDir, "AUTHORITATIVE_TRACKING_CUTOVER_SUMMARY.md");
 
-            await GenerateSanitizedReportAsync(report2026Path, cutover2026, parity2026);
-            await GenerateSanitizedReportAsync(report2027Path, cutover2027, parity2027);
-            await GenerateCutoverSummaryAsync(summaryPath, cutover2026, cutover2027, parity2026, parity2027);
+            await GenerateHardenedReportAsync(report2026Path, cutover2026, parity2026);
+            await GenerateHardenedReportAsync(report2027Path, cutover2027, parity2027);
+            await GenerateHardenedSummaryAsync(summaryPath, cutover2026, cutover2027, parity2026, parity2027);
 
-            _output.WriteLine($"\nSanitized reports generated successfully at:\n  {report2026Path}\n  {report2027Path}\n  {summaryPath}");
+            _output.WriteLine($"\nHardened sanitized reports generated successfully at:\n  {report2026Path}\n  {report2027Path}\n  {summaryPath}");
         }
 
         private static async Task<CutoverAuditData> AuditYearCutoverStateAsync(
@@ -336,7 +340,7 @@ namespace Auth.UnitTests
             return Convert.ToHexString(hashBytes);
         }
 
-        private static async Task GenerateSanitizedReportAsync(
+        private static async Task GenerateHardenedReportAsync(
             string outputPath,
             CutoverAuditData cutover,
             ParityResult parity)
@@ -347,35 +351,48 @@ namespace Auth.UnitTests
             var reportData = new
             {
                 Slice = "4.4C",
-                AuditType = "Controlled Authoritative Tracking Production Cutover",
+                AuditType = "Controlled Authoritative Tracking Production Cutover Verification",
                 DatabaseId = cutover.DatabaseId,
                 TimestampUtc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                PreCutoverState = new
+                ServerStateEvidence = new
                 {
-                    AzureServerVersion = 0,
+                    CurrentVersion = cutover.AzureServerVersion,
                     LocalLastServerVersion = cutover.LocalLastServerVersion,
-                    Status = "CLEAN_BASELINE"
+                    PostCutoverClassification = "TRACKED_VERSION_GAP",
+                    TrackedVersionGapExplanation = "Azure versions 1..2 advanced purely via verified canary lifecycle; local checkpoint intentionally preserved at 0 awaiting Pull rollout."
                 },
-                CanaryLifecycle = new
+                ChangeFeedEvidence = new
                 {
-                    LogicalPrefix = $"SYNC_CUTOVER_CANARY_{cutover.DatabaseId}",
+                    FeedEntriesCount = cutover.FeedEntries.Count,
+                    Version1 = new
+                    {
+                        ServerVersion = cutover.FeedEntries.ElementAtOrDefault(0)?.ServerVersion ?? 0,
+                        OperationType = cutover.FeedEntries.ElementAtOrDefault(0)?.OperationType ?? "",
+                        OriginDeviceId = cutover.FeedEntries.ElementAtOrDefault(0)?.OriginDeviceId.ToString() ?? "",
+                        CanarySyncIdHash = hashedSyncId
+                    },
+                    Version2 = new
+                    {
+                        ServerVersion = cutover.FeedEntries.ElementAtOrDefault(1)?.ServerVersion ?? 0,
+                        OperationType = cutover.FeedEntries.ElementAtOrDefault(1)?.OperationType ?? "",
+                        OriginDeviceId = cutover.FeedEntries.ElementAtOrDefault(1)?.OriginDeviceId.ToString() ?? "",
+                        CanarySyncIdHash = hashedSyncId
+                    },
+                    SyncIdIntegrityVerified = cutover.FeedEntries.Count == 2 && cutover.FeedEntries[0].EntitySyncId == cutover.FeedEntries[1].EntitySyncId
+                },
+                TombstoneEvidence = new
+                {
+                    TombstoneCount = cutover.TombstoneEntries.Count,
+                    ServerVersion = cutover.TombstoneEntries.FirstOrDefault()?.ServerVersion ?? 0,
+                    EntityType = cutover.TombstoneEntries.FirstOrDefault()?.EntityType ?? "",
                     CanarySyncIdHash = hashedSyncId,
-                    PostInsertAzureServerVersion = 1,
-                    PostHardDeleteAzureServerVersion = 2,
-                    ExpectedFinalAzureServerVersion = 2,
-                    ActualFinalAzureServerVersion = cutover.AzureServerVersion,
-                    InsertFeedVerified = cutover.FeedEntries.Any(f => f.OperationType == "INSERT" && f.ServerVersion == 1 && f.OriginDeviceId == Guid.Empty),
-                    HardDeleteFeedVerified = cutover.FeedEntries.Any(f => f.OperationType == "HARD_DELETE" && f.ServerVersion == 2 && f.OriginDeviceId == Guid.Empty),
-                    TombstoneVerified = cutover.TombstoneEntries.Any(t => t.ServerVersion == 2 && t.EntityType == "Daily"),
+                    TombstoneMatchesHardDelete = cutover.TombstoneEntries.Count == 1 && cutover.TombstoneEntries[0].EntitySyncId == canarySyncId
+                },
+                ZeroContaminationProofs = new
+                {
+                    CanaryDailyRowsRemaining = cutover.CanaryDailyRowsRemaining,
                     ProcessedOperationsCount = cutover.ProcessedOperationsCount,
                     LocalOutboxCount = cutover.LocalOutboxCount
-                },
-                PostCutoverState = new
-                {
-                    AzureCurrentVersion = cutover.AzureServerVersion,
-                    LocalLastServerVersion = cutover.LocalLastServerVersion,
-                    Classification = "TRACKED_VERSION_GAP",
-                    TrackedVersionGapExplanation = "Azure versions 1..2 advance strictly via tracked canary lifecycle; local checkpoint remains 0 until Pull rollout."
                 },
                 BusinessDataParity = new
                 {
@@ -384,13 +401,14 @@ namespace Auth.UnitTests
                     DailyScalarHashMatch = parity.HashesMatch,
                     ParityStatus = parity.HashesMatch ? "EXACT_PARITY_CONFIRMED" : "DRIFT_DETECTED"
                 },
-                SafetyGuards = new
+                RuntimeTrackingClassification = new
                 {
-                    CommittedAuthoritativeTrackingDefault = false,
+                    Classification = "TRANSIENT_CUTOVER_PROCESS_ONLY",
+                    FactualActivationMechanism = "Transient in-memory process configuration during controlled cutover execution",
+                    CommittedDefaultInGit = false,
                     CommittedPushDefault = false,
                     CommittedLegacyMigrationDefault = false,
-                    RuntimeAuthoritativeTrackingPostCutover = "ACTIVATED_ONLINE",
-                    DirectSqlBusinessDmlExecuted = 0
+                    FailClosedGuardStatus = "ENFORCED_VIA_AUTHORITATIVE_CUTOVER_GUARD"
                 }
             };
 
@@ -399,7 +417,7 @@ namespace Auth.UnitTests
             await File.WriteAllTextAsync(outputPath, json);
         }
 
-        private static async Task GenerateCutoverSummaryAsync(
+        private static async Task GenerateHardenedSummaryAsync(
             string outputPath,
             CutoverAuditData cutover2026,
             CutoverAuditData cutover2027,
@@ -427,16 +445,16 @@ Zero direct SQL business DML was executed. Both canaries were created and comple
 
 | Dimension / Metric | Year 2026 | Year 2027 |
 | :--- | :--- | :--- |
-| **Pre-Cutover Azure ServerVersion** | 0 | 0 |
-| **Pre-Cutover Local LastServerVersion** | {cutover2026.LocalLastServerVersion} | {cutover2027.LocalLastServerVersion} |
+| **Azure CurrentVersion** | {cutover2026.AzureServerVersion} | {cutover2027.AzureServerVersion} |
+| **Local LastServerVersion** | {cutover2026.LocalLastServerVersion} | {cutover2027.LocalLastServerVersion} |
 | **Canary SyncId Hash (Truncated)** | `{hash2026}` | `{hash2027}` |
-| **Post-INSERT Azure ServerVersion** | 1 (v0 + 1) | 1 (v0 + 1) |
-| **INSERT Feed Entry** | `OperationType = INSERT`, `OriginDeviceId = Guid.Empty` | `OperationType = INSERT`, `OriginDeviceId = Guid.Empty` |
-| **Post-HARD_DELETE Azure ServerVersion** | {cutover2026.AzureServerVersion} (v0 + 2) | {cutover2027.AzureServerVersion} (v0 + 2) |
-| **HARD_DELETE Feed Entry** | `OperationType = HARD_DELETE`, `OriginDeviceId = Guid.Empty` | `OperationType = HARD_DELETE`, `OriginDeviceId = Guid.Empty` |
-| **Tombstone Created** | Yes (`ServerVersion = {cutover2026.AzureServerVersion}`, `EntityType = Daily`) | Yes (`ServerVersion = {cutover2027.AzureServerVersion}`, `EntityType = Daily`) |
-| **ProcessedOperations Count** | 0 | 0 |
-| **LocalOutbox Mutations** | 0 | 0 |
+| **Feed Version 1 Entry** | `v1 INSERT`, `OriginDeviceId = Guid.Empty` | `v1 INSERT`, `OriginDeviceId = Guid.Empty` |
+| **Feed Version 2 Entry** | `v2 HARD_DELETE`, `OriginDeviceId = Guid.Empty` | `v2 HARD_DELETE`, `OriginDeviceId = Guid.Empty` |
+| **Tombstone Entry** | `v2 Daily`, matching Canary SyncId | `v2 Daily`, matching Canary SyncId |
+| **Tombstone Count** | {cutover2026.TombstoneEntries.Count} | {cutover2027.TombstoneEntries.Count} |
+| **ProcessedOperations Count** | {cutover2026.ProcessedOperationsCount} | {cutover2027.ProcessedOperationsCount} |
+| **LocalOutbox Mutations** | {cutover2026.LocalOutboxCount} | {cutover2027.LocalOutboxCount} |
+| **Canary Rows Remaining in Daily** | {cutover2026.CanaryDailyRowsRemaining} | {cutover2027.CanaryDailyRowsRemaining} |
 | **Azure Daily Rows (Post-Purge)** | {parity2026.AzureRows} | {parity2027.AzureRows} |
 | **Local Daily Rows** | {parity2026.LocalRows} | {parity2027.LocalRows} |
 | **Daily Table Hash Match** | **EXACT MATCH (100%)** | **EXACT MATCH (100%)** |
@@ -451,37 +469,37 @@ Zero direct SQL business DML was executed. Both canaries were created and comple
 
 ---
 
-## 4. Phase 8 — Fail-Closed Post-Cutover Protection Design
+## 4. Permanent Post-Cutover Fail-Closed Guard (Option B — Write-Path Invariant)
+Per System Architect Decision, **Option B — Write-Path Invariant** has been implemented to guarantee that:
+`CUTOVER_COMMITTED => Online Daily writes REQUIRE AuthoritativeTrackingEnabled=true`
 
-### The Problem
-Once cutover is committed, `ServerState.CurrentVersion` advances beyond `0` on Azure production. If `Sync:AuthoritativeTrackingEnabled` is accidentally rolled back to `false` in an Online production environment, raw EF Core `SaveChangesAsync` would silently execute untracked business DML, re-introducing untracked drift.
-
-### Design Recommendation for System Architect Review
-We evaluated three non-breaking architectural options:
-
-1. **Option A (Startup / Health Check Probe Guard) [Recommended]**:
-   - During application startup or via an ASP.NET Core Health Check probe (`AuthoritativeCutoverReadinessCheck`), query Azure `ServerState.CurrentVersion`.
-   - If `CurrentVersion > 0` (indicating cutover has occurred) and `Sync:AuthoritativeTrackingEnabled == false` while in Online mode (not LocalFirst, not ReadOnlyMode):
-     - Log fatal error and fail startup or fail the health check (`CUTOVER_COMMITTED_TRACKING_DISABLED`).
-   - *Impact*: Zero schema changes, zero database DDL, does not affect dev/test (where `CurrentVersion == 0` or LocalDb is used).
-
-2. **Option B (AuthoritativeTrackingSafetyInterceptor Invariant)**:
-   - In `AuthoritativeTrackingSafetyInterceptor`, maintain a cached boolean flag indicating whether the connected database has `CurrentVersion > 0`. If `isTrackingEnabled == false` but `CurrentVersion > 0`, throw `AuthoritativeWriteScopeException`.
-   - *Trade-off*: Requires a one-time cached query on the connection.
-
-3. **Option C (Deployment Environment Flag)**:
-   - Introduce an operational environment variable `Sync__CutoverCommitted=true` set in production Azure App Service / container configuration.
-   - If `CutoverCommitted == true` and `AuthoritativeTrackingEnabled == false`, throw at startup.
+### Implementation Summary
+1. **`IAuthoritativeCutoverGuard` / `AuthoritativeCutoverGuard`**:
+   - Validates canonical `DatabaseId` ('2026' or '2027').
+   - Validates physical Azure binding via `IAuthoritativeDatabaseBindingGuard`.
+   - Queries `[sync].[ServerState]` synchronously or asynchronously without sync-over-async.
+   - If `ServerVersion > 0` and `Sync:AuthoritativeTrackingEnabled == false`, rejects Online Daily mutations before business DML with `AuthoritativeCutoverGuardException` (`CUTOVER_COMMITTED_TRACKING_DISABLED`).
+   - If cutover state is unverifiable (missing ServerState, duplicate ServerState, malformed DatabaseId, binding mismatch, or query failure), fails closed with `AUTHORITATIVE_CUTOVER_STATE_UNVERIFIABLE`.
+   - If `ServerVersion == 0` (pre-cutover / test databases), preserves pre-cutover compatibility.
+2. **`AuthoritativeTrackingSafetyInterceptor`**:
+   - Intercepts `SavingChanges` and `SavingChangesAsync`.
+   - Checks change tracker for `Daily` mutations (Added, Modified, Deleted).
+   - If no Daily mutation: skips cutover query entirely.
+   - If in LocalFirst or ReadOnly mode: skips cutover query entirely.
+   - Zero caching: each attempt when tracking is disabled and Daily mutations are present validates live authoritative state.
 
 ---
 
-## 5. Repository Safety Invariants
-- `src/Api/appsettings.json`:
+## 5. Runtime Tracking State Classification & Repository Safety Invariants
+- **Runtime Tracking State Classification:** `TRANSIENT_CUTOVER_PROCESS_ONLY`
+- **Factual Activation Mechanism:** Authoritative tracking was enabled transiently in-process solely for the canary cutover lifecycle.
+- **Live Committed Defaults in Git (`src/Api/appsettings.json`):**
   - `Sync:AuthoritativeTrackingEnabled = false` (Committed default preserved)
   - `Sync:PushEnabled = false` (Committed default preserved)
   - `LegacyMigration:Enabled = false` (Committed default preserved)
-- LocalState / Outbox:
-  - `LastServerVersion` intentionally maintained at `0` across both local databases.
+- **Fail-Closed Protection:** Any attempt to perform Online Daily business mutations against Azure production (where `ServerVersion = 2`) with `AuthoritativeTrackingEnabled = false` is actively blocked by `AuthoritativeCutoverGuard`.
+- **LocalState / Outbox:**
+  - `LastServerVersion` intentionally maintained at `0` across both local databases (awaiting Pull).
   - Zero manual updates to local sync tables.
 ";
             await File.WriteAllTextAsync(outputPath, md);

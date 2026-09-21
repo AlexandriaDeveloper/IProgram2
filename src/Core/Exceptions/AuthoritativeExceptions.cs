@@ -67,4 +67,32 @@ namespace Core.Exceptions
         {
         }
     }
+
+    public static class AuthoritativeCutoverErrorCodes
+    {
+        public const string CutoverCommittedTrackingDisabled = "CUTOVER_COMMITTED_TRACKING_DISABLED";
+        public const string AuthoritativeCutoverStateUnverifiable = "AUTHORITATIVE_CUTOVER_STATE_UNVERIFIABLE";
+    }
+
+    public class AuthoritativeCutoverGuardException : Exception
+    {
+        public string ErrorCode { get; }
+
+        public AuthoritativeCutoverGuardException(
+            string message, 
+            string errorCode = AuthoritativeCutoverErrorCodes.CutoverCommittedTrackingDisabled) 
+            : base(message)
+        {
+            ErrorCode = errorCode;
+        }
+
+        public AuthoritativeCutoverGuardException(
+            string message, 
+            Exception innerException, 
+            string errorCode = AuthoritativeCutoverErrorCodes.CutoverCommittedTrackingDisabled) 
+            : base(message, innerException)
+        {
+            ErrorCode = errorCode;
+        }
+    }
 }

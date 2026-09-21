@@ -265,8 +265,17 @@ foreach ($year in @("2026", "2027")) {
     $localB = Assert-PhysicalDatabaseBinding -ConnectionString $localCs -ExpectedTarget "Local" -ExpectedYear $year
     Write-Host " PASS (Azure: $($azureB.InitialCatalog), Local: $($localB.InitialCatalog))" -ForegroundColor Green
 
-    $azureConn = New-Object SqlConnection($azureCs)
-    $azureConn.Open()
+    $azureConn = $null
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            $azureConn = New-Object SqlConnection($azureCs)
+            $azureConn.Open()
+            break
+        } catch {
+            if ($attempt -eq 3) { throw }
+            Start-Sleep -Seconds 2
+        }
+    }
     $localConn = New-Object SqlConnection($localCs)
     $localConn.Open()
 

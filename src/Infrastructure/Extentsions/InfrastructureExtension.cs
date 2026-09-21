@@ -65,6 +65,7 @@ public static class InfrastructureExtension
         // Slice 4.4A - Authoritative Azure Daily Mutation Tracking
         services.AddScoped<Core.Interfaces.IAuthoritativeDailyMutationTracker, Sync.Authoritative.AuthoritativeDailyMutationTracker>();
         services.AddScoped<Core.Interfaces.IAuthoritativeDatabaseBindingGuard, Sync.Authoritative.AuthoritativeDatabaseBindingGuard>();
+        services.AddScoped<Core.Interfaces.IAuthoritativeCutoverGuard, Sync.Authoritative.AuthoritativeCutoverGuard>();
         services.AddScoped<Sync.Authoritative.AuthoritativeTrackingSafetyInterceptor>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>

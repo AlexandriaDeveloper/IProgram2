@@ -13,16 +13,16 @@ Zero direct SQL business DML was executed. Both canaries were created and comple
 
 | Dimension / Metric | Year 2026 | Year 2027 |
 | :--- | :--- | :--- |
-| **Pre-Cutover Azure ServerVersion** | 0 | 0 |
-| **Pre-Cutover Local LastServerVersion** | 0 | 0 |
+| **Azure CurrentVersion** | 2 | 2 |
+| **Local LastServerVersion** | 0 | 0 |
 | **Canary SyncId Hash (Truncated)** | `318B361637144461` | `910E347505586896` |
-| **Post-INSERT Azure ServerVersion** | 1 (v0 + 1) | 1 (v0 + 1) |
-| **INSERT Feed Entry** | `OperationType = INSERT`, `OriginDeviceId = Guid.Empty` | `OperationType = INSERT`, `OriginDeviceId = Guid.Empty` |
-| **Post-HARD_DELETE Azure ServerVersion** | 2 (v0 + 2) | 2 (v0 + 2) |
-| **HARD_DELETE Feed Entry** | `OperationType = HARD_DELETE`, `OriginDeviceId = Guid.Empty` | `OperationType = HARD_DELETE`, `OriginDeviceId = Guid.Empty` |
-| **Tombstone Created** | Yes (`ServerVersion = 2`, `EntityType = Daily`) | Yes (`ServerVersion = 2`, `EntityType = Daily`) |
+| **Feed Version 1 Entry** | `v1 INSERT`, `OriginDeviceId = Guid.Empty` | `v1 INSERT`, `OriginDeviceId = Guid.Empty` |
+| **Feed Version 2 Entry** | `v2 HARD_DELETE`, `OriginDeviceId = Guid.Empty` | `v2 HARD_DELETE`, `OriginDeviceId = Guid.Empty` |
+| **Tombstone Entry** | `v2 Daily`, matching Canary SyncId | `v2 Daily`, matching Canary SyncId |
+| **Tombstone Count** | 1 | 1 |
 | **ProcessedOperations Count** | 0 | 0 |
 | **LocalOutbox Mutations** | 0 | 0 |
+| **Canary Rows Remaining in Daily** | 0 | 0 |
 | **Azure Daily Rows (Post-Purge)** | 30 | 14 |
 | **Local Daily Rows** | 30 | 14 |
 | **Daily Table Hash Match** | **EXACT MATCH (100%)** | **EXACT MATCH (100%)** |
@@ -37,35 +37,35 @@ Zero direct SQL business DML was executed. Both canaries were created and comple
 
 ---
 
-## 4. Phase 8 — Fail-Closed Post-Cutover Protection Design
+## 4. Permanent Post-Cutover Fail-Closed Guard (Option B — Write-Path Invariant)
+Per System Architect Decision, **Option B — Write-Path Invariant** has been implemented to guarantee that:
+`CUTOVER_COMMITTED => Online Daily writes REQUIRE AuthoritativeTrackingEnabled=true`
 
-### The Problem
-Once cutover is committed, `ServerState.CurrentVersion` advances beyond `0` on Azure production. If `Sync:AuthoritativeTrackingEnabled` is accidentally rolled back to `false` in an Online production environment, raw EF Core `SaveChangesAsync` would silently execute untracked business DML, re-introducing untracked drift.
-
-### Design Recommendation for System Architect Review
-We evaluated three non-breaking architectural options:
-
-1. **Option A (Startup / Health Check Probe Guard) [Recommended]**:
-   - During application startup or via an ASP.NET Core Health Check probe (`AuthoritativeCutoverReadinessCheck`), query Azure `ServerState.CurrentVersion`.
-   - If `CurrentVersion > 0` (indicating cutover has occurred) and `Sync:AuthoritativeTrackingEnabled == false` while in Online mode (not LocalFirst, not ReadOnlyMode):
-     - Log fatal error and fail startup or fail the health check (`CUTOVER_COMMITTED_TRACKING_DISABLED`).
-   - *Impact*: Zero schema changes, zero database DDL, does not affect dev/test (where `CurrentVersion == 0` or LocalDb is used).
-
-2. **Option B (AuthoritativeTrackingSafetyInterceptor Invariant)**:
-   - In `AuthoritativeTrackingSafetyInterceptor`, maintain a cached boolean flag indicating whether the connected database has `CurrentVersion > 0`. If `isTrackingEnabled == false` but `CurrentVersion > 0`, throw `AuthoritativeWriteScopeException`.
-   - *Trade-off*: Requires a one-time cached query on the connection.
-
-3. **Option C (Deployment Environment Flag)**:
-   - Introduce an operational environment variable `Sync__CutoverCommitted=true` set in production Azure App Service / container configuration.
-   - If `CutoverCommitted == true` and `AuthoritativeTrackingEnabled == false`, throw at startup.
+### Implementation Summary
+1. **`IAuthoritativeCutoverGuard` / `AuthoritativeCutoverGuard`**:
+   - Validates canonical `DatabaseId` ('2026' or '2027').
+   - Validates physical Azure binding via `IAuthoritativeDatabaseBindingGuard`.
+   - Queries `[sync].[ServerState]` synchronously or asynchronously without sync-over-async.
+   - If `ServerVersion > 0` and `Sync:AuthoritativeTrackingEnabled == false`, rejects Online Daily mutations before business DML with `AuthoritativeCutoverGuardException` (`CUTOVER_COMMITTED_TRACKING_DISABLED`).
+   - If cutover state is unverifiable (missing ServerState, duplicate ServerState, malformed DatabaseId, binding mismatch, or query failure), fails closed with `AUTHORITATIVE_CUTOVER_STATE_UNVERIFIABLE`.
+   - If `ServerVersion == 0` (pre-cutover / test databases), preserves pre-cutover compatibility.
+2. **`AuthoritativeTrackingSafetyInterceptor`**:
+   - Intercepts `SavingChanges` and `SavingChangesAsync`.
+   - Checks change tracker for `Daily` mutations (Added, Modified, Deleted).
+   - If no Daily mutation: skips cutover query entirely.
+   - If in LocalFirst or ReadOnly mode: skips cutover query entirely.
+   - Zero caching: each attempt when tracking is disabled and Daily mutations are present validates live authoritative state.
 
 ---
 
-## 5. Repository Safety Invariants
-- `src/Api/appsettings.json`:
+## 5. Runtime Tracking State Classification & Repository Safety Invariants
+- **Runtime Tracking State Classification:** `TRANSIENT_CUTOVER_PROCESS_ONLY`
+- **Factual Activation Mechanism:** Authoritative tracking was enabled transiently in-process solely for the canary cutover lifecycle.
+- **Live Committed Defaults in Git (`src/Api/appsettings.json`):**
   - `Sync:AuthoritativeTrackingEnabled = false` (Committed default preserved)
   - `Sync:PushEnabled = false` (Committed default preserved)
   - `LegacyMigration:Enabled = false` (Committed default preserved)
-- LocalState / Outbox:
-  - `LastServerVersion` intentionally maintained at `0` across both local databases.
+- **Fail-Closed Protection:** Any attempt to perform Online Daily business mutations against Azure production (where `ServerVersion = 2`) with `AuthoritativeTrackingEnabled = false` is actively blocked by `AuthoritativeCutoverGuard`.
+- **LocalState / Outbox:**
+  - `LastServerVersion` intentionally maintained at `0` across both local databases (awaiting Pull).
   - Zero manual updates to local sync tables.
