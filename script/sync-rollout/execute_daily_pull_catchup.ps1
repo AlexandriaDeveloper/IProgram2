@@ -60,19 +60,18 @@ function Assert-CommittedConfigurationGuard {
         $pull = if ($json.Sync -and $json.Sync.PullEnabled) { [bool]$json.Sync.PullEnabled } else { $false }
         $push = if ($json.Sync -and $json.Sync.PushEnabled) { [bool]$json.Sync.PushEnabled } else { $false }
         $track = if ($json.Sync -and $json.Sync.AuthoritativeTrackingEnabled) { [bool]$json.Sync.AuthoritativeTrackingEnabled } else { $false }
-        $migration = if ($json.LegacyMigration -and $json.LegacyMigration.Enabled) { [bool]$json.LegacyMigration.Enabled } else { $false }
         $localFirst = if ($json.LocalFirst -and $json.LocalFirst.Enabled) { [bool]$json.LocalFirst.Enabled } else { $false }
-        $isolatedTesting = if ($json.Sync -and $json.Sync.AllowIsolatedLocalRemoteForTesting) { [bool]$json.Sync.AllowIsolatedLocalRemoteForTesting } else { $false }
+        $readOnly = if ($json.LocalFirst -and $json.LocalFirst.ReadOnlyMode) { [bool]$json.LocalFirst.ReadOnlyMode } else { $false }
         
-        if ($pull -or $push -or $track -or $migration -or $localFirst -or $isolatedTesting) {
-            throw "COMMITTED_CONFIG_GUARD_VIOLATION: Committed configuration in '$f' has active flags (Pull=$pull, Push=$push, Track=$track, Migration=$migration, LocalFirst=$localFirst, IsolatedTesting=$isolatedTesting). All must be false."
+        if ($pull -or $push -or $track -or $localFirst -or $readOnly) {
+            throw "COMMITTED_CONFIG_GUARD_VIOLATION: Committed configuration in '$f' has active flags (Pull=$pull, Push=$push, Track=$track, LocalFirst=$localFirst, ReadOnly=$readOnly). All must be false."
         }
     }
 }
 
 Write-Host "Verifying committed configuration invariants..." -NoNewline
 Assert-CommittedConfigurationGuard -Root $repoRoot
-Write-Host " PASS (All committed flags are false)" -ForegroundColor Green
+Write-Host " PASS (All committed sync flags are false)" -ForegroundColor Green
 
 # --- 4. Resolve Connection Strings ---
 if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString) -or [string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
@@ -335,24 +334,33 @@ function Invoke-PreflightVerification {
             throw "PREFLIGHT_FAIL: Canary row still exists in Azure Daily table ($canaryDailyCount rows found)."
         }
 
-        # B. Local Invariants
+        # B. Local Invariants (Strict SQL-side SYSUTCDATETIME() lease check)
         $cmdLocState = $localConn.CreateCommand()
-        $cmdLocState.CommandText = "SELECT LastServerVersion, ActiveLeaseToken, LeaseExpiresAtUtc FROM [sync].[LocalState] WHERE DatabaseId = @DatabaseId;"
+        $cmdLocState.CommandText = @"
+SELECT 
+    [LastServerVersion], 
+    [ActiveLeaseToken],
+    CASE 
+        WHEN [ActiveLeaseToken] IS NOT NULL AND [LeaseExpiresAtUtc] >= SYSUTCDATETIME() THEN 1 
+        ELSE 0 
+    END AS [HasActiveLease]
+FROM [sync].[LocalState] 
+WHERE [DatabaseId] = @DatabaseId;
+"@
         $p6 = $cmdLocState.CreateParameter(); $p6.ParameterName = "@DatabaseId"; $p6.Value = $Year; $cmdLocState.Parameters.Add($p6) | Out-Null
         $rLoc = $cmdLocState.ExecuteReader()
         if (-not $rLoc.Read()) {
             throw "PREFLIGHT_FAIL: LocalState row missing for DatabaseId '$Year'."
         }
         $lastVer = [int64]$rLoc["LastServerVersion"]
-        $leaseToken = if ($rLoc.IsDBNull(1)) { $null } else { [string]$rLoc["ActiveLeaseToken"] }
-        $leaseExpiry = if ($rLoc.IsDBNull(2)) { $null } else { [datetime]$rLoc["LeaseExpiresAtUtc"] }
+        $hasActiveLease = [int]$rLoc["HasActiveLease"] -eq 1
         $rLoc.Close()
 
         if ($lastVer -ne 0) {
             throw "PREFLIGHT_FAIL: Local LastServerVersion for $Year is $lastVer (Expected: 0)."
         }
-        if (-not [string]::IsNullOrWhiteSpace($leaseToken) -and $leaseExpiry -and $leaseExpiry -ge [DateTime]::UtcNow) {
-            throw "PREFLIGHT_FAIL: LocalState for $Year has an active sync lease token."
+        if ($hasActiveLease) {
+            throw "PREFLIGHT_FAIL: LocalState for $Year has an active unexpired sync lease token."
         }
 
         # LocalOutbox blockers
@@ -388,6 +396,7 @@ function Invoke-PreflightVerification {
         Write-Host "  * ProcessedOperations == 0:                   [OK]" -ForegroundColor Green
         Write-Host "  * Local LastServerVersion == 0:               [OK]" -ForegroundColor Green
         Write-Host "  * LocalOutbox Blockers == 0:                  [OK]" -ForegroundColor Green
+        Write-Host "  * Unexpired Active Lease == None:             [OK]" -ForegroundColor Green
         Write-Host "  * Daily Exact Parity ($($locDaily.TotalRows) rows, hash match): [OK]" -ForegroundColor Green
 
         return @{
@@ -406,7 +415,7 @@ function Invoke-PreflightVerification {
     }
 }
 
-# --- 8. JWT Helper (Local Decode without Secret/Token Leakage) ---
+# --- 8. JWT Helper & Claim Validation ---
 function Decode-JwtPayloadSafe {
     param([string]$Jwt)
     if ([string]::IsNullOrWhiteSpace($Jwt)) { return $null }
@@ -420,6 +429,108 @@ function Decode-JwtPayloadSafe {
     $bytes = [Convert]::FromBase64String($payloadBase64)
     $jsonStr = [Encoding]::UTF8.GetString($bytes)
     return ($jsonStr | ConvertFrom-Json)
+}
+
+function Assert-JwtClaims {
+    param(
+        [string]$JwtToken,
+        [string]$ExpectedDb
+    )
+
+    $claims = Decode-JwtPayloadSafe -Jwt $JwtToken
+    if ($null -eq $claims) {
+        throw "AUTH_ERROR: Failed to decode JWT payload."
+    }
+
+    # Role validation (Admin)
+    $roles = if ($claims.role) { $claims.role } else { $claims.'http://schemas.microsoft.com/ws/2008/06/identity/claims/role' }
+    $isAdmin = ($roles -is [array] -and $roles -contains "Admin") -or ($roles -eq "Admin")
+    if (-not $isAdmin) {
+        throw "AUTH_ERROR: User is not in role Admin."
+    }
+
+    # db claim validation
+    if ($claims.db -ne $ExpectedDb) {
+        throw "AUTH_ERROR: Token db claim mismatch. Expected '$ExpectedDb', got '$($claims.db)'."
+    }
+
+    # exp claim validation
+    $nowEpoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    if ($null -eq $claims.exp) {
+        throw "AUTH_ERROR: JWT token is missing required 'exp' claim."
+    }
+    if ([int64]$claims.exp -le $nowEpoch) {
+        throw "AUTH_ERROR: JWT token has expired (exp: $($claims.exp), now: $nowEpoch)."
+    }
+
+    # nbf claim validation (if present)
+    if ($null -ne $claims.nbf) {
+        if ([int64]$claims.nbf -gt $nowEpoch) {
+            throw "AUTH_ERROR: JWT token is not yet valid (nbf: $($claims.nbf), now: $nowEpoch)."
+        }
+    }
+}
+
+# --- 9. Azure Post-Pull Invariance Audit Function ---
+function Assert-AzurePostPullInvariance {
+    param(
+        [string]$Year,
+        [string]$AzureConnStr,
+        [psobject]$PreflightData
+    )
+
+    Write-Host "Auditing $Year post-pull Azure invariance..." -NoNewline
+    $azureConn = New-Object SqlConnection($AzureConnStr)
+    $azureConn.Open()
+    try {
+        # 1. CurrentVersion must remain 2
+        $cmdV = $azureConn.CreateCommand()
+        $cmdV.CommandText = "SELECT CurrentVersion FROM [sync].[ServerState] WHERE DatabaseId = @DatabaseId;"
+        $p = $cmdV.CreateParameter(); $p.ParameterName = "@DatabaseId"; $p.Value = $Year; $cmdV.Parameters.Add($p) | Out-Null
+        $curVer = [int64]$cmdV.ExecuteScalar()
+        if ($curVer -ne 2) {
+            throw "AZURE_POST_AUDIT_ERROR: Azure ServerState.CurrentVersion mutated to $curVer (Expected: 2)."
+        }
+
+        # 2. ServerChangeFeed count must remain 2
+        $cmdF = $azureConn.CreateCommand()
+        $cmdF.CommandText = "SELECT COUNT(*) FROM [sync].[ServerChangeFeed] WHERE DatabaseId = @DatabaseId;"
+        $pF = $cmdF.CreateParameter(); $pF.ParameterName = "@DatabaseId"; $pF.Value = $Year; $cmdF.Parameters.Add($pF) | Out-Null
+        $feedCount = [int]$cmdF.ExecuteScalar()
+        if ($feedCount -ne 2) {
+            throw "AZURE_POST_AUDIT_ERROR: Azure ServerChangeFeed count mutated to $feedCount (Expected: 2)."
+        }
+
+        # 3. Tombstones count must remain 1
+        $cmdT = $azureConn.CreateCommand()
+        $cmdT.CommandText = "SELECT COUNT(*) FROM [sync].[Tombstones] WHERE DatabaseId = @DatabaseId;"
+        $pT = $cmdT.CreateParameter(); $pT.ParameterName = "@DatabaseId"; $pT.Value = $Year; $cmdT.Parameters.Add($pT) | Out-Null
+        $tombCount = [int]$cmdT.ExecuteScalar()
+        if ($tombCount -ne 1) {
+            throw "AZURE_POST_AUDIT_ERROR: Azure Tombstones count mutated to $tombCount (Expected: 1)."
+        }
+
+        # 4. ProcessedOperations count must remain 0
+        $cmdP = $azureConn.CreateCommand()
+        $cmdP.CommandText = "SELECT COUNT(*) FROM [sync].[ProcessedOperations] WHERE DatabaseId = @DatabaseId;"
+        $pP = $cmdP.CreateParameter(); $pP.ParameterName = "@DatabaseId"; $pP.Value = $Year; $cmdP.Parameters.Add($pP) | Out-Null
+        $procCount = [int]$cmdP.ExecuteScalar()
+        if ($procCount -ne 0) {
+            throw "AZURE_POST_AUDIT_ERROR: Azure ProcessedOperations count mutated to $procCount (Expected: 0)."
+        }
+
+        # 5. Azure Daily business data parity
+        $postAzDaily = Calculate-DailyHashAndCounts $azureConn
+        if ($postAzDaily.DeterministicSha256 -ne $PreflightData.DailyHash) {
+            throw "AZURE_POST_AUDIT_ERROR: Azure Daily deterministic hash drift detected after pull."
+        }
+        if ($postAzDaily.TotalRows -ne $PreflightData.DailyRows) {
+            throw "AZURE_POST_AUDIT_ERROR: Azure Daily total rows mutated from $($PreflightData.DailyRows) to $($postAzDaily.TotalRows)."
+        }
+    } finally {
+        $azureConn.Close()
+    }
+    Write-Host " PASS (Azure 100% strictly read-only, zero mutations)" -ForegroundColor Green
 }
 
 # ==============================================================================
@@ -456,22 +567,9 @@ if ($Execute) {
     Write-Host "  SLICE 4.5B-A: OPERATOR CATCH-UP EXECUTE MODE (CONTROLLED)               " -ForegroundColor Yellow
     Write-Host "==========================================================================" -ForegroundColor Yellow
 
+    # P0 Security: Strict credentials check with ZERO fallback to test env files
     if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
-        $e2eEnv = Join-Path $repoRoot "tests\e2e\.env"
-        if (Test-Path $e2eEnv) {
-            foreach ($line in Get-Content $e2eEnv) {
-                if ($line -match '^\s*([A-Za-z0-9_]+)\s*=\s*(.*)\s*$') {
-                    $k = $matches[1].Trim()
-                    $v = $matches[2].Trim().Trim('"').Trim("'")
-                    if (($k -eq "IPROGRAM_OPERATOR_USERNAME" -or $k -eq "E2E_USERNAME") -and [string]::IsNullOrWhiteSpace($Username)) { $Username = $v }
-                    if (($k -eq "IPROGRAM_OPERATOR_PASSWORD" -or $k -eq "E2E_PASSWORD") -and [string]::IsNullOrWhiteSpace($Password)) { $Password = $v }
-                }
-            }
-        }
-    }
-
-    if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
-        throw "OPERATOR_CREDENTIALS_MISSING: IPROGRAM_OPERATOR_USERNAME and IPROGRAM_OPERATOR_PASSWORD must be provided for execution."
+        throw "OPERATOR_CREDENTIALS_MISSING: -Username and -Password (or IPROGRAM_OPERATOR_USERNAME / IPROGRAM_OPERATOR_PASSWORD environment variables) must be provided for execution."
     }
 
     $apiDir = Join-Path $repoRoot "src\Api"
@@ -497,17 +595,33 @@ if ($Execute) {
         Write-Host "`nStarting dedicated operator API process on $baseUrl..." -ForegroundColor Cyan
         
         $env:ASPNETCORE_URLS = $baseUrl
-        $env:ASPNETCORE_ENVIRONMENT = "Development"
+        $env:ASPNETCORE_ENVIRONMENT = if ($AllowIsolatedExecutionOnly) { "Testing" } else { "Production" }
         $env:Sync__PullEnabled = "true"
         $env:Sync__PushEnabled = "false"
         $env:Sync__AuthoritativeTrackingEnabled = "false"
-        $env:LocalFirst__Enabled = "false"
+        $env:LocalFirst__Enabled = if ($AllowIsolatedExecutionOnly) { "true" } else { "false" }
         $env:LocalFirst__ReadOnlyMode = "false"
         
+        $tokenKey = $env:Token__Key
+        if ([string]::IsNullOrWhiteSpace($tokenKey)) {
+            $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
+            if (Test-Path $apiProj) {
+                $secrets = dotnet user-secrets list --project $apiProj 2>$null
+                foreach ($line in $secrets) {
+                    if ($line.StartsWith("Token:Key = ")) {
+                        $tokenKey = $line.Substring("Token:Key = ".Length).Trim()
+                        break
+                    }
+                }
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($tokenKey)) {
+            $env:Token__Key = $tokenKey
+        }
+        
         if ($AllowIsolatedExecutionOnly) {
-            $env:Sync__AllowIsolatedLocalRemoteForTesting = "true"
-            $env:ConnectionStrings__DefaultConnection = $Azure2026ConnectionString
-            $env:ConnectionStrings__CON2027 = $Azure2027ConnectionString
+            $env:ConnectionStrings__TestRemoteConnection2026 = $Azure2026ConnectionString
+            $env:ConnectionStrings__TestRemoteConnection2027 = $Azure2027ConnectionString
             $env:ConnectionStrings__LocalConnection2026 = $Local2026ConnectionString
             $env:ConnectionStrings__LocalConnection2027 = $Local2027ConnectionString
         }
@@ -515,22 +629,21 @@ if ($Execute) {
         $apiProcess = Start-Process -FilePath "dotnet" -ArgumentList "`"$apiDll`"" -WorkingDirectory $apiDir -PassThru -NoNewWindow -RedirectStandardOutput $tempLog -RedirectStandardError $tempErr
 
         # Wait for API server readiness
+        $expectedRuntimeMode = if ($AllowIsolatedExecutionOnly) { "OfflineReadWritePilot" } else { "Online" }
         $ready = $false
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         while ($sw.ElapsedMilliseconds -lt 30000 -and -not $ready) {
             Start-Sleep -Milliseconds 500
             try {
                 $st = Invoke-RestMethod -Uri "$baseUrl/api/account/runtime-status" -Method Get -TimeoutSec 2 -ErrorAction SilentlyContinue
-                if ($st -and $st.runtimeMode -eq "Online") {
+                if ($st -and $st.runtimeMode -eq $expectedRuntimeMode) {
                     $ready = $true
                 }
             } catch {}
         }
 
         if (-not $ready) {
-            $errContent = if (Test-Path $tempErr) { Get-Content $tempErr -Raw } else { "" }
-            $outContent = if (Test-Path $tempLog) { Get-Content $tempLog -Raw } else { "" }
-            throw "API_START_TIMEOUT: Dedicated API process failed to become ready on $baseUrl within 30s. $errContent $outContent"
+            throw "API_START_TIMEOUT: Dedicated API process failed to become ready on $baseUrl within 30s."
         }
         Write-Host "Dedicated API process is online at $baseUrl." -ForegroundColor Green
 
@@ -557,17 +670,9 @@ if ($Execute) {
             throw "AUTH_ERROR: Failed to obtain token for 2026."
         }
 
-        # Validate JWT claims
-        $jwtClaims2026 = Decode-JwtPayloadSafe -Jwt $token2026
-        $roles2026 = if ($jwtClaims2026.role) { $jwtClaims2026.role } else { $jwtClaims2026.'http://schemas.microsoft.com/ws/2008/06/identity/claims/role' }
-        $isAdmin2026 = ($roles2026 -is [array] -and $roles2026 -contains "Admin") -or ($roles2026 -eq "Admin")
-        if (-not $isAdmin2026) {
-            throw "AUTH_ERROR: User is not in role Admin."
-        }
-        if ($jwtClaims2026.db -ne "2026") {
-            throw "AUTH_ERROR: Token db claim mismatch. Expected '2026', got '$($jwtClaims2026.db)'."
-        }
-        Write-Host " PASS (Admin authenticated with db=2026)" -ForegroundColor Green
+        # Comprehensive JWT claim validation (Admin role, db claim, exp > now, nbf <= now)
+        Assert-JwtClaims -JwtToken $token2026 -ExpectedDb "2026"
+        Write-Host " PASS (Admin authenticated with db=2026, valid exp/nbf)" -ForegroundColor Green
 
         # B. Call POST /api/sync/pull for 2026
         Write-Host "Executing POST /api/sync/pull for 2026..." -NoNewline
@@ -587,22 +692,17 @@ if ($Execute) {
                     Write-Host "PULL_ERROR_BODY: $($sr.ReadToEnd())" -ForegroundColor Red
                 } catch {}
             }
-            if (Test-Path $tempLog) {
-                Write-Host "API_LOG_DUMP:`n$(Get-Content $tempLog -Raw)" -ForegroundColor Yellow
-            }
-            if (Test-Path $tempErr) {
-                Write-Host "API_ERR_DUMP:`n$(Get-Content $tempErr -Raw)" -ForegroundColor Yellow
-            }
             throw
         }
         Write-Host " PASS (Result: PrevWatermark=$($pullRes2026.previousWatermark), FinalServerVer=$($pullRes2026.finalServerVersion), IsNoOp=$($pullRes2026.isNoOp))" -ForegroundColor Green
 
-        if ($pullRes2026.previousWatermark -ne 0 -or $pullRes2026.finalServerVersion -ne 2) {
-            throw "PULL_RESULT_ERROR: 2026 Pull watermark anomaly. Expected 0 -> 2, got $($pullRes2026.previousWatermark) -> $($pullRes2026.finalServerVersion)."
+        # P0 Invariant: Initial pull must advance 0 -> 2 with isNoOp == false
+        if ($pullRes2026.previousWatermark -ne 0 -or $pullRes2026.finalServerVersion -ne 2 -or $pullRes2026.isNoOp -ne $false) {
+            throw "PULL_RESULT_ERROR: 2026 Pull watermark anomaly. Expected 0 -> 2 with isNoOp=false, got $($pullRes2026.previousWatermark) -> $($pullRes2026.finalServerVersion) (isNoOp=$($pullRes2026.isNoOp))."
         }
 
-        # C. Post-Pull Audit 2026
-        Write-Host "Auditing 2026 post-pull state..." -NoNewline
+        # C. Post-Pull Audit 2026 (Local & Azure Invariance)
+        Write-Host "Auditing 2026 post-pull local state..." -NoNewline
         $locConn2026 = New-Object SqlConnection($Local2026ConnectionString)
         $locConn2026.Open()
         try {
@@ -625,10 +725,17 @@ if ($Execute) {
         }
         Write-Host " PASS (LastServerVersion=2, Daily parity 100% exact)" -ForegroundColor Green
 
+        # Post-Pull Azure Invariance Audit
+        Assert-AzurePostPullInvariance -Year "2026" -AzureConnStr $Azure2026ConnectionString -PreflightData $pre2026
+
         # --- Phase 2: Catch-Up Year 2027 ---
         Write-Host "`n==========================================================================" -ForegroundColor Cyan
         Write-Host "  PHASE 2: CATCH-UP YEAR 2027                                             " -ForegroundColor Cyan
         Write-Host "==========================================================================" -ForegroundColor Cyan
+
+        # P0 Requirement: Re-run full 2027 preflight verification immediately before 2027 execution
+        Write-Host "Re-verifying full preflight for Year 2027 before execution..." -ForegroundColor Cyan
+        $pre2027 = Invoke-PreflightVerification -Year "2027" -AzureConnStr $Azure2027ConnectionString -LocalConnStr $Local2027ConnectionString -IsIsolated $AllowIsolatedExecutionOnly
 
         # A. Obtain Admin JWT for 2027
         Write-Host "Obtaining Admin JWT for 2027..." -NoNewline
@@ -642,17 +749,9 @@ if ($Execute) {
             throw "AUTH_ERROR: Failed to obtain token for 2027."
         }
 
-        # Validate JWT claims
-        $jwtClaims2027 = Decode-JwtPayloadSafe -Jwt $token2027
-        $roles2027 = if ($jwtClaims2027.role) { $jwtClaims2027.role } else { $jwtClaims2027.'http://schemas.microsoft.com/ws/2008/06/identity/claims/role' }
-        $isAdmin2027 = ($roles2027 -is [array] -and $roles2027 -contains "Admin") -or ($roles2027 -eq "Admin")
-        if (-not $isAdmin2027) {
-            throw "AUTH_ERROR: User is not in role Admin."
-        }
-        if ($jwtClaims2027.db -ne "2027") {
-            throw "AUTH_ERROR: Token db claim mismatch. Expected '2027', got '$($jwtClaims2027.db)'."
-        }
-        Write-Host " PASS (Admin authenticated with db=2027)" -ForegroundColor Green
+        # Comprehensive JWT claim validation (Admin role, db claim, exp > now, nbf <= now)
+        Assert-JwtClaims -JwtToken $token2027 -ExpectedDb "2027"
+        Write-Host " PASS (Admin authenticated with db=2027, valid exp/nbf)" -ForegroundColor Green
 
         # B. Call POST /api/sync/pull for 2027
         Write-Host "Executing POST /api/sync/pull for 2027..." -NoNewline
@@ -672,22 +771,17 @@ if ($Execute) {
                     Write-Host "PULL_ERROR_BODY: $($sr.ReadToEnd())" -ForegroundColor Red
                 } catch {}
             }
-            if (Test-Path $tempLog) {
-                Write-Host "API_LOG_DUMP:`n$(Get-Content $tempLog -Raw)" -ForegroundColor Yellow
-            }
-            if (Test-Path $tempErr) {
-                Write-Host "API_ERR_DUMP:`n$(Get-Content $tempErr -Raw)" -ForegroundColor Yellow
-            }
             throw
         }
         Write-Host " PASS (Result: PrevWatermark=$($pullRes2027.previousWatermark), FinalServerVer=$($pullRes2027.finalServerVersion), IsNoOp=$($pullRes2027.isNoOp))" -ForegroundColor Green
 
-        if ($pullRes2027.previousWatermark -ne 0 -or $pullRes2027.finalServerVersion -ne 2) {
-            throw "PULL_RESULT_ERROR: 2027 Pull watermark anomaly. Expected 0 -> 2, got $($pullRes2027.previousWatermark) -> $($pullRes2027.finalServerVersion)."
+        # P0 Invariant: Initial pull must advance 0 -> 2 with isNoOp == false
+        if ($pullRes2027.previousWatermark -ne 0 -or $pullRes2027.finalServerVersion -ne 2 -or $pullRes2027.isNoOp -ne $false) {
+            throw "PULL_RESULT_ERROR: 2027 Pull watermark anomaly. Expected 0 -> 2 with isNoOp=false, got $($pullRes2027.previousWatermark) -> $($pullRes2027.finalServerVersion) (isNoOp=$($pullRes2027.isNoOp))."
         }
 
-        # C. Post-Pull Audit 2027
-        Write-Host "Auditing 2027 post-pull state..." -NoNewline
+        # C. Post-Pull Audit 2027 (Local & Azure Invariance)
+        Write-Host "Auditing 2027 post-pull local state..." -NoNewline
         $locConn2027 = New-Object SqlConnection($Local2027ConnectionString)
         $locConn2027.Open()
         try {
@@ -710,6 +804,9 @@ if ($Execute) {
         }
         Write-Host " PASS (LastServerVersion=2, Daily parity 100% exact)" -ForegroundColor Green
 
+        # Post-Pull Azure Invariance Audit
+        Assert-AzurePostPullInvariance -Year "2027" -AzureConnStr $Azure2027ConnectionString -PreflightData $pre2027
+
         Write-Host "`n==========================================================================" -ForegroundColor Green
         Write-Host "  CONTROLLED CATCH-UP EXECUTION COMPLETED SUCCESSFULLY                    " -ForegroundColor Green
         Write-Host "==========================================================================" -ForegroundColor Green
@@ -721,12 +818,14 @@ if ($Execute) {
                 FinalServerVersion = $pullRes2026.finalServerVersion
                 IsNoOp = $pullRes2026.isNoOp
                 DailyParity = "EXACT_MATCH"
+                AzureInvariance = "STRICTLY_PRESERVED"
             }
             Year2027 = @{
                 PreviousWatermark = $pullRes2027.previousWatermark
                 FinalServerVersion = $pullRes2027.finalServerVersion
                 IsNoOp = $pullRes2027.isNoOp
                 DailyParity = "EXACT_MATCH"
+                AzureInvariance = "STRICTLY_PRESERVED"
             }
             OverallStatus = "CATCHUP_SUCCESS"
         }
@@ -746,11 +845,11 @@ if ($Execute) {
         Remove-Item Env:\Sync__AuthoritativeTrackingEnabled -ErrorAction SilentlyContinue
         Remove-Item Env:\LocalFirst__Enabled -ErrorAction SilentlyContinue
         Remove-Item Env:\LocalFirst__ReadOnlyMode -ErrorAction SilentlyContinue
+        Remove-Item Env:\Token__Key -ErrorAction SilentlyContinue
         
         if ($AllowIsolatedExecutionOnly) {
-            Remove-Item Env:\Sync__AllowIsolatedLocalRemoteForTesting -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__DefaultConnection -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__CON2027 -ErrorAction SilentlyContinue
+            Remove-Item Env:\ConnectionStrings__TestRemoteConnection2026 -ErrorAction SilentlyContinue
+            Remove-Item Env:\ConnectionStrings__TestRemoteConnection2027 -ErrorAction SilentlyContinue
             Remove-Item Env:\ConnectionStrings__LocalConnection2026 -ErrorAction SilentlyContinue
             Remove-Item Env:\ConnectionStrings__LocalConnection2027 -ErrorAction SilentlyContinue
         }
@@ -760,6 +859,7 @@ if ($Execute) {
 
         # Zero memory variables
         $Password = $null
+        $tokenKey = $null
         $token2026 = $null
         $token2027 = $null
     }

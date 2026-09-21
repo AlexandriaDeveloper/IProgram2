@@ -53,6 +53,11 @@ builder.Services
 .AddPersistence()
 .AddApplicationServices();
 
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddScoped<Auth.Infrastructure.Sync.Push.IRemoteDatabaseConnectionFactory, Auth.Api.Testing.IsolatedTestRemoteDatabaseConnectionFactory>();
+}
+
 builder.Services.AddSignalR(); // Add SignalR Service
 
 

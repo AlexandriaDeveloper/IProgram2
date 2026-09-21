@@ -7,21 +7,16 @@ using System.Threading.Tasks;
 using Core.Exceptions;
 using Core.Interfaces;
 using Core.Models.Sync;
-using Microsoft.Extensions.Configuration;
 
 namespace Auth.Infrastructure.Sync.Push
 {
     public class AzureRemoteDatabaseConnectionFactory : IRemoteDatabaseConnectionFactory
     {
         private readonly ISyncConnectionProvider _syncConnectionProvider;
-        private readonly IConfiguration? _configuration;
 
-        public AzureRemoteDatabaseConnectionFactory(
-            ISyncConnectionProvider syncConnectionProvider,
-            IConfiguration? configuration = null)
+        public AzureRemoteDatabaseConnectionFactory(ISyncConnectionProvider syncConnectionProvider)
         {
             _syncConnectionProvider = syncConnectionProvider ?? throw new ArgumentNullException(nameof(syncConnectionProvider));
-            _configuration = configuration;
         }
 
         public async Task<DbConnection> CreateOpenConnectionAsync(string databaseId, CancellationToken cancellationToken)
@@ -41,14 +36,7 @@ namespace Auth.Infrastructure.Sync.Push
                 throw new PhysicalDatabaseMismatchException(
                     $"Physical database mismatch: Remote Azure target for '{databaseId}' must be '{expectedRemoteDb}', but found '{builder.InitialCatalog}'.");
             }
-
-            var allowIsolatedLocalRemote = _configuration != null &&
-                _configuration.GetValue<bool>("Sync:AllowIsolatedLocalRemoteForTesting", false);
-
-            if (!allowIsolatedLocalRemote)
-            {
-                DatabaseBindingValidator.ValidateAzureBinding(builder.DataSource, builder.InitialCatalog);
-            }
+            DatabaseBindingValidator.ValidateAzureBinding(builder.DataSource, builder.InitialCatalog);
 
             var connection = new SqlConnection(remoteConnStr);
             await connection.OpenAsync(cancellationToken);

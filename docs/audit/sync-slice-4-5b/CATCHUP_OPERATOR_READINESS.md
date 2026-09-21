@@ -18,11 +18,22 @@ Production state convergence must **never** be achieved by manual database patch
   $$\text{Admin HTTP Request} \longrightarrow \text{POST /api/sync/pull} \longrightarrow \text{LocalDailyPullService} \longrightarrow \text{AzureFencedBatchReader} \longrightarrow \text{LocalPullTransactionCoordinator}$$
   using the standard Dependency Injection container and transaction guarantees.
 
-### 1.2 Dedicated Transient API Process
-To eliminate interference with standard production operations and prevent external exposure:
+### 1.2 Dedicated Transient API Process & Strict Zero-Bypass Production Factory
+To eliminate interference with standard production operations, prevent external exposure, and ensure zero test artifacts in production:
 1. **Loopback Isolation:** The operator starts a dedicated, temporary ASP.NET Core API process bound exclusively to `http://127.0.0.1:<port>`.
-2. **Zero File Mutations:** The operator **never** modifies `appsettings.json` or `appsettings.Development.json`.
-3. **Transient Environment Overrides:** Runtime flags are supplied only via process-level environment variables during execution:
+2. **Zero Production Test Bypass:** `AzureRemoteDatabaseConnectionFactory.cs` contains zero test bypasses, zero test configuration flags, and strictly enforces `DatabaseBindingValidator.ValidateAzureBinding`. For isolated testing, a separate `IsolatedTestRemoteDatabaseConnectionFactory` is registered only when `ASPNETCORE_ENVIRONMENT == "Testing"`.
+3. **Transient Isolated Databases Only:** The test harness provisions and operates exclusively on transient databases (`IProgramRemoteSync2026_Test`, `IProgramRemoteSync2027_Test`, `IProgramLocalDb2026_Test`, `IProgramLocalDb2027_Test`). An invariant assertion prohibits touch of operational databases (`IProgramDb2026`, `IProgramDb2027`, `IProgramLocalDb2026`, `IProgramLocalDb2027`), and all test databases are dropped during teardown.
+4. **Synthetic Admin Identity:** Test authentication uses an isolated synthetic user (`isolated_admin`) with a standard ASP.NET Identity v3 PBKDF2 hash. Operational `AspNetUsers` rows are never copied or inspected.
+5. **Operator Credentials Guard:** Operator credentials require `-Username` / `-Password` (or `IPROGRAM_OPERATOR_USERNAME` / `IPROGRAM_OPERATOR_PASSWORD`). Fallback to `tests/e2e/.env` is completely eliminated.
+6. **SQL-Side Lease Validation:** Lease expiration is evaluated directly by SQL Server via `CASE WHEN [ActiveLeaseToken] IS NOT NULL AND [LeaseExpiresAtUtc] >= SYSUTCDATETIME() THEN 1 ELSE 0 END`. Client clock skew is eliminated.
+7. **JWT Token Claims & Expiration Validation:** Before dispatching `/api/sync/pull`, the operator decodes and validates: `Admin` role, `db` claim matching the target year, required unexpired `exp` claim (`exp > nowEpoch`), and `nbf` if present (`nbf <= nowEpoch`).
+8. **Initial Catch-Up Invariant:** Initial pull requires `previousWatermark == 0`, `finalServerVersion == 2`, and `isNoOp == false`.
+9. **Full 2027 Preflight Repetition:** Full preflight validation for Year 2027 is executed again immediately before Phase 2 catch-up.
+10. **Post-Pull Azure Invariance Audit:** Following each pull, the operator verifies Azure `CurrentVersion == 2`, `ServerChangeFeed == 2`, `Tombstones == 1`, `ProcessedOperations == 0`, and deterministic Daily hash parity.
+11. **Sanitized Output:** Raw API stdout/stderr dumps are deleted upon process teardown without emission to console.
+12. **Committed Configuration Guard:** Checks only existing configuration keys (`Sync:PullEnabled`, `Sync:PushEnabled`, `Sync:AuthoritativeTrackingEnabled`, `LocalFirst:Enabled`, `LocalFirst:ReadOnlyMode`). Non-existent keys are not referenced.
+13. **Zero File Mutations:** The operator **never** modifies `appsettings.json` or `appsettings.Development.json`.
+14. **Transient Environment Overrides:** Runtime flags are supplied only via process-level environment variables during execution:
    ```text
    Sync__PullEnabled = true
    Sync__PushEnabled = false
@@ -30,7 +41,7 @@ To eliminate interference with standard production operations and prevent extern
    LocalFirst__Enabled = false
    LocalFirst__ReadOnlyMode = false
    ```
-4. **Deterministic Teardown:** In all execution paths (`try ... finally`), the dedicated process is terminated, and all transient environment variables and in-memory tokens are immediately cleared.
+15. **Deterministic Teardown:** In all execution paths (`try ... finally`), the dedicated process is terminated, and all transient environment variables and in-memory tokens are immediately cleared.
 
 ---
 
