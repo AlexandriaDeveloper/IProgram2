@@ -40,6 +40,97 @@ namespace Auth.Infrastructure.Sync.Pull
             if (leaseToken == Guid.Empty) throw new ArgumentException("Lease token cannot be empty.", nameof(leaseToken));
 
             var normDbId = databaseId.Trim();
+            if (normDbId != "2026" && normDbId != "2027")
+            {
+                throw new InvalidDatabaseSelectionException($"Unsupported canonical DatabaseId '{databaseId}'. Expected '2026' or '2027'.");
+            }
+
+            // P0: Exact batch database match validation
+            if (!string.Equals(batch.DatabaseId, normDbId, StringComparison.Ordinal))
+            {
+                throw new SyncPullBatchDatabaseMismatchException(
+                    $"Batch DatabaseId '{batch.DatabaseId}' does not match target database '{normDbId}'.");
+            }
+
+            // P0: Pre-flight watermark and invariant validation
+            if (batch.LowWatermark < 0)
+            {
+                throw new SyncPullBatchMalformedException($"Invalid batch LowWatermark {batch.LowWatermark}. Must be >= 0.");
+            }
+
+            if (batch.HighWatermark < batch.LowWatermark)
+            {
+                throw new SyncPullBatchMalformedException(
+                    $"Invalid batch watermarks: HighWatermark ({batch.HighWatermark}) is less than LowWatermark ({batch.LowWatermark}).");
+            }
+
+            if (batch.IsNoOp)
+            {
+                if (batch.HighWatermark != batch.LowWatermark)
+                {
+                    throw new SyncPullBatchMalformedException(
+                        $"NoOp batch must have HighWatermark ({batch.HighWatermark}) == LowWatermark ({batch.LowWatermark}).");
+                }
+                if (batch.Commands != null && batch.Commands.Count > 0)
+                {
+                    throw new SyncPullBatchMalformedException(
+                        $"NoOp batch must have empty commands list, but found {batch.Commands.Count} commands.");
+                }
+            }
+            else
+            {
+                if (batch.HighWatermark <= batch.LowWatermark)
+                {
+                    throw new SyncPullBatchMalformedException(
+                        $"Non-NoOp batch must have HighWatermark ({batch.HighWatermark}) > LowWatermark ({batch.LowWatermark}).");
+                }
+                if (batch.Commands == null)
+                {
+                    throw new SyncPullBatchMalformedException("Non-NoOp batch commands list cannot be null.");
+                }
+            }
+
+            if (batch.Commands != null)
+            {
+                foreach (var cmd in batch.Commands)
+                {
+                    if (cmd.EntitySyncId == Guid.Empty)
+                    {
+                        throw new SyncPullBatchMalformedException("Batch command EntitySyncId cannot be empty Guid.");
+                    }
+
+                    if (cmd.TerminalServerVersion <= batch.LowWatermark || cmd.TerminalServerVersion > batch.HighWatermark)
+                    {
+                        throw new SyncPullBatchMalformedException(
+                            $"Command TerminalServerVersion {cmd.TerminalServerVersion} for entity '{cmd.EntitySyncId}' is outside batch range ({batch.LowWatermark}, {batch.HighWatermark}].");
+                    }
+
+                    if (cmd.CommandType == PullCommandType.Upsert)
+                    {
+                        if (cmd.Snapshot == null)
+                        {
+                            throw new SyncPullBatchMalformedException($"Upsert command for entity '{cmd.EntitySyncId}' has null Snapshot.");
+                        }
+                        if (cmd.Snapshot.SyncId != cmd.EntitySyncId)
+                        {
+                            throw new SyncPullBatchMalformedException(
+                                $"Upsert command EntitySyncId '{cmd.EntitySyncId}' does not match Snapshot.SyncId '{cmd.Snapshot.SyncId}'.");
+                        }
+                    }
+                    else if (cmd.CommandType == PullCommandType.Delete)
+                    {
+                        if (cmd.Snapshot != null)
+                        {
+                            throw new SyncPullBatchMalformedException($"Delete command for entity '{cmd.EntitySyncId}' must have null Snapshot.");
+                        }
+                    }
+                    else
+                    {
+                        throw new SyncPullBatchMalformedException($"Unsupported batch command type '{cmd.CommandType}'.");
+                    }
+                }
+            }
+
             var localConnStr = _syncConnectionProvider.GetLocalConnectionString(normDbId);
 
             var builder = new SqlConnectionStringBuilder(localConnStr);
@@ -130,8 +221,10 @@ namespace Auth.Infrastructure.Sync.Pull
                 }
 
                 // Step 3: Apply Coalesced Commands by SyncId Only
-                foreach (var cmd in batch.Commands)
+                if (batch.Commands != null)
                 {
+                    foreach (var cmd in batch.Commands)
+                    {
                     cancellationToken.ThrowIfCancellationRequested();
 
                     if (cmd.CommandType == PullCommandType.Delete)
@@ -243,6 +336,7 @@ namespace Auth.Infrastructure.Sync.Pull
                         result.Succeeded++;
                     }
                 }
+            }
 
                 // Step 4: Atomic Checkpoint Update with Lease Fencing
                 await using (var checkpointCmd = conn.CreateCommand())

@@ -89,7 +89,11 @@ namespace Auth.Infrastructure.Sync.Pull
                     _logger.LogInformation("Pull for DatabaseId {DatabaseId} is a NO-OP. Local checkpoint {Checkpoint} matches server.",
                         normDbId, localCheckpoint);
 
-                    await RecordSuccessfulSyncAttemptAsync(localConnStr, normDbId, leaseToken, cancellationToken);
+                    // P0: Verify current pull still owns an unexpired lease before returning success
+                    await _leaseManager.ValidateLeaseOwnershipAsync(normDbId, leaseToken, cancellationToken);
+
+                    // P0: Atomically record successful sync attempt with strict lease fencing
+                    await RecordSuccessfulNoOpPullAsync(localConnStr, normDbId, leaseToken, cancellationToken);
 
                     return new PullResultDto
                     {
@@ -116,19 +120,7 @@ namespace Auth.Infrastructure.Sync.Pull
 
         private void ValidatePhysicalBindings(string databaseId)
         {
-            // Azure validation
-            var remoteConnStr = _syncConnectionProvider.GetRemoteConnectionString(databaseId);
-            var remoteBuilder = new SqlConnectionStringBuilder(remoteConnStr);
-            var expectedRemoteDb = DatabaseBindingValidator.GetExpectedRemoteDatabaseName(databaseId);
-
-            if (!string.Equals(remoteBuilder.InitialCatalog, expectedRemoteDb, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new PhysicalDatabaseMismatchException(
-                    $"Physical database mismatch: Remote Azure target for '{databaseId}' must be '{expectedRemoteDb}', but found '{remoteBuilder.InitialCatalog}'.");
-            }
-            DatabaseBindingValidator.ValidateAzureBinding(remoteBuilder.DataSource, remoteBuilder.InitialCatalog);
-
-            // Local validation
+            // Local physical binding validation
             var localConnStr = _syncConnectionProvider.GetLocalConnectionString(databaseId);
             var localBuilder = new SqlConnectionStringBuilder(localConnStr);
             DatabaseBindingValidator.ValidateLocalBinding(localBuilder.DataSource, localBuilder.InitialCatalog);
@@ -174,29 +166,27 @@ namespace Auth.Infrastructure.Sync.Pull
             }
         }
 
-        private static async Task RecordSuccessfulSyncAttemptAsync(string localConnStr, string databaseId, Guid leaseToken, CancellationToken cancellationToken)
+        private static async Task RecordSuccessfulNoOpPullAsync(string localConnStr, string databaseId, Guid leaseToken, CancellationToken cancellationToken)
         {
-            try
-            {
-                await using var conn = new SqlConnection(localConnStr);
-                await conn.OpenAsync(cancellationToken);
+            await using var conn = new SqlConnection(localConnStr);
+            await conn.OpenAsync(cancellationToken);
 
-                await using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"
-                    UPDATE [sync].[LocalState]
-                    SET LastSuccessfulPullUtc = SYSUTCDATETIME(),
-                        LastSyncAttemptUtc = SYSUTCDATETIME(),
-                        LastSyncError = NULL
-                    WHERE DatabaseId = @DatabaseId
-                      AND ActiveLeaseToken = @LeaseToken;";
-                cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
-                cmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE [sync].[LocalState]
+                SET LastSuccessfulPullUtc = SYSUTCDATETIME(),
+                    LastSyncAttemptUtc = SYSUTCDATETIME(),
+                    LastSyncError = NULL
+                WHERE DatabaseId = @DatabaseId
+                  AND ActiveLeaseToken = @LeaseToken
+                  AND LeaseExpiresAtUtc >= SYSUTCDATETIME();";
+            cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
+            cmd.Parameters.AddWithValue("@LeaseToken", leaseToken);
 
-                await cmd.ExecuteNonQueryAsync(cancellationToken);
-            }
-            catch
+            var rows = await cmd.ExecuteNonQueryAsync(cancellationToken);
+            if (rows == 0)
             {
-                // Non-critical diagnostic update
+                throw new SyncLeaseExpiredException($"Failed to record NO-OP sync checkpoint. Pull lease expired or stolen for DatabaseId '{databaseId}'.");
             }
         }
     }

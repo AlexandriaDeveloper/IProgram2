@@ -19,7 +19,7 @@ using Xunit;
 
 namespace Auth.UnitTests
 {
-    public class DailyPullIntegrationTests
+    public class DailyPullAlgorithmUnitTests
     {
         private static IConfiguration CreateConfig(bool pullEnabled = true)
         {

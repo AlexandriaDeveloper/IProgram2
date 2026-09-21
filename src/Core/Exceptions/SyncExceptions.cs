@@ -166,5 +166,30 @@ namespace Core.Exceptions
         public override string ErrorCode => "PULL_LOCAL_CHECKPOINT_CHANGED";
         public SyncPullLocalCheckpointChangedException(string message = "تغيرت نقطة التفتيش المحلية أثناء تنفيذ عملية السحب.") : base(message) { }
     }
+
+    public class SyncPullBatchDatabaseMismatchException : SyncDomainException
+    {
+        public override string ErrorCode => "PULL_BATCH_DATABASE_MISMATCH";
+        public SyncPullBatchDatabaseMismatchException(string message) : base(message) { }
+    }
+
+    public class SyncPullBatchMalformedException : SyncDomainException
+    {
+        public override string ErrorCode => "PULL_BATCH_MALFORMED";
+        public SyncPullBatchMalformedException(string message) : base(message) { }
+    }
+
+    public class SyncPullAuthoritativeStateMismatchException : SyncDomainException
+    {
+        public override string ErrorCode => "PULL_AUTHORITATIVE_STATE_MISMATCH";
+        public SyncPullAuthoritativeStateMismatchException(string message) : base(message) { }
+    }
+
+    public class SyncPullFeedMalformedException : SyncDomainException
+    {
+        public override string ErrorCode => "PULL_FEED_MALFORMED";
+        public SyncPullFeedMalformedException(string message) : base(message) { }
+    }
 }
+
 

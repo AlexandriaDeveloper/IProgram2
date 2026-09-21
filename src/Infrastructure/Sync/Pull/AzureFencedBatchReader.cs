@@ -138,6 +138,12 @@ namespace Auth.Infrastructure.Sync.Pull
 
                 foreach (var evt in rawFeedEvents)
                 {
+                    if (evt.EntitySyncId == Guid.Empty)
+                    {
+                        throw new SyncPullFeedMalformedException(
+                            $"Feed event at ServerVersion {evt.ServerVersion} has empty EntitySyncId for DatabaseId '{normDbId}'.");
+                    }
+
                     if (lastSeenVersion.HasValue && evt.ServerVersion == lastSeenVersion.Value)
                     {
                         throw new SyncPullDuplicateVersionException(
@@ -303,6 +309,12 @@ namespace Auth.Infrastructure.Sync.Pull
                         {
                             throw new SyncPullAuthoritativeRowMissingException(
                                 $"Terminal mutation '{terminalEvent.OperationType}' for Daily SyncId '{syncId}' not found in authoritative dbo.Daily table.");
+                        }
+
+                        if (string.Equals(terminalEvent.OperationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase) && snapshot.IsActive)
+                        {
+                            throw new SyncPullAuthoritativeStateMismatchException(
+                                $"Terminal SOFT_DELETE mutation for Daily SyncId '{syncId}' at version {terminalVersion} has IsActive=true in authoritative dbo.Daily.");
                         }
 
                         commands.Add(PullCommand.CreateUpsert(snapshot, terminalVersion));

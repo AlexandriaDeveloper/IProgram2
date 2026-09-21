@@ -333,6 +333,42 @@ namespace Api.Controllers
                     message = ex.Message
                 });
             }
+            catch (SyncPullBatchDatabaseMismatchException ex)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncPullBatchMalformedException ex)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncPullFeedMalformedException ex)
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
+            catch (SyncPullAuthoritativeStateMismatchException ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
             catch (SyncPullUnsupportedEntityTypeException ex)
             {
                 return StatusCode(StatusCodes.Status400BadRequest, new
