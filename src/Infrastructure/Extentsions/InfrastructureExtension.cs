@@ -68,6 +68,12 @@ public static class InfrastructureExtension
         services.AddScoped<Core.Interfaces.IAuthoritativeCutoverGuard, Sync.Authoritative.AuthoritativeCutoverGuard>();
         services.AddScoped<Sync.Authoritative.AuthoritativeTrackingSafetyInterceptor>();
 
+        // Slice 4.5A - Daily Pull Engine Foundation
+        services.AddScoped<Core.Interfaces.ILocalPullLeaseManager, Sync.Pull.LocalPullLeaseManager>();
+        services.AddScoped<Core.Interfaces.IAzureFencedBatchReader, Sync.Pull.AzureFencedBatchReader>();
+        services.AddScoped<Core.Interfaces.ILocalPullTransactionCoordinator, Sync.Pull.LocalPullTransactionCoordinator>();
+        services.AddScoped<Core.Interfaces.ILocalDailyPullService, Sync.Pull.LocalDailyPullService>();
+
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {
             var dbProvider = serviceProvider.GetRequiredService<Core.Interfaces.IDbConnectionProvider>();

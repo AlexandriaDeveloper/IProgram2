@@ -428,8 +428,8 @@ namespace Auth.UnitTests
             var filesWithTransaction = new List<string>();
             foreach (var file in csFiles)
             {
-                // Raw ADO.NET transactions in Sync Push coordinator are not EF Core DbContext transactions
-                if (file.Contains(Path.Combine("Sync", "Push")))
+                // Raw ADO.NET transactions in Sync Push and Pull coordinators are not EF Core DbContext transactions
+                if (file.Contains(Path.Combine("Sync", "Push")) || file.Contains(Path.Combine("Sync", "Pull")))
                 {
                     continue;
                 }

@@ -748,7 +748,9 @@ namespace Auth.UnitTests
                 var fileName = System.IO.Path.GetFileName(file);
 
                 // AzurePushTransactionCoordinator is the approved coordinator for Slice 4.3C
-                if (string.Equals(fileName, "AzurePushTransactionCoordinator.cs", StringComparison.OrdinalIgnoreCase))
+                // LocalPullTransactionCoordinator is the approved local coordinator for Slice 4.5A
+                if (string.Equals(fileName, "AzurePushTransactionCoordinator.cs", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(fileName, "LocalPullTransactionCoordinator.cs", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
