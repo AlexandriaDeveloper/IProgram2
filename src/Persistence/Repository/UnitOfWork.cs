@@ -166,9 +166,6 @@ namespace Persistence.Repository
                 await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
                 try
                 {
-                    // Step A: Save business changes without accepting changes yet
-                    var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
-
                     var dbConnection = _context.Database.GetDbConnection();
                     if (dbConnection.State != ConnectionState.Open)
                     {
@@ -182,11 +179,14 @@ namespace Persistence.Repository
                         throw new InvalidDatabaseSelectionException("Canonical database ID is missing for outbox coordination.");
                     }
 
-                    // Step B: Query LocalState on the exact same connection and transaction
-                    var (deviceId, lastServerVersion) = await FetchLocalStateAsync(
+                    // Step 1: Query and Lock LocalState with UPDLOCK, HOLDLOCK and validate no active sync lease exists
+                    var (deviceId, lastServerVersion) = await LockAndValidateLocalStateForOfflineWriteAsync(
                         dbConnection, dbTransaction, databaseId, cancellationToken);
 
-                    // Step C: Insert corresponding [sync].[LocalOutbox] records on the exact same connection and transaction
+                    // Step 2: Save business changes without accepting changes yet
+                    var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
+
+                    // Step 3: Insert corresponding [sync].[LocalOutbox] records on the exact same connection and transaction
                     var operationTimestamp = DateTime.UtcNow;
                     foreach (var mutation in capturedMutations)
                     {
@@ -211,10 +211,10 @@ namespace Persistence.Repository
                             cancellationToken: cancellationToken);
                     }
 
-                    // Step D: Commit transaction atomically (both business write and outbox write succeed together)
+                    // Step 4: Commit transaction atomically (both business write and outbox write succeed together)
                     await transaction.CommitAsync(cancellationToken);
 
-                    // Step E: Accept tracked changes only after successful commit
+                    // Step 5: Accept tracked changes only after successful commit
                     _context.ChangeTracker.AcceptAllChanges();
 
                     return saveResult;
@@ -400,7 +400,7 @@ namespace Persistence.Repository
             });
         }
 
-        private static async Task<(Guid DeviceId, long LastServerVersion)> FetchLocalStateAsync(
+        private static async Task<(Guid DeviceId, long LastServerVersion)> LockAndValidateLocalStateForOfflineWriteAsync(
             DbConnection connection,
             DbTransaction transaction,
             string databaseId,
@@ -408,7 +408,19 @@ namespace Persistence.Repository
         {
             using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;
-            cmd.CommandText = "SELECT TOP (1) [DeviceId], [LastServerVersion] FROM [sync].[LocalState] WHERE [DatabaseId] = @DatabaseId";
+            cmd.CommandText = @"
+                SELECT TOP (1) 
+                    [DeviceId], 
+                    [LastServerVersion], 
+                    [ActiveLeaseToken], 
+                    [LeaseExpiresAtUtc],
+                    CASE 
+                        WHEN [ActiveLeaseToken] IS NOT NULL AND [LeaseExpiresAtUtc] >= SYSUTCDATETIME() 
+                        THEN 1 
+                        ELSE 0 
+                    END AS [IsActiveSyncLease]
+                FROM [sync].[LocalState] WITH (UPDLOCK, HOLDLOCK)
+                WHERE [DatabaseId] = @DatabaseId;";
 
             var param = cmd.CreateParameter();
             param.ParameterName = "@DatabaseId";
@@ -423,6 +435,13 @@ namespace Persistence.Repository
 
             var deviceId = reader.GetGuid(0);
             var lastServerVersion = reader.GetInt64(1);
+            var isActiveSyncLease = reader.GetInt32(4) == 1;
+
+            if (isActiveSyncLease)
+            {
+                throw new SyncLocalWriteBlockedActiveSyncException(
+                    $"Offline write for database '{databaseId}' is blocked because an active sync operation (Push or Pull) is currently in progress under lease fence.");
+            }
 
             if (deviceId == Guid.Empty)
             {

@@ -189,5 +189,60 @@ namespace Auth.UnitTests
             Assert.True(DatabaseBindingValidator.IsLocalServerEndpoint(builder.DataSource));
             Assert.False(DatabaseBindingValidator.IsRemoteServerEndpoint(builder.DataSource));
         }
+
+        [Fact]
+        public void ProductionDatabaseBindingValidator_StrictlyEnforcesTrustedDatabaseNames_WithoutTestPrefixBleed()
+        {
+            var randomPullRemote = "IProgramPullRemote_" + Guid.NewGuid().ToString("N")[..8];
+            var randomPullLocal = "IProgramPullLocal_" + Guid.NewGuid().ToString("N")[..8];
+
+            // 1. IProgramPullRemote_random rejected by production validator
+            Assert.False(DatabaseBindingValidator.IsRemoteDatabaseName(randomPullRemote));
+            Assert.False(DatabaseBindingValidator.IsLocalDatabaseName(randomPullRemote));
+            Assert.Throws<Core.Exceptions.PhysicalDatabaseMismatchException>(() =>
+                DatabaseBindingValidator.ValidateTargetDatabase("2026", randomPullRemote, isLocalTarget: false));
+            Assert.Throws<Core.Exceptions.PhysicalDatabaseMismatchException>(() =>
+                DatabaseBindingValidator.ValidateTargetDatabase("2026", randomPullRemote, isLocalTarget: true));
+
+            // 2. IProgramPullLocal_random rejected by production validator
+            Assert.False(DatabaseBindingValidator.IsLocalDatabaseName(randomPullLocal));
+            Assert.False(DatabaseBindingValidator.IsRemoteDatabaseName(randomPullLocal));
+            Assert.Throws<Core.Exceptions.PhysicalDatabaseMismatchException>(() =>
+                DatabaseBindingValidator.ValidateTargetDatabase("2026", randomPullLocal, isLocalTarget: true));
+            Assert.Throws<Core.Exceptions.PhysicalDatabaseMismatchException>(() =>
+                DatabaseBindingValidator.ValidateTargetDatabase("2026", randomPullLocal, isLocalTarget: false));
+
+            // 3. IProgramDb2026 accepted remote
+            Assert.True(DatabaseBindingValidator.IsRemoteDatabaseName("IProgramDb2026"));
+            Assert.False(DatabaseBindingValidator.IsLocalDatabaseName("IProgramDb2026"));
+            DatabaseBindingValidator.ValidateTargetDatabase("2026", "IProgramDb2026", isLocalTarget: false);
+
+            // 4. IProgramDb2027 accepted remote
+            Assert.True(DatabaseBindingValidator.IsRemoteDatabaseName("IProgramDb2027"));
+            Assert.False(DatabaseBindingValidator.IsLocalDatabaseName("IProgramDb2027"));
+            DatabaseBindingValidator.ValidateTargetDatabase("2027", "IProgramDb2027", isLocalTarget: false);
+
+            // 5. Approved existing local test variants behave exactly as before PR
+            var approvedLocalVariants = new[]
+            {
+                "IProgramLocalDb2026",
+                "IProgramLocalDb2027",
+                "IProgramLocalDb2026_Test",
+                "IProgramLocalDb2027_Test",
+                "IProgramLocalDb2026_SmokeTest",
+                "IProgramLocalDb2027_SmokeTest"
+            };
+
+            foreach (var variant in approvedLocalVariants)
+            {
+                Assert.True(DatabaseBindingValidator.IsLocalDatabaseName(variant));
+                Assert.False(DatabaseBindingValidator.IsRemoteDatabaseName(variant));
+            }
+
+            DatabaseBindingValidator.ValidateTargetDatabase("2026", "IProgramLocalDb2026_Test", isLocalTarget: true);
+            DatabaseBindingValidator.ValidateTargetDatabase("2027", "IProgramLocalDb2027_Test", isLocalTarget: true);
+            DatabaseBindingValidator.ValidateTargetDatabase("2026", "IProgramLocalDb2026_SmokeTest", isLocalTarget: true);
+            DatabaseBindingValidator.ValidateTargetDatabase("2027", "IProgramLocalDb2027_SmokeTest", isLocalTarget: true);
+        }
     }
 }

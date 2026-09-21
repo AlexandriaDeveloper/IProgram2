@@ -156,6 +156,12 @@ namespace Auth.Api.Middleware
                     return true;
                 }
 
+                if (string.Equals(path, "/api/sync/pull", StringComparison.OrdinalIgnoreCase) &&
+                    configuration?.GetValue<bool>("Sync:PullEnabled", false) == true)
+                {
+                    return true;
+                }
+
                 return false;
             }
 
