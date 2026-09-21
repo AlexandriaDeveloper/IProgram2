@@ -6,25 +6,6 @@ test.describe('Offline Read-Only Runtime E2E Verification', () => {
   test.beforeEach(async ({ page }) => {
     // Stub heavy background video streams to 200 OK empty to prevent network starvation and console errors
     await page.route('**/*.{mov,mp4}', route => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
-
-    // Reroute hardcoded localhost/api requests (port 80, 5000, etc.) to active E2E_BASE_URL
-    const baseUrl = process.env.E2E_BASE_URL;
-    if (baseUrl) {
-      await page.route(/http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?\/migrationHub/, async route => {
-        await route.fulfill({ status: 405, contentType: 'application/json', body: JSON.stringify({ message: 'Method Not Allowed' }) });
-      });
-
-      await page.route(/http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?\/api\//, async route => {
-        try {
-          const req = route.request();
-          const targetUrl = req.url().replace(/http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?\/api\//, `${baseUrl}/api/`);
-          const response = await page.request.fetch(req, { url: targetUrl });
-          await route.fulfill({ response });
-        } catch (e) {
-          await route.abort();
-        }
-      });
-    }
   });
 
   test('Navbar renders prominent Read-Only Indicator badge on login page', async ({ page }) => {
