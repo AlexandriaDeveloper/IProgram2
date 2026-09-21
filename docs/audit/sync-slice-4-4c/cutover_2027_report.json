@@ -1,0 +1,43 @@
+{
+  "Slice": "4.4C",
+  "AuditType": "Controlled Authoritative Tracking Production Cutover",
+  "DatabaseId": "2027",
+  "TimestampUtc": "2026-09-21T01:32:10Z",
+  "PreCutoverState": {
+    "AzureServerVersion": 0,
+    "LocalLastServerVersion": 0,
+    "Status": "CLEAN_BASELINE"
+  },
+  "CanaryLifecycle": {
+    "LogicalPrefix": "SYNC_CUTOVER_CANARY_2027",
+    "CanarySyncIdHash": "910E347505586896",
+    "PostInsertAzureServerVersion": 1,
+    "PostHardDeleteAzureServerVersion": 2,
+    "ExpectedFinalAzureServerVersion": 2,
+    "ActualFinalAzureServerVersion": 2,
+    "InsertFeedVerified": true,
+    "HardDeleteFeedVerified": true,
+    "TombstoneVerified": true,
+    "ProcessedOperationsCount": 0,
+    "LocalOutboxCount": 0
+  },
+  "PostCutoverState": {
+    "AzureCurrentVersion": 2,
+    "LocalLastServerVersion": 0,
+    "Classification": "TRACKED_VERSION_GAP",
+    "TrackedVersionGapExplanation": "Azure versions 1..2 advance strictly via tracked canary lifecycle; local checkpoint remains 0 until Pull rollout."
+  },
+  "BusinessDataParity": {
+    "AzureDailyRowCount": 14,
+    "LocalDailyRowCount": 14,
+    "DailyScalarHashMatch": true,
+    "ParityStatus": "EXACT_PARITY_CONFIRMED"
+  },
+  "SafetyGuards": {
+    "CommittedAuthoritativeTrackingDefault": false,
+    "CommittedPushDefault": false,
+    "CommittedLegacyMigrationDefault": false,
+    "RuntimeAuthoritativeTrackingPostCutover": "ACTIVATED_ONLINE",
+    "DirectSqlBusinessDmlExecuted": 0
+  }
+}
