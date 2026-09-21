@@ -4,7 +4,7 @@
 
 This audit performs a strictly **READ-ONLY** baseline reconciliation between the authoritative Azure production databases (IProgramDb2026, IProgramDb2027) and the local offline replica databases (IProgramLocalDb2026, IProgramLocalDb2027).
 
-- **Audit Date (UTC):** 2026-09-20 23:16:32 UTC
+- **Audit Date (UTC):** 2026-09-21 01:10:57 UTC
 - **Scope:** `dbo.Daily`, `sync.ServerState`, `sync.LocalState`, `sync.BootstrapManifest`, `sync.LocalOutbox`.
 - **Azure Access:** Strictly SELECT queries only. Zero DML (INSERT/UPDATE/DELETE/MERGE), zero DDL, zero migrations.
 - **Local Access:** Strictly SELECT queries only. Zero mutations to business or sync state.

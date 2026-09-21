@@ -72,7 +72,7 @@ test.describe('Offline Read-Only Runtime E2E Verification', () => {
     await expect(dashboardTitle).toBeVisible({ timeout: 15000 });
 
     const kpiCard = page.locator('.kpi-card').first();
-    await expect(kpiCard).toBeVisible({ timeout: 20000 });
+    await expect(kpiCard).toBeVisible({ timeout: 10000 });
 
     monitor.assertNoFailures();
   });
