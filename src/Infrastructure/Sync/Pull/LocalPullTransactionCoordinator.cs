@@ -183,7 +183,20 @@ namespace Auth.Infrastructure.Sync.Pull
                     }
 
                     localCheckpoint = reader.GetInt64(0);
-                    activeToken = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+                    if (reader.IsDBNull(1))
+                    {
+                        activeToken = null;
+                    }
+                    else
+                    {
+                        var rawToken = reader.GetValue(1);
+                        activeToken = rawToken switch
+                        {
+                            Guid g => g,
+                            string s when Guid.TryParse(s, out var pg) => pg,
+                            _ => null
+                        };
+                    }
                     leaseExpiresAt = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
                 }
 
