@@ -24,12 +24,6 @@ namespace Auth.Infrastructure.Sync.Authoritative
         private readonly IConfiguration _configuration;
         private readonly IAuthoritativeCutoverGuard _cutoverGuard;
 
-        public AuthoritativeTrackingSafetyInterceptor(
-            ISyncConnectionProvider syncConnectionProvider,
-            IConfiguration configuration)
-            : this(syncConnectionProvider, configuration, new AuthoritativeCutoverGuard(new AuthoritativeDatabaseBindingGuard()))
-        {
-        }
 
         public AuthoritativeTrackingSafetyInterceptor(
             ISyncConnectionProvider syncConnectionProvider,

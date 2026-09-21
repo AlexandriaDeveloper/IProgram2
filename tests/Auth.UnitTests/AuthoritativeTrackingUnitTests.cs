@@ -99,7 +99,8 @@ namespace Auth.UnitTests
         private ApplicationContext CreateContextWithInterceptor(
             bool authoritativeTrackingEnabled,
             bool isLocalFirst,
-            bool isReadOnly)
+            bool isReadOnly,
+            IAuthoritativeCutoverGuard? cutoverGuard = null)
         {
             var syncProviderMock = new Mock<ISyncConnectionProvider>();
             syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(isLocalFirst);
@@ -112,7 +113,24 @@ namespace Auth.UnitTests
             };
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(configDict).Build();
 
-            var interceptor = new AuthoritativeTrackingSafetyInterceptor(syncProviderMock.Object, configuration);
+            IAuthoritativeCutoverGuard guard;
+            if (cutoverGuard != null)
+            {
+                guard = cutoverGuard;
+            }
+            else if (authoritativeTrackingEnabled)
+            {
+                // When tracking is enabled, cutover guard must NEVER be invoked. Strict mock guarantees this.
+                guard = new Mock<IAuthoritativeCutoverGuard>(MockBehavior.Strict).Object;
+            }
+            else
+            {
+                // Pre-cutover default: ServerVersion = 0, so guard allows save.
+                var preCutoverMock = new Mock<IAuthoritativeCutoverGuard>();
+                guard = preCutoverMock.Object;
+            }
+
+            var interceptor = new AuthoritativeTrackingSafetyInterceptor(syncProviderMock.Object, configuration, guard);
 
             var options = new DbContextOptionsBuilder<ApplicationContext>()
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
@@ -125,10 +143,13 @@ namespace Auth.UnitTests
         [Fact]
         public async Task SafetyInterceptor_GateOff_DirectDailyMutation_Allowed()
         {
+            // Pre-cutover state: ServerVersion = 0, cutover guard allows save.
+            var preCutoverGuardMock = new Mock<IAuthoritativeCutoverGuard>();
             using var context = CreateContextWithInterceptor(
                 authoritativeTrackingEnabled: false,
                 isLocalFirst: false,
-                isReadOnly: false);
+                isReadOnly: false,
+                cutoverGuard: preCutoverGuardMock.Object);
 
             var daily = new Daily
             {
@@ -142,6 +163,7 @@ namespace Auth.UnitTests
             context.Set<Daily>().Add(daily);
             var saved = await context.SaveChangesAsync();
             Assert.True(saved > 0);
+            preCutoverGuardMock.Verify(g => g.ValidateCutoverStateAsync(context, "2026", It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
