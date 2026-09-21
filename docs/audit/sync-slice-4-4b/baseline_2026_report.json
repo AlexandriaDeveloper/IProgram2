@@ -1,0 +1,78 @@
+﻿{
+    "Year":  "2026",
+    "TimestampUtc":  "2026-09-21T01:10:04.9965062Z",
+    "Classification":  "CLEAN_BASELINE",
+    "AuthoritativeTrackingCutoverReadiness":  "YES",
+    "ReadinessIssues":  [
+
+                        ],
+    "Comparison_Summary":  {
+                               "DailyContentMatch":  true,
+                               "VersionMatch":  true,
+                               "HasPendingOutbox":  false,
+                               "Azure_Daily_Total":  30,
+                               "Azure_Daily_Active":  30,
+                               "Azure_Daily_Inactive":  0,
+                               "Azure_Daily_Sha256":  "9929AC6BFD1637B5F523726919C1CF5F66F5E1A7367DA0CBC236825E840D04B5",
+                               "Local_Daily_Total":  30,
+                               "Local_Daily_Active":  30,
+                               "Local_Daily_Inactive":  0,
+                               "Local_Daily_Sha256":  "9929AC6BFD1637B5F523726919C1CF5F66F5E1A7367DA0CBC236825E840D04B5",
+                               "MissingOnLocalCount":  0,
+                               "MissingOnAzureCount":  0,
+                               "DifferingFieldRowsCount":  0
+                           },
+    "Azure_Metadata":  {
+                           "SchemaComplete":  true,
+                           "SyncTables":  [
+                                              "ProcessedOperations",
+                                              "ServerChangeFeed",
+                                              "ServerState",
+                                              "Tombstones"
+                                          ],
+                           "ServerStateRowCount":  1,
+                           "DatabaseId":  "2026",
+                           "CurrentVersion":  0,
+                           "LastUpdatedUtc":  "2026-09-19T16:52:21.2849000Z",
+                           "ServerChangeFeedRows":  0,
+                           "TombstoneRows":  0,
+                           "ProcessedOperationsRows":  0
+                       },
+    "Local_Metadata":  {
+                           "LocalStateRowCount":  1,
+                           "DatabaseId":  "2026",
+                           "LastServerVersion":  0,
+                           "BootstrapManifestRowCount":  1,
+                           "BootstrapStatus":  "VERIFIED_READY",
+                           "IsWriteAllowed":  true,
+                           "BootstrapTimestampUtc":  "2026-09-19T18:54:44.5070000Z",
+                           "LocalOutbox":  {
+                                               "InProgressCount":  0,
+                                               "FailedCount":  0,
+                                               "PendingCount":  0,
+                                               "CompletedCount":  0,
+                                               "TotalCount":  0
+                                           }
+                       },
+    "ConfigurationSafety":  {
+                                "AuthoritativeTrackingEnabled":  false,
+                                "PushEnabled":  false,
+                                "LegacyMigrationEnabled":  false,
+                                "Status":  "PASS"
+                            },
+    "ArchitectureSafety":  {
+                               "RawDmlAudit":  "PASS",
+                               "ApprovedCoordinator":  "AzurePushTransactionCoordinator.cs"
+                           },
+    "Drift_Details":  {
+                          "MissingOnLocal":  [
+
+                                             ],
+                          "MissingOnAzure":  [
+
+                                             ],
+                          "DifferingRows":  [
+
+                                            ]
+                      }
+}
