@@ -101,60 +101,137 @@ namespace Persistence.Repository
                 .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
                 .ToList();
 
-            var capturedMutations = new List<CapturedDailyMutation>();
+            var capturedMutations = new List<CapturedOfflineMutation>();
 
             foreach (var entry in entries)
             {
-                if (entry.Entity is not Daily daily)
-                {
-                    throw new OfflineWriteScopeException(
-                        $"الكيان من نوع '{entry.Metadata.ClrType.Name}' غير مصرح بتعديله في وضع Offline Read-Write Pilot. العمليات المصرح بها محصورة في Daily فقط.");
-                }
-
                 if (entry.State == EntityState.Deleted)
                 {
                     throw new OfflineWriteScopeException(
                         "الحذف الفعلي (Hard Delete) غير مسموح به في وضع Offline Read-Write Pilot. يجب استخدام الحذف المنطقي (Soft Delete) فقط.");
                 }
 
-                if (entry.State == EntityState.Added)
+                if (entry.Entity is Daily daily)
                 {
-                    if (daily.SyncId == Guid.Empty)
+                    if (entry.State == EntityState.Added)
                     {
-                        daily.SyncId = Guid.NewGuid();
+                        if (daily.SyncId == Guid.Empty) daily.SyncId = Guid.NewGuid();
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = daily,
+                            EntityType = "Daily",
+                            AggregateType = "Daily",
+                            OperationType = "INSERT",
+                            CommandName = "Daily.Insert",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = daily.SyncId
+                        });
                     }
-
-                    capturedMutations.Add(new CapturedDailyMutation
+                    else if (entry.State == EntityState.Modified)
                     {
-                        Daily = daily,
-                        OperationType = "INSERT",
-                        CommandName = "Daily.Insert",
-                        ClientOperationId = Guid.NewGuid(),
-                        EntitySyncId = daily.SyncId
-                    });
+                        var syncIdProperty = entry.Property(nameof(Daily.SyncId));
+                        if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                        {
+                            throw new OfflineWriteScopeException("تعديل SyncId لسجل موجود غير مسموح به.");
+                        }
+
+                        var isActiveProperty = entry.Property(nameof(Daily.IsActive));
+                        bool isSoftDelete = isActiveProperty.OriginalValue is true && daily.IsActive == false;
+
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = daily,
+                            EntityType = "Daily",
+                            AggregateType = "Daily",
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            CommandName = isSoftDelete ? "Daily.SoftDelete" : "Daily.Update",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = daily.SyncId
+                        });
+                    }
                 }
-                else if (entry.State == EntityState.Modified)
+                else if (entry.Entity is Form form)
                 {
-                    var syncIdProperty = entry.Property(nameof(Daily.SyncId));
-                    if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                    if (entry.State == EntityState.Added)
                     {
-                        throw new OfflineWriteScopeException("تعديل SyncId لسجل موجود غير مسموح به.");
+                        if (form.SyncId == Guid.Empty) form.SyncId = Guid.NewGuid();
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = form,
+                            EntityType = "Form",
+                            AggregateType = "Form",
+                            OperationType = "INSERT",
+                            CommandName = "Form.Insert",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = form.SyncId
+                        });
                     }
-
-                    var isActiveProperty = entry.Property(nameof(Daily.IsActive));
-                    bool isSoftDelete = isActiveProperty.OriginalValue is true && daily.IsActive == false;
-
-                    string operationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE";
-                    string commandName = isSoftDelete ? "Daily.SoftDelete" : "Daily.Update";
-
-                    capturedMutations.Add(new CapturedDailyMutation
+                    else if (entry.State == EntityState.Modified)
                     {
-                        Daily = daily,
-                        OperationType = operationType,
-                        CommandName = commandName,
-                        ClientOperationId = Guid.NewGuid(),
-                        EntitySyncId = daily.SyncId
-                    });
+                        var syncIdProperty = entry.Property(nameof(Form.SyncId));
+                        if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                        {
+                            throw new OfflineWriteScopeException("تعديل SyncId لسجل موجود غير مسموح به.");
+                        }
+
+                        var isActiveProperty = entry.Property(nameof(Form.IsActive));
+                        bool isSoftDelete = isActiveProperty.OriginalValue is true && form.IsActive == false;
+
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = form,
+                            EntityType = "Form",
+                            AggregateType = "Form",
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            CommandName = isSoftDelete ? "Form.SoftDelete" : "Form.Update",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = form.SyncId
+                        });
+                    }
+                }
+                else if (entry.Entity is FormDetails formDetails)
+                {
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (formDetails.SyncId == Guid.Empty) formDetails.SyncId = Guid.NewGuid();
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = formDetails,
+                            EntityType = "FormDetails",
+                            AggregateType = "FormDetails",
+                            OperationType = "INSERT",
+                            CommandName = "FormDetails.Insert",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = formDetails.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Modified)
+                    {
+                        var syncIdProperty = entry.Property(nameof(FormDetails.SyncId));
+                        if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                        {
+                            throw new OfflineWriteScopeException("تعديل SyncId لسجل موجود غير مسموح به.");
+                        }
+
+                        var isActiveProperty = entry.Property(nameof(FormDetails.IsActive));
+                        bool isSoftDelete = isActiveProperty.OriginalValue is true && formDetails.IsActive == false;
+
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = formDetails,
+                            EntityType = "FormDetails",
+                            AggregateType = "FormDetails",
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            CommandName = isSoftDelete ? "FormDetails.SoftDelete" : "FormDetails.Update",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = formDetails.SyncId
+                        });
+                    }
+                }
+                else
+                {
+                    throw new OfflineWriteScopeException(
+                        $"الكيان من نوع '{entry.Metadata.ClrType.Name}' غير مصرح بتعديله في وضع Offline Read-Write Pilot. العمليات المصرح بها محصورة في Daily و Form و FormDetails فقط.");
                 }
             }
 
@@ -190,20 +267,52 @@ namespace Persistence.Repository
                     var operationTimestamp = DateTime.UtcNow;
                     foreach (var mutation in capturedMutations)
                     {
-                        var payloadJson = BuildDeterministicPayloadJson(
-                            operationType: mutation.OperationType,
-                            databaseId: databaseId,
-                            deviceId: deviceId,
-                            baseServerVersion: lastServerVersion,
-                            daily: mutation.Daily,
-                            timestampUtc: operationTimestamp);
+                        string payloadJson;
+                        if (mutation.Entity is Daily d)
+                        {
+                            payloadJson = BuildDeterministicPayloadJson(
+                                operationType: mutation.OperationType,
+                                databaseId: databaseId,
+                                deviceId: deviceId,
+                                baseServerVersion: lastServerVersion,
+                                daily: d,
+                                timestampUtc: operationTimestamp);
+                        }
+                        else if (mutation.Entity is Form f)
+                        {
+                            var dailySyncId = await ResolveDailySyncIdAsync(f, dbConnection, dbTransaction, cancellationToken);
+                            payloadJson = BuildDeterministicFormPayloadJson(
+                                operationType: mutation.OperationType,
+                                databaseId: databaseId,
+                                deviceId: deviceId,
+                                baseServerVersion: lastServerVersion,
+                                form: f,
+                                dailySyncId: dailySyncId,
+                                timestampUtc: operationTimestamp);
+                        }
+                        else if (mutation.Entity is FormDetails fd)
+                        {
+                            var formSyncId = await ResolveFormSyncIdAsync(fd, dbConnection, dbTransaction, cancellationToken);
+                            payloadJson = BuildDeterministicFormDetailsPayloadJson(
+                                operationType: mutation.OperationType,
+                                databaseId: databaseId,
+                                deviceId: deviceId,
+                                baseServerVersion: lastServerVersion,
+                                formDetails: fd,
+                                formSyncId: formSyncId,
+                                timestampUtc: operationTimestamp);
+                        }
+                        else
+                        {
+                            throw new OfflineWriteScopeException($"Unsupported entity type '{mutation.EntityType}' for outbox payload.");
+                        }
 
                         await InsertOutboxRecordAsync(
                             dbConnection: dbConnection,
                             dbTransaction: dbTransaction,
                             clientOperationId: mutation.ClientOperationId,
                             databaseId: databaseId,
-                            aggregateType: "Daily",
+                            aggregateType: mutation.AggregateType,
                             commandName: mutation.CommandName,
                             entitySyncId: mutation.EntitySyncId,
                             payloadJson: payloadJson,
@@ -250,14 +359,12 @@ namespace Persistence.Repository
                 {
                     if (entry.State == EntityState.Added)
                     {
-                        if (daily.SyncId == Guid.Empty)
-                        {
-                            daily.SyncId = Guid.NewGuid();
-                        }
-
+                        if (daily.SyncId == Guid.Empty) daily.SyncId = Guid.NewGuid();
                         capturedMutations.Add(new CapturedAuthoritativeDailyMutation
                         {
+                            EntityType = "Daily",
                             Daily = daily,
+                            Entity = daily,
                             OperationType = "INSERT",
                             EntitySyncId = daily.SyncId
                         });
@@ -270,17 +377,16 @@ namespace Persistence.Repository
                             throw new AuthoritativeTrackingException("تعديل SyncId لسجل يومية موجود محظور تماماً (SyncId is immutable).");
                         }
 
-                        if (daily.SyncId == Guid.Empty)
-                        {
-                            throw new AuthoritativeTrackingException("Daily entity has empty SyncId on modification.");
-                        }
+                        if (daily.SyncId == Guid.Empty) throw new AuthoritativeTrackingException("Daily entity has empty SyncId on modification.");
 
                         var isActiveProperty = entry.Property(nameof(Daily.IsActive));
                         bool isSoftDelete = isActiveProperty.OriginalValue is true && daily.IsActive == false;
 
                         capturedMutations.Add(new CapturedAuthoritativeDailyMutation
                         {
+                            EntityType = "Daily",
                             Daily = daily,
+                            Entity = daily,
                             OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
                             EntitySyncId = daily.SyncId,
                             OriginalSnapshot = CaptureDailyOriginalSnapshot(entry)
@@ -290,17 +396,163 @@ namespace Persistence.Repository
                     {
                         var syncIdProperty = entry.Property(nameof(Daily.SyncId));
                         var syncId = (Guid)(syncIdProperty.OriginalValue ?? daily.SyncId);
-                        if (syncId == Guid.Empty)
-                        {
-                            throw new AuthoritativeTrackingException("Daily entity has empty SyncId on hard delete.");
-                        }
+                        if (syncId == Guid.Empty) throw new AuthoritativeTrackingException("Daily entity has empty SyncId on hard delete.");
 
                         capturedMutations.Add(new CapturedAuthoritativeDailyMutation
                         {
+                            EntityType = "Daily",
                             Daily = daily,
+                            Entity = daily,
                             OperationType = "HARD_DELETE",
                             EntitySyncId = syncId,
                             OriginalSnapshot = CaptureDailyOriginalSnapshot(entry)
+                        });
+                    }
+                }
+                else if (entry.Entity is Form form)
+                {
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (form.SyncId == Guid.Empty) form.SyncId = Guid.NewGuid();
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "Form",
+                            Entity = form,
+                            OperationType = "INSERT",
+                            EntitySyncId = form.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Modified)
+                    {
+                        var syncIdProperty = entry.Property(nameof(Form.SyncId));
+                        if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                        {
+                            throw new AuthoritativeTrackingException("تعديل SyncId لسجل ملف موجود محظور تماماً (SyncId is immutable).");
+                        }
+
+                        if (form.SyncId == Guid.Empty) throw new AuthoritativeTrackingException("Form entity has empty SyncId on modification.");
+
+                        var isActiveProperty = entry.Property(nameof(Form.IsActive));
+                        bool isSoftDelete = isActiveProperty.OriginalValue is true && form.IsActive == false;
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "Form",
+                            Entity = form,
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            EntitySyncId = form.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Deleted)
+                    {
+                        var syncIdProperty = entry.Property(nameof(Form.SyncId));
+                        var syncId = (Guid)(syncIdProperty.OriginalValue ?? form.SyncId);
+                        if (syncId == Guid.Empty) throw new AuthoritativeTrackingException("Form entity has empty SyncId on hard delete.");
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "Form",
+                            Entity = form,
+                            OperationType = "HARD_DELETE",
+                            EntitySyncId = syncId
+                        });
+                    }
+                }
+                else if (entry.Entity is FormDetails formDetails)
+                {
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (formDetails.SyncId == Guid.Empty) formDetails.SyncId = Guid.NewGuid();
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "FormDetails",
+                            Entity = formDetails,
+                            OperationType = "INSERT",
+                            EntitySyncId = formDetails.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Modified)
+                    {
+                        var syncIdProperty = entry.Property(nameof(FormDetails.SyncId));
+                        if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                        {
+                            throw new AuthoritativeTrackingException("تعديل SyncId لتفاصيل ملف موجود محظور تماماً (SyncId is immutable).");
+                        }
+
+                        if (formDetails.SyncId == Guid.Empty) throw new AuthoritativeTrackingException("FormDetails entity has empty SyncId on modification.");
+
+                        var isActiveProperty = entry.Property(nameof(FormDetails.IsActive));
+                        bool isSoftDelete = isActiveProperty.OriginalValue is true && formDetails.IsActive == false;
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "FormDetails",
+                            Entity = formDetails,
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            EntitySyncId = formDetails.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Deleted)
+                    {
+                        var syncIdProperty = entry.Property(nameof(FormDetails.SyncId));
+                        var syncId = (Guid)(syncIdProperty.OriginalValue ?? formDetails.SyncId);
+                        if (syncId == Guid.Empty) throw new AuthoritativeTrackingException("FormDetails entity has empty SyncId on hard delete.");
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "FormDetails",
+                            Entity = formDetails,
+                            OperationType = "HARD_DELETE",
+                            EntitySyncId = syncId
+                        });
+                    }
+                }
+                else if (entry.Entity is FormRefernce formRefernce)
+                {
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (formRefernce.SyncId == Guid.Empty) formRefernce.SyncId = Guid.NewGuid();
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "FormRefernce",
+                            Entity = formRefernce,
+                            OperationType = "INSERT",
+                            EntitySyncId = formRefernce.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Modified)
+                    {
+                        var syncIdProperty = entry.Property(nameof(FormRefernce.SyncId));
+                        if (syncIdProperty.IsModified && !Equals(syncIdProperty.OriginalValue, syncIdProperty.CurrentValue))
+                        {
+                            throw new AuthoritativeTrackingException("تعديل SyncId لمرجع ملف موجود محظور تماماً (SyncId is immutable).");
+                        }
+
+                        if (formRefernce.SyncId == Guid.Empty) throw new AuthoritativeTrackingException("FormRefernce entity has empty SyncId on modification.");
+
+                        var isActiveProperty = entry.Property(nameof(FormRefernce.IsActive));
+                        bool isSoftDelete = isActiveProperty.OriginalValue is true && formRefernce.IsActive == false;
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "FormRefernce",
+                            Entity = formRefernce,
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            EntitySyncId = formRefernce.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Deleted)
+                    {
+                        var syncIdProperty = entry.Property(nameof(FormRefernce.SyncId));
+                        var syncId = (Guid)(syncIdProperty.OriginalValue ?? formRefernce.SyncId);
+                        if (syncId == Guid.Empty) throw new AuthoritativeTrackingException("FormRefernce entity has empty SyncId on hard delete.");
+
+                        capturedMutations.Add(new CapturedAuthoritativeDailyMutation
+                        {
+                            EntityType = "FormRefernce",
+                            Entity = formRefernce,
+                            OperationType = "HARD_DELETE",
+                            EntitySyncId = syncId
                         });
                     }
                 }
@@ -576,13 +828,158 @@ namespace Persistence.Repository
             };
         }
 
-        private sealed class CapturedDailyMutation
+        public static string BuildDeterministicFormPayloadJson(
+            string operationType,
+            string databaseId,
+            Guid deviceId,
+            long baseServerVersion,
+            Form form,
+            Guid? dailySyncId,
+            DateTime timestampUtc)
         {
-            public required Daily Daily { get; init; }
+            var scalarData = new SortedDictionary<string, object?>
+            {
+                ["CreatedAt"] = form.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["CreatedBy"] = form.CreatedBy,
+                ["DailySyncId"] = dailySyncId?.ToString(),
+                ["DeactivatedAt"] = form.DeactivatedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["DeactivatedBy"] = form.DeactivatedBy,
+                ["Description"] = form.Description,
+                ["Id"] = form.Id,
+                ["Index"] = form.Index,
+                ["IsActive"] = form.IsActive,
+                ["Name"] = form.Name,
+                ["SyncId"] = form.SyncId.ToString(),
+                ["UpdatedAt"] = form.UpdatedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["UpdatedBy"] = form.UpdatedBy
+            };
+
+            var envelope = new SortedDictionary<string, object?>
+            {
+                ["baseServerVersion"] = baseServerVersion,
+                ["createdAtUtc"] = timestampUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+                ["databaseId"] = databaseId,
+                ["deviceId"] = deviceId.ToString(),
+                ["entityData"] = scalarData,
+                ["entitySyncId"] = form.SyncId.ToString(),
+                ["entityType"] = "Form",
+                ["operationType"] = operationType,
+                ["schemaVersion"] = 1
+            };
+
+            return JsonSerializer.Serialize(envelope);
+        }
+
+        public static string BuildDeterministicFormDetailsPayloadJson(
+            string operationType,
+            string databaseId,
+            Guid deviceId,
+            long baseServerVersion,
+            FormDetails formDetails,
+            Guid formSyncId,
+            DateTime timestampUtc)
+        {
+            var scalarData = new SortedDictionary<string, object?>
+            {
+                ["Amount"] = formDetails.Amount,
+                ["CreatedAt"] = formDetails.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["CreatedBy"] = formDetails.CreatedBy,
+                ["DeactivatedAt"] = formDetails.DeactivatedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["DeactivatedBy"] = formDetails.DeactivatedBy,
+                ["EmployeeId"] = formDetails.EmployeeId,
+                ["FormSyncId"] = formSyncId.ToString(),
+                ["Id"] = formDetails.Id,
+                ["IsActive"] = formDetails.IsActive,
+                ["IsReviewed"] = formDetails.IsReviewed,
+                ["IsReviewedBy"] = formDetails.IsReviewedBy,
+                ["IsSummaryReviewed"] = formDetails.IsSummaryReviewed,
+                ["IsSummaryReviewedBy"] = formDetails.IsSummaryReviewedBy,
+                ["OrderNum"] = formDetails.OrderNum,
+                ["ReviewComments"] = formDetails.ReviewComments,
+                ["ReviewedAt"] = formDetails.ReviewedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["SummaryComments"] = formDetails.SummaryComments,
+                ["SummaryReviewMethod"] = formDetails.SummaryReviewMethod,
+                ["SummaryReviewedAt"] = formDetails.SummaryReviewedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["SyncId"] = formDetails.SyncId.ToString(),
+                ["UpdatedAt"] = formDetails.UpdatedAt?.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+                ["UpdatedBy"] = formDetails.UpdatedBy
+            };
+
+            var envelope = new SortedDictionary<string, object?>
+            {
+                ["baseServerVersion"] = baseServerVersion,
+                ["createdAtUtc"] = timestampUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+                ["databaseId"] = databaseId,
+                ["deviceId"] = deviceId.ToString(),
+                ["entityData"] = scalarData,
+                ["entitySyncId"] = formDetails.SyncId.ToString(),
+                ["entityType"] = "FormDetails",
+                ["operationType"] = operationType,
+                ["schemaVersion"] = 1
+            };
+
+            return JsonSerializer.Serialize(envelope);
+        }
+
+        private async Task<Guid?> ResolveDailySyncIdAsync(Form form, DbConnection connection, DbTransaction transaction, CancellationToken ct)
+        {
+            if (!form.DailyId.HasValue) return null;
+            if (form.Daily != null && form.Daily.SyncId != Guid.Empty) return form.Daily.SyncId;
+
+            var trackedDaily = _context.ChangeTracker.Entries<Daily>().FirstOrDefault(e => e.Entity.Id == form.DailyId.Value);
+            if (trackedDaily != null && trackedDaily.Entity.SyncId != Guid.Empty)
+            {
+                return trackedDaily.Entity.SyncId;
+            }
+
+            await using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = "SELECT SyncId FROM [dbo].[Daily] WHERE Id = @Id;";
+            AddParam(cmd, "@Id", form.DailyId.Value);
+            var scalar = await cmd.ExecuteScalarAsync(ct);
+            if (scalar != null && scalar != DBNull.Value && scalar is Guid g && g != Guid.Empty)
+            {
+                return g;
+            }
+            throw new OfflineWriteScopeException($"Daily with Id {form.DailyId.Value} could not be resolved for Form {form.SyncId}.");
+        }
+
+        private async Task<Guid> ResolveFormSyncIdAsync(FormDetails formDetails, DbConnection connection, DbTransaction transaction, CancellationToken ct)
+        {
+            if (formDetails.Form != null && formDetails.Form.SyncId != Guid.Empty) return formDetails.Form.SyncId;
+
+            var trackedForm = _context.ChangeTracker.Entries<Form>().FirstOrDefault(e => (formDetails.FormId > 0 && e.Entity.Id == formDetails.FormId) || (formDetails.Form != null && e.Entity == formDetails.Form));
+            if (trackedForm != null && trackedForm.Entity.SyncId != Guid.Empty)
+            {
+                return trackedForm.Entity.SyncId;
+            }
+
+            if (formDetails.FormId > 0)
+            {
+                await using var cmd = connection.CreateCommand();
+                cmd.Transaction = transaction;
+                cmd.CommandText = "SELECT SyncId FROM [dbo].[Form] WHERE Id = @Id;";
+                AddParam(cmd, "@Id", formDetails.FormId);
+                var scalar = await cmd.ExecuteScalarAsync(ct);
+                if (scalar != null && scalar != DBNull.Value && scalar is Guid g && g != Guid.Empty)
+                {
+                    return g;
+                }
+            }
+
+            throw new OfflineWriteScopeException($"Form with Id {formDetails.FormId} could not be resolved for FormDetails {formDetails.SyncId}.");
+        }
+
+        private sealed class CapturedOfflineMutation
+        {
+            public required object Entity { get; init; }
+            public required string EntityType { get; init; }
+            public required string AggregateType { get; init; }
             public required string OperationType { get; init; }
             public required string CommandName { get; init; }
             public required Guid ClientOperationId { get; init; }
             public required Guid EntitySyncId { get; init; }
+            public Guid? ParentSyncId { get; set; }
         }
     }
 }

@@ -44,41 +44,84 @@ namespace Auth.Infrastructure.Sync.Push
                     $"Metadata mismatch: outbox DatabaseId '{outboxItem.DatabaseId}' does not match target database '{databaseId}'.");
             }
 
-            if (!string.Equals(outboxItem.AggregateType, "Daily", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(outboxItem.AggregateType, "Daily", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(outboxItem.AggregateType, "Form", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(outboxItem.AggregateType, "FormDetails", StringComparison.OrdinalIgnoreCase))
             {
                 throw new SyncMetadataMismatchException(
-                    $"Metadata mismatch: outbox AggregateType '{outboxItem.AggregateType}' is not 'Daily'.");
+                    $"Metadata mismatch: outbox AggregateType '{outboxItem.AggregateType}' is not supported for push.");
             }
 
-            var parsedPayload = ParseAndValidatePayload(outboxItem);
+            ParsedDailyPayload? parsedDaily = null;
+            ParsedFormPayload? parsedForm = null;
+            ParsedFormDetailsPayload? parsedFormDetails = null;
 
-            if (parsedPayload.DeviceId != expectedDeviceId)
+            Guid originDeviceId;
+            string operationType;
+            string expectedCommandName;
+
+            if (string.Equals(outboxItem.AggregateType, "Daily", StringComparison.OrdinalIgnoreCase))
+            {
+                parsedDaily = ParseAndValidatePayload(outboxItem);
+                originDeviceId = parsedDaily.DeviceId;
+                operationType = parsedDaily.OperationType;
+                expectedCommandName = operationType.ToUpperInvariant() switch
+                {
+                    "INSERT" => "Daily.Insert",
+                    "UPDATE" => "Daily.Update",
+                    "SOFT_DELETE" => "Daily.SoftDelete",
+                    _ => throw new SyncPayloadValidationException($"Unsupported operation type '{operationType}'.")
+                };
+            }
+            else if (string.Equals(outboxItem.AggregateType, "Form", StringComparison.OrdinalIgnoreCase))
+            {
+                parsedForm = ParseAndValidateFormPayload(outboxItem);
+                originDeviceId = parsedForm.DeviceId;
+                operationType = parsedForm.OperationType;
+                expectedCommandName = operationType.ToUpperInvariant() switch
+                {
+                    "INSERT" => "Form.Insert",
+                    "UPDATE" => "Form.Update",
+                    "SOFT_DELETE" => "Form.SoftDelete",
+                    _ => throw new SyncPayloadValidationException($"Unsupported operation type '{operationType}'.")
+                };
+            }
+            else if (string.Equals(outboxItem.AggregateType, "FormDetails", StringComparison.OrdinalIgnoreCase))
+            {
+                parsedFormDetails = ParseAndValidateFormDetailsPayload(outboxItem);
+                originDeviceId = parsedFormDetails.DeviceId;
+                operationType = parsedFormDetails.OperationType;
+                expectedCommandName = operationType.ToUpperInvariant() switch
+                {
+                    "INSERT" => "FormDetails.Insert",
+                    "UPDATE" => "FormDetails.Update",
+                    "SOFT_DELETE" => "FormDetails.SoftDelete",
+                    _ => throw new SyncPayloadValidationException($"Unsupported operation type '{operationType}'.")
+                };
+            }
+            else
+            {
+                throw new SyncMetadataMismatchException($"Unsupported AggregateType '{outboxItem.AggregateType}'.");
+            }
+
+            if (originDeviceId != expectedDeviceId)
             {
                 throw new SyncMetadataMismatchException(
-                    $"Metadata mismatch: payload deviceId '{parsedPayload.DeviceId}' does not match expected LocalState DeviceId '{expectedDeviceId}'.");
+                    $"Metadata mismatch: payload deviceId '{originDeviceId}' does not match expected LocalState DeviceId '{expectedDeviceId}'.");
             }
-
-            var expectedCommandName = parsedPayload.OperationType.ToUpperInvariant() switch
-            {
-                "INSERT" => "Daily.Insert",
-                "UPDATE" => "Daily.Update",
-                "SOFT_DELETE" => "Daily.SoftDelete",
-                _ => throw new SyncPayloadValidationException($"Unsupported operation type '{parsedPayload.OperationType}'.")
-            };
 
             if (!string.Equals(outboxItem.CommandName, expectedCommandName, StringComparison.OrdinalIgnoreCase))
             {
                 throw new SyncMetadataMismatchException(
-                    $"Metadata mismatch: outbox CommandName '{outboxItem.CommandName}' does not match payload operation '{parsedPayload.OperationType}'.");
+                    $"Metadata mismatch: outbox CommandName '{outboxItem.CommandName}' does not match payload operation '{operationType}'.");
             }
 
-            if (outboxItem.EntitySyncId != parsedPayload.SyncId || parsedPayload.SyncId == Guid.Empty)
+            var payloadSyncId = parsedDaily?.SyncId ?? parsedForm?.SyncId ?? parsedFormDetails!.SyncId;
+            if (outboxItem.EntitySyncId != payloadSyncId || payloadSyncId == Guid.Empty)
             {
                 throw new SyncMetadataMismatchException(
-                    $"Metadata mismatch: outbox EntitySyncId '{outboxItem.EntitySyncId}' does not match payload SyncId '{parsedPayload.SyncId}'.");
+                    $"Metadata mismatch: outbox EntitySyncId '{outboxItem.EntitySyncId}' does not match payload SyncId '{payloadSyncId}'.");
             }
-
-            Guid originDeviceId = parsedPayload.DeviceId;
 
             if (connection.State != ConnectionState.Open)
             {
@@ -226,6 +269,19 @@ namespace Auth.Infrastructure.Sync.Push
 
                 if (currentServerVersion != expectedServerVersion)
                 {
+                    if (currentServerVersion > expectedServerVersion)
+                    {
+                        _logger.LogWarning(
+                            "Both changed conflict risk on DatabaseId {DatabaseId}: Local expected {ExpectedVersion}, Remote server is newer at {CurrentVersion}.",
+                            databaseId, expectedServerVersion, currentServerVersion);
+
+                        throw new SyncConflictRiskException(
+                            expectedServerVersion,
+                            currentServerVersion,
+                            1,
+                            $"Conflict risk detected (BOTH_CHANGED / CONFLICT_RISK) for DatabaseId '{databaseId}': Local pending operations exist at version {expectedServerVersion}, but remote server is at {currentServerVersion}. Both states are preserved without automatic overwrite.");
+                    }
+
                     _logger.LogWarning(
                         "Version conflict on DatabaseId {DatabaseId}: Expected {ExpectedVersion}, Actual {CurrentVersion}.",
                         databaseId, expectedServerVersion, currentServerVersion);
@@ -239,19 +295,56 @@ namespace Auth.Infrastructure.Sync.Push
                 // =========================================================================
                 // STEP 3: Execute Business Mutation (INSERT / UPDATE / SOFT_DELETE)
                 // =========================================================================
-                switch (parsedPayload.OperationType.ToUpperInvariant())
+                if (parsedDaily != null)
                 {
-                    case "INSERT":
-                        await ApplyInsertAsync(connection, transaction, parsedPayload, cancellationToken);
-                        break;
-                    case "UPDATE":
-                        await ApplyUpdateAsync(connection, transaction, parsedPayload, cancellationToken);
-                        break;
-                    case "SOFT_DELETE":
-                        await ApplySoftDeleteAsync(connection, transaction, parsedPayload, cancellationToken);
-                        break;
-                    default:
-                        throw new SyncPayloadValidationException($"Unsupported operation type '{parsedPayload.OperationType}'.");
+                    switch (parsedDaily.OperationType.ToUpperInvariant())
+                    {
+                        case "INSERT":
+                            await ApplyInsertAsync(connection, transaction, parsedDaily, cancellationToken);
+                            break;
+                        case "UPDATE":
+                            await ApplyUpdateAsync(connection, transaction, parsedDaily, cancellationToken);
+                            break;
+                        case "SOFT_DELETE":
+                            await ApplySoftDeleteAsync(connection, transaction, parsedDaily, cancellationToken);
+                            break;
+                        default:
+                            throw new SyncPayloadValidationException($"Unsupported operation type '{parsedDaily.OperationType}'.");
+                    }
+                }
+                else if (parsedForm != null)
+                {
+                    switch (parsedForm.OperationType.ToUpperInvariant())
+                    {
+                        case "INSERT":
+                            await ApplyFormInsertAsync(connection, transaction, parsedForm, cancellationToken);
+                            break;
+                        case "UPDATE":
+                            await ApplyFormUpdateAsync(connection, transaction, parsedForm, cancellationToken);
+                            break;
+                        case "SOFT_DELETE":
+                            await ApplyFormSoftDeleteAsync(connection, transaction, parsedForm, cancellationToken);
+                            break;
+                        default:
+                            throw new SyncPayloadValidationException($"Unsupported operation type '{parsedForm.OperationType}'.");
+                    }
+                }
+                else if (parsedFormDetails != null)
+                {
+                    switch (parsedFormDetails.OperationType.ToUpperInvariant())
+                    {
+                        case "INSERT":
+                            await ApplyFormDetailsInsertAsync(connection, transaction, parsedFormDetails, cancellationToken);
+                            break;
+                        case "UPDATE":
+                            await ApplyFormDetailsUpdateAsync(connection, transaction, parsedFormDetails, cancellationToken);
+                            break;
+                        case "SOFT_DELETE":
+                            await ApplyFormDetailsSoftDeleteAsync(connection, transaction, parsedFormDetails, cancellationToken);
+                            break;
+                        default:
+                            throw new SyncPayloadValidationException($"Unsupported operation type '{parsedFormDetails.OperationType}'.");
+                    }
                 }
 
                 // =========================================================================
@@ -285,12 +378,13 @@ namespace Auth.Infrastructure.Sync.Push
                         INSERT INTO [sync].[ServerChangeFeed]
                         ([ServerVersion], [DatabaseId], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId], [TimestampUtc])
                         VALUES
-                        (@ServerVersion, @DatabaseId, 'Daily', @EntitySyncId, @OperationType, @OriginDeviceId, @TimestampUtc);";
+                        (@ServerVersion, @DatabaseId, @EntityType, @EntitySyncId, @OperationType, @OriginDeviceId, @TimestampUtc);";
 
                     AddParam(feedCmd, "@ServerVersion", newServerVersion);
                     AddParam(feedCmd, "@DatabaseId", databaseId);
+                    AddParam(feedCmd, "@EntityType", outboxItem.AggregateType);
                     AddParam(feedCmd, "@EntitySyncId", outboxItem.EntitySyncId);
-                    AddParam(feedCmd, "@OperationType", parsedPayload.OperationType);
+                    AddParam(feedCmd, "@OperationType", operationType);
                     AddParam(feedCmd, "@OriginDeviceId", originDeviceId);
                     AddParam(feedCmd, "@TimestampUtc", nowUtc);
 
@@ -317,13 +411,14 @@ namespace Auth.Infrastructure.Sync.Push
                         INSERT INTO [sync].[ProcessedOperations]
                         ([DatabaseId], [ClientOperationId], [DeviceId], [CommandName], [RequestHash], [EntityType], [EntitySyncId], [ProcessedAtUtc], [ResultStatus], [ResponseJson])
                         VALUES
-                        (@DatabaseId, @ClientOperationId, @DeviceId, @CommandName, @RequestHash, 'Daily', @EntitySyncId, @ProcessedAtUtc, 'SUCCESS', @ResponseJson);";
+                        (@DatabaseId, @ClientOperationId, @DeviceId, @CommandName, @RequestHash, @EntityType, @EntitySyncId, @ProcessedAtUtc, 'SUCCESS', @ResponseJson);";
 
                     AddParam(procCmd, "@DatabaseId", databaseId);
                     AddParam(procCmd, "@ClientOperationId", outboxItem.ClientOperationId);
                     AddParam(procCmd, "@DeviceId", originDeviceId);
                     AddParam(procCmd, "@CommandName", outboxItem.CommandName);
                     AddParam(procCmd, "@RequestHash", requestHash);
+                    AddParam(procCmd, "@EntityType", outboxItem.AggregateType);
                     AddParam(procCmd, "@EntitySyncId", outboxItem.EntitySyncId);
                     AddParam(procCmd, "@ProcessedAtUtc", nowUtc);
                     AddParam(procCmd, "@ResponseJson", responseJson);
@@ -714,6 +809,756 @@ namespace Auth.Infrastructure.Sync.Push
             public required string Name { get; init; }
             public DateTime? DailyDate { get; init; }
             public required bool Closed { get; init; }
+            public required bool IsActive { get; init; }
+            public DateTime? CreatedAt { get; init; }
+            public string? CreatedBy { get; init; }
+            public DateTime? UpdatedAt { get; init; }
+            public string? UpdatedBy { get; init; }
+            public DateTime? DeactivatedAt { get; init; }
+            public string? DeactivatedBy { get; init; }
+        }
+
+        private static async Task ApplyFormInsertAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            ParsedFormPayload payload,
+            CancellationToken ct)
+        {
+            await using (var existsCmd = connection.CreateCommand())
+            {
+                existsCmd.Transaction = transaction;
+                existsCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Form] WHERE [SyncId] = @SyncId;";
+                AddParam(existsCmd, "@SyncId", payload.SyncId);
+
+                var count = Convert.ToInt32(await existsCmd.ExecuteScalarAsync(ct));
+                if (count > 0)
+                {
+                    throw new SyncEntityAlreadyExistsException(
+                        $"Entity integrity violation: Form with SyncId '{payload.SyncId}' already exists in remote database.");
+                }
+            }
+
+            int? dailyId = null;
+            if (payload.DailySyncId.HasValue)
+            {
+                await using var resolveCmd = connection.CreateCommand();
+                resolveCmd.Transaction = transaction;
+                resolveCmd.CommandText = "SELECT Id FROM [dbo].[Daily] WHERE SyncId = @DailySyncId;";
+                AddParam(resolveCmd, "@DailySyncId", payload.DailySyncId.Value);
+                var obj = await resolveCmd.ExecuteScalarAsync(ct);
+                if (obj == null || obj == DBNull.Value)
+                {
+                    throw new SyncEntityNotFoundException($"Referenced Daily with SyncId '{payload.DailySyncId.Value}' not found.");
+                }
+                dailyId = Convert.ToInt32(obj);
+            }
+
+            await using (var insertCmd = connection.CreateCommand())
+            {
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = @"
+                    INSERT INTO [dbo].[Form]
+                    ([Name], [DailyId], [Index], [Description], [CreatedBy], [CreatedAt], [UpdatedBy], [UpdatedAt], [DeactivatedBy], [DeactivatedAt], [IsActive], [SyncId])
+                    VALUES
+                    (@Name, @DailyId, @Index, @Description, @CreatedBy, @CreatedAt, @UpdatedBy, @UpdatedAt, @DeactivatedBy, @DeactivatedAt, @IsActive, @SyncId);";
+
+                AddParam(insertCmd, "@Name", payload.Name);
+                AddParam(insertCmd, "@DailyId", (object?)dailyId ?? DBNull.Value);
+                AddParam(insertCmd, "@Index", (object?)payload.Index ?? DBNull.Value);
+                AddParam(insertCmd, "@Description", (object?)payload.Description ?? DBNull.Value);
+                AddParam(insertCmd, "@CreatedBy", (object?)payload.CreatedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@CreatedAt", payload.CreatedAt);
+                AddParam(insertCmd, "@UpdatedBy", (object?)payload.UpdatedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DBNull.Value);
+                AddParam(insertCmd, "@DeactivatedBy", (object?)payload.DeactivatedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@DeactivatedAt", (object?)payload.DeactivatedAt ?? DBNull.Value);
+                AddParam(insertCmd, "@IsActive", payload.IsActive);
+                AddParam(insertCmd, "@SyncId", payload.SyncId);
+
+                await insertCmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        private static async Task ApplyFormUpdateAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            ParsedFormPayload payload,
+            CancellationToken ct)
+        {
+            await using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = "SELECT IsActive FROM [dbo].[Form] WHERE [SyncId] = @SyncId;";
+                AddParam(checkCmd, "@SyncId", payload.SyncId);
+
+                var existingActive = await checkCmd.ExecuteScalarAsync(ct);
+                if (existingActive == null || existingActive == DBNull.Value)
+                {
+                    throw new SyncEntityNotFoundException(
+                        $"Entity not found: Form with SyncId '{payload.SyncId}' does not exist for UPDATE operation.");
+                }
+
+                var isCurrentActive = Convert.ToBoolean(existingActive);
+                if (isCurrentActive && !payload.IsActive)
+                {
+                    throw new SyncPayloadValidationException(
+                        "Invalid operation: Deactivating an entity must be performed via SOFT_DELETE operation.");
+                }
+            }
+
+            int? dailyId = null;
+            if (payload.DailySyncId.HasValue)
+            {
+                await using var resolveCmd = connection.CreateCommand();
+                resolveCmd.Transaction = transaction;
+                resolveCmd.CommandText = "SELECT Id FROM [dbo].[Daily] WHERE SyncId = @DailySyncId;";
+                AddParam(resolveCmd, "@DailySyncId", payload.DailySyncId.Value);
+                var obj = await resolveCmd.ExecuteScalarAsync(ct);
+                if (obj == null || obj == DBNull.Value)
+                {
+                    throw new SyncEntityNotFoundException($"Referenced Daily with SyncId '{payload.DailySyncId.Value}' not found.");
+                }
+                dailyId = Convert.ToInt32(obj);
+            }
+
+            await using (var updateCmd = connection.CreateCommand())
+            {
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = @"
+                    UPDATE [dbo].[Form]
+                    SET [Name] = @Name,
+                        [DailyId] = @DailyId,
+                        [Index] = @Index,
+                        [Description] = @Description,
+                        [UpdatedBy] = @UpdatedBy,
+                        [UpdatedAt] = @UpdatedAt
+                    WHERE [SyncId] = @SyncId;";
+
+                AddParam(updateCmd, "@Name", payload.Name);
+                AddParam(updateCmd, "@DailyId", (object?)dailyId ?? DBNull.Value);
+                AddParam(updateCmd, "@Index", (object?)payload.Index ?? DBNull.Value);
+                AddParam(updateCmd, "@Description", (object?)payload.Description ?? DBNull.Value);
+                AddParam(updateCmd, "@UpdatedBy", (object?)payload.UpdatedBy ?? DBNull.Value);
+                AddParam(updateCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DBNull.Value);
+                AddParam(updateCmd, "@SyncId", payload.SyncId);
+
+                await updateCmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        private static async Task ApplyFormSoftDeleteAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            ParsedFormPayload payload,
+            CancellationToken ct)
+        {
+            await using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Form] WHERE [SyncId] = @SyncId;";
+                AddParam(checkCmd, "@SyncId", payload.SyncId);
+
+                var count = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(ct));
+                if (count == 0)
+                {
+                    throw new SyncEntityNotFoundException(
+                        $"Entity not found: Form with SyncId '{payload.SyncId}' does not exist for SOFT_DELETE operation.");
+                }
+            }
+
+            await using (var deleteCmd = connection.CreateCommand())
+            {
+                deleteCmd.Transaction = transaction;
+                deleteCmd.CommandText = @"
+                    UPDATE [dbo].[Form]
+                    SET [IsActive] = 0,
+                        [DeactivatedBy] = @DeactivatedBy,
+                        [DeactivatedAt] = @DeactivatedAt,
+                        [UpdatedBy] = @UpdatedBy,
+                        [UpdatedAt] = @UpdatedAt
+                    WHERE [SyncId] = @SyncId;";
+
+                AddParam(deleteCmd, "@DeactivatedBy", (object?)payload.DeactivatedBy ?? DBNull.Value);
+                AddParam(deleteCmd, "@DeactivatedAt", (object?)payload.DeactivatedAt ?? DBNull.Value);
+                AddParam(deleteCmd, "@UpdatedBy", (object?)payload.UpdatedBy ?? DBNull.Value);
+                AddParam(deleteCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DBNull.Value);
+                AddParam(deleteCmd, "@SyncId", payload.SyncId);
+
+                await deleteCmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        private static async Task ApplyFormDetailsInsertAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            ParsedFormDetailsPayload payload,
+            CancellationToken ct)
+        {
+            await using (var existsCmd = connection.CreateCommand())
+            {
+                existsCmd.Transaction = transaction;
+                existsCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[FormDetails] WHERE [SyncId] = @SyncId;";
+                AddParam(existsCmd, "@SyncId", payload.SyncId);
+
+                var count = Convert.ToInt32(await existsCmd.ExecuteScalarAsync(ct));
+                if (count > 0)
+                {
+                    throw new SyncEntityAlreadyExistsException(
+                        $"Entity integrity violation: FormDetails with SyncId '{payload.SyncId}' already exists in remote database.");
+                }
+            }
+
+            int formId;
+            await using (var resolveCmd = connection.CreateCommand())
+            {
+                resolveCmd.Transaction = transaction;
+                resolveCmd.CommandText = "SELECT Id FROM [dbo].[Form] WHERE SyncId = @FormSyncId;";
+                AddParam(resolveCmd, "@FormSyncId", payload.FormSyncId);
+                var obj = await resolveCmd.ExecuteScalarAsync(ct);
+                if (obj == null || obj == DBNull.Value)
+                {
+                    throw new SyncEntityNotFoundException($"Referenced Form with SyncId '{payload.FormSyncId}' not found.");
+                }
+                formId = Convert.ToInt32(obj);
+            }
+
+            if (!string.IsNullOrWhiteSpace(payload.EmployeeId))
+            {
+                await using var empCmd = connection.CreateCommand();
+                empCmd.Transaction = transaction;
+                empCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Employee] WHERE [Id] = @EmployeeId;";
+                AddParam(empCmd, "@EmployeeId", payload.EmployeeId);
+                var empCount = Convert.ToInt32(await empCmd.ExecuteScalarAsync(ct));
+                if (empCount == 0)
+                {
+                    throw new SyncEntityNotFoundException($"Referenced Employee with Id '{payload.EmployeeId}' not found.");
+                }
+            }
+
+            await using (var insertCmd = connection.CreateCommand())
+            {
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = @"
+                    INSERT INTO [dbo].[FormDetails]
+                    ([FormId], [EmployeeId], [Amount], [OrderNum], [IsReviewed], [IsReviewedBy], [ReviewedAt], [ReviewComments],
+                     [IsSummaryReviewed], [IsSummaryReviewedBy], [SummaryReviewedAt], [SummaryComments], [SummaryReviewMethod],
+                     [CreatedBy], [CreatedAt], [UpdatedBy], [UpdatedAt], [DeactivatedBy], [DeactivatedAt], [IsActive], [SyncId])
+                    VALUES
+                    (@FormId, @EmployeeId, @Amount, @OrderNum, @IsReviewed, @IsReviewedBy, @ReviewedAt, @ReviewComments,
+                     @IsSummaryReviewed, @IsSummaryReviewedBy, @SummaryReviewedAt, @SummaryComments, @SummaryReviewMethod,
+                     @CreatedBy, @CreatedAt, @UpdatedBy, @UpdatedAt, @DeactivatedBy, @DeactivatedAt, @IsActive, @SyncId);";
+
+                AddParam(insertCmd, "@FormId", formId);
+                AddParam(insertCmd, "@EmployeeId", (object?)payload.EmployeeId ?? DBNull.Value);
+                AddParam(insertCmd, "@Amount", payload.Amount);
+                AddParam(insertCmd, "@OrderNum", payload.OrderNum);
+                AddParam(insertCmd, "@IsReviewed", payload.IsReviewed);
+                AddParam(insertCmd, "@IsReviewedBy", (object?)payload.IsReviewedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@ReviewedAt", (object?)payload.ReviewedAt ?? DBNull.Value);
+                AddParam(insertCmd, "@ReviewComments", (object?)payload.ReviewComments ?? DBNull.Value);
+                AddParam(insertCmd, "@IsSummaryReviewed", payload.IsSummaryReviewed);
+                AddParam(insertCmd, "@IsSummaryReviewedBy", (object?)payload.IsSummaryReviewedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@SummaryReviewedAt", (object?)payload.SummaryReviewedAt ?? DBNull.Value);
+                AddParam(insertCmd, "@SummaryComments", (object?)payload.SummaryComments ?? DBNull.Value);
+                AddParam(insertCmd, "@SummaryReviewMethod", (object?)payload.SummaryReviewMethod ?? DBNull.Value);
+                AddParam(insertCmd, "@CreatedBy", (object?)payload.CreatedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@CreatedAt", payload.CreatedAt);
+                AddParam(insertCmd, "@UpdatedBy", (object?)payload.UpdatedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DBNull.Value);
+                AddParam(insertCmd, "@DeactivatedBy", (object?)payload.DeactivatedBy ?? DBNull.Value);
+                AddParam(insertCmd, "@DeactivatedAt", (object?)payload.DeactivatedAt ?? DBNull.Value);
+                AddParam(insertCmd, "@IsActive", payload.IsActive);
+                AddParam(insertCmd, "@SyncId", payload.SyncId);
+
+                await insertCmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        private static async Task ApplyFormDetailsUpdateAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            ParsedFormDetailsPayload payload,
+            CancellationToken ct)
+        {
+            await using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = "SELECT IsActive FROM [dbo].[FormDetails] WHERE [SyncId] = @SyncId;";
+                AddParam(checkCmd, "@SyncId", payload.SyncId);
+
+                var existingActive = await checkCmd.ExecuteScalarAsync(ct);
+                if (existingActive == null || existingActive == DBNull.Value)
+                {
+                    throw new SyncEntityNotFoundException(
+                        $"Entity not found: FormDetails with SyncId '{payload.SyncId}' does not exist for UPDATE operation.");
+                }
+
+                var isCurrentActive = Convert.ToBoolean(existingActive);
+                if (isCurrentActive && !payload.IsActive)
+                {
+                    throw new SyncPayloadValidationException(
+                        "Invalid operation: Deactivating an entity must be performed via SOFT_DELETE operation.");
+                }
+            }
+
+            int formId;
+            await using (var resolveCmd = connection.CreateCommand())
+            {
+                resolveCmd.Transaction = transaction;
+                resolveCmd.CommandText = "SELECT Id FROM [dbo].[Form] WHERE SyncId = @FormSyncId;";
+                AddParam(resolveCmd, "@FormSyncId", payload.FormSyncId);
+                var obj = await resolveCmd.ExecuteScalarAsync(ct);
+                if (obj == null || obj == DBNull.Value)
+                {
+                    throw new SyncEntityNotFoundException($"Referenced Form with SyncId '{payload.FormSyncId}' not found.");
+                }
+                formId = Convert.ToInt32(obj);
+            }
+
+            if (!string.IsNullOrWhiteSpace(payload.EmployeeId))
+            {
+                await using var empCmd = connection.CreateCommand();
+                empCmd.Transaction = transaction;
+                empCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Employee] WHERE [Id] = @EmployeeId;";
+                AddParam(empCmd, "@EmployeeId", payload.EmployeeId);
+                var empCount = Convert.ToInt32(await empCmd.ExecuteScalarAsync(ct));
+                if (empCount == 0)
+                {
+                    throw new SyncEntityNotFoundException($"Referenced Employee with Id '{payload.EmployeeId}' not found.");
+                }
+            }
+
+            await using (var updateCmd = connection.CreateCommand())
+            {
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = @"
+                    UPDATE [dbo].[FormDetails]
+                    SET [FormId] = @FormId,
+                        [EmployeeId] = @EmployeeId,
+                        [Amount] = @Amount,
+                        [OrderNum] = @OrderNum,
+                        [IsReviewed] = @IsReviewed,
+                        [IsReviewedBy] = @IsReviewedBy,
+                        [ReviewedAt] = @ReviewedAt,
+                        [ReviewComments] = @ReviewComments,
+                        [IsSummaryReviewed] = @IsSummaryReviewed,
+                        [IsSummaryReviewedBy] = @IsSummaryReviewedBy,
+                        [SummaryReviewedAt] = @SummaryReviewedAt,
+                        [SummaryComments] = @SummaryComments,
+                        [SummaryReviewMethod] = @SummaryReviewMethod,
+                        [UpdatedBy] = @UpdatedBy,
+                        [UpdatedAt] = @UpdatedAt
+                    WHERE [SyncId] = @SyncId;";
+
+                AddParam(updateCmd, "@FormId", formId);
+                AddParam(updateCmd, "@EmployeeId", (object?)payload.EmployeeId ?? DBNull.Value);
+                AddParam(updateCmd, "@Amount", payload.Amount);
+                AddParam(updateCmd, "@OrderNum", payload.OrderNum);
+                AddParam(updateCmd, "@IsReviewed", payload.IsReviewed);
+                AddParam(updateCmd, "@IsReviewedBy", (object?)payload.IsReviewedBy ?? DBNull.Value);
+                AddParam(updateCmd, "@ReviewedAt", (object?)payload.ReviewedAt ?? DBNull.Value);
+                AddParam(updateCmd, "@ReviewComments", (object?)payload.ReviewComments ?? DBNull.Value);
+                AddParam(updateCmd, "@IsSummaryReviewed", payload.IsSummaryReviewed);
+                AddParam(updateCmd, "@IsSummaryReviewedBy", (object?)payload.IsSummaryReviewedBy ?? DBNull.Value);
+                AddParam(updateCmd, "@SummaryReviewedAt", (object?)payload.SummaryReviewedAt ?? DBNull.Value);
+                AddParam(updateCmd, "@SummaryComments", (object?)payload.SummaryComments ?? DBNull.Value);
+                AddParam(updateCmd, "@SummaryReviewMethod", (object?)payload.SummaryReviewMethod ?? DBNull.Value);
+                AddParam(updateCmd, "@UpdatedBy", (object?)payload.UpdatedBy ?? DBNull.Value);
+                AddParam(updateCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DBNull.Value);
+                AddParam(updateCmd, "@SyncId", payload.SyncId);
+
+                await updateCmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        private static async Task ApplyFormDetailsSoftDeleteAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            ParsedFormDetailsPayload payload,
+            CancellationToken ct)
+        {
+            await using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[FormDetails] WHERE [SyncId] = @SyncId;";
+                AddParam(checkCmd, "@SyncId", payload.SyncId);
+
+                var count = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(ct));
+                if (count == 0)
+                {
+                    throw new SyncEntityNotFoundException(
+                        $"Entity not found: FormDetails with SyncId '{payload.SyncId}' does not exist for SOFT_DELETE operation.");
+                }
+            }
+
+            await using (var deleteCmd = connection.CreateCommand())
+            {
+                deleteCmd.Transaction = transaction;
+                deleteCmd.CommandText = @"
+                    UPDATE [dbo].[FormDetails]
+                    SET [IsActive] = 0,
+                        [DeactivatedBy] = @DeactivatedBy,
+                        [DeactivatedAt] = @DeactivatedAt,
+                        [UpdatedBy] = @UpdatedBy,
+                        [UpdatedAt] = @UpdatedAt
+                    WHERE [SyncId] = @SyncId;";
+
+                AddParam(deleteCmd, "@DeactivatedBy", (object?)payload.DeactivatedBy ?? DBNull.Value);
+                AddParam(deleteCmd, "@DeactivatedAt", (object?)payload.DeactivatedAt ?? DBNull.Value);
+                AddParam(deleteCmd, "@UpdatedBy", (object?)payload.UpdatedBy ?? DBNull.Value);
+                AddParam(deleteCmd, "@UpdatedAt", (object?)payload.UpdatedAt ?? DBNull.Value);
+                AddParam(deleteCmd, "@SyncId", payload.SyncId);
+
+                await deleteCmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        public static ParsedFormPayload ParseAndValidateFormPayload(LocalOutbox outboxItem)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(outboxItem.PayloadJson);
+                var root = doc.RootElement;
+
+                var schemaVersion = root.GetProperty("schemaVersion").GetInt32();
+                if (schemaVersion != 1)
+                {
+                    throw new SyncPayloadValidationException($"Unsupported schemaVersion {schemaVersion}. Expected 1.");
+                }
+
+                var entityType = root.GetProperty("entityType").GetString();
+                if (!string.Equals(entityType, "Form", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new SyncPayloadValidationException($"Unsupported entityType '{entityType}'. Expected 'Form'.");
+                }
+
+                var databaseIdStr = root.TryGetProperty("databaseId", out var dbIdProp) ? dbIdProp.GetString() : null;
+                if (string.IsNullOrWhiteSpace(databaseIdStr) || !string.Equals(databaseIdStr, outboxItem.DatabaseId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new SyncMetadataMismatchException(
+                        $"Metadata mismatch: payload databaseId '{databaseIdStr}' does not match outbox DatabaseId '{outboxItem.DatabaseId}'.");
+                }
+
+                var entitySyncIdStr = root.GetProperty("entitySyncId").GetString();
+                if (!Guid.TryParse(entitySyncIdStr, out var entitySyncId) || entitySyncId == Guid.Empty || entitySyncId != outboxItem.EntitySyncId)
+                {
+                    throw new SyncPayloadValidationException("Payload entitySyncId is missing, empty, or does not match outbox EntitySyncId.");
+                }
+
+                var operationType = root.GetProperty("operationType").GetString() ?? string.Empty;
+                var deviceIdStr = root.GetProperty("deviceId").GetString();
+                if (!Guid.TryParse(deviceIdStr, out var deviceId) || deviceId == Guid.Empty)
+                {
+                    throw new SyncPayloadValidationException("Payload deviceId is missing or invalid GUID.");
+                }
+
+                var entityData = root.GetProperty("entityData");
+
+                if (entityData.TryGetProperty("SyncId", out var edSyncIdProp) || entityData.TryGetProperty("syncId", out edSyncIdProp))
+                {
+                    if (edSyncIdProp.ValueKind != JsonValueKind.String ||
+                        !Guid.TryParse(edSyncIdProp.GetString(), out var edSyncId) ||
+                        edSyncId != entitySyncId ||
+                        edSyncId != outboxItem.EntitySyncId)
+                    {
+                        throw new SyncMetadataMismatchException("Metadata mismatch: entityData SyncId does not match envelope entitySyncId or outbox EntitySyncId.");
+                    }
+                }
+
+                Guid? dailySyncId = null;
+                if (entityData.TryGetProperty("DailySyncId", out var dsProp) && dsProp.ValueKind == JsonValueKind.String)
+                {
+                    var dsStr = dsProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(dsStr) && Guid.TryParse(dsStr, out var g))
+                    {
+                        dailySyncId = g;
+                    }
+                }
+
+                int? index = null;
+                if (entityData.TryGetProperty("Index", out var idxProp) && idxProp.ValueKind == JsonValueKind.Number)
+                {
+                    index = idxProp.GetInt32();
+                }
+
+                string name = string.Empty;
+                if (!string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    name = entityData.TryGetProperty("Name", out var nProp) ? nProp.GetString() ?? string.Empty : string.Empty;
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        throw new SyncPayloadValidationException("Form Name is required and cannot be empty.");
+                    }
+                }
+
+                string? description = entityData.TryGetProperty("Description", out var descProp) && descProp.ValueKind == JsonValueKind.String
+                    ? descProp.GetString()
+                    : null;
+
+                bool isActive;
+                if (string.Equals(operationType, "INSERT", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || iaProp.ValueKind != JsonValueKind.True)
+                    {
+                        throw new SyncPayloadValidationException("INSERT operation requires IsActive to be explicitly true.");
+                    }
+                    isActive = true;
+                }
+                else if (string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || iaProp.ValueKind != JsonValueKind.False)
+                    {
+                        throw new SyncPayloadValidationException("SOFT_DELETE operation requires entityData.IsActive to be explicitly false.");
+                    }
+                    isActive = false;
+                }
+                else
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || (iaProp.ValueKind != JsonValueKind.True && iaProp.ValueKind != JsonValueKind.False))
+                    {
+                        throw new SyncPayloadValidationException("Boolean IsActive property is required in entityData.");
+                    }
+                    isActive = iaProp.GetBoolean();
+                }
+
+                DateTime? createdAt = string.Equals(operationType, "INSERT", StringComparison.OrdinalIgnoreCase)
+                    ? ParseRequiredTimestamp(entityData, "CreatedAt")
+                    : ParseOptionalTimestamp(entityData, "CreatedAt");
+
+                string? createdBy = entityData.TryGetProperty("CreatedBy", out var cbProp) && cbProp.ValueKind == JsonValueKind.String ? cbProp.GetString() : null;
+                string? updatedBy = entityData.TryGetProperty("UpdatedBy", out var ubProp) && ubProp.ValueKind == JsonValueKind.String ? ubProp.GetString() : null;
+
+                DateTime? updatedAt = string.Equals(operationType, "UPDATE", StringComparison.OrdinalIgnoreCase)
+                    ? ParseRequiredTimestamp(entityData, "UpdatedAt")
+                    : ParseOptionalTimestamp(entityData, "UpdatedAt");
+
+                string? deactivatedBy = entityData.TryGetProperty("DeactivatedBy", out var dbProp) && dbProp.ValueKind == JsonValueKind.String ? dbProp.GetString() : null;
+
+                DateTime? deactivatedAt = string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase)
+                    ? ParseRequiredTimestamp(entityData, "DeactivatedAt")
+                    : ParseOptionalTimestamp(entityData, "DeactivatedAt");
+
+                return new ParsedFormPayload
+                {
+                    SyncId = entitySyncId,
+                    DeviceId = deviceId,
+                    OperationType = operationType,
+                    DailySyncId = dailySyncId,
+                    Index = index,
+                    Name = name,
+                    Description = description,
+                    IsActive = isActive,
+                    CreatedAt = createdAt,
+                    CreatedBy = createdBy,
+                    UpdatedAt = updatedAt,
+                    UpdatedBy = updatedBy,
+                    DeactivatedAt = deactivatedAt,
+                    DeactivatedBy = deactivatedBy
+                };
+            }
+            catch (Exception ex) when (ex is not SyncDomainException)
+            {
+                throw new SyncPayloadValidationException($"Payload validation error: {ex.Message}", ex);
+            }
+        }
+
+        public static ParsedFormDetailsPayload ParseAndValidateFormDetailsPayload(LocalOutbox outboxItem)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(outboxItem.PayloadJson);
+                var root = doc.RootElement;
+
+                var schemaVersion = root.GetProperty("schemaVersion").GetInt32();
+                if (schemaVersion != 1)
+                {
+                    throw new SyncPayloadValidationException($"Unsupported schemaVersion {schemaVersion}. Expected 1.");
+                }
+
+                var entityType = root.GetProperty("entityType").GetString();
+                if (!string.Equals(entityType, "FormDetails", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new SyncPayloadValidationException($"Unsupported entityType '{entityType}'. Expected 'FormDetails'.");
+                }
+
+                var databaseIdStr = root.TryGetProperty("databaseId", out var dbIdProp) ? dbIdProp.GetString() : null;
+                if (string.IsNullOrWhiteSpace(databaseIdStr) || !string.Equals(databaseIdStr, outboxItem.DatabaseId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new SyncMetadataMismatchException(
+                        $"Metadata mismatch: payload databaseId '{databaseIdStr}' does not match outbox DatabaseId '{outboxItem.DatabaseId}'.");
+                }
+
+                var entitySyncIdStr = root.GetProperty("entitySyncId").GetString();
+                if (!Guid.TryParse(entitySyncIdStr, out var entitySyncId) || entitySyncId == Guid.Empty || entitySyncId != outboxItem.EntitySyncId)
+                {
+                    throw new SyncPayloadValidationException("Payload entitySyncId is missing, empty, or does not match outbox EntitySyncId.");
+                }
+
+                var operationType = root.GetProperty("operationType").GetString() ?? string.Empty;
+                var deviceIdStr = root.GetProperty("deviceId").GetString();
+                if (!Guid.TryParse(deviceIdStr, out var deviceId) || deviceId == Guid.Empty)
+                {
+                    throw new SyncPayloadValidationException("Payload deviceId is missing or invalid GUID.");
+                }
+
+                var entityData = root.GetProperty("entityData");
+
+                if (entityData.TryGetProperty("SyncId", out var edSyncIdProp) || entityData.TryGetProperty("syncId", out edSyncIdProp))
+                {
+                    if (edSyncIdProp.ValueKind != JsonValueKind.String ||
+                        !Guid.TryParse(edSyncIdProp.GetString(), out var edSyncId) ||
+                        edSyncId != entitySyncId ||
+                        edSyncId != outboxItem.EntitySyncId)
+                    {
+                        throw new SyncMetadataMismatchException("Metadata mismatch: entityData SyncId does not match envelope entitySyncId or outbox EntitySyncId.");
+                    }
+                }
+
+                if (!entityData.TryGetProperty("FormSyncId", out var fsProp) || fsProp.ValueKind != JsonValueKind.String ||
+                    !Guid.TryParse(fsProp.GetString(), out var formSyncId) || formSyncId == Guid.Empty)
+                {
+                    throw new SyncPayloadValidationException("Valid FormSyncId is required in FormDetails entityData.");
+                }
+
+                string? employeeId = entityData.TryGetProperty("EmployeeId", out var empProp) && empProp.ValueKind == JsonValueKind.String
+                    ? empProp.GetString()
+                    : null;
+
+                double amount = 0;
+                if (entityData.TryGetProperty("Amount", out var amtProp) && amtProp.ValueKind == JsonValueKind.Number)
+                {
+                    amount = amtProp.GetDouble();
+                }
+
+                int orderNum = 0;
+                if (entityData.TryGetProperty("OrderNum", out var ordProp) && ordProp.ValueKind == JsonValueKind.Number)
+                {
+                    orderNum = ordProp.GetInt32();
+                }
+
+                bool isReviewed = entityData.TryGetProperty("IsReviewed", out var irProp) && irProp.ValueKind == JsonValueKind.True;
+                string? isReviewedBy = entityData.TryGetProperty("IsReviewedBy", out var irbProp) && irbProp.ValueKind == JsonValueKind.String ? irbProp.GetString() : null;
+                DateTime? reviewedAt = ParseOptionalTimestamp(entityData, "ReviewedAt");
+                string? reviewComments = entityData.TryGetProperty("ReviewComments", out var rcProp) && rcProp.ValueKind == JsonValueKind.String ? rcProp.GetString() : null;
+
+                bool isSummaryReviewed = entityData.TryGetProperty("IsSummaryReviewed", out var isrProp) && isrProp.ValueKind == JsonValueKind.True;
+                string? isSummaryReviewedBy = entityData.TryGetProperty("IsSummaryReviewedBy", out var isrbProp) && isrbProp.ValueKind == JsonValueKind.String ? isrbProp.GetString() : null;
+                DateTime? summaryReviewedAt = ParseOptionalTimestamp(entityData, "SummaryReviewedAt");
+                string? summaryComments = entityData.TryGetProperty("SummaryComments", out var scProp) && scProp.ValueKind == JsonValueKind.String ? scProp.GetString() : null;
+                string? summaryReviewMethod = entityData.TryGetProperty("SummaryReviewMethod", out var srmProp) && srmProp.ValueKind == JsonValueKind.String ? srmProp.GetString() : null;
+
+                bool isActive;
+                if (string.Equals(operationType, "INSERT", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || iaProp.ValueKind != JsonValueKind.True)
+                    {
+                        throw new SyncPayloadValidationException("INSERT operation requires IsActive to be explicitly true.");
+                    }
+                    isActive = true;
+                }
+                else if (string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || iaProp.ValueKind != JsonValueKind.False)
+                    {
+                        throw new SyncPayloadValidationException("SOFT_DELETE operation requires entityData.IsActive to be explicitly false.");
+                    }
+                    isActive = false;
+                }
+                else
+                {
+                    if (!entityData.TryGetProperty("IsActive", out var iaProp) || (iaProp.ValueKind != JsonValueKind.True && iaProp.ValueKind != JsonValueKind.False))
+                    {
+                        throw new SyncPayloadValidationException("Boolean IsActive property is required in entityData.");
+                    }
+                    isActive = iaProp.GetBoolean();
+                }
+
+                DateTime? createdAt = string.Equals(operationType, "INSERT", StringComparison.OrdinalIgnoreCase)
+                    ? ParseRequiredTimestamp(entityData, "CreatedAt")
+                    : ParseOptionalTimestamp(entityData, "CreatedAt");
+
+                string? createdBy = entityData.TryGetProperty("CreatedBy", out var cbProp) && cbProp.ValueKind == JsonValueKind.String ? cbProp.GetString() : null;
+                string? updatedBy = entityData.TryGetProperty("UpdatedBy", out var ubProp) && ubProp.ValueKind == JsonValueKind.String ? ubProp.GetString() : null;
+
+                DateTime? updatedAt = string.Equals(operationType, "UPDATE", StringComparison.OrdinalIgnoreCase)
+                    ? ParseRequiredTimestamp(entityData, "UpdatedAt")
+                    : ParseOptionalTimestamp(entityData, "UpdatedAt");
+
+                string? deactivatedBy = entityData.TryGetProperty("DeactivatedBy", out var dbProp) && dbProp.ValueKind == JsonValueKind.String ? dbProp.GetString() : null;
+
+                DateTime? deactivatedAt = string.Equals(operationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase)
+                    ? ParseRequiredTimestamp(entityData, "DeactivatedAt")
+                    : ParseOptionalTimestamp(entityData, "DeactivatedAt");
+
+                return new ParsedFormDetailsPayload
+                {
+                    SyncId = entitySyncId,
+                    DeviceId = deviceId,
+                    OperationType = operationType,
+                    FormSyncId = formSyncId,
+                    EmployeeId = employeeId,
+                    Amount = amount,
+                    OrderNum = orderNum,
+                    IsReviewed = isReviewed,
+                    IsReviewedBy = isReviewedBy,
+                    ReviewedAt = reviewedAt,
+                    ReviewComments = reviewComments,
+                    IsSummaryReviewed = isSummaryReviewed,
+                    IsSummaryReviewedBy = isSummaryReviewedBy,
+                    SummaryReviewedAt = summaryReviewedAt,
+                    SummaryComments = summaryComments,
+                    SummaryReviewMethod = summaryReviewMethod,
+                    IsActive = isActive,
+                    CreatedAt = createdAt,
+                    CreatedBy = createdBy,
+                    UpdatedAt = updatedAt,
+                    UpdatedBy = updatedBy,
+                    DeactivatedAt = deactivatedAt,
+                    DeactivatedBy = deactivatedBy
+                };
+            }
+            catch (Exception ex) when (ex is not SyncDomainException)
+            {
+                throw new SyncPayloadValidationException($"Payload validation error: {ex.Message}", ex);
+            }
+        }
+
+        public sealed class ParsedFormPayload
+        {
+            public required Guid SyncId { get; init; }
+            public required Guid DeviceId { get; init; }
+            public required string OperationType { get; init; }
+            public Guid? DailySyncId { get; init; }
+            public int? Index { get; init; }
+            public required string Name { get; init; }
+            public string? Description { get; init; }
+            public required bool IsActive { get; init; }
+            public DateTime? CreatedAt { get; init; }
+            public string? CreatedBy { get; init; }
+            public DateTime? UpdatedAt { get; init; }
+            public string? UpdatedBy { get; init; }
+            public DateTime? DeactivatedAt { get; init; }
+            public string? DeactivatedBy { get; init; }
+        }
+
+        public sealed class ParsedFormDetailsPayload
+        {
+            public required Guid SyncId { get; init; }
+            public required Guid DeviceId { get; init; }
+            public required string OperationType { get; init; }
+            public required Guid FormSyncId { get; init; }
+            public string? EmployeeId { get; init; }
+            public double Amount { get; init; }
+            public int OrderNum { get; init; }
+            public bool IsReviewed { get; init; }
+            public string? IsReviewedBy { get; init; }
+            public DateTime? ReviewedAt { get; init; }
+            public string? ReviewComments { get; init; }
+            public bool IsSummaryReviewed { get; init; }
+            public string? IsSummaryReviewedBy { get; init; }
+            public DateTime? SummaryReviewedAt { get; init; }
+            public string? SummaryComments { get; init; }
+            public string? SummaryReviewMethod { get; init; }
             public required bool IsActive { get; init; }
             public DateTime? CreatedAt { get; init; }
             public string? CreatedBy { get; init; }

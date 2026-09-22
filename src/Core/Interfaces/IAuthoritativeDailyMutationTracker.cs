@@ -25,7 +25,9 @@ namespace Core.Interfaces
 
     public sealed class CapturedAuthoritativeDailyMutation
     {
+        public string EntityType { get; init; } = "Daily";
         public Daily? Daily { get; init; }
+        public object? Entity { get; init; }
         public required string OperationType { get; init; } // INSERT, UPDATE, SOFT_DELETE, HARD_DELETE
         public required Guid EntitySyncId { get; init; }
         public AuthoritativeDailyOriginalSnapshot? OriginalSnapshot { get; init; }

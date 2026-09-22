@@ -109,138 +109,172 @@ namespace Auth.Infrastructure.Sync.Authoritative
                         SELECT COUNT(1)
                         FROM [sync].[Tombstones] WITH (UPDLOCK, HOLDLOCK)
                         WHERE DatabaseId = @DatabaseId
-                          AND EntityType = 'Daily'
+                          AND EntityType = @EntityType
                           AND EntitySyncId = @EntitySyncId;";
 
                     AddParam(checkTombstoneCmd, "@DatabaseId", normDbId);
+                    AddParam(checkTombstoneCmd, "@EntityType", mutation.EntityType);
                     AddParam(checkTombstoneCmd, "@EntitySyncId", mutation.EntitySyncId);
 
                     var tombCount = Convert.ToInt32(await checkTombstoneCmd.ExecuteScalarAsync(cancellationToken));
                     if (tombCount > 0)
                     {
                         throw new AuthoritativeTrackingException(
-                            $"Cannot insert Daily with SyncId '{mutation.EntitySyncId}': a tombstone already exists for this entity in DatabaseId '{normDbId}'. Entity resurrection is disallowed.");
+                            $"Cannot insert {mutation.EntityType} with SyncId '{mutation.EntitySyncId}': a tombstone already exists for this entity in DatabaseId '{normDbId}'. Entity resurrection is disallowed.");
                     }
 
-                    // 2. Verify Daily does not already exist with this SyncId
-                    await using var checkDailyCmd = connection.CreateCommand();
-                    checkDailyCmd.Transaction = transaction;
-                    checkDailyCmd.CommandText = @"
+                    // 2. Verify Entity does not already exist with this SyncId
+                    string targetTable = mutation.EntityType switch
+                    {
+                        "Form" => "[dbo].[Form]",
+                        "FormDetails" => "[dbo].[FormDetails]",
+                        "FormRefernce" => "[dbo].[FormRefernce]",
+                        _ => "[dbo].[Daily]"
+                    };
+
+                    await using var checkExistCmd = connection.CreateCommand();
+                    checkExistCmd.Transaction = transaction;
+                    checkExistCmd.CommandText = $@"
                         SELECT COUNT(1)
-                        FROM [dbo].[Daily] WITH (UPDLOCK, HOLDLOCK)
+                        FROM {targetTable} WITH (UPDLOCK, HOLDLOCK)
                         WHERE SyncId = @SyncId;";
 
-                    AddParam(checkDailyCmd, "@SyncId", mutation.EntitySyncId);
+                    AddParam(checkExistCmd, "@SyncId", mutation.EntitySyncId);
 
-                    var dailyCount = Convert.ToInt32(await checkDailyCmd.ExecuteScalarAsync(cancellationToken));
-                    if (dailyCount > 0)
+                    var existCount = Convert.ToInt32(await checkExistCmd.ExecuteScalarAsync(cancellationToken));
+                    if (existCount > 0)
                     {
                         throw new AuthoritativeConcurrencyConflictException(
-                            $"Authoritative concurrency conflict on Daily with SyncId '{mutation.EntitySyncId}'. An entity with this SyncId already exists in DatabaseId '{normDbId}'. Write transaction aborted fail-closed.");
+                            $"Authoritative concurrency conflict on {mutation.EntityType} with SyncId '{mutation.EntitySyncId}'. An entity with this SyncId already exists in DatabaseId '{normDbId}'. Write transaction aborted fail-closed.");
                     }
                 }
                 else // UPDATE, SOFT_DELETE, HARD_DELETE
                 {
-                    if (mutation.OriginalSnapshot == null)
+                    if (mutation.EntityType == "Daily")
                     {
-                        throw new AuthoritativeTrackingException(
-                            $"OriginalSnapshot is required for operation '{mutation.OperationType}' on Daily with SyncId '{mutation.EntitySyncId}'. Write transaction aborted fail-closed.");
-                    }
-
-                    // Query current authoritative row and hold UPDLOCK, HOLDLOCK until transaction ends
-                    await using var readDailyCmd = connection.CreateCommand();
-                    readDailyCmd.Transaction = transaction;
-                    readDailyCmd.CommandText = @"
-                        SELECT [Name], [DailyDate], [Closed], [CreatedAt], [CreatedBy], [UpdatedAt], [UpdatedBy], [DeactivatedAt], [DeactivatedBy], [IsActive]
-                        FROM [dbo].[Daily] WITH (UPDLOCK, HOLDLOCK)
-                        WHERE [SyncId] = @SyncId;";
-
-                    AddParam(readDailyCmd, "@SyncId", mutation.EntitySyncId);
-
-                    bool rowFound = false;
-                    string? dbName = null;
-                    DateTime dbDailyDate = default;
-                    bool dbClosed = false;
-                    DateTime dbCreatedAt = default;
-                    string? dbCreatedBy = null;
-                    DateTime? dbUpdatedAt = null;
-                    string? dbUpdatedBy = null;
-                    DateTime? dbDeactivatedAt = null;
-                    string? dbDeactivatedBy = null;
-                    bool dbIsActive = false;
-
-                    await using (var reader = await readDailyCmd.ExecuteReaderAsync(cancellationToken))
-                    {
-                        if (await reader.ReadAsync(cancellationToken))
+                        if (mutation.OriginalSnapshot == null)
                         {
-                            rowFound = true;
-                            dbName = reader.GetString(0);
-                            dbDailyDate = reader.GetDateTime(1);
-                            dbClosed = reader.GetBoolean(2);
-                            dbCreatedAt = reader.GetDateTime(3);
-                            dbCreatedBy = reader.IsDBNull(4) ? null : reader.GetString(4);
-                            dbUpdatedAt = reader.IsDBNull(5) ? null : reader.GetDateTime(5);
-                            dbUpdatedBy = reader.IsDBNull(6) ? null : reader.GetString(6);
-                            dbDeactivatedAt = reader.IsDBNull(7) ? null : reader.GetDateTime(7);
-                            dbDeactivatedBy = reader.IsDBNull(8) ? null : reader.GetString(8);
-                            dbIsActive = reader.GetBoolean(9);
+                            throw new AuthoritativeTrackingException(
+                                $"OriginalSnapshot is required for operation '{mutation.OperationType}' on Daily with SyncId '{mutation.EntitySyncId}'. Write transaction aborted fail-closed.");
+                        }
+
+                        // Query current authoritative row and hold UPDLOCK, HOLDLOCK until transaction ends
+                        await using var readDailyCmd = connection.CreateCommand();
+                        readDailyCmd.Transaction = transaction;
+                        readDailyCmd.CommandText = @"
+                            SELECT [Name], [DailyDate], [Closed], [CreatedAt], [CreatedBy], [UpdatedAt], [UpdatedBy], [DeactivatedAt], [DeactivatedBy], [IsActive]
+                            FROM [dbo].[Daily] WITH (UPDLOCK, HOLDLOCK)
+                            WHERE [SyncId] = @SyncId;";
+
+                        AddParam(readDailyCmd, "@SyncId", mutation.EntitySyncId);
+
+                        bool rowFound = false;
+                        string? dbName = null;
+                        DateTime dbDailyDate = default;
+                        bool dbClosed = false;
+                        DateTime dbCreatedAt = default;
+                        string? dbCreatedBy = null;
+                        DateTime? dbUpdatedAt = null;
+                        string? dbUpdatedBy = null;
+                        DateTime? dbDeactivatedAt = null;
+                        string? dbDeactivatedBy = null;
+                        bool dbIsActive = false;
+
+                        await using (var reader = await readDailyCmd.ExecuteReaderAsync(cancellationToken))
+                        {
+                            if (await reader.ReadAsync(cancellationToken))
+                            {
+                                rowFound = true;
+                                dbName = reader.GetString(0);
+                                dbDailyDate = reader.GetDateTime(1);
+                                dbClosed = reader.GetBoolean(2);
+                                dbCreatedAt = reader.GetDateTime(3);
+                                dbCreatedBy = reader.IsDBNull(4) ? null : reader.GetString(4);
+                                dbUpdatedAt = reader.IsDBNull(5) ? null : reader.GetDateTime(5);
+                                dbUpdatedBy = reader.IsDBNull(6) ? null : reader.GetString(6);
+                                dbDeactivatedAt = reader.IsDBNull(7) ? null : reader.GetDateTime(7);
+                                dbDeactivatedBy = reader.IsDBNull(8) ? null : reader.GetString(8);
+                                dbIsActive = reader.GetBoolean(9);
+                            }
+                        }
+
+                        if (!rowFound)
+                        {
+                            throw new AuthoritativeConcurrencyConflictException(
+                                $"Authoritative concurrency conflict on Daily with SyncId '{mutation.EntitySyncId}'. The target entity no longer exists in DatabaseId '{normDbId}'. Write transaction aborted fail-closed.");
+                        }
+
+                        var snap = mutation.OriginalSnapshot;
+                        string? conflictField = null;
+
+                        if (!StringsMatch(snap.Name, dbName))
+                        {
+                            conflictField = "Name";
+                        }
+                        else if (!DateTimesMatch(snap.DailyDate, dbDailyDate))
+                        {
+                            conflictField = "DailyDate";
+                        }
+                        else if (snap.Closed != dbClosed)
+                        {
+                            conflictField = "Closed";
+                        }
+                        else if (!DateTimesMatch(snap.CreatedAt, dbCreatedAt))
+                        {
+                            conflictField = "CreatedAt";
+                        }
+                        else if (!StringsMatch(snap.CreatedBy, dbCreatedBy))
+                        {
+                            conflictField = "CreatedBy";
+                        }
+                        else if (!NullableDateTimesMatch(snap.UpdatedAt, dbUpdatedAt))
+                        {
+                            conflictField = "UpdatedAt";
+                        }
+                        else if (!StringsMatch(snap.UpdatedBy, dbUpdatedBy))
+                        {
+                            conflictField = "UpdatedBy";
+                        }
+                        else if (!NullableDateTimesMatch(snap.DeactivatedAt, dbDeactivatedAt))
+                        {
+                            conflictField = "DeactivatedAt";
+                        }
+                        else if (!StringsMatch(snap.DeactivatedBy, dbDeactivatedBy))
+                        {
+                            conflictField = "DeactivatedBy";
+                        }
+                        else if (snap.IsActive != dbIsActive)
+                        {
+                            conflictField = "IsActive";
+                        }
+
+                        if (conflictField != null)
+                        {
+                            throw new AuthoritativeConcurrencyConflictException(
+                                $"Authoritative concurrency conflict on Daily with SyncId '{mutation.EntitySyncId}'. Database current values do not match original snapshot (Field '{conflictField}' differed). Write transaction aborted fail-closed.");
                         }
                     }
+                    else
+                    {
+                        string targetTable = mutation.EntityType switch
+                        {
+                            "Form" => "[dbo].[Form]",
+                            "FormDetails" => "[dbo].[FormDetails]",
+                            "FormRefernce" => "[dbo].[FormRefernce]",
+                            _ => "[dbo].[Daily]"
+                        };
 
-                    if (!rowFound)
-                    {
-                        throw new AuthoritativeConcurrencyConflictException(
-                            $"Authoritative concurrency conflict on Daily with SyncId '{mutation.EntitySyncId}'. The target entity no longer exists in DatabaseId '{normDbId}'. Write transaction aborted fail-closed.");
-                    }
+                        await using var checkExistCmd = connection.CreateCommand();
+                        checkExistCmd.Transaction = transaction;
+                        checkExistCmd.CommandText = $"SELECT COUNT(1) FROM {targetTable} WITH (UPDLOCK, HOLDLOCK) WHERE [SyncId] = @SyncId;";
+                        AddParam(checkExistCmd, "@SyncId", mutation.EntitySyncId);
 
-                    var snap = mutation.OriginalSnapshot;
-                    string? conflictField = null;
-
-                    if (!StringsMatch(snap.Name, dbName))
-                    {
-                        conflictField = "Name";
-                    }
-                    else if (!DateTimesMatch(snap.DailyDate, dbDailyDate))
-                    {
-                        conflictField = "DailyDate";
-                    }
-                    else if (snap.Closed != dbClosed)
-                    {
-                        conflictField = "Closed";
-                    }
-                    else if (!DateTimesMatch(snap.CreatedAt, dbCreatedAt))
-                    {
-                        conflictField = "CreatedAt";
-                    }
-                    else if (!StringsMatch(snap.CreatedBy, dbCreatedBy))
-                    {
-                        conflictField = "CreatedBy";
-                    }
-                    else if (!NullableDateTimesMatch(snap.UpdatedAt, dbUpdatedAt))
-                    {
-                        conflictField = "UpdatedAt";
-                    }
-                    else if (!StringsMatch(snap.UpdatedBy, dbUpdatedBy))
-                    {
-                        conflictField = "UpdatedBy";
-                    }
-                    else if (!NullableDateTimesMatch(snap.DeactivatedAt, dbDeactivatedAt))
-                    {
-                        conflictField = "DeactivatedAt";
-                    }
-                    else if (!StringsMatch(snap.DeactivatedBy, dbDeactivatedBy))
-                    {
-                        conflictField = "DeactivatedBy";
-                    }
-                    else if (snap.IsActive != dbIsActive)
-                    {
-                        conflictField = "IsActive";
-                    }
-
-                    if (conflictField != null)
-                    {
-                        throw new AuthoritativeConcurrencyConflictException(
-                            $"Authoritative concurrency conflict on Daily with SyncId '{mutation.EntitySyncId}'. Database current values do not match original snapshot (Field '{conflictField}' differed). Write transaction aborted fail-closed.");
+                        var count = Convert.ToInt32(await checkExistCmd.ExecuteScalarAsync(cancellationToken));
+                        if (count == 0)
+                        {
+                            throw new AuthoritativeConcurrencyConflictException(
+                                $"Authoritative concurrency conflict on {mutation.EntityType} with SyncId '{mutation.EntitySyncId}'. The target entity no longer exists in DatabaseId '{normDbId}'. Write transaction aborted fail-closed.");
+                        }
                     }
                 }
             }
@@ -291,24 +325,25 @@ namespace Auth.Infrastructure.Sync.Authoritative
                     tombstoneCmd.CommandText = @"
                         IF EXISTS (
                             SELECT 1 FROM [sync].[Tombstones]
-                            WHERE DatabaseId = @DatabaseId AND EntityType = 'Daily' AND EntitySyncId = @EntitySyncId
+                            WHERE DatabaseId = @DatabaseId AND EntityType = @EntityType AND EntitySyncId = @EntitySyncId
                         )
                         BEGIN
                             UPDATE [sync].[Tombstones]
                             SET ServerVersion = @ServerVersion,
                                 DeletedAtUtc = @DeletedAtUtc,
                                 NaturalKey = NULL
-                            WHERE DatabaseId = @DatabaseId AND EntityType = 'Daily' AND EntitySyncId = @EntitySyncId;
+                            WHERE DatabaseId = @DatabaseId AND EntityType = @EntityType AND EntitySyncId = @EntitySyncId;
                         END
                         ELSE
                         BEGIN
                             INSERT INTO [sync].[Tombstones]
                             ([DatabaseId], [EntityType], [EntitySyncId], [NaturalKey], [ServerVersion], [DeletedAtUtc])
                             VALUES
-                            (@DatabaseId, 'Daily', @EntitySyncId, NULL, @ServerVersion, @DeletedAtUtc);
+                            (@DatabaseId, @EntityType, @EntitySyncId, NULL, @ServerVersion, @DeletedAtUtc);
                         END";
 
                     AddParam(tombstoneCmd, "@DatabaseId", normDbId);
+                    AddParam(tombstoneCmd, "@EntityType", mutation.EntityType);
                     AddParam(tombstoneCmd, "@EntitySyncId", mutation.EntitySyncId);
                     AddParam(tombstoneCmd, "@ServerVersion", currentServerVersion);
                     AddParam(tombstoneCmd, "@DeletedAtUtc", transactionTimestampUtc);
@@ -323,10 +358,11 @@ namespace Auth.Infrastructure.Sync.Authoritative
                     INSERT INTO [sync].[ServerChangeFeed]
                     ([ServerVersion], [DatabaseId], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId], [TimestampUtc])
                     VALUES
-                    (@ServerVersion, @DatabaseId, 'Daily', @EntitySyncId, @OperationType, @OriginDeviceId, @TimestampUtc);";
+                    (@ServerVersion, @DatabaseId, @EntityType, @EntitySyncId, @OperationType, @OriginDeviceId, @TimestampUtc);";
 
                 AddParam(feedCmd, "@ServerVersion", currentServerVersion);
                 AddParam(feedCmd, "@DatabaseId", normDbId);
+                AddParam(feedCmd, "@EntityType", mutation.EntityType);
                 AddParam(feedCmd, "@EntitySyncId", mutation.EntitySyncId);
                 AddParam(feedCmd, "@OperationType", mutation.OperationType.ToUpperInvariant());
                 AddParam(feedCmd, "@OriginDeviceId", ServerOriginDeviceId);
