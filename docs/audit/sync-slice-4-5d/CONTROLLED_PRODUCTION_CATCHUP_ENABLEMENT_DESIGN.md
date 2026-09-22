@@ -90,9 +90,9 @@ flowchart TD
 
 ---
 
-## 3. Comprehensive Verification Evidence (Tests A Through Y)
+## 3. Comprehensive Verification Evidence (Tests A Through Z2)
 
-A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.ps1`](file:///f:/Prog-Projects/IProgram/script/sync-rollout/test_slice_4_5d_production_enablement.ps1)) was executed against isolated localhost fixtures (`_Test`), verifying all 25 required invariants:
+A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.ps1`](file:///f:/Prog-Projects/IProgram/script/sync-rollout/test_slice_4_5d_production_enablement.ps1)) was executed against isolated localhost fixtures (`_Test`), verifying all 27 required invariants:
 
 | Test | Invariant Description | Expected Behavior | Result |
 | :--- | :--- | :--- | :---: |
@@ -101,15 +101,15 @@ A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.p
 | **C** | Wrong `-ExpectedMasterSha` | Fail closed (`REPO_GUARD_VIOLATION`) | **PASS** |
 | **D** | Non-`master` branch or dirty working tree | Fail closed (`REPO_GUARD_VIOLATION`) | **PASS** |
 | **E** | `-AllowProductionExecution` + `-AllowIsolatedExecutionOnly` combo | Fail closed (`OPERATOR_MODE_ERROR`) | **PASS** |
-| **F** | Expected $W$ mismatch against fresh preflight | Fail closed (`STALE_AUTHORIZATION_WATERMARK_MISMATCH`) | **PASS** |
-| **G** | Expected $V_{observed}$ mismatch against fresh preflight | Fail closed (`STALE_AUTHORIZATION_VERSION_MISMATCH`) | **PASS** |
+| **F** | Expected $W$ mismatch against fresh preflight | Real operator gate fails closed before API startup (`STALE_AUTHORIZATION_WATERMARK_MISMATCH`) | **PASS** |
+| **G** | Expected $V_{observed}$ mismatch against fresh preflight | Real operator gate fails closed before API startup (`STALE_AUTHORIZATION_VERSION_MISMATCH`) | **PASS** |
 | **H** | Active lease on target database | Fail closed (`PREFLIGHT_FAIL: Local Lease currently active`) | **PASS** |
 | **I** | Pending or failed outbox records present | Fail closed (`PREFLIGHT_FAIL: Local Outbox has mutations`) | **PASS** |
-| **J** | Change feed gap or sequence integrity failure | Fail closed (`Feed gap detected`) | **PASS** |
+| **J** | Change feed gap or sequence integrity failure | Real operator preflight fails closed (`PREFLIGHT_FAIL: Feed window count / gap detected`) | **PASS** |
 | **K** | Physical database binding mismatch (Azure to local or vice-versa) | Fail closed (`BINDING_ERROR`) | **PASS** |
 | **L** | Committed configuration violation (sync flags enabled by default) | Fail closed (`COMMITTED_CONFIG_GUARD_VIOLATION`) | **PASS** |
-| **M** | Fully-authorized valid production parameters | Parses and validates cleanly | **PASS** |
-| **N** | Isolated full execution proves postconditions ($H_{exec}$, hash, retry) | Pull converges to $H_{exec}$, retry is NO-OP | **PASS** |
+| **M** | Fully-authorized valid production parameters | Pure gate validates cleanly without throwing | **PASS** |
+| **N** | Isolated full execution proves postconditions ($H_{exec}$, hash parity, idempotent retry) | Pull converges to $H_{exec}$, exact SHA-256 hash parity verified, retry is NO-OP | **PASS** |
 | **O** | Environment cleanup is deterministic on success and failure | Snapshot restored bit-for-bit in `finally` | **PASS** |
 | **P** | Machine-readable audit output contains zero secrets | Passed keyword/regex secret scanner | **PASS** |
 | **Q** | Stale cached `origin/master` cannot authorize production when live remote master differs | Live `git ls-remote` mismatch fails closed (`REPO_GUARD_VIOLATION`) | **PASS** |
@@ -120,9 +120,11 @@ A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.p
 | **V** | Production mode strictly rejects CLI `-Azure2027ConnectionString` parameter | Connection string CLI parameter rejected (`SECURITY_VIOLATION`) | **PASS** |
 | **W** | Production mode strictly rejects CLI `-Local2026ConnectionString` parameter | Connection string CLI parameter rejected (`SECURITY_VIOLATION`) | **PASS** |
 | **X** | Production mode strictly rejects CLI `-Local2027ConnectionString` parameter | Connection string CLI parameter rejected (`SECURITY_VIOLATION`) | **PASS** |
-| **Y** | Isolated mode accepts fixture connection strings; zero secret leakage | Isolated mode accepts fixture strings; 0 secrets logged | **PASS** |
+| **Y** | Isolated mode accepts fixture connection strings; zero secret leakage | Tested strictly against localhost test databases with `Assert-TestIsolationGuard`; 0 secrets logged | **PASS** |
+| **Z1** | 2027 stale-authorization gate re-enforced before second pull | State shifts between phase 1 and phase 2 fail closed (`STALE_AUTHORIZATION_*`) | **PASS** |
+| **Z2** | Remote post-pull invariance handles concurrent advance and parity contract | Advance after fence release recorded as `REMOTE_ADVANCED_AFTER_PULL`; hash mismatch fails closed (`POST_AUDIT_PARITY_ERROR`) | **PASS** |
 
-**Summary**: 25 / 25 Invariant Tests Passed Deterministically.
+**Summary**: 27 / 27 Invariant Tests Passed Deterministically.
 
 ---
 

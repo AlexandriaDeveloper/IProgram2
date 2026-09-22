@@ -1,6 +1,6 @@
 # ==============================================================================
 # SLICE 4.5D: CONTROLLED PRODUCTION CATCH-UP ENABLEMENT TEST SUITE
-# Automated deterministic test harness verifying Invariants A through Y:
+# Automated deterministic test harness verifying Invariants A through Z2:
 #   A. Production Execute without explicit production switch => FAIL
 #   B. Production switch without approval reference => FAIL
 #   C. Wrong expected master SHA => FAIL
@@ -26,6 +26,8 @@
 #   W. Production mode strictly rejects CLI -Local2026ConnectionString parameter => FAIL
 #   X. Production mode strictly rejects CLI -Local2027ConnectionString parameter => FAIL
 #   Y. Isolated mode accepts fixture connection strings; zero secret leakage => PASS
+#   Z1. 2027 stale-authorization gate re-enforced before second pull fails closed on state shift => FAIL
+#   Z2. Remote post-pull invariance handles concurrent advance and parity failure correctly => PASS
 #
 # OPERATIONAL SAFETY:
 #   Uses strictly isolated transient test databases on localhost (*_Test45D).
@@ -39,9 +41,26 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $operatorScript = Join-Path $PSScriptRoot "execute_daily_pull_catchup.ps1"
 $testPort = 5105
 
+# Export pure operator functions for in-memory testing
+. $operatorScript -ExportFunctionsOnly
+
 Write-Host "==========================================================================" -ForegroundColor Cyan
 Write-Host "  SLICE 4.5D: CONTROLLED PRODUCTION CATCH-UP ENABLEMENT TEST SUITE        " -ForegroundColor Cyan
 Write-Host "==========================================================================" -ForegroundColor Cyan
+
+# 0. Strict Test Isolation Guard (P0-3)
+function Assert-TestIsolationGuard([string]$connStr, [string]$contextName) {
+    if ([string]::IsNullOrWhiteSpace($connStr)) { return }
+    if ($connStr -match "(?i)\.database\.windows\.net") {
+        throw "ISOLATION_VIOLATION: Test harness context '$contextName' detected forbidden Azure host in '$connStr'."
+    }
+    $forbiddenDbs = @("IProgramDb2026", "IProgramDb2027", "IProgramLocalDb2026", "IProgramLocalDb2027")
+    foreach ($db in $forbiddenDbs) {
+        if ($connStr -match "(?i)(Database|Initial Catalog)\s*=\s*$db\b") {
+            throw "ISOLATION_VIOLATION: Test harness context '$contextName' detected forbidden operational database '$db' in '$connStr'."
+        }
+    }
+}
 
 # 1. Isolated Test Database Names
 $remoteDb2026 = "IProgramRemoteSync2026_Test"
@@ -49,20 +68,21 @@ $remoteDb2027 = "IProgramRemoteSync2027_Test"
 $localDb2026 = "IProgramLocalDb2026_Test"
 $localDb2027 = "IProgramLocalDb2027_Test"
 
-$forbiddenDbs = @("IProgramDb2026", "IProgramDb2027", "IProgramLocalDb2026", "IProgramLocalDb2027")
-foreach ($db in @($remoteDb2026, $remoteDb2027, $localDb2026, $localDb2027)) {
-    if ($forbiddenDbs -contains $db) {
-        throw "SECURITY_VIOLATION: Test harness must NEVER touch operational database '$db'."
-    }
-}
-
 $masterConnStr = "Server=localhost;Database=master;Integrated Security=True;TrustServerCertificate=True;"
 $remoteConn2026Str = "Server=localhost;Database=$remoteDb2026;Integrated Security=True;TrustServerCertificate=True;"
 $remoteConn2027Str = "Server=localhost;Database=$remoteDb2027;Integrated Security=True;TrustServerCertificate=True;"
 $localConn2026Str = "Server=localhost;Database=$localDb2026;Integrated Security=True;TrustServerCertificate=True;"
 $localConn2027Str = "Server=localhost;Database=$localDb2027;Integrated Security=True;TrustServerCertificate=True;"
 
+# Validate all test fixture connection strings through the isolation guard
+Assert-TestIsolationGuard $masterConnStr "Master"
+Assert-TestIsolationGuard $remoteConn2026Str "Remote2026"
+Assert-TestIsolationGuard $remoteConn2027Str "Remote2027"
+Assert-TestIsolationGuard $localConn2026Str "Local2026"
+Assert-TestIsolationGuard $localConn2027Str "Local2027"
+
 function Execute-Sql($connStr, $sql) {
+    Assert-TestIsolationGuard $connStr "Execute-Sql"
     $conn = New-Object SqlConnection($connStr)
     $conn.Open()
     try {
@@ -76,7 +96,7 @@ function Execute-Sql($connStr, $sql) {
 }
 
 $passedTests = 0
-$totalTests = 25
+$totalTests = 27
 
 function Assert-Test([string]$Name, [scriptblock]$Action) {
     Write-Host -NoNewline "Running Test $Name..."
@@ -313,9 +333,47 @@ CREATE DATABASE [$localDb2026];
 CREATE DATABASE [$localDb2027];
 "@
 
+# Cryptographic Ephemeral Password and ASP.NET Core Identity PasswordHasher v3 Generator (P0-6)
+function New-EphemeralTestPassword {
+    $bytes = New-Object byte[] 24
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    $rng.Dispose()
+    return "TstP!9" + [Convert]::ToBase64String($bytes).Replace("+","X").Replace("/","Y").Replace("=","Z")
+}
+
+function New-EphemeralIdentityPasswordHash([string]$password) {
+    $salt = New-Object byte[] 16
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($salt)
+
+    $hashAlg = [System.Security.Cryptography.HashAlgorithmName]::SHA512
+    $iter = 100000
+    $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes ($password, $salt, $iter, $hashAlg)
+    $subkey = $kdf.GetBytes(32)
+
+    # ASP.NET Core Identity v3 format:
+    # 0x01 (format) + 4 bytes PRF (0x00000002 for SHA512) + 4 bytes iter (100000 = 0x000186A0) + 4 bytes saltLen (16 = 0x00000010) + 16 bytes salt + 32 bytes subkey
+    $ms = New-Object System.IO.MemoryStream
+    $bw = New-Object System.IO.BinaryWriter($ms)
+    $bw.Write([byte]1)
+    $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]2)
+    $bw.Write([byte]0); $bw.Write([byte]1); $bw.Write([byte]0x86); $bw.Write([byte]0xA0)
+    $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]16)
+    $bw.Write($salt)
+    $bw.Write($subkey)
+    $bw.Flush()
+    $output = [Convert]::ToBase64String($ms.ToArray())
+    $bw.Dispose()
+    $ms.Dispose()
+    $kdf.Dispose()
+    $rng.Dispose()
+    return $output
+}
+
 $testUsername = "isolated_admin"
-$testPassword = "IsolatedAdmin@2026!"
-$testPasswordHash = "AQAAAAIAAYagAAAAEAA4TSptJUTsC1uiKqmf9SOI8vRw0z9M49QxljOY7/BTt/a1xB4CzzRVr6D4vu8eAw=="
+$testPassword = New-EphemeralTestPassword
+$testPasswordHash = New-EphemeralIdentityPasswordHash $testPassword
 
 function Init-IsolatedDatabases {
     foreach ($yr in @("2026", "2027")) {
@@ -565,45 +623,80 @@ Write-Host " Provisioned." -ForegroundColor Green
 # TEST F: Expected W mismatch => FAIL before API/sync
 # ------------------------------------------------------------------------------
 Assert-Test "F: Expected W mismatch fails closed before API startup" {
-    $threw = $false
+    # Part 1: Real operator gate invocation against isolated DB fails before API startup
+    $threwRealOp = $false
     try {
-        & $operatorScript -Execute -AllowProductionExecution `
-            -ProductionApprovalReference "ISSUE-14-TEST" `
-            -ExpectedMasterSha "MOCK_SHA" `
-            -Expected2026LocalW 99 `
-            -Expected2027LocalW 0 `
-            -Expected2026ObservedV 1 `
-            -Expected2027ObservedV 1 `
-            -SkipGitVerification 2>&1 | Out-Null
+        & $operatorScript -Execute -AllowIsolatedExecutionOnly `
+            -Port $testPort `
+            -Username $testUsername `
+            -Password $testPassword `
+            -Azure2026ConnectionString $remoteConn2026Str `
+            -Azure2027ConnectionString $remoteConn2027Str `
+            -Local2026ConnectionString $localConn2026Str `
+            -Local2027ConnectionString $localConn2027Str `
+            -Expected2026LocalW 99 2>&1 | Out-Null
     } catch {
-        if ($_.Exception.Message -match "SECURITY_VIOLATION.*SkipGitVerification.*never permitted in production mode") {
-            # Expected because SkipGitVerification is forbidden with AllowProductionExecution
-            $threw = $true
+        if ($_.Exception.Message -match "STALE_AUTHORIZATION_WATERMARK_MISMATCH: 2026 Initial preflight W \(0\) does not match approved Expected2026LocalW \(99\)") {
+            $threwRealOp = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_F1: $($_.Exception.Message)"
         }
     }
-    if (-not $threw) { throw "Expected security violation for SkipGitVerification in production." }
+    if (-not $threwRealOp) { throw "Expected real operator gate to fail closed on Expected2026LocalW mismatch." }
 
-    # Test expected-state check logic directly using preflight
-    $pre2026 = [PSCustomObject]@{ W = [int64]0; V_observed = [int64]1 }
-    $expectedW = 99
-    $staleThrew = $false
-    if ($pre2026.W -ne $expectedW) {
-        $staleThrew = $true
+    # Part 2: Pure gate function verification
+    $pre2026Mock = [PSCustomObject]@{ W = [int64]0; V_observed = [int64]1 }
+    $pre2027Mock = [PSCustomObject]@{ W = [int64]0; V_observed = [int64]1 }
+    $threwPure = $false
+    try {
+        Assert-AuthorizationWatermarkAndVersionGate -Preflight2026 $pre2026Mock -Preflight2027 $pre2027Mock `
+            -Expected2026W 99 -Expected2026V 1 -Expected2027W 0 -Expected2027V 1
+    } catch {
+        if ($_.Exception.Message -match "STALE_AUTHORIZATION_WATERMARK_MISMATCH: 2026 Initial preflight W") {
+            $threwPure = $true
+        }
     }
-    if (-not $staleThrew) { throw "Expected watermark mismatch check to detect mismatch." }
+    if (-not $threwPure) { throw "Assert-AuthorizationWatermarkAndVersionGate did not fail on 2026 W mismatch." }
 }
 
 # ------------------------------------------------------------------------------
 # TEST G: Expected V_observed mismatch => FAIL before API/sync
 # ------------------------------------------------------------------------------
 Assert-Test "G: Expected V_observed mismatch fails closed before API startup" {
-    $pre2026 = [PSCustomObject]@{ W = [int64]0; V_observed = [int64]1 }
-    $expectedV = 88
-    $staleThrew = $false
-    if ($pre2026.V_observed -ne $expectedV) {
-        $staleThrew = $true
+    # Part 1: Real operator gate invocation against isolated DB fails before API startup
+    $threwRealOp = $false
+    try {
+        & $operatorScript -Execute -AllowIsolatedExecutionOnly `
+            -Port $testPort `
+            -Username $testUsername `
+            -Password $testPassword `
+            -Azure2026ConnectionString $remoteConn2026Str `
+            -Azure2027ConnectionString $remoteConn2027Str `
+            -Local2026ConnectionString $localConn2026Str `
+            -Local2027ConnectionString $localConn2027Str `
+            -Expected2026ObservedV 99 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "STALE_AUTHORIZATION_VERSION_MISMATCH: 2026 Initial preflight V_observed \(1\) does not match approved Expected2026ObservedV \(99\)") {
+            $threwRealOp = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_G1: $($_.Exception.Message)"
+        }
     }
-    if (-not $staleThrew) { throw "Expected version mismatch check to detect mismatch." }
+    if (-not $threwRealOp) { throw "Expected real operator gate to fail closed on Expected2026ObservedV mismatch." }
+
+    # Part 2: Pure gate function verification
+    $pre2026Mock = [PSCustomObject]@{ W = [int64]0; V_observed = [int64]1 }
+    $pre2027Mock = [PSCustomObject]@{ W = [int64]0; V_observed = [int64]1 }
+    $threwPure = $false
+    try {
+        Assert-AuthorizationWatermarkAndVersionGate -Preflight2026 $pre2026Mock -Preflight2027 $pre2027Mock `
+            -Expected2026W 0 -Expected2026V 99 -Expected2027W 0 -Expected2027V 1
+    } catch {
+        if ($_.Exception.Message -match "STALE_AUTHORIZATION_VERSION_MISMATCH: 2026 Initial preflight V_observed") {
+            $threwPure = $true
+        }
+    }
+    if (-not $threwPure) { throw "Assert-AuthorizationWatermarkAndVersionGate did not fail on 2026 V mismatch." }
 }
 
 # ------------------------------------------------------------------------------
@@ -661,36 +754,94 @@ Assert-Test "I: Pending/failed outbox fails closed" {
 # TEST J: Feed gap / integrity failure => FAIL
 # ------------------------------------------------------------------------------
 Assert-Test "J: Feed gap / integrity failure fails closed" {
-    # Insert version 3 with gap (missing version 2)
+    # 1. Corrupt isolated test database: Insert version 3 with gap (missing version 2)
     Execute-Sql $remoteConn2026Str @"
 INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
 VALUES ('2026', 3, 'Daily', NEWID(), 'INSERT', '00000000-0000-0000-0000-000000000000');
 UPDATE [sync].[ServerState] SET CurrentVersion = 3 WHERE DatabaseId = '2026';
 "@
-    $threw = $false
+    $threwReal = $false
     try {
-        # Feed has v=1 and v=3, missing v=2
-        $feeds = @(
-            [PSCustomObject]@{ ServerVersion = [int64]1 },
-            [PSCustomObject]@{ ServerVersion = [int64]3 }
-        )
-        for ($i = 1; $i -lt $feeds.Count; $i++) {
-            if ($feeds[$i].ServerVersion -ne ($feeds[$i-1].ServerVersion + 1)) {
-                $threw = $true
-            }
+        & $operatorScript -DryRun -AllowIsolatedExecutionOnly `
+            -Azure2026ConnectionString $remoteConn2026Str `
+            -Azure2027ConnectionString $remoteConn2027Str `
+            -Local2026ConnectionString $localConn2026Str `
+            -Local2027ConnectionString $localConn2027Str 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "PREFLIGHT_FAIL: (Feed window count|Feed gap detected)") {
+            $threwReal = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_J: $($_.Exception.Message)"
         }
     } finally {
         Init-IsolatedDatabases
     }
-    if (-not $threw) { throw "Expected feed gap detection to fail." }
+    if (-not $threwReal) { throw "Expected real Invoke-PreflightVerification / Assert-FeedWindowIntegrity to fail on feed gap / count." }
+
+    # 2. Pure feed integrity testing across corruption cases
+    $conn = New-Object SqlConnection($remoteConn2026Str)
+    $conn.Open()
+    try {
+        # Feed window count mismatch
+        $countFeeds = @(
+            [PSCustomObject]@{ ServerVersion = [int64]1; EntityType = "Daily"; EntitySyncId = [Guid]::NewGuid(); OperationType = "INSERT" }
+        )
+        $threwCount = $false
+        try {
+            Assert-FeedWindowIntegrity -Year "2026" -W 0 -VObserved 3 -AzureConn $conn -WindowFeeds $countFeeds
+        } catch {
+            if ($_.Exception.Message -match "Feed window count") { $threwCount = $true }
+        }
+        if (-not $threwCount) { throw "Expected Assert-FeedWindowIntegrity to catch feed count mismatch." }
+
+        # Non-sequential feed gap (matching count with duplicated/out-of-order versions)
+        $gapFeeds = @(
+            [PSCustomObject]@{ ServerVersion = [int64]1; EntityType = "Daily"; EntitySyncId = [Guid]::NewGuid(); OperationType = "INSERT" },
+            [PSCustomObject]@{ ServerVersion = [int64]1; EntityType = "Daily"; EntitySyncId = [Guid]::NewGuid(); OperationType = "INSERT" },
+            [PSCustomObject]@{ ServerVersion = [int64]3; EntityType = "Daily"; EntitySyncId = [Guid]::NewGuid(); OperationType = "INSERT" }
+        )
+        $threwGap = $false
+        try {
+            Assert-FeedWindowIntegrity -Year "2026" -W 0 -VObserved 3 -AzureConn $conn -WindowFeeds $gapFeeds
+        } catch {
+            if ($_.Exception.Message -match "(Feed gap detected|Duplicate ServerVersion)") { $threwGap = $true }
+        }
+        if (-not $threwGap) { throw "Expected Assert-FeedWindowIntegrity to catch non-sequential feed gap / duplicate." }
+
+        # Unsupported EntityType
+        $badEntityFeeds = @(
+            [PSCustomObject]@{ ServerVersion = [int64]1; EntityType = "Employee"; EntitySyncId = [Guid]::NewGuid(); OperationType = "INSERT" }
+        )
+        $threwEntity = $false
+        try {
+            Assert-FeedWindowIntegrity -Year "2026" -W 0 -VObserved 1 -AzureConn $conn -WindowFeeds $badEntityFeeds
+        } catch {
+            if ($_.Exception.Message -match "Unsupported EntityType") { $threwEntity = $true }
+        }
+        if (-not $threwEntity) { throw "Expected Assert-FeedWindowIntegrity to catch unsupported EntityType." }
+
+        # Unsupported OperationType
+        $badOpFeeds = @(
+            [PSCustomObject]@{ ServerVersion = [int64]1; EntityType = "Daily"; EntitySyncId = [Guid]::NewGuid(); OperationType = "DROP" }
+        )
+        $threwOp = $false
+        try {
+            Assert-FeedWindowIntegrity -Year "2026" -W 0 -VObserved 1 -AzureConn $conn -WindowFeeds $badOpFeeds
+        } catch {
+            if ($_.Exception.Message -match "Unsupported OperationType") { $threwOp = $true }
+        }
+        if (-not $threwOp) { throw "Expected Assert-FeedWindowIntegrity to catch unsupported OperationType." }
+    } finally {
+        $conn.Close()
+    }
 }
 
 # ------------------------------------------------------------------------------
 # TEST M: Valid fully-authorized gate parameters validate successfully
 # ------------------------------------------------------------------------------
 Assert-Test "M: Valid fully-authorized parameters validate cleanly" {
-    # Verify parameter block parses correctly and mode validation accepts valid production syntax
-    $params = @{
+    # Verify pure authorization gate function accepts valid production parameters
+    $boundParams = @{
         Execute = $true
         AllowProductionExecution = $true
         ProductionApprovalReference = "ISSUE-14-BO-AUTH-5776730534"
@@ -700,9 +851,13 @@ Assert-Test "M: Valid fully-authorized parameters validate cleanly" {
         Expected2026ObservedV = 8
         Expected2027ObservedV = 8
     }
-    if (-not $params.AllowProductionExecution -or [string]::IsNullOrWhiteSpace($params.ProductionApprovalReference)) {
-        throw "Parameter assertion failed."
-    }
+    Assert-ProductionExecutionAuthorization -DryRun $false -Execute $true -AllowProductionExecution $true `
+        -AllowIsolatedExecutionOnly $false `
+        -BoundParameters $boundParams `
+        -ProductionApprovalReference "ISSUE-14-BO-AUTH-5776730534" `
+        -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+        -Expected2026LocalW 0 -Expected2027LocalW 0 `
+        -Expected2026ObservedV 8 -Expected2027ObservedV 8
 }
 
 # ------------------------------------------------------------------------------
@@ -733,6 +888,15 @@ Assert-Test "N: Isolated execution verifies postconditions (exact H_exec, parity
     # Verify deterministic hash parity
     if ($res1.Year2026.LocalDailyRows -ne 1 -or $res1.Year2027.LocalDailyRows -ne 1) {
         throw "Expected 1 row in local Daily after pull."
+    }
+    if ($res1.Year2026.RemoteStatus -ne "PARITY_VERIFIED" -or $res1.Year2027.RemoteStatus -ne "PARITY_VERIFIED") {
+        throw "Expected PARITY_VERIFIED on first pull."
+    }
+    if ($res1.Year2026.LocalDailyHash -ne $res1.Year2026.RemoteDailyHash) {
+        throw "Expected LocalDailyHash to match RemoteDailyHash for 2026."
+    }
+    if ($res1.Year2027.LocalDailyHash -ne $res1.Year2027.RemoteDailyHash) {
+        throw "Expected LocalDailyHash to match RemoteDailyHash for 2027."
     }
 
     # Idempotent Retry: Second pull must be deterministic NO-OP
@@ -1105,18 +1269,122 @@ Assert-Test "Y: Isolated mode accepts fixture connection strings; zero secret le
     if ($threwIsolated) { throw "Isolated mode failed to accept fixture connection strings." }
 
     # 2. Production non-command-line resolution path does not log/echo connection strings or secrets
+    # P0-3 INVARIANT: NEVER set or point to *.database.windows.net or operational database names in test harness!
+    # Validate resolution via environment using strictly isolated localhost test databases.
     $secretMarker = "SuperSecretMarker_$(Get-Random)!"
-    $origConn = $env:ConnectionStrings__DefaultConnection
-    $env:ConnectionStrings__DefaultConnection = "Server=iprogram-sql-prod-01.database.windows.net;Database=IProgramDb2026;User ID=admin;Password=$secretMarker;"
+    $testEnvConn2026 = "Server=localhost;Database=$remoteDb2026;User ID=test_user;Password=$secretMarker;TrustServerCertificate=True;"
+    $testEnvConn2027 = "Server=localhost;Database=$remoteDb2027;User ID=test_user;Password=$secretMarker;TrustServerCertificate=True;"
+    Assert-TestIsolationGuard $testEnvConn2026 "TestY_Env2026"
+    Assert-TestIsolationGuard $testEnvConn2027 "TestY_Env2027"
+
+    $origConn2026 = $env:ConnectionStrings__DefaultConnection
+    $origConn2027 = $env:ConnectionStrings__CON2027
     try {
-        # DryRun without CLI connection strings resolves without echoing
-        $dryRunOutput = & $operatorScript -DryRun 2>&1 | Out-String
+        $env:ConnectionStrings__DefaultConnection = $testEnvConn2026
+        $env:ConnectionStrings__CON2027 = $testEnvConn2027
+
+        # DryRun without CLI connection strings resolves via environment without echoing secrets
+        $dryRunOutput = & $operatorScript -DryRun -AllowIsolatedExecutionOnly `
+            -Local2026ConnectionString $localConn2026Str `
+            -Local2027ConnectionString $localConn2027Str 2>&1 | Out-String
+
         if ($dryRunOutput -match [regex]::Escape($secretMarker)) {
             throw "SECURITY_VIOLATION: Secret marker leaked into dry-run console output."
         }
     } finally {
-        $env:ConnectionStrings__DefaultConnection = $origConn
+        $env:ConnectionStrings__DefaultConnection = $origConn2026
+        $env:ConnectionStrings__CON2027 = $origConn2027
     }
+}
+
+# ------------------------------------------------------------------------------
+# TEST Z1: 2027 stale-authorization check re-enforced before second pull (P0-4)
+# ------------------------------------------------------------------------------
+Assert-Test "Z1: 2027 stale-authorization gate re-enforced before second pull fails closed on state shift" {
+    # Test A: Watermark mismatch on second preflight
+    $pre2027ShiftW = [PSCustomObject]@{ W = [int64]2; V_observed = [int64]5 }
+    $threwW = $false
+    try {
+        Assert-AuthorizationWatermarkAndVersionGate -Preflight2027 $pre2027ShiftW `
+            -Expected2027W 0 -Expected2027V 5 -PhaseContext "Second"
+    } catch {
+        if ($_.Exception.Message -match "STALE_AUTHORIZATION_WATERMARK_MISMATCH: 2027 Second preflight W \(2\) does not match approved Expected2027LocalW \(0\)") {
+            $threwW = $true
+        }
+    }
+    if (-not $threwW) { throw "Expected 2027 second-phase watermark shift to fail closed." }
+
+    # Test B: Version mismatch on second preflight (e.g. concurrent write on 2027 between phase 1 and phase 2)
+    $pre2027ShiftV = [PSCustomObject]@{ W = [int64]0; V_observed = [int64]6 }
+    $threwV = $false
+    try {
+        Assert-AuthorizationWatermarkAndVersionGate -Preflight2027 $pre2027ShiftV `
+            -Expected2027W 0 -Expected2027V 5 -PhaseContext "Second"
+    } catch {
+        if ($_.Exception.Message -match "STALE_AUTHORIZATION_VERSION_MISMATCH: 2027 Second preflight V_observed \(6\) does not match approved Expected2027ObservedV \(5\)") {
+            $threwV = $true
+        }
+    }
+    if (-not $threwV) { throw "Expected 2027 second-phase version shift to fail closed." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST Z2: Remote post-pull invariance handles concurrent advance and parity failure (P0-5)
+# ------------------------------------------------------------------------------
+Assert-Test "Z2: Remote post-pull invariance handles concurrent advance and parity failure correctly" {
+    # Scenario A: Remote advanced after fence release ($curVer > $hExec)
+    # Must report REMOTE_ADVANCED_AFTER_PULL without false parity failure
+    Execute-Sql $remoteConn2026Str @"
+INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
+VALUES ('2026', 2, 'Daily', NEWID(), 'INSERT', '00000000-0000-0000-0000-000000000000');
+UPDATE [sync].[ServerState] SET CurrentVersion = 2 WHERE DatabaseId = '2026';
+"@
+    $preMock = [PSCustomObject]@{
+        V_observed = [int64]1
+        RemoteProcessedOperationsCount = [int64]0
+    }
+    $localPostDailyMock = [PSCustomObject]@{
+        TotalRows = 1
+        DeterministicSha256 = "DUMMYHASH1"
+    }
+
+    $auditAdv = Assert-RemotePostPullInvariance -Year "2026" `
+        -RemoteConnStr $remoteConn2026Str `
+        -LocalConnStr $localConn2026Str `
+        -PreflightData $preMock `
+        -HExec 1 `
+        -LocalPostDaily $localPostDailyMock
+
+    if ($auditAdv.RemoteStatus -ne "REMOTE_ADVANCED_AFTER_PULL") {
+        throw "Expected RemoteStatus = 'REMOTE_ADVANCED_AFTER_PULL', got: $($auditAdv.RemoteStatus)"
+    }
+
+    # Scenario B: Remote CurrentVersion == HExec but Daily hash does not match Local
+    # Must throw POST_AUDIT_PARITY_ERROR
+    Execute-Sql $remoteConn2026Str "UPDATE [sync].[ServerState] SET CurrentVersion = 1 WHERE DatabaseId = '2026';"
+    $badLocalPostDaily = [PSCustomObject]@{
+        TotalRows = 1
+        DeterministicSha256 = "NONMATCHING_HASH"
+    }
+    $threwParity = $false
+    try {
+        Assert-RemotePostPullInvariance -Year "2026" `
+            -RemoteConnStr $remoteConn2026Str `
+            -LocalConnStr $localConn2026Str `
+            -PreflightData $preMock `
+            -HExec 1 `
+            -LocalPostDaily $badLocalPostDaily
+    } catch {
+        if ($_.Exception.Message -match "POST_AUDIT_PARITY_ERROR: Daily (DeterministicSha256|hash) mismatch") {
+            $threwParity = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_Z2: $($_.Exception.Message)"
+        }
+    }
+    if (-not $threwParity) { throw "Expected POST_AUDIT_PARITY_ERROR on hash mismatch was not thrown." }
+
+    # Reset test databases cleanly
+    Init-IsolatedDatabases
 }
 
 # Clean up isolated test databases

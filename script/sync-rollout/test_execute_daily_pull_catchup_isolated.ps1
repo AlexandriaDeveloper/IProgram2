@@ -29,24 +29,37 @@ Write-Host "====================================================================
 Write-Host "  SLICE 4.5B-2: DYNAMIC CATCH-UP OPERATOR ISOLATED VERIFICATION           " -ForegroundColor Cyan
 Write-Host "==========================================================================" -ForegroundColor Cyan
 
+# 0. Strict Test Isolation Guard (P0-3)
+function Assert-TestIsolationGuard([string]$connStr, [string]$contextName) {
+    if ([string]::IsNullOrWhiteSpace($connStr)) { return }
+    if ($connStr -match "(?i)\.database\.windows\.net") {
+        throw "ISOLATION_VIOLATION: Test harness context '$contextName' detected forbidden Azure host in '$connStr'."
+    }
+    $forbiddenDbs = @("IProgramDb2026", "IProgramDb2027", "IProgramLocalDb2026", "IProgramLocalDb2027")
+    foreach ($db in $forbiddenDbs) {
+        if ($connStr -match "(?i)(Database|Initial Catalog)\s*=\s*$db\b") {
+            throw "ISOLATION_VIOLATION: Test harness context '$contextName' detected forbidden operational database '$db' in '$connStr'."
+        }
+    }
+}
+
 # 1. Database names: strictly isolated test databases, NEVER operational databases
 $remoteDb2026 = "IProgramRemoteSync2026_Test"
 $remoteDb2027 = "IProgramRemoteSync2027_Test"
 $localDb2026 = "IProgramLocalDb2026_Test"
 $localDb2027 = "IProgramLocalDb2027_Test"
 
-$forbiddenOperationalDbs = @("IProgramDb2026", "IProgramDb2027", "IProgramLocalDb2026", "IProgramLocalDb2027")
-foreach ($db in @($remoteDb2026, $remoteDb2027, $localDb2026, $localDb2027)) {
-    if ($forbiddenOperationalDbs -contains $db) {
-        throw "SECURITY_VIOLATION: Test harness must NEVER use operational database '$db'."
-    }
-}
-
 $masterConnStr = "Server=localhost;Database=master;Integrated Security=True;TrustServerCertificate=True;"
 $remoteConn2026Str = "Server=localhost;Database=$remoteDb2026;Integrated Security=True;TrustServerCertificate=True;"
 $remoteConn2027Str = "Server=localhost;Database=$remoteDb2027;Integrated Security=True;TrustServerCertificate=True;"
 $localConn2026Str = "Server=localhost;Database=$localDb2026;Integrated Security=True;TrustServerCertificate=True;"
 $localConn2027Str = "Server=localhost;Database=$localDb2027;Integrated Security=True;TrustServerCertificate=True;"
+
+Assert-TestIsolationGuard $masterConnStr "Master"
+Assert-TestIsolationGuard $remoteConn2026Str "RemoteConn2026"
+Assert-TestIsolationGuard $remoteConn2027Str "RemoteConn2027"
+Assert-TestIsolationGuard $localConn2026Str "LocalConn2026"
+Assert-TestIsolationGuard $localConn2027Str "LocalConn2027"
 
 function Execute-Sql($connStr, $sql) {
     $conn = New-Object SqlConnection($connStr)
@@ -125,11 +138,47 @@ CREATE DATABASE [$localDb2027];
 "@
 Write-Host " Provisioned." -ForegroundColor Green
 
-# Synthetic Admin credentials (never copied from operational tables)
+# Cryptographic Ephemeral Password and ASP.NET Core Identity PasswordHasher v3 Generator (P0-6)
+function New-EphemeralTestPassword {
+    $bytes = New-Object byte[] 24
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    $rng.Dispose()
+    return "TstP!9" + [Convert]::ToBase64String($bytes).Replace("+","X").Replace("/","Y").Replace("=","Z")
+}
+
+function New-EphemeralIdentityPasswordHash([string]$password) {
+    $salt = New-Object byte[] 16
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($salt)
+
+    $hashAlg = [System.Security.Cryptography.HashAlgorithmName]::SHA512
+    $iter = 100000
+    $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes ($password, $salt, $iter, $hashAlg)
+    $subkey = $kdf.GetBytes(32)
+
+    # ASP.NET Core Identity v3 format:
+    # 0x01 (format) + 4 bytes PRF (0x00000002 for SHA512) + 4 bytes iter (100000 = 0x000186A0) + 4 bytes saltLen (16 = 0x00000010) + 16 bytes salt + 32 bytes subkey
+    $ms = New-Object System.IO.MemoryStream
+    $bw = New-Object System.IO.BinaryWriter($ms)
+    $bw.Write([byte]1)
+    $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]2)
+    $bw.Write([byte]0); $bw.Write([byte]1); $bw.Write([byte]0x86); $bw.Write([byte]0xA0)
+    $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]16)
+    $bw.Write($salt)
+    $bw.Write($subkey)
+    $bw.Flush()
+    $output = [Convert]::ToBase64String($ms.ToArray())
+    $bw.Dispose()
+    $ms.Dispose()
+    $kdf.Dispose()
+    $rng.Dispose()
+    return $output
+}
+
 $testUsername = "isolated_admin"
-$testPassword = "IsolatedAdmin@2026!"
-# Genuine ASP.NET Core Identity PBKDF2 hash (100,000 iterations, format v3)
-$testPasswordHash = "AQAAAAIAAYagAAAAEAA4TSptJUTsC1uiKqmf9SOI8vRw0z9M49QxljOY7/BTt/a1xB4CzzRVr6D4vu8eAw=="
+$testPassword = New-EphemeralTestPassword
+$testPasswordHash = New-EphemeralIdentityPasswordHash $testPassword
 
 $years = @("2026", "2027")
 
@@ -411,7 +460,7 @@ foreach ($yr in $years) {
     for ($i = 1; $i -le $initialRowCount; $i++) {
         $syncId = [Guid]::NewGuid()
         $dt = "2026-05-$($i.ToString('00'))T10:00:00"
-        $sql = "INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId]) VALUES ('Initial_$i', '$dt', 0, 1, '$syncId');"
+        $sql = "INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId], [CreatedAt]) VALUES ('Initial_$i', '$dt', 0, 1, '$syncId', '$dt');"
         Execute-Sql $remConn $sql
         Execute-Sql $locConn $sql
     }
@@ -420,8 +469,8 @@ foreach ($yr in $years) {
     # Version 1: INSERT a brand new daily record (Dynamic row added)
     $v1SyncId = [Guid]::NewGuid()
     Execute-Sql $remConn @"
-INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId])
-VALUES ('New_Daily_V1', '2026-06-01T12:00:00', 0, 1, '$v1SyncId');
+INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId], [CreatedAt])
+VALUES ('New_Daily_V1', '2026-06-01T12:00:00', 0, 1, '$v1SyncId', '2026-06-01T12:00:00');
 
 INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
 VALUES ('$yr', 1, 'Daily', '$v1SyncId', 'INSERT', '00000000-0000-0000-0000-000000000000');
@@ -430,7 +479,7 @@ VALUES ('$yr', 1, 'Daily', '$v1SyncId', 'INSERT', '00000000-0000-0000-0000-00000
     # Version 2: UPDATE one of the initial daily records
     $firstDailySyncId = Execute-SqlScalar $remConn "SELECT TOP 1 [SyncId] FROM [dbo].[Daily] WHERE [Name] = 'Initial_1';"
     Execute-Sql $remConn @"
-UPDATE [dbo].[Daily] SET [Name] = 'Updated_Initial_1', [Closed] = 1, [UpdatedAt] = SYSUTCDATETIME() WHERE [SyncId] = '$firstDailySyncId';
+UPDATE [dbo].[Daily] SET [Name] = 'Updated_Initial_1', [Closed] = 1, [UpdatedAt] = '2026-06-02T12:00:00' WHERE [SyncId] = '$firstDailySyncId';
 
 INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
 VALUES ('$yr', 2, 'Daily', '$firstDailySyncId', 'UPDATE', '00000000-0000-0000-0000-000000000000');
@@ -439,7 +488,7 @@ VALUES ('$yr', 2, 'Daily', '$firstDailySyncId', 'UPDATE', '00000000-0000-0000-00
     # Version 3: SOFT_DELETE another initial record
     $secondDailySyncId = Execute-SqlScalar $remConn "SELECT TOP 1 [SyncId] FROM [dbo].[Daily] WHERE [Name] = 'Initial_2';"
     Execute-Sql $remConn @"
-UPDATE [dbo].[Daily] SET [IsActive] = 0, [DeactivatedAt] = SYSUTCDATETIME() WHERE [SyncId] = '$secondDailySyncId';
+UPDATE [dbo].[Daily] SET [IsActive] = 0, [DeactivatedAt] = '2026-06-03T12:00:00' WHERE [SyncId] = '$secondDailySyncId';
 
 INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
 VALUES ('$yr', 3, 'Daily', '$secondDailySyncId', 'SOFT_DELETE', '00000000-0000-0000-0000-000000000000');
@@ -606,14 +655,14 @@ foreach ($yr in $years) {
     $v5SyncId = [Guid]::NewGuid()
     $v6SyncId = [Guid]::NewGuid()
     Execute-Sql $remConn @"
-INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId])
-VALUES ('Daily_V5', '2026-07-01T10:00:00', 0, 1, '$v5SyncId');
+INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId], [CreatedAt])
+VALUES ('Daily_V5', '2026-07-01T10:00:00', 0, 1, '$v5SyncId', '2026-07-01T10:00:00');
 
 INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
 VALUES ('$yr', 5, 'Daily', '$v5SyncId', 'INSERT', '00000000-0000-0000-0000-000000000000');
 
-INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId])
-VALUES ('Daily_V6', '2026-07-02T10:00:00', 0, 1, '$v6SyncId');
+INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId], [CreatedAt])
+VALUES ('Daily_V6', '2026-07-02T10:00:00', 0, 1, '$v6SyncId', '2026-07-02T10:00:00');
 
 INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
 VALUES ('$yr', 6, 'Daily', '$v6SyncId', 'INSERT', '00000000-0000-0000-0000-000000000000');
