@@ -43,7 +43,19 @@ param (
     [string]$Azure2027ConnectionString,
     [string]$Local2026ConnectionString,
     [string]$Local2027ConnectionString,
-    [switch]$AllowIsolatedExecutionOnly # Permitted only for isolated test harness execution
+    [switch]$AllowIsolatedExecutionOnly,    # Permitted only for isolated test harness execution
+    [switch]$AllowProductionExecution,      # Explicit production execution authorization switch
+    [string]$ProductionApprovalReference,  # Required approval/audit reference (e.g. ISSUE-14-BO-AUTH-...)
+    [string]$ExpectedMasterSha,             # Required expected git commit SHA for production execution
+    [int64]$Expected2026LocalW = -1,        # Expected preflight checkpoint for 2026
+    [int64]$Expected2027LocalW = -1,        # Expected preflight checkpoint for 2027
+    [int64]$Expected2026ObservedV = -1,     # Expected preflight remote version for 2026
+    [int64]$Expected2027ObservedV = -1,     # Expected preflight remote version for 2027
+    [string]$OverrideRepoRoot,              # Permitted for isolated test directory overrides
+    [switch]$SkipGitVerification,           # Permitted ONLY when -AllowIsolatedExecutionOnly is true
+    [string]$SimulatedBranch = $null,       # Permitted ONLY for isolated unit testing
+    [string]$SimulatedHead = $null,         # Permitted ONLY for isolated unit testing
+    $SimulatedStatus = $null                # Permitted ONLY for isolated unit testing (untyped to distinguish null from empty string)
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,12 +65,112 @@ if (($DryRun -and $Execute) -or (-not $DryRun -and -not $Execute)) {
     throw "OPERATOR_MODE_ERROR: You must specify exactly one of -DryRun or -Execute."
 }
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+if ($DryRun -and $AllowProductionExecution) {
+    throw "OPERATOR_MODE_ERROR: Production execution switch -AllowProductionExecution cannot be combined with -DryRun."
+}
+
+# --- 2. Production Execution Authorization Guard ---
+if ($Execute) {
+    if ($AllowProductionExecution -and $AllowIsolatedExecutionOnly) {
+        throw "OPERATOR_MODE_ERROR: -AllowProductionExecution and -AllowIsolatedExecutionOnly are mutually exclusive."
+    }
+
+    if (-not $AllowProductionExecution -and -not $AllowIsolatedExecutionOnly) {
+        throw "PRODUCTION_EXECUTION_NOT_AUTHORIZED: Executing catch-up against Azure Production is locked. Explicit authorization requires -AllowProductionExecution with valid approval parameters, or -AllowIsolatedExecutionOnly for isolated tests."
+    }
+
+    if ($AllowProductionExecution) {
+        if ($SkipGitVerification -or $SimulatedBranch -or $SimulatedHead -or $SimulatedStatus) {
+            throw "SECURITY_VIOLATION: SkipGitVerification and simulated repository parameters are never permitted in production mode."
+        }
+        if ([string]::IsNullOrWhiteSpace($ProductionApprovalReference)) {
+            throw "AUTHORIZATION_ERROR: -ProductionApprovalReference is required when -AllowProductionExecution is specified."
+        }
+        if ([string]::IsNullOrWhiteSpace($ExpectedMasterSha)) {
+            throw "AUTHORIZATION_ERROR: -ExpectedMasterSha is required when -AllowProductionExecution is specified."
+        }
+        if ($Expected2026LocalW -lt 0) {
+            throw "AUTHORIZATION_ERROR: -Expected2026LocalW (>= 0) is required for production execution."
+        }
+        if ($Expected2027LocalW -lt 0) {
+            throw "AUTHORIZATION_ERROR: -Expected2027LocalW (>= 0) is required for production execution."
+        }
+        if ($Expected2026ObservedV -lt 0) {
+            throw "AUTHORIZATION_ERROR: -Expected2026ObservedV (>= 0) is required for production execution."
+        }
+        if ($Expected2027ObservedV -lt 0) {
+            throw "AUTHORIZATION_ERROR: -Expected2027ObservedV (>= 0) is required for production execution."
+        }
+    }
+}
+
+$repoRoot = if (-not [string]::IsNullOrWhiteSpace($OverrideRepoRoot)) {
+    (Resolve-Path $OverrideRepoRoot).Path
+} else {
+    (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+}
 Add-Type -AssemblyName "System.Data"
 
-# --- 2. Production Safety Guard ---
-if ($Execute -and -not $AllowIsolatedExecutionOnly) {
-    throw "SLICE_4_5B_2_PRODUCTION_GUARD: Executing actual catch-up against Azure Production is locked in Slice 4.5B-2. Run -DryRun on production, or run isolated tests with -AllowIsolatedExecutionOnly."
+# --- 2b. Repository State Guard (Production Execution Baseline) ---
+function Assert-RepositoryStateGuard {
+    param(
+        [string]$Root,
+        [string]$ExpectedSha,
+        [bool]$SkipVerification = $false,
+        [string]$SimBranch = $null,
+        [string]$SimHead = $null,
+        $SimStatus = $null
+    )
+
+    if ($SkipVerification) {
+        return
+    }
+
+    $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $gitCmd -and -not $SimBranch -and -not $SimHead) {
+        throw "REPO_GUARD_ERROR: git command is required for repository state verification."
+    }
+
+    # 1. Check current branch is master
+    $currentBranch = if ($SimBranch) { $SimBranch } else { (git -C $Root branch --show-current 2>$null) }
+    if ($currentBranch) { $currentBranch = $currentBranch.Trim() }
+    if ($currentBranch -ne "master") {
+        throw "REPO_GUARD_VIOLATION: Production execution requires branch 'master', currently on '$currentBranch'."
+    }
+
+    # 2. Check current commit matches ExpectedSha
+    $currentHead = if ($SimHead) { $SimHead } else { (git -C $Root rev-parse HEAD 2>$null) }
+    if ($currentHead) { $currentHead = $currentHead.Trim() }
+    if ($currentHead -ne $ExpectedSha) {
+        throw "REPO_GUARD_VIOLATION: Current HEAD commit ($currentHead) does not match expected master SHA ($ExpectedSha)."
+    }
+
+    # 3. Check working tree is clean
+    $rawStatus = if ($SimStatus -ne $null) { $SimStatus } else { (git -C "$Root" status --porcelain 2>$null) }
+    $status = ($rawStatus | Out-String).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($status)) {
+        throw "REPO_GUARD_VIOLATION: Working tree is not clean. Production execution requires an unmodified working tree."
+    }
+
+    # 4. Check sync with origin/master if remote origin exists and not simulated
+    if (-not $SimHead -and -not $SimBranch) {
+        $remotes = (git -C $Root remote 2>$null)
+        if ($remotes -and ($remotes -split "`r?`n" -contains "origin")) {
+            $originHead = (git -C $Root rev-parse --verify origin/master 2>$null)
+            if ($originHead) {
+                $originHead = ($originHead | Out-String).Trim()
+                if ($originHead -ne $currentHead) {
+                    throw "REPO_GUARD_VIOLATION: Local master ($currentHead) is not synchronized with origin/master ($originHead)."
+                }
+            }
+        }
+    }
+}
+
+if ($Execute -and $AllowProductionExecution) {
+    Write-Host "Verifying repository state invariants..." -NoNewline
+    Assert-RepositoryStateGuard -Root $repoRoot -ExpectedSha $ExpectedMasterSha -SkipVerification $SkipGitVerification -SimBranch $SimulatedBranch -SimHead $SimulatedHead -SimStatus $SimulatedStatus
+    Write-Host " PASS (Branch=master, Head=$ExpectedMasterSha, Clean=True)" -ForegroundColor Green
 }
 
 # --- 3. Committed Configuration Guard (Current Master Baseline) ---
@@ -423,7 +535,7 @@ function Assert-RemotePostPullInvariance {
 
         # 3. Pull must never write to Remote ProcessedOperations
         $cmdP = $remConn.CreateCommand()
-        $cmdP.CommandText = "SELECT COUNT(*) FROM [sync].[ProcessedOperations] WHERE DatabaseId = @DatabaseId;"
+        $cmdP.CommandText = "IF OBJECT_ID('[sync].[ProcessedOperations]') IS NOT NULL SELECT COUNT(*) FROM [sync].[ProcessedOperations] WHERE DatabaseId = @DatabaseId; ELSE SELECT 0;"
         $pP = $cmdP.CreateParameter(); $pP.ParameterName = "@DatabaseId"; $pP.Value = $Year; $cmdP.Parameters.Add($pP) | Out-Null
         $procCount = [int]$cmdP.ExecuteScalar()
         # Ensure it was not mutated by pull
@@ -523,6 +635,40 @@ if ($Execute) {
 
     if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
         throw "OPERATOR_CREDENTIALS_MISSING: Operator credentials must be supplied via -Username/-Password or env vars IPROGRAM_OPERATOR_USERNAME/IPROGRAM_OPERATOR_PASSWORD."
+    }
+
+    # Expected-State Stale-Authorization Verification
+    if ($AllowProductionExecution) {
+        Write-Host "Verifying expected-state preflight authorizations..." -NoNewline
+        if ($pre2026.W -ne $Expected2026LocalW) {
+            throw "STALE_AUTHORIZATION_WATERMARK_MISMATCH: 2026 fresh preflight W ($($pre2026.W)) does not match approved Expected2026LocalW ($Expected2026LocalW)."
+        }
+        if ($pre2026.V_observed -ne $Expected2026ObservedV) {
+            throw "STALE_AUTHORIZATION_VERSION_MISMATCH: 2026 fresh preflight V_observed ($($pre2026.V_observed)) does not match approved Expected2026ObservedV ($Expected2026ObservedV)."
+        }
+        if ($pre2027.W -ne $Expected2027LocalW) {
+            throw "STALE_AUTHORIZATION_WATERMARK_MISMATCH: 2027 fresh preflight W ($($pre2027.W)) does not match approved Expected2027LocalW ($Expected2027LocalW)."
+        }
+        if ($pre2027.V_observed -ne $Expected2027ObservedV) {
+            throw "STALE_AUTHORIZATION_VERSION_MISMATCH: 2027 fresh preflight V_observed ($($pre2027.V_observed)) does not match approved Expected2027ObservedV ($Expected2027ObservedV)."
+        }
+        Write-Host " PASS (2026 W=$Expected2026LocalW V=$Expected2026ObservedV, 2027 W=$Expected2027LocalW V=$Expected2027ObservedV)" -ForegroundColor Green
+    }
+
+    # Capture environment snapshot for deterministic restoration
+    $envSnapshot = @{}
+    $envVarsToManage = @(
+        "ASPNETCORE_URLS", "ASPNETCORE_ENVIRONMENT",
+        "Sync__PullEnabled", "Sync__PushEnabled", "Sync__AuthoritativeTrackingEnabled",
+        "LocalFirst__Enabled", "LocalFirst__ReadOnlyMode",
+        "Token__Key",
+        "ConnectionStrings__TestRemoteConnection2026", "ConnectionStrings__TestRemoteConnection2027",
+        "ConnectionStrings__LocalConnection2026", "ConnectionStrings__LocalConnection2027"
+    )
+    foreach ($v in $envVarsToManage) {
+        if (Test-Path "Env:\$v") {
+            $envSnapshot[$v] = [Environment]::GetEnvironmentVariable($v, "Process")
+        }
     }
 
     $apiProcess = $null
@@ -687,6 +833,7 @@ if ($Execute) {
         Write-Host "Auditing 2026 post-pull local state..." -NoNewline
         $locConn2026 = New-Object SqlConnection($Local2026ConnectionString)
         $locConn2026.Open()
+        $postDaily2026 = $null
         try {
             $cmdV26 = $locConn2026.CreateCommand()
             $cmdV26.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2026';"
@@ -694,10 +841,14 @@ if ($Execute) {
             if ($postVer2026 -ne $hExec2026) {
                 throw "POST_AUDIT_ERROR: 2026 Local LastServerVersion is $postVer2026 (Expected exactly H_exec: $hExec2026)."
             }
+            if ($postVer2026 -lt $prevW2026) {
+                throw "POST_AUDIT_ERROR: 2026 Local LastServerVersion ($postVer2026) regressed below previous checkpoint ($prevW2026)."
+            }
+            $postDaily2026 = Calculate-DailyHashAndCounts $locConn2026
         } finally {
             $locConn2026.Close()
         }
-        Write-Host " PASS (LastServerVersion=$postVer2026 equals H_exec exactly)" -ForegroundColor Green
+        Write-Host " PASS (LastServerVersion=$postVer2026 equals H_exec exactly, Rows=$($postDaily2026.TotalRows))" -ForegroundColor Green
 
         Assert-RemotePostPullInvariance -Year "2026" -RemoteConnStr $Azure2026ConnectionString -PreflightData $pre2026 -HExec $hExec2026
 
@@ -793,6 +944,7 @@ if ($Execute) {
         Write-Host "Auditing 2027 post-pull local state..." -NoNewline
         $locConn2027 = New-Object SqlConnection($Local2027ConnectionString)
         $locConn2027.Open()
+        $postDaily2027 = $null
         try {
             $cmdV27 = $locConn2027.CreateCommand()
             $cmdV27.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2027';"
@@ -800,10 +952,14 @@ if ($Execute) {
             if ($postVer2027 -ne $hExec2027) {
                 throw "POST_AUDIT_ERROR: 2027 Local LastServerVersion is $postVer2027 (Expected exactly H_exec: $hExec2027)."
             }
+            if ($postVer2027 -lt $prevW2027) {
+                throw "POST_AUDIT_ERROR: 2027 Local LastServerVersion ($postVer2027) regressed below previous checkpoint ($prevW2027)."
+            }
+            $postDaily2027 = Calculate-DailyHashAndCounts $locConn2027
         } finally {
             $locConn2027.Close()
         }
-        Write-Host " PASS (LastServerVersion=$postVer2027 equals H_exec exactly)" -ForegroundColor Green
+        Write-Host " PASS (LastServerVersion=$postVer2027 equals H_exec exactly, Rows=$($postDaily2027.TotalRows))" -ForegroundColor Green
 
         Assert-RemotePostPullInvariance -Year "2027" -RemoteConnStr $Azure2027ConnectionString -PreflightData $pre2027 -HExec $hExec2027
 
@@ -813,17 +969,33 @@ if ($Execute) {
 
         return [PSCustomObject]@{
             Mode = "Execute"
+            ExecutionType = if ($AllowProductionExecution) { "Production" } else { "IsolatedTest" }
+            ApprovalReference = if ($AllowProductionExecution) { $ProductionApprovalReference } else { "N/A (Isolated Test)" }
+            MasterSha = if ($AllowProductionExecution) { $ExpectedMasterSha } else { "N/A (Isolated Test)" }
+            TimestampUtc = [DateTime]::UtcNow.ToString("o")
             Year2026 = @{
-                PreviousWatermark = $pullRes2026.previousWatermark
-                FinalServerVersion = $pullRes2026.finalServerVersion
+                Year = "2026"
+                W_before = $pre2026.W
+                V_observed = $pre2026.V_observed
+                H_exec = $hExec2026
+                W_after = $postVer2026
                 IsNoOp = $pullRes2026.isNoOp
                 Status = "CATCHUP_SUCCESS"
+                LocalDailyRows = if ($postDaily2026) { $postDaily2026.TotalRows } else { $null }
+                LocalDailyHash = if ($postDaily2026) { $postDaily2026.DeterministicSha256 } else { $null }
+                RemoteConcurrentAdvance = ($hExec2026 -gt $pre2026.V_observed)
             }
             Year2027 = @{
-                PreviousWatermark = $pullRes2027.previousWatermark
-                FinalServerVersion = $pullRes2027.finalServerVersion
+                Year = "2027"
+                W_before = $pre2027.W
+                V_observed = $pre2027.V_observed
+                H_exec = $hExec2027
+                W_after = $postVer2027
                 IsNoOp = $pullRes2027.isNoOp
                 Status = "CATCHUP_SUCCESS"
+                LocalDailyRows = if ($postDaily2027) { $postDaily2027.TotalRows } else { $null }
+                LocalDailyHash = if ($postDaily2027) { $postDaily2027.DeterministicSha256 } else { $null }
+                RemoteConcurrentAdvance = ($hExec2027 -gt $pre2027.V_observed)
             }
             OverallStatus = "CATCHUP_SUCCESS"
         }
@@ -836,20 +1008,15 @@ if ($Execute) {
             Write-Host " Stopped." -ForegroundColor Green
         }
         
-        Remove-Item Env:\ASPNETCORE_URLS -ErrorAction SilentlyContinue
-        Remove-Item Env:\ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue
-        Remove-Item Env:\Sync__PullEnabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\Sync__PushEnabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\Sync__AuthoritativeTrackingEnabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\LocalFirst__Enabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\LocalFirst__ReadOnlyMode -ErrorAction SilentlyContinue
-        Remove-Item Env:\Token__Key -ErrorAction SilentlyContinue
-        
-        if ($AllowIsolatedExecutionOnly) {
-            Remove-Item Env:\ConnectionStrings__TestRemoteConnection2026 -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__TestRemoteConnection2027 -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__LocalConnection2026 -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__LocalConnection2027 -ErrorAction SilentlyContinue
+        # Restore original environment snapshot deterministically
+        if ($envVarsToManage) {
+            foreach ($v in $envVarsToManage) {
+                if ($envSnapshot -and $envSnapshot.ContainsKey($v)) {
+                    [Environment]::SetEnvironmentVariable($v, $envSnapshot[$v], "Process")
+                } else {
+                    [Environment]::SetEnvironmentVariable($v, $null, "Process")
+                }
+            }
         }
 
         if (Test-Path $tempLog) { Remove-Item $tempLog -Force -ErrorAction SilentlyContinue }
