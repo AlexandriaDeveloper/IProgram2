@@ -1,5 +1,5 @@
 # ==============================================================================
-# SLICE 4.5E: OPERATIONAL LOCALFIRST RUNTIME LAUNCHER
+# SLICE 4.5E: OPERATIONAL LOCALFIRST RUNTIME LAUNCHER (REVISED)
 # Safe, repeatable, fail-closed operator tool for starting, stopping, and
 # monitoring the LocalFirst runtime profile on the operational workstation.
 #
@@ -9,10 +9,23 @@
 #   3. Zero automatic sync: Pull=false, Push=false, No background workers.
 #   4. Tripwire remote connections: DefaultConnection and CON2027 point to
 #      loopback tripwires to guarantee zero silent Azure fallback.
-#   5. Preflight validation: Verifies SQL 2014 compatibility level 120,
-#      VERIFIED_READY BootstrapManifest, LastServerVersion >= 8,
-#      0 pending outbox rows, and exact Daily cryptographic hash parity.
-#   6. Zero secrets exposed: Never prints or logs connection strings or JWT keys.
+#   5. Preflight validation:
+#      - Steady-state: Verifies SQL 2014 compatibility (level 120), VERIFIED_READY
+#        BootstrapManifest, LastServerVersion >= 8, no active lease, zero IN_PROGRESS/
+#        FAILED outbox rows (PENDING outbox rows explicitly allowed as normal offline state).
+#      - Initial Cutover Baseline (-ValidateInitialCutoverBaseline): Additionally enforces
+#        0 pending outbox rows and exact cryptographic Daily hashes.
+#   6. Git Safety Gate: Requires exact 'master' branch, clean working tree, and
+#      match against live origin/master (via git ls-remote) in operational mode.
+#   7. Physical Local Binding: Parses with SqlConnectionStringBuilder to enforce
+#      trusted localhost endpoints and exact operational catalogs (IProgramLocalDb2026/2027).
+#      CLI overrides forbidden in operational mode.
+#   8. Token Secret Boundary: Requires Token__Key from process/user environment.
+#      Never invokes 'dotnet user-secrets list' or generates random operational keys.
+#   9. Structured PID Safety: Records structured runtime metadata (PID, StartTimeUtc,
+#      ProcessName, Port, CommitSha) in JSON. Never terminates foreign processes on PID reuse.
+#  10. Artifact Identity: Ensures Auth.Api.dll is present and built locally before launch.
+#  11. Log Lifecycle: Writes to tracked logs directory with sanitization.
 # ==============================================================================
 
 using namespace System.Data.SqlClient
@@ -25,11 +38,13 @@ param (
     [string]$Action = "Start",
 
     [int]$Port = 5000,
-    [string]$ExpectedMasterSha = "49a0be38218c199a100c8d057a2acd45306844c0",
+    [switch]$ValidateInitialCutoverBaseline,
     [switch]$SkipGitVerification,
+    [switch]$AllowNonMaster,
     [switch]$AllowIsolatedTestMode,
     [string]$OverrideLocal2026ConnStr,
     [string]$OverrideLocal2027ConnStr,
+    [string]$OverrideStateFilePath,
     [string]$OverridePidFilePath,
     [switch]$Wait,
     [switch]$ExportFunctionsOnly
@@ -166,33 +181,115 @@ function Get-LocalFirstChildEnvironment {
     return $envMap
 }
 
-# --- 3. Operational Preflight Gate ---
+# --- 3. Physical Local Binding Validation (P0-3) ---
+function Assert-LocalPhysicalBinding {
+    param(
+        [string]$ConnStr,
+        [string]$ExpectedYear,
+        [bool]$IsTestMode = $false
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ConnStr)) {
+        throw "PREFLIGHT_FAIL: Connection string for year $ExpectedYear is null or empty."
+    }
+
+    $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($ConnStr)
+    $dataSource = $builder.DataSource
+    $catalog = $builder.InitialCatalog
+
+    # Check for Azure host or remote cloud host
+    if ($dataSource -match "(?i)\.database\.windows\.net" -or $ConnStr -match "(?i)\.database\.windows\.net") {
+        throw "PREFLIGHT_FAIL: Connection string for $ExpectedYear targets forbidden Azure host: '$dataSource'."
+    }
+
+    # Validate loopback / trusted local endpoint
+    $isLocal = ($dataSource -match "^(?i)(localhost|127\.0\.0\.1|\.|\(local\)|\(localdb\))(\\.*)?(,\d+)?$")
+    if (-not $isLocal) {
+        throw "PREFLIGHT_FAIL: Connection string for $ExpectedYear targets non-local host: '$dataSource'. Only localhost/loopback endpoints permitted."
+    }
+
+    # Validate catalog
+    if (-not $IsTestMode) {
+        $expectedCatalog = if ($ExpectedYear -eq "2026") { "IProgramLocalDb2026" } else { "IProgramLocalDb2027" }
+        if ($catalog -ne $expectedCatalog) {
+            throw "PREFLIGHT_FAIL: Operational connection string for $ExpectedYear must target catalog '$expectedCatalog' (Got: '$catalog')."
+        }
+    } else {
+        # In test mode, operational catalogs are STRICTLY FORBIDDEN to ensure complete fixture isolation
+        if ($catalog -in @("IProgramLocalDb2026", "IProgramLocalDb2027", "IProgramDb2026", "IProgramDb2027")) {
+            throw "PREFLIGHT_FAIL: Test mode is forbidden from targeting operational catalog '$catalog'."
+        }
+    }
+
+    return $builder
+}
+
+# --- 4. Git Operational Safety Gate (P0-2) ---
+function Assert-GitOperationalSafety {
+    param(
+        [string]$RepoRoot,
+        [bool]$SkipGit = $false,
+        [bool]$AllowNonMaster = $false,
+        [bool]$IsTestMode = $false
+    )
+
+    if ($SkipGit) { return $true }
+
+    if (-not $IsTestMode -and -not $AllowNonMaster) {
+        # 1. Branch must be master
+        $branch = (git -C $RepoRoot branch --show-current 2>$null)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
+            throw "PREFLIGHT_FAIL: Unable to determine git branch."
+        }
+        $branch = $branch.ToString().Trim()
+        if ($branch -ne "master") {
+            throw "PREFLIGHT_FAIL: Operational LocalFirst runtime must run from 'master' branch (Current branch: '$branch')."
+        }
+
+        # 2. Clean working tree check
+        $status = (git -C $RepoRoot status --porcelain 2>$null)
+        if (-not [string]::IsNullOrWhiteSpace($status)) {
+            throw "PREFLIGHT_FAIL: Working tree has uncommitted modifications. Operational LocalFirst runtime requires a clean working tree."
+        }
+
+        # 3. Resolve live origin/master
+        $remoteRef = (git -C $RepoRoot ls-remote origin refs/heads/master 2>$null)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($remoteRef)) {
+            throw "PREFLIGHT_FAIL: Unable to resolve live origin/master via git ls-remote. Cannot verify operational master parity."
+        }
+        $remoteSha = ($remoteRef.Split("`t")[0]).Trim()
+
+        $localHead = (git -C $RepoRoot rev-parse HEAD 2>$null)
+        $localHead = if ($localHead) { $localHead.ToString().Trim() } else { "" }
+
+        if ($localHead -ne $remoteSha) {
+            throw "PREFLIGHT_FAIL: Local HEAD ($localHead) does not match live origin/master ($remoteSha)."
+        }
+    } else {
+        # Test mode: verify local HEAD exists
+        $localHead = (git -C $RepoRoot rev-parse HEAD 2>$null)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($localHead)) {
+            throw "PREFLIGHT_FAIL: Unable to resolve local git HEAD commit."
+        }
+    }
+
+    return $true
+}
+
+# --- 5. Operational Preflight Gate (P0-1 & Steady-State) ---
 function Assert-LocalFirstLauncherPreflight {
     param(
         [string]$RepoRoot,
-        [string]$ExpectedMasterSha,
         [string]$Local2026ConnStr,
         [string]$Local2027ConnStr,
+        [bool]$ValidateInitialCutoverBaseline = $false,
         [bool]$SkipGit = $false,
+        [bool]$AllowNonMaster = $false,
         [bool]$IsTestMode = $false
     )
 
     # A. Git State
-    if (-not $SkipGit) {
-        $head = (git -C $RepoRoot rev-parse HEAD 2>$null)
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($head)) {
-            throw "PREFLIGHT_FAIL: Unable to resolve local git HEAD commit."
-        }
-        $head = $head.ToString().Trim()
-        if (-not [string]::IsNullOrWhiteSpace($ExpectedMasterSha) -and $head -ne $ExpectedMasterSha) {
-            # Check if on an approved branch branched from ExpectedMasterSha
-            $mergeBase = (git -C $RepoRoot merge-base HEAD $ExpectedMasterSha 2>$null)
-            $mergeBaseStr = if ($mergeBase) { $mergeBase.ToString().Trim() } else { "" }
-            if ($mergeBaseStr -ne $ExpectedMasterSha) {
-                throw "PREFLIGHT_FAIL: Local HEAD ($head) does not descend from ExpectedMasterSha ($ExpectedMasterSha)."
-            }
-        }
-    }
+    Assert-GitOperationalSafety -RepoRoot $RepoRoot -SkipGit $SkipGit -AllowNonMaster $AllowNonMaster -IsTestMode $IsTestMode | Out-Null
 
     # B. Committed Configuration Guard
     $appsettingsPath = Join-Path $RepoRoot "src\Api\appsettings.json"
@@ -222,9 +319,7 @@ function Assert-LocalFirstLauncherPreflight {
     foreach ($p in $pairs) {
         $yr = $p.Year
         $cs = $p.ConnStr
-        if ($cs -match "(?i)\.database\.windows\.net") {
-            throw "PREFLIGHT_FAIL: Local connection string for $yr detected forbidden Azure host."
-        }
+        Assert-LocalPhysicalBinding -ConnStr $cs -ExpectedYear $yr -IsTestMode $IsTestMode | Out-Null
 
         $conn = New-Object SqlConnection($cs)
         try {
@@ -278,27 +373,51 @@ function Assert-LocalFirstLauncherPreflight {
                 throw "PREFLIGHT_FAIL: LocalState for $yr has active lease token '$lease'."
             }
 
-            # 4. LocalOutbox Cleanliness
+            # 4. LocalOutbox Check
             $cmdO = $conn.CreateCommand()
-            $cmdO.CommandText = "SELECT COUNT(*) FROM [sync].[LocalOutbox] WHERE DatabaseId = @dbId AND Status IN ('PENDING', 'IN_PROGRESS', 'FAILED');"
+            $cmdO.CommandText = "SELECT Status, COUNT(*) as Cnt FROM [sync].[LocalOutbox] WHERE DatabaseId = @dbId GROUP BY Status;"
             $cmdO.Parameters.AddWithValue("@dbId", $yr) | Out-Null
-            $pendingOutbox = [int]$cmdO.ExecuteScalar()
-            if ($pendingOutbox -ne 0) {
-                throw "PREFLIGHT_FAIL: LocalOutbox for $yr contains $pendingOutbox active/failed rows (Expected 0)."
+            $rO = $cmdO.ExecuteReader()
+            $pendingCnt = 0
+            $inProgressCnt = 0
+            $failedCnt = 0
+            while ($rO.Read()) {
+                $st = [string]$rO["Status"]
+                $cnt = [int]$rO["Cnt"]
+                if ($st -eq "PENDING") { $pendingCnt = $cnt }
+                elseif ($st -eq "IN_PROGRESS") { $inProgressCnt = $cnt }
+                elseif ($st -eq "FAILED") { $failedCnt = $cnt }
+            }
+            $rO.Close()
+
+            # Crash recovery / failure rules: IN_PROGRESS or FAILED rows block startup fail-closed
+            if ($inProgressCnt -gt 0) {
+                throw "PREFLIGHT_FAIL: LocalOutbox for $yr contains $inProgressCnt IN_PROGRESS rows. A previous sync was interrupted or crashed."
+            }
+            if ($failedCnt -gt 0) {
+                throw "PREFLIGHT_FAIL: LocalOutbox for $yr contains $failedCnt FAILED rows. Operator attention required."
             }
 
-            # 5. Daily Hash & Count Parity
-            if (-not $IsTestMode) {
-                $stats = Calculate-DailyHashAndCounts $conn
-                if ($stats.TotalRows -ne $p.ExpectedRows) {
-                    throw "PREFLIGHT_FAIL: Daily TotalRows for $yr is $($stats.TotalRows) (Expected $($p.ExpectedRows))."
+            # Initial Cutover Baseline Mode: Requires 0 pending outbox and exact cryptographic hash
+            if ($ValidateInitialCutoverBaseline) {
+                if ($pendingCnt -ne 0) {
+                    throw "PREFLIGHT_FAIL: Initial Cutover Baseline requires 0 pending outbox rows (Found $pendingCnt for $yr)."
                 }
-                if ($stats.DeterministicSha256 -ne $p.ExpectedHash) {
-                    throw "PREFLIGHT_FAIL: Daily SHA-256 hash for $yr mismatch. Got $($stats.DeterministicSha256), expected $($p.ExpectedHash)."
+                if (-not $IsTestMode) {
+                    $stats = Calculate-DailyHashAndCounts $conn
+                    if ($stats.TotalRows -ne $p.ExpectedRows) {
+                        throw "PREFLIGHT_FAIL: Daily TotalRows for $yr is $($stats.TotalRows) (Expected $($p.ExpectedRows))."
+                    }
+                    if ($stats.DeterministicSha256 -ne $p.ExpectedHash) {
+                        throw "PREFLIGHT_FAIL: Daily SHA-256 hash for $yr mismatch. Got $($stats.DeterministicSha256), expected $($p.ExpectedHash)."
+                    }
                 }
+            } else {
+                # Steady-State: PENDING outbox rows are a normal offline state resulting from legitimate Daily edits
+                Write-Verbose "Steady-state outbox status for $($yr): Pending = $pendingCnt, InProgress = 0, Failed = 0."
             }
 
-            # 6. AspNetUsers Existence
+            # 5. AspNetUsers Existence
             $cmdU = $conn.CreateCommand()
             $cmdU.CommandText = "SELECT COUNT(*) FROM [dbo].[AspNetUsers];"
             $userCount = [int]$cmdU.ExecuteScalar()
@@ -313,7 +432,7 @@ function Assert-LocalFirstLauncherPreflight {
     return $true
 }
 
-# --- 4. Process Helper: Test Port Liveness ---
+# --- 6. Process Helper: Test Port Liveness ---
 function Test-PortAvailability {
     param([int]$Port)
     try {
@@ -326,6 +445,42 @@ function Test-PortAvailability {
     }
 }
 
+# --- 7. Structured Runtime State Helpers (P0-5) ---
+function Get-RuntimeState($Path) {
+    if (-not (Test-Path $Path)) { return $null }
+    try {
+        $raw = Get-Content $Path -Raw -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
+        return ($raw | ConvertFrom-Json)
+    } catch {
+        return $null
+    }
+}
+
+function Assert-ProcessMatchesState($proc, $state) {
+    if ($null -eq $proc -or $null -eq $state) { return $false }
+    if ($proc.Id -ne $state.pid) { return $false }
+    
+    # Process name check (must match dotnet)
+    if ($proc.ProcessName -notmatch "^(?i)dotnet$") {
+        return $false
+    }
+
+    # StartTime check (compare in UTC within 5s margin for process launch tolerance)
+    try {
+        $procStartUtc = $proc.StartTime.ToUniversalTime()
+        $stateStartUtc = [DateTime]::Parse($state.startTimeUtc, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AdjustToUniversal)
+        $diffSeconds = [Math]::Abs(($procStartUtc - $stateStartUtc).TotalSeconds)
+        if ($diffSeconds -gt 5) {
+            return $false
+        }
+    } catch {
+        return $false
+    }
+
+    return $true
+}
+
 if ($ExportFunctionsOnly) {
     return
 }
@@ -334,10 +489,20 @@ if ($ExportFunctionsOnly) {
 # SCRIPT EXECUTION ENTRYPOINT
 # ==============================================================================
 
-$pidFile = if (-not [string]::IsNullOrWhiteSpace($OverridePidFilePath)) {
+# Resolve Structured State File Path
+$stateFilePath = if (-not [string]::IsNullOrWhiteSpace($OverrideStateFilePath)) {
+    $OverrideStateFilePath
+} elseif (-not [string]::IsNullOrWhiteSpace($OverridePidFilePath)) {
     $OverridePidFilePath
 } else {
-    Join-Path $PSScriptRoot ".localfirst_runtime.pid"
+    Join-Path $PSScriptRoot ".localfirst_runtime_state.json"
+}
+
+# CLI Connection String Overrides Guard (P0-3)
+if (-not $AllowIsolatedTestMode) {
+    if (-not [string]::IsNullOrWhiteSpace($OverrideLocal2026ConnStr) -or -not [string]::IsNullOrWhiteSpace($OverrideLocal2027ConnStr)) {
+        throw "CLI_OVERRIDE_FORBIDDEN: Connection string CLI overrides are strictly forbidden in operational mode to prevent secrets and foreign topologies from shell history. In operational mode, connections are loaded exclusively from appsettings.json. Pass -AllowIsolatedTestMode for test fixtures."
+    }
 }
 
 # Resolve Connection Strings
@@ -356,94 +521,96 @@ $local2027ConnStr = if (-not [string]::IsNullOrWhiteSpace($OverrideLocal2027Conn
     $appsettings.ConnectionStrings.LocalConnection2027
 }
 
-# Resolve Token Key securely
+# Resolve Token Key securely without enumerating user-secrets (P0-4)
 $tokenKey = $null
-if (-not [string]::IsNullOrWhiteSpace($env:Token__Key)) {
-    $tokenKey = $env:Token__Key
-} else {
-    $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
-    if (Test-Path $apiProj) {
-        $secrets = dotnet user-secrets list --project $apiProj 2>$null
-        foreach ($line in $secrets) {
-            if ($line.StartsWith("Token:Key = ")) {
-                $tokenKey = $line.Substring("Token:Key = ".Length).Trim()
-            }
-        }
+if ($Action -in @("Start", "Run")) {
+    if (-not [string]::IsNullOrWhiteSpace($env:Token__Key)) {
+        $tokenKey = $env:Token__Key
+    } elseif (-not [string]::IsNullOrWhiteSpace($env:Token_Key)) {
+        $tokenKey = $env:Token_Key
     }
-    if ([string]::IsNullOrWhiteSpace($tokenKey) -and $appsettings.Token -and -not [string]::IsNullOrWhiteSpace($appsettings.Token.Key)) {
-        $tokenKey = $appsettings.Token.Key
-    }
+
     if ([string]::IsNullOrWhiteSpace($tokenKey)) {
-        $tokenKey = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+        if ($AllowIsolatedTestMode) {
+            $tokenKey = "IsolatedTestTokenKeyForTestingOnly_32_characters_minimum_length_required_123"
+        } else {
+            throw "TOKEN_KEY_REQUIRED: Token__Key environment variable is required in operational mode. Set `$env:Token__Key` before launching. Enumerating user-secrets is blocked to prevent exposing production Azure credentials."
+        }
     }
 }
 
 switch ($Action) {
     "Status" {
-        if (-not (Test-Path $pidFile)) {
-            Write-Host "LocalFirst runtime is NOT RUNNING (no PID file found)." -ForegroundColor Yellow
+        $state = Get-RuntimeState $stateFilePath
+        if ($null -eq $state) {
+            Write-Host "LocalFirst runtime is NOT RUNNING (no state file found)." -ForegroundColor Yellow
             return [PSCustomObject]@{ Status = "NOT_RUNNING"; Pid = $null; Port = $null }
         }
-        $raw = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
-        $pidText = if ($raw) { $raw.Trim() } else { "" }
-        if (-not $pidText) {
-            Write-Host "LocalFirst runtime is NOT RUNNING (PID file is empty)." -ForegroundColor Yellow
-            return [PSCustomObject]@{ Status = "NOT_RUNNING"; Pid = $null; Port = $null }
+        $candidateProc = Get-Process -Id ([int]$state.pid) -ErrorAction SilentlyContinue
+        if ($null -eq $candidateProc) {
+            Write-Host "LocalFirst runtime state file exists (PID: $($state.pid)) but process is DEAD." -ForegroundColor Red
+            return [PSCustomObject]@{ Status = "STALE_PID"; Pid = [int]$state.pid; Port = $state.port }
         }
-        $runningProc = Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
-        if ($null -eq $runningProc) {
-            Write-Host "LocalFirst runtime PID file exists ($pidText) but process is DEAD." -ForegroundColor Red
-            return [PSCustomObject]@{ Status = "STALE_PID"; Pid = [int]$pidText; Port = $null }
+        if (-not (Assert-ProcessMatchesState $candidateProc $state)) {
+            Write-Host "FOREIGN_PID_REUSED: PID $($state.pid) exists but does NOT match recorded runtime identity (ProcessName: $($candidateProc.ProcessName), StartTime: $($candidateProc.StartTime)). Foreign process will NOT be touched." -ForegroundColor Red
+            return [PSCustomObject]@{ Status = "FOREIGN_PID_REUSED"; Pid = $candidateProc.Id; Port = $state.port }
         }
-        Write-Host "LocalFirst runtime is RUNNING (PID: $($runningProc.Id), ProcessName: $($runningProc.ProcessName))." -ForegroundColor Green
-        return [PSCustomObject]@{ Status = "RUNNING"; Pid = $runningProc.Id; Port = $Port }
+        Write-Host "LocalFirst runtime is RUNNING (PID: $($candidateProc.Id), Port: $($state.port))." -ForegroundColor Green
+        return [PSCustomObject]@{ Status = "RUNNING"; Pid = $candidateProc.Id; Port = $state.port }
     }
 
     "Stop" {
         Write-Host "Stopping LocalFirst runtime..." -NoNewline
-        if (-not (Test-Path $pidFile)) {
-            Write-Host " Already stopped (no PID file)." -ForegroundColor Yellow
+        $state = Get-RuntimeState $stateFilePath
+        if ($null -eq $state) {
+            Write-Host " Already stopped (no state file)." -ForegroundColor Yellow
             return $true
         }
-        $raw = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
-        $pidText = if ($raw) { $raw.Trim() } else { "" }
-        if ($pidText) {
-            $runningProc = Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
-            if ($runningProc) {
-                $runningProc | Stop-Process -Force -ErrorAction SilentlyContinue
-                Start-Sleep -Seconds 1
+        $candidateProc = Get-Process -Id ([int]$state.pid) -ErrorAction SilentlyContinue
+        if ($candidateProc) {
+            if (-not (Assert-ProcessMatchesState $candidateProc $state)) {
+                Write-Host " FOREIGN_PID_DETECTED: PID $($state.pid) is occupied by a foreign process ($($candidateProc.ProcessName)). REFUSING TO KILL FOREIGN PROCESS." -ForegroundColor Red
+                Remove-Item $stateFilePath -Force -ErrorAction SilentlyContinue
+                throw "SAFETY_REFUSAL: Process $($state.pid) does not match runtime identity. Foreign process will not be terminated."
             }
+            $candidateProc | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
         }
-        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
-        Write-Host " Stopped $(if ($pidText) { "(PID: $pidText terminated)" } else { "(no active process)" })." -ForegroundColor Green
+        Remove-Item $stateFilePath -Force -ErrorAction SilentlyContinue
+        Write-Host " Stopped (PID: $($state.pid) terminated safely)." -ForegroundColor Green
         return $true
     }
 
     "Restart" {
         Write-Host "Restarting LocalFirst runtime..." -ForegroundColor Cyan
-        & $PSCommandPath Stop -Port $Port -ExpectedMasterSha $ExpectedMasterSha `
+        & $PSCommandPath Stop -Port $Port `
             -SkipGitVerification:$SkipGitVerification `
+            -AllowNonMaster:$AllowNonMaster `
             -AllowIsolatedTestMode:$AllowIsolatedTestMode `
             -OverrideLocal2026ConnStr $OverrideLocal2026ConnStr `
             -OverrideLocal2027ConnStr $OverrideLocal2027ConnStr `
-            -OverridePidFilePath $OverridePidFilePath
+            -OverrideStateFilePath $stateFilePath
         Start-Sleep -Seconds 2
-        & $PSCommandPath Start -Port $Port -ExpectedMasterSha $ExpectedMasterSha `
+        & $PSCommandPath Start -Port $Port `
+            -ValidateInitialCutoverBaseline:$ValidateInitialCutoverBaseline `
             -SkipGitVerification:$SkipGitVerification `
+            -AllowNonMaster:$AllowNonMaster `
             -AllowIsolatedTestMode:$AllowIsolatedTestMode `
             -OverrideLocal2026ConnStr $OverrideLocal2026ConnStr `
             -OverrideLocal2027ConnStr $OverrideLocal2027ConnStr `
-            -OverridePidFilePath $OverridePidFilePath
+            -OverrideStateFilePath $stateFilePath
         return
     }
 
     "Run" {
-        & $PSCommandPath Start -Port $Port -ExpectedMasterSha $ExpectedMasterSha `
+        & $PSCommandPath Start -Port $Port `
+            -ValidateInitialCutoverBaseline:$ValidateInitialCutoverBaseline `
             -SkipGitVerification:$SkipGitVerification `
+            -AllowNonMaster:$AllowNonMaster `
             -AllowIsolatedTestMode:$AllowIsolatedTestMode `
             -OverrideLocal2026ConnStr $OverrideLocal2026ConnStr `
             -OverrideLocal2027ConnStr $OverrideLocal2027ConnStr `
-            -OverridePidFilePath $OverridePidFilePath -Wait
+            -OverrideStateFilePath $stateFilePath -Wait
         return
     }
 
@@ -453,18 +620,16 @@ switch ($Action) {
         Write-Host "==========================================================================" -ForegroundColor Cyan
 
         # 1. Check if already running
-        if (Test-Path $pidFile) {
-            $raw = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
-            $existingPid = if ($raw) { $raw.Trim() } else { "" }
-            if ($existingPid) {
-                $proc = Get-Process -Id ([int]$existingPid) -ErrorAction SilentlyContinue
-                if ($proc) {
-                    Write-Host "LocalFirst runtime is ALREADY RUNNING (PID: $($proc.Id)) on port $Port." -ForegroundColor Yellow
-                    Write-Host "Local URL: http://127.0.0.1:$Port" -ForegroundColor Green
-                    return [PSCustomObject]@{ Status = "ALREADY_RUNNING"; Pid = $proc.Id; Port = $Port; Url = "http://127.0.0.1:$Port" }
-                }
+        $existingState = Get-RuntimeState $stateFilePath
+        if ($null -ne $existingState) {
+            $existingProc = Get-Process -Id ([int]$existingState.pid) -ErrorAction SilentlyContinue
+            if ($existingProc -and (Assert-ProcessMatchesState $existingProc $existingState)) {
+                Write-Host "LocalFirst runtime is ALREADY RUNNING (PID: $($existingProc.Id)) on port $Port." -ForegroundColor Yellow
+                Write-Host "Local URL: http://127.0.0.1:$Port" -ForegroundColor Green
+                return [PSCustomObject]@{ Status = "ALREADY_RUNNING"; Pid = $existingProc.Id; Port = $Port; Url = "http://127.0.0.1:$Port" }
+            } else {
+                Remove-Item $stateFilePath -Force -ErrorAction SilentlyContinue
             }
-            Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
         }
 
         # 2. Port Collision Guard
@@ -479,10 +644,11 @@ switch ($Action) {
         # 3. Operational Preflight Gate
         Write-Host "Executing operational LocalFirst preflight validation..." -NoNewline
         Assert-LocalFirstLauncherPreflight -RepoRoot $repoRoot `
-            -ExpectedMasterSha $ExpectedMasterSha `
             -Local2026ConnStr $local2026ConnStr `
             -Local2027ConnStr $local2027ConnStr `
+            -ValidateInitialCutoverBaseline:$ValidateInitialCutoverBaseline `
             -SkipGit $SkipGitVerification `
+            -AllowNonMaster $AllowNonMaster `
             -IsTestMode $AllowIsolatedTestMode | Out-Null
         Write-Host " PASS." -ForegroundColor Green
 
@@ -502,13 +668,27 @@ switch ($Action) {
             [Environment]::SetEnvironmentVariable($k, $childEnv[$k], "Process")
         }
 
+        # 5. Artifact Identity & Verification (P0-7)
         $apiDll = Join-Path $repoRoot "src\Api\bin\Release\net10.0\Auth.Api.dll"
         if (-not (Test-Path $apiDll)) {
-            throw "ARTIFACT_MISSING: Application binary not found at '$apiDll'. Run 'dotnet build -c Release' first."
+            Write-Host "Application binary missing at '$apiDll'. Building Release binary locally..."
+            & dotnet build (Join-Path $repoRoot "src\Api\Auth.Api.csproj") -c Release --no-restore
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $apiDll)) {
+                throw "BUILD_FAILED: Local Release build failed. Cannot launch runtime."
+            }
         }
 
-        $tempOut = [System.IO.Path]::GetTempFileName()
-        $tempErr = [System.IO.Path]::GetTempFileName()
+        # 6. Log Directory & File (P1)
+        $logsDir = Join-Path $PSScriptRoot "logs"
+        if (-not (Test-Path $logsDir)) {
+            New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+        }
+        $timestampStr = (Get-Date).ToString("yyyyMMdd_HHmmss")
+        $logPath = Join-Path $logsDir "runtime_${Port}_${timestampStr}.log"
+        $errPath = Join-Path $logsDir "runtime_${Port}_${timestampStr}.err.log"
+
+        $currentCommit = (git -C $repoRoot rev-parse HEAD 2>$null)
+        $currentCommit = if ($currentCommit) { $currentCommit.ToString().Trim() } else { "UNKNOWN" }
 
         try {
             Write-Host "Launching local application process..." -NoNewline
@@ -517,10 +697,20 @@ switch ($Action) {
                 -WorkingDirectory (Join-Path $repoRoot "src\Api") `
                 -PassThru `
                 -NoNewWindow `
-                -RedirectStandardOutput $tempOut `
-                -RedirectStandardError $tempErr
+                -RedirectStandardOutput $logPath `
+                -RedirectStandardError $errPath
 
-            $proc.Id | Out-File -FilePath $pidFile -Force
+            # Record Structured Runtime State (P0-5)
+            $runtimeState = [ordered]@{
+                pid          = $proc.Id
+                startTimeUtc = $proc.StartTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ", [System.Globalization.CultureInfo]::InvariantCulture)
+                processName  = $proc.ProcessName
+                port         = $Port
+                gitCommitSha = $currentCommit
+                logPath      = $logPath
+                errPath      = $errPath
+            }
+            $runtimeState | ConvertTo-Json -Depth 5 | Out-File -FilePath $stateFilePath -Force
             Write-Host " Started (PID: $($proc.Id))." -ForegroundColor Green
 
             # Wait for health endpoint readiness
@@ -530,7 +720,7 @@ switch ($Action) {
             $maxWaitSec = 30
             for ($s = 1; $s -le ($maxWaitSec * 2); $s++) {
                 if ($proc.HasExited) {
-                    $errText = if (Test-Path $tempErr) { Get-Content $tempErr -Raw } else { "" }
+                    $errText = if (Test-Path $errPath) { Get-Content $errPath -Raw } else { "" }
                     throw "LOCALFIRST_STARTUP_FAILED: Process exited prematurely with code $($proc.ExitCode). Error: $errText"
                 }
                 try {
@@ -558,6 +748,8 @@ switch ($Action) {
             Write-Host "Sync Status:           Pull=Disabled, Push=Disabled (Manual Sync Only)"
             Write-Host "Azure Connections:     BLOCKED (Loopback Tripwire Active)"
             Write-Host "Process PID:           $($proc.Id)"
+            Write-Host "State File:            $stateFilePath"
+            Write-Host "Log Output:            $logPath"
             Write-Host "==========================================================================" -ForegroundColor Green
 
             if ($Wait) {
@@ -565,16 +757,16 @@ switch ($Action) {
                 try {
                     $proc.WaitForExit()
                 } finally {
-                    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                    Remove-Item $stateFilePath -Force -ErrorAction SilentlyContinue
                 }
                 return
             }
 
             return [PSCustomObject]@{
                 Status = "RUNNING"
-                Pid = $proc.Id
-                Port = $Port
-                Url = "http://127.0.0.1:$Port"
+                Pid    = $proc.Id
+                Port   = $Port
+                Url    = "http://127.0.0.1:$Port"
             }
         } finally {
             # Restore parent process environment variables

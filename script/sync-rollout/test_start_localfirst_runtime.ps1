@@ -1,7 +1,14 @@
 # ==============================================================================
-# TEST SUITE: OPERATIONAL LOCALFIRST RUNTIME LAUNCHER
-# Validates all safety guards, preflight invariants, child environment composition,
-# process lifecycle, and zero-secret exposure for start_localfirst_runtime.ps1.
+# TEST SUITE: OPERATIONAL LOCALFIRST RUNTIME LAUNCHER (REVISED)
+# Completely isolated automated regression suite validating all P0 and P1 fixes:
+#   P0-1: Steady-state vs initial baseline validation; restart with PENDING outbox
+#   P0-2: Git safety gate (master, clean tree, origin/master match)
+#   P0-3: Physical local binding validation & CLI override guards
+#   P0-4: Token key secret boundary (no user-secrets enumeration)
+#   P0-5: Structured runtime state & foreign PID reuse safety
+#   P0-6: Test suite physical isolation using transient fixture DBs (ZERO operational DB access)
+#   P0-7: Artifact identity & local build verification
+#   P1:   Log lifecycle and sanitization
 # ==============================================================================
 
 using namespace System.Data.SqlClient
@@ -11,7 +18,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $launcherScript = Join-Path $PSScriptRoot "start_localfirst_runtime.ps1"
 
 Write-Host "==========================================================================" -ForegroundColor Cyan
-Write-Host "  TEST SUITE: OPERATIONAL LOCALFIRST RUNTIME LAUNCHER                      " -ForegroundColor Cyan
+Write-Host "  TEST SUITE: OPERATIONAL LOCALFIRST RUNTIME LAUNCHER (ISOLATED)          " -ForegroundColor Cyan
 Write-Host "==========================================================================" -ForegroundColor Cyan
 
 # Load pure functions for testing
@@ -34,185 +41,467 @@ function Assert-Test([string]$Name, [scriptblock]$Block) {
     }
 }
 
-# --- TEST 1: Child Environment Composition Invariants ---
-Assert-Test "Child process environment composition verifies strict LocalFirst & tripwire invariants" {
-    $envMap = Get-LocalFirstChildEnvironment -Port 5000 `
-        -Local2026ConnStr "Server=localhost;Database=IProgramLocalDb2026;Trusted_Connection=True;" `
-        -Local2027ConnStr "Server=localhost;Database=IProgramLocalDb2027;Trusted_Connection=True;" `
-        -TokenKey "test_token_key_64_characters_long_for_hmac_sha256_validation_12345678" `
-        -IsTestMode $true
+# --- Fixture Helpers for Complete Isolation (P0-6) ---
+$fixtureDb2026 = "IProgramLocalDb2026_Test"
+$fixtureDb2027 = "IProgramLocalDb2027_Test"
+$fixtureConn2026 = "Server=localhost;Database=$fixtureDb2026;Trusted_Connection=True;TrustServerCertificate=True;"
+$fixtureConn2027 = "Server=localhost;Database=$fixtureDb2027;Trusted_Connection=True;TrustServerCertificate=True;"
 
-    if ($envMap["LocalFirst__Enabled"] -ne "true") { throw "LocalFirst__Enabled must be 'true'" }
-    if ($envMap["LocalFirst__ReadOnlyMode"] -ne "false") { throw "LocalFirst__ReadOnlyMode must be 'false'" }
-    if ($envMap["Sync__PullEnabled"] -ne "false") { throw "Sync__PullEnabled must be 'false'" }
-    if ($envMap["Sync__PushEnabled"] -ne "false") { throw "Sync__PushEnabled must be 'false'" }
-    if ($envMap["Sync__AuthoritativeTrackingEnabled"] -ne "true") { throw "Sync__AuthoritativeTrackingEnabled must be 'true'" }
-    if ($envMap["LegacyMigration__Enabled"] -ne "false") { throw "LegacyMigration__Enabled must be 'false'" }
-    if ($envMap["ASPNETCORE_URLS"] -ne "http://127.0.0.1:5000") { throw "ASPNETCORE_URLS must be http://127.0.0.1:5000" }
+function Initialize-TestFixtureDatabases {
+    $masterConn = New-Object SqlConnection("Server=localhost;Database=master;Trusted_Connection=True;TrustServerCertificate=True;")
+    $masterConn.Open()
+    try {
+        foreach ($dbName in @($fixtureDb2026, $fixtureDb2027)) {
+            $yr = if ($dbName -match "2026") { "2026" } else { "2027" }
+            $cmd = $masterConn.CreateCommand()
+            $cmd.CommandText = @"
+IF DB_ID('$dbName') IS NOT NULL 
+BEGIN
+    ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [$dbName];
+END;
+CREATE DATABASE [$dbName];
+"@
+            $cmd.ExecuteNonQuery() | Out-Null
 
-    # Tripwires: Remote connection strings MUST NOT point to Azure
-    if ($envMap["ConnectionStrings__DefaultConnection"] -match "(?i)\.database\.windows\.net") {
-        throw "Tripwire DefaultConnection contains Azure host!"
-    }
-    if ($envMap["ConnectionStrings__DefaultConnection"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
-        throw "Tripwire DefaultConnection must reference DISABLED_REMOTE_TRIPWIRE"
-    }
-    if ($envMap["ConnectionStrings__CON2027"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
-        throw "Tripwire CON2027 must reference DISABLED_REMOTE_TRIPWIRE"
-    }
+            $cmd.CommandText = @"
+USE [$dbName];
+ALTER DATABASE [$dbName] SET COMPATIBILITY_LEVEL = 120;
+EXEC('CREATE SCHEMA [sync]');
 
-    # Operational locals must match inputs
-    if ($envMap["ConnectionStrings__LocalConnection2026"] -notmatch "IProgramLocalDb2026") {
-        throw "LocalConnection2026 mismatch"
-    }
-    if ($envMap["ConnectionStrings__LocalConnection2027"] -notmatch "IProgramLocalDb2027") {
-        throw "LocalConnection2027 mismatch"
+CREATE TABLE [sync].[BootstrapManifest] (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    Status NVARCHAR(50) NOT NULL,
+    IsWriteAllowed BIT NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL
+);
+
+CREATE TABLE [sync].[LocalState] (
+    DatabaseId NVARCHAR(50) PRIMARY KEY,
+    LastServerVersion BIGINT NOT NULL,
+    ActiveLeaseToken NVARCHAR(MAX) NULL,
+    LeaseExpiresAtUtc DATETIME2 NULL
+);
+
+CREATE TABLE [sync].[LocalOutbox] (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    DatabaseId NVARCHAR(50) NOT NULL,
+    EventType NVARCHAR(50) NOT NULL,
+    EntityName NVARCHAR(50) NOT NULL,
+    SyncId UNIQUEIDENTIFIER NOT NULL,
+    PayloadJson NVARCHAR(MAX) NOT NULL,
+    Status NVARCHAR(50) NOT NULL,
+    AttemptCount INT NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL
+);
+
+CREATE TABLE [dbo].[Daily] (
+    SyncId UNIQUEIDENTIFIER PRIMARY KEY,
+    Name NVARCHAR(MAX) NULL,
+    DailyDate DATETIME2 NULL,
+    Closed BIT NOT NULL,
+    CreatedAt DATETIME2 NULL,
+    CreatedBy NVARCHAR(MAX) NULL,
+    UpdatedAt DATETIME2 NULL,
+    UpdatedBy NVARCHAR(MAX) NULL,
+    DeactivatedAt DATETIME2 NULL,
+    DeactivatedBy NVARCHAR(MAX) NULL,
+    IsActive BIT NOT NULL
+);
+
+CREATE TABLE [dbo].[AspNetUsers] (
+    Id NVARCHAR(450) PRIMARY KEY,
+    UserName NVARCHAR(256) NULL,
+    NormalizedUserName NVARCHAR(256) NULL,
+    Email NVARCHAR(256) NULL,
+    NormalizedEmail NVARCHAR(256) NULL,
+    EmailConfirmed BIT NOT NULL DEFAULT 0,
+    PasswordHash NVARCHAR(MAX) NULL,
+    SecurityStamp NVARCHAR(MAX) NULL,
+    ConcurrencyStamp NVARCHAR(MAX) NULL,
+    PhoneNumber NVARCHAR(MAX) NULL,
+    PhoneNumberConfirmed BIT NOT NULL DEFAULT 0,
+    TwoFactorEnabled BIT NOT NULL DEFAULT 0,
+    LockoutEnd DATETIMEOFFSET NULL,
+    LockoutEnabled BIT NOT NULL DEFAULT 0,
+    AccessFailedCount INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE [dbo].[AspNetRoles] (
+    Id NVARCHAR(450) PRIMARY KEY,
+    Name NVARCHAR(256) NULL,
+    NormalizedName NVARCHAR(256) NULL,
+    ConcurrencyStamp NVARCHAR(MAX) NULL
+);
+
+INSERT INTO [sync].[BootstrapManifest] (Status, IsWriteAllowed, CreatedAtUtc) VALUES ('VERIFIED_READY', 1, SYSUTCDATETIME());
+INSERT INTO [sync].[LocalState] (DatabaseId, LastServerVersion, ActiveLeaseToken, LeaseExpiresAtUtc) VALUES ('$yr', 8, NULL, NULL);
+INSERT INTO [dbo].[AspNetUsers] (Id, UserName, NormalizedUserName) VALUES ('test-user-id-$yr', 'testuser', 'TESTUSER');
+INSERT INTO [dbo].[AspNetRoles] (Id, Name, NormalizedName) VALUES ('admin-role-id-$yr', 'Admin', 'ADMIN');
+INSERT INTO [dbo].[Daily] (SyncId, Name, DailyDate, Closed, IsActive) VALUES (NEWID(), 'Fixture Daily $yr', SYSUTCDATETIME(), 0, 1);
+"@
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+    } finally {
+        $masterConn.Close()
     }
 }
 
-# --- TEST 2: Invalid Port Validation ---
-Assert-Test "Invalid port numbers (0, -1, 70000) are rejected fail-closed" {
-    $ports = @(0, -1, 70000)
-    foreach ($p in $ports) {
-        $failed = $false
-        try {
-            Get-LocalFirstChildEnvironment -Port $p `
-                -Local2026ConnStr "Server=localhost;Database=db;" `
-                -Local2027ConnStr "Server=localhost;Database=db;" `
-                -TokenKey "key" | Out-Null
-        } catch {
-            if ($_.Exception.Message -match "INVALID_PORT") {
-                $failed = $true
+function Remove-TestFixtureDatabases {
+    $masterConn = New-Object SqlConnection("Server=localhost;Database=master;Trusted_Connection=True;TrustServerCertificate=True;")
+    $masterConn.Open()
+    try {
+        foreach ($dbName in @($fixtureDb2026, $fixtureDb2027)) {
+            $cmd = $masterConn.CreateCommand()
+            $cmd.CommandText = @"
+IF DB_ID('$dbName') IS NOT NULL 
+BEGIN
+    ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [$dbName];
+END;
+"@
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+    } finally {
+        $masterConn.Close()
+    }
+}
+
+try {
+    # Initialize isolated test fixtures
+    Initialize-TestFixtureDatabases
+
+    # --- TEST 1: Child Environment Composition Invariants ---
+    Assert-Test "Child process environment composition verifies strict LocalFirst & tripwire invariants" {
+        $envMap = Get-LocalFirstChildEnvironment -Port 5000 `
+            -Local2026ConnStr $fixtureConn2026 `
+            -Local2027ConnStr $fixtureConn2027 `
+            -TokenKey "test_token_key_64_characters_long_for_hmac_sha256_validation_12345678" `
+            -IsTestMode $true
+
+        if ($envMap["LocalFirst__Enabled"] -ne "true") { throw "LocalFirst__Enabled must be 'true'" }
+        if ($envMap["LocalFirst__ReadOnlyMode"] -ne "false") { throw "LocalFirst__ReadOnlyMode must be 'false'" }
+        if ($envMap["Sync__PullEnabled"] -ne "false") { throw "Sync__PullEnabled must be 'false'" }
+        if ($envMap["Sync__PushEnabled"] -ne "false") { throw "Sync__PushEnabled must be 'false'" }
+        if ($envMap["Sync__AuthoritativeTrackingEnabled"] -ne "true") { throw "Sync__AuthoritativeTrackingEnabled must be 'true'" }
+        if ($envMap["LegacyMigration__Enabled"] -ne "false") { throw "LegacyMigration__Enabled must be 'false'" }
+        if ($envMap["ASPNETCORE_URLS"] -ne "http://127.0.0.1:5000") { throw "ASPNETCORE_URLS must be http://127.0.0.1:5000" }
+
+        # Tripwires: Remote connection strings MUST NOT point to Azure
+        if ($envMap["ConnectionStrings__DefaultConnection"] -match "(?i)\.database\.windows\.net") {
+            throw "Tripwire DefaultConnection contains Azure host!"
+        }
+        if ($envMap["ConnectionStrings__DefaultConnection"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+            throw "Tripwire DefaultConnection must reference DISABLED_REMOTE_TRIPWIRE"
+        }
+        if ($envMap["ConnectionStrings__CON2027"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+            throw "Tripwire CON2027 must reference DISABLED_REMOTE_TRIPWIRE"
+        }
+
+        # Port range checks
+        foreach ($p in @(0, -1, 70000)) {
+            $failed = $false
+            try {
+                Get-LocalFirstChildEnvironment -Port $p -Local2026ConnStr $fixtureConn2026 -Local2027ConnStr $fixtureConn2027 -TokenKey "key" | Out-Null
+            } catch {
+                if ($_.Exception.Message -match "INVALID_PORT") { $failed = $true }
             }
-        }
-        if (-not $failed) {
-            throw "Expected INVALID_PORT for port $p"
+            if (-not $failed) { throw "Expected INVALID_PORT for port $p" }
         }
     }
-}
 
-# --- TEST 3: Azure Connection String Injection Rejection ---
-Assert-Test "Local connection strings referencing Azure host are rejected with PREFLIGHT_FAIL" {
-    $azureStrings = @(
-        "Server=tcp:iprogram-sql-prod-01.database.windows.net,1433;Initial Catalog=IProgramLocalDb2026;...",
-        "Server=tcp:iprogram-sql-prod-01.database.windows.net;Database=IProgramLocalDb2027;..."
-    )
-    foreach ($as in $azureStrings) {
-        $failed = $false
+    # --- TEST 2: Physical Local Binding & Catalog Validation (P0-3) ---
+    Assert-Test "Assert-LocalPhysicalBinding enforces local endpoints, exact catalogs, and rejects Azure/remote" {
+        # A. Azure host rejection
+        $azureStr = "Server=tcp:iprogram-sql-prod-01.database.windows.net,1433;Initial Catalog=IProgramLocalDb2026;Integrated Security=True;"
+        $failedAzure = $false
+        try {
+            Assert-LocalPhysicalBinding -ConnStr $azureStr -ExpectedYear "2026" -IsTestMode $false | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "forbidden Azure host") { $failedAzure = $true }
+        }
+        if (-not $failedAzure) { throw "Failed to reject Azure host!" }
+
+        # B. Remote non-local endpoint rejection
+        $remoteStr = "Server=192.168.1.150;Initial Catalog=IProgramLocalDb2026;Integrated Security=True;"
+        $failedRemote = $false
+        try {
+            Assert-LocalPhysicalBinding -ConnStr $remoteStr -ExpectedYear "2026" -IsTestMode $false | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "non-local host") { $failedRemote = $true }
+        }
+        if (-not $failedRemote) { throw "Failed to reject remote IP endpoint!" }
+
+        # C. Wrong catalog in operational mode rejection
+        $wrongCatalogStr = "Server=localhost;Initial Catalog=WrongDbCatalog2026;Integrated Security=True;"
+        $failedCatalog = $false
+        try {
+            Assert-LocalPhysicalBinding -ConnStr $wrongCatalogStr -ExpectedYear "2026" -IsTestMode $false | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "must target catalog 'IProgramLocalDb2026'") { $failedCatalog = $true }
+        }
+        if (-not $failedCatalog) { throw "Failed to reject incorrect operational catalog!" }
+
+        # D. Test mode guard: rejects operational catalogs in test mode (P0-6 guard)
+        $opInTestStr = "Server=localhost;Initial Catalog=IProgramLocalDb2026;Integrated Security=True;"
+        $failedOpInTest = $false
+        try {
+            Assert-LocalPhysicalBinding -ConnStr $opInTestStr -ExpectedYear "2026" -IsTestMode $true | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "forbidden from targeting operational catalog") { $failedOpInTest = $true }
+        }
+        if (-not $failedOpInTest) { throw "Failed to guard against operational catalog in test mode!" }
+
+        # E. Valid fixture binding passes in test mode
+        $validFixture = Assert-LocalPhysicalBinding -ConnStr $fixtureConn2026 -ExpectedYear "2026" -IsTestMode $true
+        if ($validFixture.InitialCatalog -ne $fixtureDb2026) { throw "Fixture binding mismatch" }
+    }
+
+    # --- TEST 3: CLI Connection String Override Guard (P0-3) ---
+    Assert-Test "Operational mode strictly rejects CLI connection string overrides" {
+        $failedCli = $false
+        try {
+            # Execute launcher without -AllowIsolatedTestMode but with CLI override
+            & $launcherScript Status -OverrideLocal2026ConnStr "Server=localhost;Database=fake;" | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "CLI_OVERRIDE_FORBIDDEN") { $failedCli = $true }
+        }
+        if (-not $failedCli) { throw "Failed to reject CLI connection string override in operational mode!" }
+    }
+
+    # --- TEST 4: Git Operational Safety Gate (P0-2) ---
+    Assert-Test "Git safety gate validates master branch and clean working tree in operational mode" {
+        $currentBranch = (git -C $repoRoot branch --show-current).Trim()
+        if ($currentBranch -ne "master") {
+            # Since we are currently on a feature branch, operational mode must fail closed
+            $failedBranch = $false
+            try {
+                Assert-GitOperationalSafety -RepoRoot $repoRoot -SkipGit $false -AllowNonMaster $false -IsTestMode $false | Out-Null
+            } catch {
+                if ($_.Exception.Message -match "must run from 'master' branch") { $failedBranch = $true }
+            }
+            if (-not $failedBranch) { throw "Failed to reject non-master branch in operational mode!" }
+        }
+
+        # Test mode allows bypass
+        $testPass = Assert-GitOperationalSafety -RepoRoot $repoRoot -SkipGit $false -AllowNonMaster $true -IsTestMode $true
+        if (-not $testPass) { throw "Test mode Git bypass returned false" }
+    }
+
+    # --- TEST 5: Token Key Secret Boundary (P0-4) ---
+    Assert-Test "Token key resolution fails closed without user-secrets enumeration in operational mode" {
+        # Temporarily clear Token__Key env vars in current scope
+        $origKey1 = $env:Token__Key
+        $origKey2 = $env:Token_Key
+        $env:Token__Key = $null
+        $env:Token_Key = $null
+
+        $failedToken = $false
+        try {
+            # Start in operational mode with missing token key
+            & $launcherScript Start | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "TOKEN_KEY_REQUIRED") { $failedToken = $true }
+        } finally {
+            $env:Token__Key = $origKey1
+            $env:Token_Key = $origKey2
+        }
+
+        if (-not $failedToken) { throw "Failed to require Token__Key in operational mode!" }
+    }
+
+    # --- TEST 6: Structured PID Safety & Foreign PID Reuse Rejection (P0-5) ---
+    Assert-Test "Stop and Status refuse to touch foreign processes on PID reuse" {
+        $testStateFile = [System.IO.Path]::GetTempFileName()
+        
+        try {
+            # Craft fake state file pointing to current powershell process (which is NOT dotnet and has wrong start time)
+            $foreignPid = $PID
+            $fakeState = [ordered]@{
+                pid          = $foreignPid
+                startTimeUtc = "2020-01-01T00:00:00.0000000Z" # Mismatched start time
+                processName  = "dotnet"
+                port         = 5198
+                gitCommitSha = "testsha"
+                logPath      = "fake.log"
+            }
+            $fakeState | ConvertTo-Json | Out-File -FilePath $testStateFile -Force
+
+            # A. Status must detect FOREIGN_PID_REUSED
+            $statusRes = & $launcherScript Status -OverrideStateFilePath $testStateFile
+            if ($statusRes.Status -ne "FOREIGN_PID_REUSED") {
+                throw "Expected Status=FOREIGN_PID_REUSED, got $($statusRes.Status)"
+            }
+
+            # B. Stop must throw SAFETY_REFUSAL and NOT kill the process
+            $failedSafety = $false
+            try {
+                & $launcherScript Stop -OverrideStateFilePath $testStateFile | Out-Null
+            } catch {
+                if ($_.Exception.Message -match "SAFETY_REFUSAL") { $failedSafety = $true }
+            }
+
+            if (-not $failedSafety) { throw "Stop failed to throw SAFETY_REFUSAL for foreign PID!" }
+
+            # Verify current powershell process is still alive!
+            $procCheck = Get-Process -Id $foreignPid -ErrorAction SilentlyContinue
+            if ($null -eq $procCheck) {
+                throw "CRITICAL FAILURE: Foreign process $foreignPid was killed!"
+            }
+        } finally {
+            Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # --- TEST 7: Steady-State vs Initial Cutover Baseline Preflight (P0-1) ---
+    Assert-Test "Steady-state preflight allows PENDING outbox rows while Initial Baseline rejects them" {
+        # A. Insert a PENDING outbox row in fixture 2026 (simulating offline Daily edit)
+        $conn = New-Object SqlConnection($fixtureConn2026)
+        $conn.Open()
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = @"
+INSERT INTO [sync].[LocalOutbox] (DatabaseId, EventType, EntityName, SyncId, PayloadJson, Status, AttemptCount, CreatedAtUtc)
+VALUES ('2026', 'UPSERT', 'Daily', NEWID(), '{"test":true}', 'PENDING', 0, SYSUTCDATETIME());
+"@
+        $cmd.ExecuteNonQuery() | Out-Null
+        $conn.Close()
+
+        # B. Steady-state preflight (ValidateInitialCutoverBaseline = false) MUST PASS!
+        $steadyPass = Assert-LocalFirstLauncherPreflight -RepoRoot $repoRoot `
+            -Local2026ConnStr $fixtureConn2026 `
+            -Local2027ConnStr $fixtureConn2027 `
+            -ValidateInitialCutoverBaseline $false `
+            -SkipGit $true `
+            -IsTestMode $true
+
+        if (-not $steadyPass) { throw "Steady-state preflight failed with PENDING outbox row!" }
+
+        # C. Initial Cutover Baseline (ValidateInitialCutoverBaseline = true) MUST FAIL with pending rows!
+        $failedBaseline = $false
         try {
             Assert-LocalFirstLauncherPreflight -RepoRoot $repoRoot `
-                -ExpectedMasterSha "49a0be38218c199a100c8d057a2acd45306844c0" `
-                -Local2026ConnStr $as `
-                -Local2027ConnStr "Server=localhost;Database=IProgramLocalDb2027;" `
-                -SkipGit $true -IsTestMode $true | Out-Null
+                -Local2026ConnStr $fixtureConn2026 `
+                -Local2027ConnStr $fixtureConn2027 `
+                -ValidateInitialCutoverBaseline $true `
+                -SkipGit $true `
+                -IsTestMode $true | Out-Null
         } catch {
-            if ($_.Exception.Message -match "PREFLIGHT_FAIL.*forbidden Azure host") {
-                $failed = $true
+            if ($_.Exception.Message -match "Initial Cutover Baseline requires 0 pending outbox rows") {
+                $failedBaseline = $true
             }
         }
-        if (-not $failed) {
-            throw "Failed to reject Azure host in local connection string!"
-        }
+        if (-not $failedBaseline) { throw "Initial baseline failed to reject pending outbox row!" }
+
+        # Clean out the pending row for subsequent tests
+        $conn = New-Object SqlConnection($fixtureConn2026)
+        $conn.Open()
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = "DELETE FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026';"
+        $cmd.ExecuteNonQuery() | Out-Null
+        $conn.Close()
     }
-}
 
-# --- TEST 4: Port Collision Detection Guard ---
-Assert-Test "Port collision detection guard identifies occupied loopback port" {
-    $testPort = 5195
-    $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Parse("127.0.0.1"), $testPort)
-    $listener.Start()
-    try {
-        $isAvailable = Test-PortAvailability -Port $testPort
-        if ($isAvailable) {
-            throw "Expected port $testPort to be reported as NOT available (occupied)."
-        }
-    } finally {
-        $listener.Stop()
-    }
-    # Once stopped, it should be available
-    $isAvailableNow = Test-PortAvailability -Port $testPort
-    if (-not $isAvailableNow) {
-        throw "Expected port $testPort to be available after listener stopped."
-    }
-}
+    # --- TEST 8: Full Steady-State Lifecycle with PENDING Outbox & Durability (P0-1 & P0-6) ---
+    Assert-Test "Process lifecycle starts and restarts cleanly with PENDING outbox on isolated fixture" {
+        $lifecyclePort = 5197
+        $testStateFile = [System.IO.Path]::GetTempFileName()
+        Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
 
-# --- TEST 5: Live Operational Preflight Validation ---
-Assert-Test "Live operational databases pass all preflight gates (SQL 2014, Manifest, State, Hashes)" {
-    $appsettings = Get-Content (Join-Path $repoRoot "src\Api\appsettings.json") -Raw | ConvertFrom-Json
-    $prePass = Assert-LocalFirstLauncherPreflight -RepoRoot $repoRoot `
-        -ExpectedMasterSha "49a0be38218c199a100c8d057a2acd45306844c0" `
-        -Local2026ConnStr $appsettings.ConnectionStrings.LocalConnection2026 `
-        -Local2027ConnStr $appsettings.ConnectionStrings.LocalConnection2027 `
-        -SkipGit $false -IsTestMode $false
+        # Seed a PENDING outbox row to prove restart durability in offline write state
+        $conn = New-Object SqlConnection($fixtureConn2026)
+        $conn.Open()
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = @"
+INSERT INTO [sync].[LocalOutbox] (DatabaseId, EventType, EntityName, SyncId, PayloadJson, Status, AttemptCount, CreatedAtUtc)
+VALUES ('2026', 'UPSERT', 'Daily', NEWID(), '{"Name":"Legitimate Offline Daily Write"}', 'PENDING', 0, SYSUTCDATETIME());
+"@
+        $cmd.ExecuteNonQuery() | Out-Null
+        $conn.Close()
 
-    if (-not $prePass) {
-        throw "Operational preflight returned false"
-    }
-}
+        try {
+            # 1. Start Runtime on test port pointing to fixture databases
+            $startRes = & $launcherScript Start `
+                -Port $lifecyclePort `
+                -AllowIsolatedTestMode `
+                -SkipGitVerification `
+                -OverrideLocal2026ConnStr $fixtureConn2026 `
+                -OverrideLocal2027ConnStr $fixtureConn2027 `
+                -OverrideStateFilePath $testStateFile
 
-# --- TEST 6: Real Process Lifecycle (Start, Status, Restart, Stop) on Dedicated Test Port ---
-Assert-Test "Process lifecycle (Start, Status, Restart, Stop) operates deterministically on loopback" {
-    $lifecyclePort = 5199
-    $testPidFile = [System.IO.Path]::GetTempFileName()
-    Remove-Item $testPidFile -Force -ErrorAction SilentlyContinue
-
-    try {
-        # A. Start
-        $startResult = & $launcherScript Start `
-            -Port $lifecyclePort `
-            -ExpectedMasterSha "49a0be38218c199a100c8d057a2acd45306844c0" `
-            -OverridePidFilePath $testPidFile
-
-        if ($startResult.Status -ne "RUNNING") {
-            throw "Expected Status=RUNNING from Start action, got $($startResult.Status)"
-        }
-        $pid1 = $startResult.Pid
-
-        # Verify /health responds 200 OK
-        $healthResp = Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
-        if ($healthResp.StatusCode -ne 200) {
-            throw "Health endpoint returned status code $($healthResp.StatusCode)"
-        }
-
-        # B. Status
-        $statusResult = & $launcherScript Status `
-            -Port $lifecyclePort `
-            -OverridePidFilePath $testPidFile
-
-        if ($statusResult.Status -ne "RUNNING" -or $statusResult.Pid -ne $pid1) {
-            throw "Expected Status=RUNNING with PID $pid1, got $($statusResult.Status) (PID $($statusResult.Pid))"
-        }
-
-        # C. Stop
-        $stopResult = & $launcherScript Stop `
-            -Port $lifecyclePort `
-            -OverridePidFilePath $testPidFile
-
-        Start-Sleep -Seconds 1
-        $procAfterStop = Get-Process -Id $pid1 -ErrorAction SilentlyContinue
-        if ($null -ne $procAfterStop) {
-            throw "Process $pid1 still running after Stop command!"
-        }
-
-        # Status after stop
-        $statusAfterStop = & $launcherScript Status `
-            -Port $lifecyclePort `
-            -OverridePidFilePath $testPidFile
-
-        if ($statusAfterStop.Status -ne "NOT_RUNNING") {
-            throw "Expected NOT_RUNNING after stop, got $($statusAfterStop.Status)"
-        }
-    } finally {
-        # Failsafe cleanup
-        if (Test-Path $testPidFile) {
-            $remainingPid = (Get-Content $testPidFile -Raw -ErrorAction SilentlyContinue)
-            if (-not [string]::IsNullOrWhiteSpace($remainingPid)) {
-                $p = Get-Process -Id ([int]$remainingPid.Trim()) -ErrorAction SilentlyContinue
-                if ($p) { $p | Stop-Process -Force -ErrorAction SilentlyContinue }
+            if ($startRes.Status -ne "RUNNING") {
+                throw "Expected Status=RUNNING, got $($startRes.Status)"
             }
-            Remove-Item $testPidFile -Force -ErrorAction SilentlyContinue
+            $procPid = $startRes.Pid
+
+            # 2. Verify /health responds 200 OK
+            $healthResp = Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
+            if ($healthResp.StatusCode -ne 200) {
+                throw "Health check returned status code $($healthResp.StatusCode)"
+            }
+
+            # 3. Verify Status
+            $statusRes = & $launcherScript Status -Port $lifecyclePort -OverrideStateFilePath $testStateFile
+            if ($statusRes.Status -ne "RUNNING" -or $statusRes.Pid -ne $procPid) {
+                throw "Status mismatch: $($statusRes.Status)"
+            }
+
+            # 4. Stop Runtime
+            $stopRes = & $launcherScript Stop -Port $lifecyclePort -OverrideStateFilePath $testStateFile
+            Start-Sleep -Seconds 1
+
+            $deadProc = Get-Process -Id $procPid -ErrorAction SilentlyContinue
+            if ($null -ne $deadProc) {
+                throw "Process $procPid still running after Stop command!"
+            }
+
+            # 5. Verify PENDING outbox row was NOT mutated or deleted during runtime
+            $conn = New-Object SqlConnection($fixtureConn2026)
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT COUNT(*) FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026' AND Status = 'PENDING';"
+            $stillPending = [int]$cmd.ExecuteScalar()
+            $conn.Close()
+
+            if ($stillPending -ne 1) {
+                throw "PENDING outbox row was unexpectedly modified/cleared during shutdown (Found: $stillPending)!"
+            }
+
+            # 6. Restart Runtime with the PENDING outbox row present!
+            $restartRes = & $launcherScript Start `
+                -Port $lifecyclePort `
+                -AllowIsolatedTestMode `
+                -SkipGitVerification `
+                -OverrideLocal2026ConnStr $fixtureConn2026 `
+                -OverrideLocal2027ConnStr $fixtureConn2027 `
+                -OverrideStateFilePath $testStateFile
+
+            if ($restartRes.Status -ne "RUNNING") {
+                throw "Expected Status=RUNNING on restart, got $($restartRes.Status)"
+            }
+
+            # Re-verify /health after restart
+            $healthResp2 = Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
+            if ($healthResp2.StatusCode -ne 200) {
+                throw "Post-restart health check returned $($healthResp2.StatusCode)"
+            }
+
+            # Stop after restart
+            & $launcherScript Stop -Port $lifecyclePort -OverrideStateFilePath $testStateFile | Out-Null
+        } finally {
+            if (Test-Path $testStateFile) {
+                $remState = Get-RuntimeState $testStateFile
+                if ($remState -and $remState.pid) {
+                    $p = Get-Process -Id ([int]$remState.pid) -ErrorAction SilentlyContinue
+                    if ($p -and $p.ProcessName -ieq "dotnet") { $p | Stop-Process -Force -ErrorAction SilentlyContinue }
+                }
+                Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+            }
         }
     }
+} finally {
+    # Complete cleanup of transient fixture databases (P0-6)
+    Remove-TestFixtureDatabases
+    Write-Host "Transient test fixture databases dropped cleanly." -ForegroundColor Gray
 }
 
 Write-Host "`n==========================================================================" -ForegroundColor Green

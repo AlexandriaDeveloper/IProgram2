@@ -134,6 +134,8 @@ tests/pdf_debug.txt
 script/*.sql
 *.generated.sql
 
-# Runtime PID files
+# Runtime state and log files
 *.pid
 .localfirst_runtime.pid
+.localfirst_runtime_state.json
+script/sync-rollout/logs/
