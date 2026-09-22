@@ -403,6 +403,10 @@ namespace Auth.Infrastructure.Sync.Pull
         {
             var p = cmd.CreateParameter();
             p.ParameterName = name;
+            if (value is DateTime)
+            {
+                p.DbType = System.Data.DbType.DateTime2;
+            }
             p.Value = value ?? DBNull.Value;
             cmd.Parameters.Add(p);
         }

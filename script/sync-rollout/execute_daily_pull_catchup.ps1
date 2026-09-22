@@ -43,22 +43,202 @@ param (
     [string]$Azure2027ConnectionString,
     [string]$Local2026ConnectionString,
     [string]$Local2027ConnectionString,
-    [switch]$AllowIsolatedExecutionOnly # Permitted only for isolated test harness execution
+    [switch]$AllowIsolatedExecutionOnly,    # Permitted only for isolated test harness execution
+    [switch]$AllowProductionExecution,      # Explicit production execution authorization switch
+    [string]$ProductionApprovalReference,  # Required approval/audit reference (e.g. ISSUE-14-BO-AUTH-...)
+    [string]$ExpectedMasterSha,             # Required expected git commit SHA for production execution
+    [int64]$Expected2026LocalW = -1,        # Expected preflight checkpoint for 2026
+    [int64]$Expected2027LocalW = -1,        # Expected preflight checkpoint for 2027
+    [int64]$Expected2026ObservedV = -1,     # Expected preflight remote version for 2026
+    [int64]$Expected2027ObservedV = -1,     # Expected preflight remote version for 2027
+    [string]$OverrideRepoRoot,              # Permitted for isolated test directory overrides
+    [switch]$SkipGitVerification,           # Permitted ONLY when -AllowIsolatedExecutionOnly is true
+    [string]$SimulatedBranch = $null,       # Permitted ONLY for isolated unit testing
+    [string]$SimulatedHead = $null,         # Permitted ONLY for isolated unit testing
+    $SimulatedStatus = $null,               # Permitted ONLY for isolated unit testing (untyped to distinguish null from empty string)
+    [string]$SimulatedRemoteMasterSha = $null, # Permitted ONLY for isolated unit testing
+    [switch]$ExportFunctionsOnly            # Permitted for safe in-memory unit testing of operator gate functions
 )
 
 $ErrorActionPreference = "Stop"
 
-# --- 1. Mode Validation (Mutually Exclusive) ---
-if (($DryRun -and $Execute) -or (-not $DryRun -and -not $Execute)) {
-    throw "OPERATOR_MODE_ERROR: You must specify exactly one of -DryRun or -Execute."
+# --- 1. Pure Production Authorization Gate Validation ---
+function Assert-ProductionExecutionAuthorization {
+    param(
+        [bool]$DryRun,
+        [bool]$Execute,
+        [bool]$AllowProductionExecution,
+        [bool]$AllowIsolatedExecutionOnly,
+        [System.Collections.IDictionary]$BoundParameters = $null,
+        [string]$ProductionApprovalReference = $null,
+        [string]$ExpectedMasterSha = $null,
+        [int64]$Expected2026LocalW = -1,
+        [int64]$Expected2027LocalW = -1,
+        [int64]$Expected2026ObservedV = -1,
+        [int64]$Expected2027ObservedV = -1,
+        [bool]$SkipGitVerification = $false,
+        [string]$SimulatedBranch = $null,
+        [string]$SimulatedHead = $null,
+        $SimulatedStatus = $null,
+        [string]$SimulatedRemoteMasterSha = $null
+    )
+
+    if (($DryRun -and $Execute) -or (-not $DryRun -and -not $Execute)) {
+        throw "OPERATOR_MODE_ERROR: You must specify exactly one of -DryRun or -Execute."
+    }
+
+    if ($DryRun -and $AllowProductionExecution) {
+        throw "OPERATOR_MODE_ERROR: Production execution switch -AllowProductionExecution cannot be combined with -DryRun."
+    }
+
+    if ($Execute) {
+        if ($AllowProductionExecution -and $AllowIsolatedExecutionOnly) {
+            throw "OPERATOR_MODE_ERROR: -AllowProductionExecution and -AllowIsolatedExecutionOnly are mutually exclusive."
+        }
+
+        if (-not $AllowProductionExecution -and -not $AllowIsolatedExecutionOnly) {
+            throw "PRODUCTION_EXECUTION_NOT_AUTHORIZED: Executing catch-up against Azure Production is locked. Explicit authorization requires -AllowProductionExecution with valid approval parameters, or -AllowIsolatedExecutionOnly for isolated tests."
+        }
+
+        if ($AllowProductionExecution) {
+            if ($SkipGitVerification -or $SimulatedBranch -or $SimulatedHead -or ($SimulatedStatus -ne $null) -or $SimulatedRemoteMasterSha) {
+                throw "SECURITY_VIOLATION: SkipGitVerification and simulated repository parameters are never permitted in production mode."
+            }
+            if ($BoundParameters -and $BoundParameters.ContainsKey('Password')) {
+                throw "SECURITY_VIOLATION: Supplying password or secret material via command-line parameter (-Password) is strictly forbidden in production mode to prevent credential leakage in process lists and shell history. Use transient environment variable 'IPROGRAM_OPERATOR_PASSWORD' instead."
+            }
+            $forbiddenConnCliParams = @('Azure2026ConnectionString', 'Azure2027ConnectionString', 'Local2026ConnectionString', 'Local2027ConnectionString')
+            if ($BoundParameters) {
+                foreach ($p in $forbiddenConnCliParams) {
+                    if ($BoundParameters.ContainsKey($p)) {
+                        throw "SECURITY_VIOLATION: Supplying connection strings via command-line parameter (-$p) is strictly forbidden in production mode to prevent credential and database topology leakage in process lists and shell history. In production mode, Azure connection strings are resolved automatically from User Secrets / environment, and Local connection strings from committed configuration."
+                    }
+                }
+            }
+            if ([string]::IsNullOrWhiteSpace($ProductionApprovalReference)) {
+                throw "AUTHORIZATION_ERROR: -ProductionApprovalReference is required when -AllowProductionExecution is specified."
+            }
+            if ([string]::IsNullOrWhiteSpace($ExpectedMasterSha)) {
+                throw "AUTHORIZATION_ERROR: -ExpectedMasterSha is required when -AllowProductionExecution is specified."
+            }
+            if ($Expected2026LocalW -lt 0) {
+                throw "AUTHORIZATION_ERROR: -Expected2026LocalW (>= 0) is required for production execution."
+            }
+            if ($Expected2027LocalW -lt 0) {
+                throw "AUTHORIZATION_ERROR: -Expected2027LocalW (>= 0) is required for production execution."
+            }
+            if ($Expected2026ObservedV -lt 0) {
+                throw "AUTHORIZATION_ERROR: -Expected2026ObservedV (>= 0) is required for production execution."
+            }
+            if ($Expected2027ObservedV -lt 0) {
+                throw "AUTHORIZATION_ERROR: -Expected2027ObservedV (>= 0) is required for production execution."
+            }
+        }
+    }
 }
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
-Add-Type -AssemblyName "System.Data"
+# --- 2. Pure Stale-Authorization Watermark & Version Gate ---
+function Assert-AuthorizationWatermarkAndVersionGate {
+    param(
+        [psobject]$Preflight2026 = $null,
+        [psobject]$Preflight2027 = $null,
+        [int64]$Expected2026W = -1,
+        [int64]$Expected2026V = -1,
+        [int64]$Expected2027W = -1,
+        [int64]$Expected2027V = -1,
+        [string]$PhaseContext = "Initial"
+    )
 
-# --- 2. Production Safety Guard ---
-if ($Execute -and -not $AllowIsolatedExecutionOnly) {
-    throw "SLICE_4_5B_2_PRODUCTION_GUARD: Executing actual catch-up against Azure Production is locked in Slice 4.5B-2. Run -DryRun on production, or run isolated tests with -AllowIsolatedExecutionOnly."
+    if ($Preflight2026 -ne $null) {
+        if ($Expected2026W -ge 0 -and $Preflight2026.W -ne $Expected2026W) {
+            throw "STALE_AUTHORIZATION_WATERMARK_MISMATCH: 2026 $PhaseContext preflight W ($($Preflight2026.W)) does not match approved Expected2026LocalW ($Expected2026W)."
+        }
+        if ($Expected2026V -ge 0 -and $Preflight2026.V_observed -ne $Expected2026V) {
+            throw "STALE_AUTHORIZATION_VERSION_MISMATCH: 2026 $PhaseContext preflight V_observed ($($Preflight2026.V_observed)) does not match approved Expected2026ObservedV ($Expected2026V)."
+        }
+    }
+
+    if ($Preflight2027 -ne $null) {
+        if ($Expected2027W -ge 0 -and $Preflight2027.W -ne $Expected2027W) {
+            throw "STALE_AUTHORIZATION_WATERMARK_MISMATCH: 2027 $PhaseContext preflight W ($($Preflight2027.W)) does not match approved Expected2027LocalW ($Expected2027W)."
+        }
+        if ($Expected2027V -ge 0 -and $Preflight2027.V_observed -ne $Expected2027V) {
+            throw "STALE_AUTHORIZATION_VERSION_MISMATCH: 2027 $PhaseContext preflight V_observed ($($Preflight2027.V_observed)) does not match approved Expected2027ObservedV ($Expected2027V)."
+        }
+    }
+}
+
+# --- 2b. Repository State Guard (Production Execution Baseline) ---
+function Assert-RepositoryStateGuard {
+    param(
+        [string]$Root,
+        [string]$ExpectedSha,
+        [bool]$SkipVerification = $false,
+        [string]$SimBranch = $null,
+        [string]$SimHead = $null,
+        $SimStatus = $null,
+        [string]$SimRemoteMaster = $null
+    )
+
+    if ($SkipVerification) {
+        return
+    }
+
+    $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $gitCmd -and -not $SimBranch -and -not $SimHead) {
+        throw "REPO_GUARD_ERROR: git command is required for repository state verification."
+    }
+
+    # 1. Check current branch is master
+    $currentBranch = if ($SimBranch) { $SimBranch } else { (git -C "$Root" branch --show-current 2>$null) }
+    if ($currentBranch) { $currentBranch = $currentBranch.Trim() }
+    if ($currentBranch -ne "master") {
+        throw "REPO_GUARD_VIOLATION: Production execution requires branch 'master', currently on '$currentBranch'."
+    }
+
+    # 2. Check current commit matches ExpectedSha
+    $currentHead = if ($SimHead) { $SimHead } else { (git -C "$Root" rev-parse HEAD 2>$null) }
+    if ($currentHead) { $currentHead = $currentHead.Trim() }
+    if ($currentHead -ne $ExpectedSha) {
+        throw "REPO_GUARD_VIOLATION: Current HEAD commit ($currentHead) does not match expected master SHA ($ExpectedSha)."
+    }
+
+    # 3. Check working tree is clean
+    $rawStatus = if ($SimStatus -ne $null) { $SimStatus } else { (git -C "$Root" status --porcelain 2>$null) }
+    $status = ($rawStatus | Out-String).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($status)) {
+        throw "REPO_GUARD_VIOLATION: Working tree is not clean. Production execution requires an unmodified working tree."
+    }
+
+    # 4. Check sync with live remote origin/master (Fail Closed)
+    $remoteMasterSha = $null
+    if (-not [string]::IsNullOrWhiteSpace($SimRemoteMaster)) {
+        $remoteMasterSha = $SimRemoteMaster.Trim()
+    } else {
+        $remotes = (& git -C "$Root" remote 2>$null)
+        if (-not $remotes -or ($remotes -split "`r?`n" -notcontains "origin")) {
+            throw "REPO_GUARD_VIOLATION: Remote 'origin' is required for repository state verification but was not found."
+        }
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $lsRemoteOut = (& git -C "$Root" ls-remote --exit-code origin refs/heads/master 2>&1)
+        $ErrorActionPreference = $prevEap
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($lsRemoteOut)) {
+            $errStr = ($lsRemoteOut | Out-String).Trim()
+            throw "REPO_GUARD_VIOLATION: Failed to query live remote origin/master (Exit code $LASTEXITCODE). Error: $errStr"
+        }
+        $remoteMasterSha = ($lsRemoteOut -split "\s+")[0].Trim()
+    }
+
+    if ([string]::IsNullOrWhiteSpace($remoteMasterSha) -or $remoteMasterSha.Length -ne 40) {
+        throw "REPO_GUARD_VIOLATION: Invalid remote master SHA format received from origin: '$remoteMasterSha'."
+    }
+    if ($remoteMasterSha -ne $currentHead) {
+        throw "REPO_GUARD_VIOLATION: Local master ($currentHead) is not synchronized with live remote origin/master ($remoteMasterSha)."
+    }
+    if ($remoteMasterSha -ne $ExpectedSha) {
+        throw "REPO_GUARD_VIOLATION: Live remote origin/master ($remoteMasterSha) does not match approved ExpectedMasterSha ($ExpectedSha)."
+    }
 }
 
 # --- 3. Committed Configuration Guard (Current Master Baseline) ---
@@ -92,40 +272,6 @@ function Assert-CommittedConfigurationGuard {
     }
 }
 
-Write-Host "Verifying committed configuration invariants..." -NoNewline
-Assert-CommittedConfigurationGuard -Root $repoRoot
-Write-Host " PASS (AuthoritativeTrackingEnabled=true, all other sync flags disabled)" -ForegroundColor Green
-
-# --- 4. Resolve Connection Strings ---
-if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString) -or [string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
-    $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
-    if (Test-Path $apiProj) {
-        $secrets = dotnet user-secrets list --project $apiProj 2>$null
-        foreach ($line in $secrets) {
-            if ($line.StartsWith("ConnectionStrings:DefaultConnection = ")) {
-                if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
-                    $Azure2026ConnectionString = $line.Substring("ConnectionStrings:DefaultConnection = ".Length).Trim()
-                }
-            }
-            if ($line.StartsWith("ConnectionStrings:CON2027 = ")) {
-                if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
-                    $Azure2027ConnectionString = $line.Substring("ConnectionStrings:CON2027 = ".Length).Trim()
-                }
-            }
-        }
-    }
-}
-
-$appsettingsPath = Join-Path $repoRoot "src\Api\appsettings.json"
-$appsettings = Get-Content $appsettingsPath -Raw | ConvertFrom-Json
-
-if ([string]::IsNullOrWhiteSpace($Local2026ConnectionString)) {
-    $Local2026ConnectionString = $appsettings.ConnectionStrings.LocalConnection2026
-}
-if ([string]::IsNullOrWhiteSpace($Local2027ConnectionString)) {
-    $Local2027ConnectionString = $appsettings.ConnectionStrings.LocalConnection2027
-}
-
 # --- 5. Physical Database Binding Guard ---
 function Assert-DatabaseBinding {
     param(
@@ -143,8 +289,23 @@ function Assert-DatabaseBinding {
     $initialCatalog = if ($builder.InitialCatalog) { $builder.InitialCatalog.Trim() } else { "" }
     $serverHost = $dataSource -replace '^(?i)tcp:', '' -replace ',\s*[0-9]+$', ''
 
-    if ($ExpectedTarget -eq "Azure") {
-        if (-not $IsIsolatedMode) {
+    if ($IsIsolatedMode) {
+        if ($serverHost.ToLowerInvariant() -like "*database.windows.net*" -or $serverHost.ToLowerInvariant() -like "*azure*") {
+            throw "ISOLATION_VIOLATION: Isolated mode connection string for $ExpectedTarget $ExpectedYear targets remote/Azure endpoint '$serverHost'."
+        }
+        $operationalCatalogs = @("iprogramdb2026", "iprogramdb2027", "iprogramlocaldb2026", "iprogramlocaldb2027")
+        if ($operationalCatalogs -contains $initialCatalog.ToLowerInvariant()) {
+            throw "ISOLATION_VIOLATION: Isolated mode connection string for $ExpectedTarget $ExpectedYear targets operational database catalog '$initialCatalog'."
+        }
+        $isLocalEndpoint = $serverHost.ToLowerInvariant() -eq "localhost" -or $serverHost.ToLowerInvariant() -eq "(local)" -or 
+                           $serverHost.ToLowerInvariant() -eq "127.0.0.1" -or $serverHost.ToLowerInvariant() -eq "." -or
+                           $serverHost.ToLowerInvariant().StartsWith("localhost\") -or $serverHost.ToLowerInvariant().StartsWith("(local)\") -or
+                           $serverHost.ToLowerInvariant().StartsWith(".\") -or $serverHost.ToLowerInvariant() -like "(localdb)\*"
+        if (-not $isLocalEndpoint) {
+            throw "ISOLATION_VIOLATION: Isolated mode connection string for $ExpectedTarget $ExpectedYear server '$serverHost' is not a valid local/isolated endpoint."
+        }
+    } else {
+        if ($ExpectedTarget -eq "Azure") {
             $expectedCatalog = if ($ExpectedYear -eq "2026") { "IProgramDb2026" } else { "IProgramDb2027" }
             if ($initialCatalog -ne $expectedCatalog) {
                 throw "BINDING_ERROR: Azure $ExpectedYear InitialCatalog mismatch. Expected '$expectedCatalog', got '$initialCatalog'."
@@ -153,16 +314,14 @@ function Assert-DatabaseBinding {
             if (-not $isAzure) {
                 throw "BINDING_ERROR: Azure $ExpectedYear DataSource is not a trusted Azure SQL endpoint (*.database.windows.net)."
             }
-        }
-    } elseif ($ExpectedTarget -eq "Local") {
-        if (-not $IsIsolatedMode) {
+        } elseif ($ExpectedTarget -eq "Local") {
             $expectedCatalog = if ($ExpectedYear -eq "2026") { "IProgramLocalDb2026" } else { "IProgramLocalDb2027" }
             if ($initialCatalog -ne $expectedCatalog) {
                 throw "BINDING_ERROR: Local $ExpectedYear InitialCatalog mismatch. Expected '$expectedCatalog', got '$initialCatalog'."
             }
-        }
-        if ($serverHost.ToLowerInvariant().Contains(".database.windows.net")) {
-            throw "BINDING_ERROR: Local $ExpectedYear DataSource cannot point to an Azure endpoint."
+            if ($serverHost.ToLowerInvariant().Contains(".database.windows.net")) {
+                throw "BINDING_ERROR: Local $ExpectedYear DataSource cannot point to an Azure endpoint."
+            }
         }
     }
 
@@ -252,6 +411,128 @@ ORDER BY [SyncId] ASC;
     }
 }
 
+# --- 6b. Feed Window and Tombstone Integrity Guard (AzureFencedBatchReader Mirror) ---
+function Assert-FeedWindowIntegrity {
+    param(
+        [System.Data.SqlClient.SqlConnection]$AzureConn,
+        [string]$Year,
+        [int64]$W,
+        [int64]$VObserved,
+        [Alias("WindowFeeds")]
+        [System.Collections.IEnumerable]$FeedList
+    )
+
+    if ($W -gt $VObserved) {
+        throw "INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER: Local checkpoint W ($W) is ahead of observed remote version V_observed ($VObserved) for DatabaseId '$Year'."
+    }
+
+    if ($W -eq $VObserved) {
+        return
+    }
+
+    $windowFeeds = @($FeedList | Where-Object { $_.ServerVersion -gt $W -and $_.ServerVersion -le $VObserved } | Sort-Object ServerVersion)
+    $expectedCount = [int]($VObserved - $W)
+
+    if ($windowFeeds.Count -ne $expectedCount) {
+        throw "PREFLIGHT_FAIL: Feed window count ($($windowFeeds.Count)) does not match expected delta ($expectedCount) for DatabaseId '$Year'."
+    }
+
+    $allowedOpTypes = @("INSERT", "UPDATE", "SOFT_DELETE", "HARD_DELETE")
+    $expectedNext = $W + 1
+    $lastSeenVersion = $null
+
+    foreach ($evt in $windowFeeds) {
+        if ($evt.EntitySyncId -eq $null -or $evt.EntitySyncId -eq [Guid]::Empty) {
+            throw "PREFLIGHT_FAIL: Feed event at ServerVersion $($evt.ServerVersion) has empty EntitySyncId for DatabaseId '$Year'."
+        }
+
+        if ($lastSeenVersion -ne $null -and $evt.ServerVersion -eq $lastSeenVersion) {
+            throw "PREFLIGHT_FAIL: Duplicate ServerVersion '$($evt.ServerVersion)' detected in ServerChangeFeed for DatabaseId '$Year'."
+        }
+
+        if ($evt.ServerVersion -ne $expectedNext) {
+            throw "PREFLIGHT_FAIL: Feed gap detected in ServerChangeFeed for DatabaseId '$Year'. Expected version $expectedNext, found $($evt.ServerVersion)."
+        }
+
+        if ($evt.EntityType -ne "Daily") {
+            throw "PREFLIGHT_FAIL: Unsupported EntityType '$($evt.EntityType)' detected at ServerVersion $($evt.ServerVersion) for DatabaseId '$Year'. Only 'Daily' is supported."
+        }
+
+        if ($allowedOpTypes -notcontains $evt.OperationType.ToUpperInvariant()) {
+            throw "PREFLIGHT_FAIL: Unsupported OperationType '$($evt.OperationType)' detected at ServerVersion $($evt.ServerVersion) for DatabaseId '$Year'."
+        }
+
+        $lastSeenVersion = $evt.ServerVersion
+        $expectedNext++
+    }
+
+    if (($expectedNext - 1) -ne $VObserved) {
+        throw "PREFLIGHT_FAIL: ServerChangeFeed does not reach V_observed ($VObserved) for DatabaseId '$Year'. Last version was $($expectedNext - 1)."
+    }
+
+    # Terminal Tombstone & Daily Consistency:
+    # Group window feeds by EntitySyncId and select terminal event (highest ServerVersion)
+    $groupedBySyncId = $windowFeeds | Group-Object -Property EntitySyncId
+    foreach ($grp in $groupedBySyncId) {
+        $terminalEvent = $grp.Group | Sort-Object ServerVersion -Descending | Select-Object -First 1
+        $syncId = $terminalEvent.EntitySyncId
+        $termVer = $terminalEvent.ServerVersion
+        $opType = $terminalEvent.OperationType.ToUpperInvariant()
+
+        if ($opType -eq "HARD_DELETE") {
+            # 1. Verify Tombstones has exactly 1 matching record
+            $cmdT = $AzureConn.CreateCommand()
+            $cmdT.CommandText = "SELECT COUNT(*) FROM [sync].[Tombstones] WHERE DatabaseId = @DatabaseId AND EntityType = 'Daily' AND EntitySyncId = @SyncId AND ServerVersion = @ServerVersion;"
+            $p1 = $cmdT.CreateParameter(); $p1.ParameterName = "@DatabaseId"; $p1.Value = $Year; $cmdT.Parameters.Add($p1) | Out-Null
+            $p2 = $cmdT.CreateParameter(); $p2.ParameterName = "@SyncId"; $p2.Value = $syncId; $cmdT.Parameters.Add($p2) | Out-Null
+            $p3 = $cmdT.CreateParameter(); $p3.ParameterName = "@ServerVersion"; $p3.Value = $termVer; $cmdT.Parameters.Add($p3) | Out-Null
+            $tombCount = [int]$cmdT.ExecuteScalar()
+            if ($tombCount -ne 1) {
+                throw "PREFLIGHT_FAIL: Terminal HARD_DELETE for Daily SyncId '$syncId' requires exactly one matching Tombstone at version $termVer, found $tombCount for DatabaseId '$Year'."
+            }
+
+            # 2. Verify authoritative dbo.Daily does NOT contain this row
+            $cmdD = $AzureConn.CreateCommand()
+            $cmdD.CommandText = "SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = @SyncId;"
+            $pd = $cmdD.CreateParameter(); $pd.ParameterName = "@SyncId"; $pd.Value = $syncId; $cmdD.Parameters.Add($pd) | Out-Null
+            $dailyCount = [int]$cmdD.ExecuteScalar()
+            if ($dailyCount -gt 0) {
+                throw "PREFLIGHT_FAIL: Terminal HARD_DELETE Daily SyncId '$syncId' still exists in authoritative dbo.Daily for DatabaseId '$Year'."
+            }
+        } else {
+            # INSERT, UPDATE, SOFT_DELETE
+            # 1. Verify no tombstone exists for this SyncId
+            $cmdT = $AzureConn.CreateCommand()
+            $cmdT.CommandText = "SELECT COUNT(*) FROM [sync].[Tombstones] WHERE DatabaseId = @DatabaseId AND EntityType = 'Daily' AND EntitySyncId = @SyncId;"
+            $p1 = $cmdT.CreateParameter(); $p1.ParameterName = "@DatabaseId"; $p1.Value = $Year; $cmdT.Parameters.Add($p1) | Out-Null
+            $p2 = $cmdT.CreateParameter(); $p2.ParameterName = "@SyncId"; $p2.Value = $syncId; $cmdT.Parameters.Add($p2) | Out-Null
+            $tombCount = [int]$cmdT.ExecuteScalar()
+            if ($tombCount -ne 0) {
+                throw "PREFLIGHT_FAIL: Active/soft-deleted Daily SyncId '$syncId' unexpectedly exists in Tombstones for DatabaseId '$Year'."
+            }
+
+            # 2. Verify authoritative dbo.Daily has matching record and check IsActive for terminal SOFT_DELETE
+            $cmdD = $AzureConn.CreateCommand()
+            $cmdD.CommandText = "SELECT IsActive FROM [dbo].[Daily] WHERE SyncId = @SyncId;"
+            $pd = $cmdD.CreateParameter(); $pd.ParameterName = "@SyncId"; $pd.Value = $syncId; $cmdD.Parameters.Add($pd) | Out-Null
+            $dailyReader = $cmdD.ExecuteReader()
+            $dailyRows = 0
+            $isActive = $null
+            while ($dailyReader.Read()) {
+                $dailyRows++
+                $isActive = [bool]$dailyReader["IsActive"]
+            }
+            $dailyReader.Close()
+            if ($dailyRows -ne 1) {
+                throw "PREFLIGHT_FAIL: Terminal $opType Daily SyncId '$syncId' requires exactly 1 record in authoritative dbo.Daily, found $dailyRows for DatabaseId '$Year'."
+            }
+            if ($opType -eq "SOFT_DELETE" -and $isActive -eq $true) {
+                throw "PREFLIGHT_FAIL: Terminal SOFT_DELETE Daily SyncId '$syncId' at version $termVer has IsActive=true in authoritative dbo.Daily for DatabaseId '$Year'."
+            }
+        }
+    }
+}
+
 # --- 7. Dynamic Preflight Verification ---
 function Invoke-PreflightVerification {
     param(
@@ -333,13 +614,10 @@ function Invoke-PreflightVerification {
             $catchupStatus = "NEEDS_CATCH_UP"
             $delta = $vObserved - $w
             Write-Host "  -> Catch-up needed: Advisory Delta = $delta version(s) (W=$w, V_observed=$vObserved)." -ForegroundColor Yellow
-
-            # Verify feed window continuity for (W, V_observed]
-            $windowFeeds = $feedList | Where-Object { $_.ServerVersion -gt $w -and $_.ServerVersion -le $vObserved }
-            if ($windowFeeds.Count -eq 0 -and $delta -gt 0) {
-                throw "PREFLIGHT_FAIL: No feed entries found in range ($w, $vObserved] for DatabaseId '$Year'."
-            }
         }
+
+        # Assert full feed window and tombstone integrity (AzureFencedBatchReader Mirror)
+        Assert-FeedWindowIntegrity -AzureConn $azureConn -Year $Year -W $w -VObserved $vObserved -FeedList $feedList
 
         # Local Outbox Invariant: 0 PENDING, IN_PROGRESS, or FAILED
         $cmdOutbox = $localConn.CreateCommand()
@@ -366,6 +644,12 @@ WHERE DatabaseId = @DatabaseId;
             throw "PREFLIGHT_FAIL: Local Lease for $Year is currently active. Pull cannot proceed while lease is held."
         }
 
+        # Remote ProcessedOperations baseline (must not be mutated by pull)
+        $cmdProc = $azureConn.CreateCommand()
+        $cmdProc.CommandText = "IF OBJECT_ID('[sync].[ProcessedOperations]') IS NOT NULL SELECT COUNT(*) FROM [sync].[ProcessedOperations] WHERE DatabaseId = @DatabaseId; ELSE SELECT 0;"
+        $pProc = $cmdProc.CreateParameter(); $pProc.ParameterName = "@DatabaseId"; $pProc.Value = $Year; $cmdProc.Parameters.Add($pProc) | Out-Null
+        $preProcessedOps = [int]$cmdProc.ExecuteScalar()
+
         # Compute dynamic Daily stats
         $locDaily = Calculate-DailyHashAndCounts $localConn
         $remDaily = Calculate-DailyHashAndCounts $azureConn
@@ -377,6 +661,8 @@ WHERE DatabaseId = @DatabaseId;
             V_target = $vObserved # alias for backward compatibility
             CatchupStatus = $catchupStatus
             FeedCount = $feedList.Count
+            RemoteFeedCount = $feedList.Count
+            RemoteProcessedOperationsCount = $preProcessedOps
             LocalDailyRows = $locDaily.TotalRows
             LocalDailyHash = $locDaily.DeterministicSha256
             RemoteDailyRows = $remDaily.TotalRows
@@ -394,8 +680,10 @@ function Assert-RemotePostPullInvariance {
     param(
         [string]$Year,
         [string]$RemoteConnStr,
+        [string]$LocalConnStr,
         [psobject]$PreflightData,
-        [int64]$HExec = 0
+        [int64]$HExec = 0,
+        [psobject]$LocalPostDaily = $null
     )
 
     Write-Host "Auditing $Year post-pull Remote invariance..." -NoNewline
@@ -417,18 +705,53 @@ function Assert-RemotePostPullInvariance {
         $cmdF.CommandText = "SELECT COUNT(*) FROM [sync].[ServerChangeFeed] WHERE DatabaseId = @DatabaseId;"
         $pF = $cmdF.CreateParameter(); $pF.ParameterName = "@DatabaseId"; $pF.Value = $Year; $cmdF.Parameters.Add($pF) | Out-Null
         $feedCount = [int]$cmdF.ExecuteScalar()
-        if ($feedCount -lt $PreflightData.FeedCount) {
-            throw "REMOTE_POST_AUDIT_ERROR: Remote ServerChangeFeed count decreased to $feedCount (Expected >= $($PreflightData.FeedCount))."
+        $baselineFeedCount = if ($PreflightData.RemoteFeedCount -ne $null) { $PreflightData.RemoteFeedCount } else { $PreflightData.FeedCount }
+        if ($feedCount -lt $baselineFeedCount) {
+            throw "REMOTE_POST_AUDIT_ERROR: Remote ServerChangeFeed count decreased to $feedCount (Expected >= $baselineFeedCount)."
         }
 
-        # 3. Pull must never write to Remote ProcessedOperations
+        # 3. Pull must never write to Remote ProcessedOperations (must remain unchanged from preflight)
         $cmdP = $remConn.CreateCommand()
-        $cmdP.CommandText = "SELECT COUNT(*) FROM [sync].[ProcessedOperations] WHERE DatabaseId = @DatabaseId;"
+        $cmdP.CommandText = "IF OBJECT_ID('[sync].[ProcessedOperations]') IS NOT NULL SELECT COUNT(*) FROM [sync].[ProcessedOperations] WHERE DatabaseId = @DatabaseId; ELSE SELECT 0;"
         $pP = $cmdP.CreateParameter(); $pP.ParameterName = "@DatabaseId"; $pP.Value = $Year; $cmdP.Parameters.Add($pP) | Out-Null
         $procCount = [int]$cmdP.ExecuteScalar()
-        # Ensure it was not mutated by pull
+        if ($PreflightData.RemoteProcessedOperationsCount -ne $null -and $procCount -ne $PreflightData.RemoteProcessedOperationsCount) {
+            throw "REMOTE_POST_AUDIT_ERROR: Remote ProcessedOperations count changed from $($PreflightData.RemoteProcessedOperationsCount) to $procCount. Pull must never mutate Remote ProcessedOperations."
+        }
 
-        Write-Host " PASS (Remote integrity preserved, CurrentVersion=$curVer, FeedCount=$feedCount)" -ForegroundColor Green
+        # 4. Business Data Parity Contract
+        $remPostDaily = Calculate-DailyHashAndCounts $remConn
+        $remoteStatus = "UNKNOWN"
+
+        if ($LocalPostDaily -ne $null) {
+            if ($curVer -eq $HExec) {
+                # Remote has NOT advanced since execution fence: exact parity is required
+                if ($LocalPostDaily.TotalRows -ne $remPostDaily.TotalRows) {
+                    throw "POST_AUDIT_PARITY_ERROR: Daily TotalRows mismatch for $Year when CurrentVersion ($curVer) == H_exec ($HExec). Local=$($LocalPostDaily.TotalRows), Remote=$($remPostDaily.TotalRows)."
+                }
+                if ($LocalPostDaily.DeterministicSha256 -ne $remPostDaily.DeterministicSha256) {
+                    throw "POST_AUDIT_PARITY_ERROR: Daily DeterministicSha256 mismatch for $Year when CurrentVersion ($curVer) == H_exec ($HExec). Local=$($LocalPostDaily.DeterministicSha256), Remote=$($remPostDaily.DeterministicSha256)."
+                }
+                $remoteStatus = "PARITY_VERIFIED"
+                Write-Host " PASS (Remote integrity preserved, CurrentVersion=$curVer, FeedCount=$feedCount, Parity=VERIFIED)" -ForegroundColor Green
+            } else {
+                # Remote legitimately advanced beyond H_exec after fence release
+                $remoteStatus = "REMOTE_ADVANCED_AFTER_PULL"
+                Write-Host " PASS (Remote advanced after fence release: H_exec=$HExec -> CurrentVersion=$curVer; next-pull semantics preserved)" -ForegroundColor Yellow
+            }
+        } else {
+            $remoteStatus = "AUDITED_NO_LOCAL_COMPARISON"
+            Write-Host " PASS (Remote integrity preserved, CurrentVersion=$curVer, FeedCount=$feedCount)" -ForegroundColor Green
+        }
+
+        return [PSCustomObject]@{
+            RemoteCurrentVersion = $curVer
+            RemoteFeedCount = $feedCount
+            RemoteProcessedOperationsCount = $procCount
+            RemoteDailyRows = $remPostDaily.TotalRows
+            RemoteDailyHash = $remPostDaily.DeterministicSha256
+            RemoteStatus = $remoteStatus
+        }
     } finally {
         $remConn.Close()
     }
@@ -486,9 +809,168 @@ function Assert-JwtClaims {
     }
 }
 
+# --- 13. Pure Child Process Environment Composition ---
+function Get-ChildProcessEnvironment {
+    param(
+        [int]$Port,
+        [bool]$IsIsolatedMode,
+        [string]$Azure2026ConnectionString,
+        [string]$Azure2027ConnectionString,
+        [string]$Local2026ConnectionString,
+        [string]$Local2027ConnectionString,
+        [string]$TokenKey = $null
+    )
+
+    $envMap = [ordered]@{}
+    $envMap["ASPNETCORE_URLS"] = "http://127.0.0.1:$Port"
+    $envMap["ASPNETCORE_ENVIRONMENT"] = if ($IsIsolatedMode) { "Testing" } else { "Production" }
+    $envMap["Sync__PullEnabled"] = "true"
+    $envMap["Sync__PushEnabled"] = "false"
+    $envMap["Sync__AuthoritativeTrackingEnabled"] = "true"
+    $envMap["LocalFirst__Enabled"] = if ($IsIsolatedMode) { "true" } else { "false" }
+    $envMap["LocalFirst__ReadOnlyMode"] = "false"
+
+    if ($IsIsolatedMode) {
+        $envMap["ConnectionStrings__TestRemoteConnection2026"] = $Azure2026ConnectionString
+        $envMap["ConnectionStrings__TestRemoteConnection2027"] = $Azure2027ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2026"] = $Local2026ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2027"] = $Local2027ConnectionString
+    } else {
+        $envMap["ConnectionStrings__DefaultConnection"] = $Azure2026ConnectionString
+        $envMap["ConnectionStrings__CON2027"] = $Azure2027ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2026"] = $Local2026ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2027"] = $Local2027ConnectionString
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TokenKey)) {
+        $envMap["Token__Key"] = $TokenKey
+    }
+
+    return $envMap
+}
+
+# In-memory export support for testing pure operator functions without execution
+if ($ExportFunctionsOnly) {
+    return
+}
+
 # ==============================================================================
 # MAIN EXECUTION FLOW
 # ==============================================================================
+
+# Execute pure production execution authorization guard
+Assert-ProductionExecutionAuthorization `
+    -DryRun $DryRun `
+    -Execute $Execute `
+    -AllowProductionExecution $AllowProductionExecution `
+    -AllowIsolatedExecutionOnly $AllowIsolatedExecutionOnly `
+    -BoundParameters $PSBoundParameters `
+    -ProductionApprovalReference $ProductionApprovalReference `
+    -ExpectedMasterSha $ExpectedMasterSha `
+    -Expected2026LocalW $Expected2026LocalW `
+    -Expected2027LocalW $Expected2027LocalW `
+    -Expected2026ObservedV $Expected2026ObservedV `
+    -Expected2027ObservedV $Expected2027ObservedV `
+    -SkipGitVerification $SkipGitVerification `
+    -SimulatedBranch $SimulatedBranch `
+    -SimulatedHead $SimulatedHead `
+    -SimulatedStatus $SimulatedStatus `
+    -SimulatedRemoteMasterSha $SimulatedRemoteMasterSha
+
+$repoRoot = if (-not [string]::IsNullOrWhiteSpace($OverrideRepoRoot)) {
+    (Resolve-Path $OverrideRepoRoot).Path
+} else {
+    (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+}
+Add-Type -AssemblyName "System.Data"
+
+if ($Execute -and $AllowProductionExecution) {
+    Write-Host "Verifying repository state invariants..." -NoNewline
+    Assert-RepositoryStateGuard -Root $repoRoot -ExpectedSha $ExpectedMasterSha -SkipVerification $SkipGitVerification -SimBranch $SimulatedBranch -SimHead $SimulatedHead -SimStatus $SimulatedStatus -SimRemoteMaster $SimulatedRemoteMasterSha
+    Write-Host " PASS (Branch=master, Head=$ExpectedMasterSha, Clean=True, LiveRemoteOrigin=Aligned)" -ForegroundColor Green
+}
+
+Write-Host "Verifying committed configuration invariants..." -NoNewline
+Assert-CommittedConfigurationGuard -Root $repoRoot
+Write-Host " PASS (AuthoritativeTrackingEnabled=true, all other sync flags disabled)" -ForegroundColor Green
+
+# Resolve Connection Strings
+if ($AllowIsolatedExecutionOnly) {
+    # P0-1: IN ISOLATED TEST MODE, NEVER QUERY PRODUCTION USER SECRETS!
+    # Remote connection strings must come strictly from CLI parameters or isolated environment variables
+    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__TestRemoteConnection2026)) {
+            $Azure2026ConnectionString = $env:ConnectionStrings__TestRemoteConnection2026
+        } elseif (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__DefaultConnection)) {
+            $Azure2026ConnectionString = $env:ConnectionStrings__DefaultConnection
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__TestRemoteConnection2027)) {
+            $Azure2027ConnectionString = $env:ConnectionStrings__TestRemoteConnection2027
+        } elseif (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__CON2027)) {
+            $Azure2027ConnectionString = $env:ConnectionStrings__CON2027
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Local2026ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__LocalConnection2026)) {
+            $Local2026ConnectionString = $env:ConnectionStrings__LocalConnection2026
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Local2027ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__LocalConnection2027)) {
+            $Local2027ConnectionString = $env:ConnectionStrings__LocalConnection2027
+        }
+    }
+
+    # Validate all final resolved connection strings against strict physical isolation rules
+    Assert-DatabaseBinding -ConnectionString $Azure2026ConnectionString -ExpectedTarget "Azure" -ExpectedYear "2026" -IsIsolatedMode $true | Out-Null
+    Assert-DatabaseBinding -ConnectionString $Azure2027ConnectionString -ExpectedTarget "Azure" -ExpectedYear "2027" -IsIsolatedMode $true | Out-Null
+    Assert-DatabaseBinding -ConnectionString $Local2026ConnectionString -ExpectedTarget "Local" -ExpectedYear "2026" -IsIsolatedMode $true | Out-Null
+    Assert-DatabaseBinding -ConnectionString $Local2027ConnectionString -ExpectedTarget "Local" -ExpectedYear "2027" -IsIsolatedMode $true | Out-Null
+} else {
+    # Production / non-isolated modes:
+    # Resolve from User Secrets first, then fallback to environment variables
+    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString) -or [string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+        $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
+        if (Test-Path $apiProj) {
+            $secrets = dotnet user-secrets list --project $apiProj 2>$null
+            foreach ($line in $secrets) {
+                if ($line.StartsWith("ConnectionStrings:DefaultConnection = ")) {
+                    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
+                        $Azure2026ConnectionString = $line.Substring("ConnectionStrings:DefaultConnection = ".Length).Trim()
+                    }
+                }
+                if ($line.StartsWith("ConnectionStrings:CON2027 = ")) {
+                    if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+                        $Azure2027ConnectionString = $line.Substring("ConnectionStrings:CON2027 = ".Length).Trim()
+                    }
+                }
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__DefaultConnection)) {
+            $Azure2026ConnectionString = $env:ConnectionStrings__DefaultConnection
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__CON2027)) {
+            $Azure2027ConnectionString = $env:ConnectionStrings__CON2027
+        }
+    }
+
+    $appsettingsPath = Join-Path $repoRoot "src\Api\appsettings.json"
+    $appsettings = Get-Content $appsettingsPath -Raw | ConvertFrom-Json
+
+    if ([string]::IsNullOrWhiteSpace($Local2026ConnectionString)) {
+        $Local2026ConnectionString = $appsettings.ConnectionStrings.LocalConnection2026
+    }
+    if ([string]::IsNullOrWhiteSpace($Local2027ConnectionString)) {
+        $Local2027ConnectionString = $appsettings.ConnectionStrings.LocalConnection2027
+    }
+}
 
 # Run initial preflight verification for both 2026 and 2027
 $pre2026 = Invoke-PreflightVerification -Year "2026" -AzureConnStr $Azure2026ConnectionString -LocalConnStr $Local2026ConnectionString -IsIsolated $AllowIsolatedExecutionOnly
@@ -521,8 +1003,44 @@ if ($Execute) {
     Write-Host "  STARTING CONTROLLED CATCH-UP EXECUTION                                  " -ForegroundColor Yellow
     Write-Host "==========================================================================" -ForegroundColor Yellow
 
-    if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
-        throw "OPERATOR_CREDENTIALS_MISSING: Operator credentials must be supplied via -Username/-Password or env vars IPROGRAM_OPERATOR_USERNAME/IPROGRAM_OPERATOR_PASSWORD."
+    if ($AllowProductionExecution) {
+        if ([string]::IsNullOrWhiteSpace($env:IPROGRAM_OPERATOR_PASSWORD)) {
+            throw "OPERATOR_CREDENTIALS_MISSING: Production execution requires operator credentials supplied via transient environment variable 'IPROGRAM_OPERATOR_PASSWORD'."
+        }
+        $Password = $env:IPROGRAM_OPERATOR_PASSWORD
+        $Username = if (-not [string]::IsNullOrWhiteSpace($env:IPROGRAM_OPERATOR_USERNAME)) { $env:IPROGRAM_OPERATOR_USERNAME } else { $Username }
+        if ([string]::IsNullOrWhiteSpace($Username)) {
+            throw "OPERATOR_CREDENTIALS_MISSING: Operator username must be supplied via environment variable 'IPROGRAM_OPERATOR_USERNAME' or -Username parameter."
+        }
+    } else {
+        if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
+            throw "OPERATOR_CREDENTIALS_MISSING: Operator credentials must be supplied via -Username/-Password or env vars IPROGRAM_OPERATOR_USERNAME/IPROGRAM_OPERATOR_PASSWORD."
+        }
+    }
+
+    # Expected-State Stale-Authorization Verification
+    Write-Host "Verifying expected-state preflight authorizations..." -NoNewline
+    Assert-AuthorizationWatermarkAndVersionGate -Preflight2026 $pre2026 -Preflight2027 $pre2027 `
+        -Expected2026W $Expected2026LocalW -Expected2026V $Expected2026ObservedV `
+        -Expected2027W $Expected2027LocalW -Expected2027V $Expected2027ObservedV `
+        -PhaseContext "Initial"
+    Write-Host " PASS (2026 W=$Expected2026LocalW V=$Expected2026ObservedV, 2027 W=$Expected2027LocalW V=$Expected2027ObservedV)" -ForegroundColor Green
+
+    # Capture environment snapshot for deterministic restoration
+    $envSnapshot = @{}
+    $envVarsToManage = @(
+        "ASPNETCORE_URLS", "ASPNETCORE_ENVIRONMENT",
+        "Sync__PullEnabled", "Sync__PushEnabled", "Sync__AuthoritativeTrackingEnabled",
+        "LocalFirst__Enabled", "LocalFirst__ReadOnlyMode",
+        "Token__Key",
+        "ConnectionStrings__DefaultConnection", "ConnectionStrings__CON2027",
+        "ConnectionStrings__TestRemoteConnection2026", "ConnectionStrings__TestRemoteConnection2027",
+        "ConnectionStrings__LocalConnection2026", "ConnectionStrings__LocalConnection2027"
+    )
+    foreach ($v in $envVarsToManage) {
+        if (Test-Path "Env:\$v") {
+            $envSnapshot[$v] = [Environment]::GetEnvironmentVariable($v, "Process")
+        }
     }
 
     $apiProcess = $null
@@ -530,38 +1048,39 @@ if ($Execute) {
     $tempErr = [System.IO.Path]::GetTempFileName()
 
     try {
-        # Configure dedicated loopback process environment
-        $env:ASPNETCORE_URLS = "http://127.0.0.1:$Port"
-        $env:ASPNETCORE_ENVIRONMENT = if ($AllowIsolatedExecutionOnly) { "Testing" } else { "Production" }
-        $env:Sync__PullEnabled = "true"
-        $env:Sync__PushEnabled = "false"
-        $env:Sync__AuthoritativeTrackingEnabled = "true" # MUST REMAIN TRUE
-        $env:LocalFirst__Enabled = if ($AllowIsolatedExecutionOnly) { "true" } else { "false" }
-        $env:LocalFirst__ReadOnlyMode = "false"
-
-        if ($AllowIsolatedExecutionOnly) {
-            $env:ConnectionStrings__TestRemoteConnection2026 = $Azure2026ConnectionString
-            $env:ConnectionStrings__TestRemoteConnection2027 = $Azure2027ConnectionString
-            $env:ConnectionStrings__LocalConnection2026 = $Local2026ConnectionString
-            $env:ConnectionStrings__LocalConnection2027 = $Local2027ConnectionString
-        }
-
         # Resolve Token:Key for JWT validation
         $tokenKey = $null
-        $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
-        if (Test-Path $apiProj) {
-            $secrets = dotnet user-secrets list --project $apiProj 2>$null
-            foreach ($line in $secrets) {
-                if ($line.StartsWith("Token:Key = ")) {
-                    $tokenKey = $line.Substring("Token:Key = ".Length).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($env:Token__Key)) {
+            $tokenKey = $env:Token__Key
+        } else {
+            $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
+            if (Test-Path $apiProj) {
+                $secrets = dotnet user-secrets list --project $apiProj 2>$null
+                foreach ($line in $secrets) {
+                    if ($line.StartsWith("Token:Key = ")) {
+                        $tokenKey = $line.Substring("Token:Key = ".Length).Trim()
+                    }
                 }
             }
+            if ([string]::IsNullOrWhiteSpace($tokenKey) -and $appsettings -and $appsettings.Token -and -not [string]::IsNullOrWhiteSpace($appsettings.Token.Key)) {
+                $tokenKey = $appsettings.Token.Key
+            }
+            if ([string]::IsNullOrWhiteSpace($tokenKey)) {
+                $tokenKey = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+            }
         }
-        if ([string]::IsNullOrWhiteSpace($tokenKey)) {
-            $tokenKey = $appsettings.Token.Key
-        }
-        if (-not [string]::IsNullOrWhiteSpace($tokenKey)) {
-            $env:Token__Key = $tokenKey
+
+        # Compose dedicated loopback child process environment (P0-2)
+        $childEnv = Get-ChildProcessEnvironment -Port $Port `
+            -IsIsolatedMode $AllowIsolatedExecutionOnly `
+            -Azure2026ConnectionString $Azure2026ConnectionString `
+            -Azure2027ConnectionString $Azure2027ConnectionString `
+            -Local2026ConnectionString $Local2026ConnectionString `
+            -Local2027ConnectionString $Local2027ConnectionString `
+            -TokenKey $tokenKey
+
+        foreach ($k in $childEnv.Keys) {
+            [Environment]::SetEnvironmentVariable($k, $childEnv[$k], "Process")
         }
 
         Write-Host "Starting dedicated operator API process on port $Port..." -NoNewline
@@ -687,6 +1206,7 @@ if ($Execute) {
         Write-Host "Auditing 2026 post-pull local state..." -NoNewline
         $locConn2026 = New-Object SqlConnection($Local2026ConnectionString)
         $locConn2026.Open()
+        $postDaily2026 = $null
         try {
             $cmdV26 = $locConn2026.CreateCommand()
             $cmdV26.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2026';"
@@ -694,12 +1214,16 @@ if ($Execute) {
             if ($postVer2026 -ne $hExec2026) {
                 throw "POST_AUDIT_ERROR: 2026 Local LastServerVersion is $postVer2026 (Expected exactly H_exec: $hExec2026)."
             }
+            if ($postVer2026 -lt $prevW2026) {
+                throw "POST_AUDIT_ERROR: 2026 Local LastServerVersion ($postVer2026) regressed below previous checkpoint ($prevW2026)."
+            }
+            $postDaily2026 = Calculate-DailyHashAndCounts $locConn2026
         } finally {
             $locConn2026.Close()
         }
-        Write-Host " PASS (LastServerVersion=$postVer2026 equals H_exec exactly)" -ForegroundColor Green
+        Write-Host " PASS (LastServerVersion=$postVer2026 equals H_exec exactly, Rows=$($postDaily2026.TotalRows))" -ForegroundColor Green
 
-        Assert-RemotePostPullInvariance -Year "2026" -RemoteConnStr $Azure2026ConnectionString -PreflightData $pre2026 -HExec $hExec2026
+        $auditRem2026 = Assert-RemotePostPullInvariance -Year "2026" -RemoteConnStr $Azure2026ConnectionString -LocalConnStr $Local2026ConnectionString -PreflightData $pre2026 -HExec $hExec2026 -LocalPostDaily $postDaily2026
 
         # --- Phase 2: Catch-Up Year 2027 ---
         Write-Host "`n==========================================================================" -ForegroundColor Cyan
@@ -709,6 +1233,11 @@ if ($Execute) {
         # Re-verify preflight immediately before 2027 execution
         Write-Host "Re-verifying full preflight for Year 2027 before execution..." -ForegroundColor Cyan
         $pre2027 = Invoke-PreflightVerification -Year "2027" -AzureConnStr $Azure2027ConnectionString -LocalConnStr $Local2027ConnectionString -IsIsolated $AllowIsolatedExecutionOnly
+
+        # Re-verify expected-state preflight authorizations for 2027 before 2027 login / pull (P0-4)
+        Assert-AuthorizationWatermarkAndVersionGate -Preflight2027 $pre2027 `
+            -Expected2027W $Expected2027LocalW -Expected2027V $Expected2027ObservedV `
+            -PhaseContext "Second"
 
         # A. Obtain Admin JWT for 2027
         Write-Host "Obtaining Admin JWT for 2027..." -NoNewline
@@ -793,6 +1322,7 @@ if ($Execute) {
         Write-Host "Auditing 2027 post-pull local state..." -NoNewline
         $locConn2027 = New-Object SqlConnection($Local2027ConnectionString)
         $locConn2027.Open()
+        $postDaily2027 = $null
         try {
             $cmdV27 = $locConn2027.CreateCommand()
             $cmdV27.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2027';"
@@ -800,12 +1330,16 @@ if ($Execute) {
             if ($postVer2027 -ne $hExec2027) {
                 throw "POST_AUDIT_ERROR: 2027 Local LastServerVersion is $postVer2027 (Expected exactly H_exec: $hExec2027)."
             }
+            if ($postVer2027 -lt $prevW2027) {
+                throw "POST_AUDIT_ERROR: 2027 Local LastServerVersion ($postVer2027) regressed below previous checkpoint ($prevW2027)."
+            }
+            $postDaily2027 = Calculate-DailyHashAndCounts $locConn2027
         } finally {
             $locConn2027.Close()
         }
-        Write-Host " PASS (LastServerVersion=$postVer2027 equals H_exec exactly)" -ForegroundColor Green
+        Write-Host " PASS (LastServerVersion=$postVer2027 equals H_exec exactly, Rows=$($postDaily2027.TotalRows))" -ForegroundColor Green
 
-        Assert-RemotePostPullInvariance -Year "2027" -RemoteConnStr $Azure2027ConnectionString -PreflightData $pre2027 -HExec $hExec2027
+        $auditRem2027 = Assert-RemotePostPullInvariance -Year "2027" -RemoteConnStr $Azure2027ConnectionString -LocalConnStr $Local2027ConnectionString -PreflightData $pre2027 -HExec $hExec2027 -LocalPostDaily $postDaily2027
 
         Write-Host "`n==========================================================================" -ForegroundColor Green
         Write-Host "  DYNAMIC CONTROLLED CATCH-UP EXECUTION COMPLETED SUCCESSFULLY            " -ForegroundColor Green
@@ -813,17 +1347,39 @@ if ($Execute) {
 
         return [PSCustomObject]@{
             Mode = "Execute"
+            ExecutionType = if ($AllowProductionExecution) { "Production" } else { "IsolatedTest" }
+            ApprovalReference = if ($AllowProductionExecution) { $ProductionApprovalReference } else { "N/A (Isolated Test)" }
+            MasterSha = if ($AllowProductionExecution) { $ExpectedMasterSha } else { "N/A (Isolated Test)" }
+            TimestampUtc = [DateTime]::UtcNow.ToString("o")
             Year2026 = @{
-                PreviousWatermark = $pullRes2026.previousWatermark
-                FinalServerVersion = $pullRes2026.finalServerVersion
+                Year = "2026"
+                W_before = $pre2026.W
+                V_observed = $pre2026.V_observed
+                H_exec = $hExec2026
+                W_after = $postVer2026
                 IsNoOp = $pullRes2026.isNoOp
                 Status = "CATCHUP_SUCCESS"
+                LocalDailyRows = if ($postDaily2026) { $postDaily2026.TotalRows } else { $null }
+                LocalDailyHash = if ($postDaily2026) { $postDaily2026.DeterministicSha256 } else { $null }
+                RemoteDailyRows = if ($auditRem2026) { $auditRem2026.RemoteDailyRows } else { $null }
+                RemoteDailyHash = if ($auditRem2026) { $auditRem2026.RemoteDailyHash } else { $null }
+                RemoteStatus = if ($auditRem2026) { $auditRem2026.RemoteStatus } else { $null }
+                RemoteConcurrentAdvance = ($hExec2026 -gt $pre2026.V_observed)
             }
             Year2027 = @{
-                PreviousWatermark = $pullRes2027.previousWatermark
-                FinalServerVersion = $pullRes2027.finalServerVersion
+                Year = "2027"
+                W_before = $pre2027.W
+                V_observed = $pre2027.V_observed
+                H_exec = $hExec2027
+                W_after = $postVer2027
                 IsNoOp = $pullRes2027.isNoOp
                 Status = "CATCHUP_SUCCESS"
+                LocalDailyRows = if ($postDaily2027) { $postDaily2027.TotalRows } else { $null }
+                LocalDailyHash = if ($postDaily2027) { $postDaily2027.DeterministicSha256 } else { $null }
+                RemoteDailyRows = if ($auditRem2027) { $auditRem2027.RemoteDailyRows } else { $null }
+                RemoteDailyHash = if ($auditRem2027) { $auditRem2027.RemoteDailyHash } else { $null }
+                RemoteStatus = if ($auditRem2027) { $auditRem2027.RemoteStatus } else { $null }
+                RemoteConcurrentAdvance = ($hExec2027 -gt $pre2027.V_observed)
             }
             OverallStatus = "CATCHUP_SUCCESS"
         }
@@ -836,20 +1392,15 @@ if ($Execute) {
             Write-Host " Stopped." -ForegroundColor Green
         }
         
-        Remove-Item Env:\ASPNETCORE_URLS -ErrorAction SilentlyContinue
-        Remove-Item Env:\ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue
-        Remove-Item Env:\Sync__PullEnabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\Sync__PushEnabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\Sync__AuthoritativeTrackingEnabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\LocalFirst__Enabled -ErrorAction SilentlyContinue
-        Remove-Item Env:\LocalFirst__ReadOnlyMode -ErrorAction SilentlyContinue
-        Remove-Item Env:\Token__Key -ErrorAction SilentlyContinue
-        
-        if ($AllowIsolatedExecutionOnly) {
-            Remove-Item Env:\ConnectionStrings__TestRemoteConnection2026 -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__TestRemoteConnection2027 -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__LocalConnection2026 -ErrorAction SilentlyContinue
-            Remove-Item Env:\ConnectionStrings__LocalConnection2027 -ErrorAction SilentlyContinue
+        # Restore original environment snapshot deterministically
+        if ($envVarsToManage) {
+            foreach ($v in $envVarsToManage) {
+                if ($envSnapshot -and $envSnapshot.ContainsKey($v)) {
+                    [Environment]::SetEnvironmentVariable($v, $envSnapshot[$v], "Process")
+                } else {
+                    [Environment]::SetEnvironmentVariable($v, $null, "Process")
+                }
+            }
         }
 
         if (Test-Path $tempLog) { Remove-Item $tempLog -Force -ErrorAction SilentlyContinue }
