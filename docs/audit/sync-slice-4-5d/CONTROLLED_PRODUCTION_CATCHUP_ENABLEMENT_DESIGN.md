@@ -62,6 +62,7 @@ flowchart TD
    - `-Expected2026LocalW`, `-Expected2027LocalW`: Required expected local checkpoints.
    - `-Expected2026ObservedV`, `-Expected2027ObservedV`: Required expected remote versions.
    - **Secret-Input Hardening (P0-2)**: Production mode (`-AllowProductionExecution`) strictly forbids supplying password material via the command line (`-Password`). The guard evaluates `$PSBoundParameters.ContainsKey('Password')` and immediately throws `SECURITY_VIOLATION` to eliminate exposure in OS process tables (`Get-Process`, task manager) or PowerShell command history. Production mode strictly requires credentials via the transient process environment variable `$env:IPROGRAM_OPERATOR_PASSWORD`.
+   - **Connection-String CLI Parameter Hardening (P0 Remaining Blocker)**: Production mode (`-AllowProductionExecution`) strictly forbids supplying connection strings via the command line (`-Azure2026ConnectionString`, `-Azure2027ConnectionString`, `-Local2026ConnectionString`, `-Local2027ConnectionString`). The guard evaluates `$PSBoundParameters.ContainsKey(p)` for all four parameters and immediately throws `SECURITY_VIOLATION` to eliminate credential, endpoint, and topology leakage in OS process lists and shell history. In production mode, Azure connection strings are resolved automatically from User Secrets / environment, and Local connection strings from committed configuration (`appsettings.json`).
    - Any bypass or simulation parameters (`-SkipGitVerification`, `-SimulatedBranch`, `-SimulatedHead`, `-SimulatedStatus`, `-SimulatedRemoteMasterSha`) are strictly forbidden when `-AllowProductionExecution` is active.
 
 3. **Gate 3: Repository State Invariants (`Assert-RepositoryStateGuard`)**
@@ -89,9 +90,9 @@ flowchart TD
 
 ---
 
-## 3. Comprehensive Verification Evidence (Tests A Through T)
+## 3. Comprehensive Verification Evidence (Tests A Through Y)
 
-A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.ps1`](file:///f:/Prog-Projects/IProgram/script/sync-rollout/test_slice_4_5d_production_enablement.ps1)) was executed against isolated localhost fixtures (`_Test`), verifying all 20 required invariants:
+A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.ps1`](file:///f:/Prog-Projects/IProgram/script/sync-rollout/test_slice_4_5d_production_enablement.ps1)) was executed against isolated localhost fixtures (`_Test`), verifying all 25 required invariants:
 
 | Test | Invariant Description | Expected Behavior | Result |
 | :--- | :--- | :--- | :---: |
@@ -115,8 +116,13 @@ A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.p
 | **R** | Unreachable/unresolvable origin fails closed in production mode | Missing or connection-refused origin fails closed (`REPO_GUARD_VIOLATION`) | **PASS** |
 | **S** | Production mode strictly rejects CLI `-Password` parameter | Command-line password rejected immediately (`SECURITY_VIOLATION`) | **PASS** |
 | **T** | Production mode accepts transient environment credentials without logging | `$env:IPROGRAM_OPERATOR_PASSWORD` accepted with zero log/audit exposure | **PASS** |
+| **U** | Production mode strictly rejects CLI `-Azure2026ConnectionString` parameter | Connection string CLI parameter rejected (`SECURITY_VIOLATION`) | **PASS** |
+| **V** | Production mode strictly rejects CLI `-Azure2027ConnectionString` parameter | Connection string CLI parameter rejected (`SECURITY_VIOLATION`) | **PASS** |
+| **W** | Production mode strictly rejects CLI `-Local2026ConnectionString` parameter | Connection string CLI parameter rejected (`SECURITY_VIOLATION`) | **PASS** |
+| **X** | Production mode strictly rejects CLI `-Local2027ConnectionString` parameter | Connection string CLI parameter rejected (`SECURITY_VIOLATION`) | **PASS** |
+| **Y** | Isolated mode accepts fixture connection strings; zero secret leakage | Isolated mode accepts fixture strings; 0 secrets logged | **PASS** |
 
-**Summary**: 20 / 20 Invariant Tests Passed Deterministically.
+**Summary**: 25 / 25 Invariant Tests Passed Deterministically.
 
 ---
 
@@ -134,3 +140,31 @@ A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.p
 5. **Frontend Angular Production Build**:
    - `cd Client; npm run build; cd ..`
    - **PASS**: Application bundle generated successfully directly into `src/Api/wwwroot/`.
+
+---
+
+## 5. Production Catch-Up Execution Runbook (Strict Non-CLI Secret & Connection Standard)
+
+When authorized by the Business Owner and Architect, the operator executes production catch-up following this strict standard:
+
+```powershell
+# Step 1: Supply transient operator credentials via process environment (NEVER on CLI)
+$env:IPROGRAM_OPERATOR_PASSWORD = "<operator-password>"
+
+# Step 2: Invoke operator script
+# NOTICE: NO -Password, NO -Azure2026ConnectionString, NO -Azure2027ConnectionString,
+#         NO -Local2026ConnectionString, NO -Local2027ConnectionString on command line!
+powershell -ExecutionPolicy Bypass -File script/sync-rollout/execute_daily_pull_catchup.ps1 `
+    -Execute `
+    -AllowProductionExecution `
+    -ProductionApprovalReference "ISSUE-14-BO-AUTH-<reference>" `
+    -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+    -Expected2026LocalW 0 `
+    -Expected2027LocalW 0 `
+    -Expected2026ObservedV 8 `
+    -Expected2027ObservedV 8
+
+# Step 3: Clear transient environment credentials immediately
+$env:IPROGRAM_OPERATOR_PASSWORD = $null
+```
+

@@ -251,3 +251,34 @@ If Sprint 4B indexes must be reverted:
 2. Inspect `script/rollback_sprint4b.sql` to verify the `Down()` operations (drops new composite indexes and recreates original single-column indexes).
 3. Connect directly to each operational database and execute `rollback_sprint4b.sql`.
 4. Verify `__EFMigrationsHistory` reflects the removal of `20260918185849_OptimizeHotPathIndexesSprint4B`.
+
+---
+
+## 7. Controlled Production Daily Catch-Up (Slice 4.5D Runbook)
+
+When authorized by the Business Owner and Architect, the operator executes the controlled Daily Pull catch-up via [`script/sync-rollout/execute_daily_pull_catchup.ps1`](script/sync-rollout/execute_daily_pull_catchup.ps1).
+
+### 7.1 Security & Parameter Invariants
+1. **Zero Passwords on Command Line**: Supplying `-Password` via CLI is strictly forbidden and triggers an immediate `SECURITY_VIOLATION`. Operator credentials must be provided via the transient environment variable `$env:IPROGRAM_OPERATOR_PASSWORD`.
+2. **Zero Connection Strings on Command Line**: Supplying `-Azure2026ConnectionString`, `-Azure2027ConnectionString`, `-Local2026ConnectionString`, or `-Local2027ConnectionString` via CLI in production mode is strictly forbidden and triggers an immediate `SECURITY_VIOLATION`. Azure connection strings resolve automatically from User Secrets / environment, and Local connection strings resolve from committed configuration (`appsettings.json`).
+3. **Cryptographic & Repository Alignment**: Local repo must be on clean `master`, synchronized with live `origin/master` (`git ls-remote`), matching `-ExpectedMasterSha`.
+
+### 7.2 Operator Invocation Standard
+```powershell
+# Step 1: Supply transient operator credentials via process environment (NEVER on CLI)
+$env:IPROGRAM_OPERATOR_PASSWORD = "<operator-password>"
+
+# Step 2: Invoke operator script (NO password and NO connection strings on command line)
+powershell -ExecutionPolicy Bypass -File script/sync-rollout/execute_daily_pull_catchup.ps1 `
+    -Execute `
+    -AllowProductionExecution `
+    -ProductionApprovalReference "ISSUE-14-BO-AUTH-<reference>" `
+    -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+    -Expected2026LocalW 0 `
+    -Expected2027LocalW 0 `
+    -Expected2026ObservedV 8 `
+    -Expected2027ObservedV 8
+
+# Step 3: Clear transient environment credentials immediately
+$env:IPROGRAM_OPERATOR_PASSWORD = $null
+```

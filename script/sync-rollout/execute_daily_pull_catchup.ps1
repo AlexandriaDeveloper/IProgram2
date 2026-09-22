@@ -87,6 +87,12 @@ if ($Execute) {
         if ($PSBoundParameters.ContainsKey('Password')) {
             throw "SECURITY_VIOLATION: Supplying password or secret material via command-line parameter (-Password) is strictly forbidden in production mode to prevent credential leakage in process lists and shell history. Use transient environment variable 'IPROGRAM_OPERATOR_PASSWORD' instead."
         }
+        $forbiddenConnCliParams = @('Azure2026ConnectionString', 'Azure2027ConnectionString', 'Local2026ConnectionString', 'Local2027ConnectionString')
+        foreach ($p in $forbiddenConnCliParams) {
+            if ($PSBoundParameters.ContainsKey($p)) {
+                throw "SECURITY_VIOLATION: Supplying connection strings via command-line parameter (-$p) is strictly forbidden in production mode to prevent credential and database topology leakage in process lists and shell history. In production mode, Azure connection strings are resolved automatically from User Secrets / environment, and Local connection strings from committed configuration."
+            }
+        }
         if ([string]::IsNullOrWhiteSpace($ProductionApprovalReference)) {
             throw "AUTHORIZATION_ERROR: -ProductionApprovalReference is required when -AllowProductionExecution is specified."
         }
@@ -246,6 +252,17 @@ if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString) -or [string]::IsNul
                 }
             }
         }
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__DefaultConnection)) {
+        $Azure2026ConnectionString = $env:ConnectionStrings__DefaultConnection
+    }
+}
+if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__CON2027)) {
+        $Azure2027ConnectionString = $env:ConnectionStrings__CON2027
     }
 }
 

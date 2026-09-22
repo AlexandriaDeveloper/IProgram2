@@ -1,6 +1,6 @@
 # ==============================================================================
 # SLICE 4.5D: CONTROLLED PRODUCTION CATCH-UP ENABLEMENT TEST SUITE
-# Automated deterministic test harness verifying Invariants A through T:
+# Automated deterministic test harness verifying Invariants A through Y:
 #   A. Production Execute without explicit production switch => FAIL
 #   B. Production switch without approval reference => FAIL
 #   C. Wrong expected master SHA => FAIL
@@ -21,6 +21,11 @@
 #   R. Unreachable/unresolvable origin fails closed in production mode => FAIL
 #   S. Production mode strictly rejects CLI -Password parameter (SECURITY_VIOLATION) => FAIL
 #   T. Production mode accepts transient env credentials without logging => PASS
+#   U. Production mode strictly rejects CLI -Azure2026ConnectionString parameter => FAIL
+#   V. Production mode strictly rejects CLI -Azure2027ConnectionString parameter => FAIL
+#   W. Production mode strictly rejects CLI -Local2026ConnectionString parameter => FAIL
+#   X. Production mode strictly rejects CLI -Local2027ConnectionString parameter => FAIL
+#   Y. Isolated mode accepts fixture connection strings; zero secret leakage => PASS
 #
 # OPERATIONAL SAFETY:
 #   Uses strictly isolated transient test databases on localhost (*_Test45D).
@@ -71,7 +76,7 @@ function Execute-Sql($connStr, $sql) {
 }
 
 $passedTests = 0
-$totalTests = 20
+$totalTests = 25
 
 function Assert-Test([string]$Name, [scriptblock]$Action) {
     Write-Host -NoNewline "Running Test $Name..."
@@ -569,10 +574,6 @@ Assert-Test "F: Expected W mismatch fails closed before API startup" {
             -Expected2027LocalW 0 `
             -Expected2026ObservedV 1 `
             -Expected2027ObservedV 1 `
-            -Azure2026ConnectionString $remoteConn2026Str `
-            -Azure2027ConnectionString $remoteConn2027Str `
-            -Local2026ConnectionString $localConn2026Str `
-            -Local2027ConnectionString $localConn2027Str `
             -SkipGitVerification 2>&1 | Out-Null
     } catch {
         if ($_.Exception.Message -match "SECURITY_VIOLATION.*SkipGitVerification.*never permitted in production mode") {
@@ -998,6 +999,123 @@ Assert-Test "T: Production mode accepts transient env credentials without loggin
         }
     } finally {
         $env:IPROGRAM_OPERATOR_PASSWORD = $origEnvPass
+    }
+}
+
+# ------------------------------------------------------------------------------
+# TEST U: Production mode strictly rejects CLI -Azure2026ConnectionString parameter
+# ------------------------------------------------------------------------------
+Assert-Test "U: Production mode strictly rejects CLI -Azure2026ConnectionString parameter" {
+    $threw = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+            -Azure2026ConnectionString "Server=iprogram-sql-prod-01.database.windows.net;Database=IProgramDb2026;" 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Azure2026ConnectionString\) is strictly forbidden in production mode") {
+            $threw = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_U: $($_.Exception.Message)"
+        }
+    }
+    if (-not $threw) { throw "Expected SECURITY_VIOLATION for CLI -Azure2026ConnectionString was not thrown." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST V: Production mode strictly rejects CLI -Azure2027ConnectionString parameter
+# ------------------------------------------------------------------------------
+Assert-Test "V: Production mode strictly rejects CLI -Azure2027ConnectionString parameter" {
+    $threw = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+            -Azure2027ConnectionString "Server=iprogram-sql-prod-01.database.windows.net;Database=IProgramDb2027;" 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Azure2027ConnectionString\) is strictly forbidden in production mode") {
+            $threw = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_V: $($_.Exception.Message)"
+        }
+    }
+    if (-not $threw) { throw "Expected SECURITY_VIOLATION for CLI -Azure2027ConnectionString was not thrown." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST W: Production mode strictly rejects CLI -Local2026ConnectionString parameter
+# ------------------------------------------------------------------------------
+Assert-Test "W: Production mode strictly rejects CLI -Local2026ConnectionString parameter" {
+    $threw = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+            -Local2026ConnectionString "Server=localhost;Database=IProgramLocalDb2026;" 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Local2026ConnectionString\) is strictly forbidden in production mode") {
+            $threw = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_W: $($_.Exception.Message)"
+        }
+    }
+    if (-not $threw) { throw "Expected SECURITY_VIOLATION for CLI -Local2026ConnectionString was not thrown." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST X: Production mode strictly rejects CLI -Local2027ConnectionString parameter
+# ------------------------------------------------------------------------------
+Assert-Test "X: Production mode strictly rejects CLI -Local2027ConnectionString parameter" {
+    $threw = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+            -Local2027ConnectionString "Server=localhost;Database=IProgramLocalDb2027;" 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Local2027ConnectionString\) is strictly forbidden in production mode") {
+            $threw = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_X: $($_.Exception.Message)"
+        }
+    }
+    if (-not $threw) { throw "Expected SECURITY_VIOLATION for CLI -Local2027ConnectionString was not thrown." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST Y: Isolated mode allows fixture connection strings; production non-CLI resolution avoids logging
+# ------------------------------------------------------------------------------
+Assert-Test "Y: Isolated mode accepts fixture connection strings; zero secret leakage" {
+    # 1. Normal isolated execution can still inject transient fixture connection strings
+    $threwIsolated = $false
+    try {
+        $resIso = & $operatorScript -DryRun -AllowIsolatedExecutionOnly `
+            -Azure2026ConnectionString $remoteConn2026Str `
+            -Azure2027ConnectionString $remoteConn2027Str `
+            -Local2026ConnectionString $localConn2026Str `
+            -Local2027ConnectionString $localConn2027Str
+
+        if (-not $resIso -or -not $resIso.Year2026 -or -not $resIso.Year2027) {
+            $threwIsolated = $true
+        }
+    } catch {
+        $threwIsolated = $true
+        Write-Host "DEBUG_EXCEPTION_Y: $($_.Exception.Message)"
+    }
+    if ($threwIsolated) { throw "Isolated mode failed to accept fixture connection strings." }
+
+    # 2. Production non-command-line resolution path does not log/echo connection strings or secrets
+    $secretMarker = "SuperSecretMarker_$(Get-Random)!"
+    $origConn = $env:ConnectionStrings__DefaultConnection
+    $env:ConnectionStrings__DefaultConnection = "Server=iprogram-sql-prod-01.database.windows.net;Database=IProgramDb2026;User ID=admin;Password=$secretMarker;"
+    try {
+        # DryRun without CLI connection strings resolves without echoing
+        $dryRunOutput = & $operatorScript -DryRun 2>&1 | Out-String
+        if ($dryRunOutput -match [regex]::Escape($secretMarker)) {
+            throw "SECURITY_VIOLATION: Secret marker leaked into dry-run console output."
+        }
+    } finally {
+        $env:ConnectionStrings__DefaultConnection = $origConn
     }
 }
 
