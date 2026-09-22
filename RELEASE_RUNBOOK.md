@@ -261,7 +261,8 @@ When authorized by the Business Owner and Architect, the operator executes the c
 ### 7.1 Security & Parameter Invariants
 1. **Zero Passwords on Command Line**: Supplying `-Password` via CLI is strictly forbidden and triggers an immediate `SECURITY_VIOLATION`. Operator credentials must be provided via the transient environment variable `$env:IPROGRAM_OPERATOR_PASSWORD`.
 2. **Zero Connection Strings on Command Line**: Supplying `-Azure2026ConnectionString`, `-Azure2027ConnectionString`, `-Local2026ConnectionString`, or `-Local2027ConnectionString` via CLI in production mode is strictly forbidden and triggers an immediate `SECURITY_VIOLATION`. Azure connection strings resolve automatically from User Secrets / environment, and Local connection strings resolve from committed configuration (`appsettings.json`).
-3. **Cryptographic & Repository Alignment**: Local repo must be on clean `master`, synchronized with live `origin/master` (`git ls-remote`), matching `-ExpectedMasterSha`.
+3. **Cryptographic & Repository Alignment**: Local repo must be on clean `master`, synchronized with live `origin/master` (`git ls-remote`), matching `-ExpectedMasterSha`. The `-ExpectedMasterSha` must be dynamically captured from live `origin/master` at the time of the execution authorization gate, rather than hardcoded.
+4. **Dynamic Authorization Baselines**: The watermark ($W$) and remote version ($V$) baseline parameters are authorization-time values captured during formal preflight authorization and must not be treated as permanent constants.
 
 ### 7.2 Operator Invocation Standard
 ```powershell
@@ -273,12 +274,36 @@ powershell -ExecutionPolicy Bypass -File script/sync-rollout/execute_daily_pull_
     -Execute `
     -AllowProductionExecution `
     -ProductionApprovalReference "ISSUE-14-BO-AUTH-<reference>" `
-    -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
-    -Expected2026LocalW 0 `
-    -Expected2027LocalW 0 `
-    -Expected2026ObservedV 8 `
-    -Expected2027ObservedV 8
+    -ExpectedMasterSha "<approved-current-master-sha>" `
+    -Expected2026LocalW <approved-2026-local-W> `
+    -Expected2027LocalW <approved-2027-local-W> `
+    -Expected2026ObservedV <approved-2026-observed-V> `
+    -Expected2027ObservedV <approved-2027-observed-V>
 
 # Step 3: Clear transient environment credentials immediately
 $env:IPROGRAM_OPERATOR_PASSWORD = $null
 ```
+
+---
+
+## 8. LocalFirst Post-Cutover Operating Rule (Manual Sync Only)
+
+As established by Business Owner directive (Issue #14, Comment #5779393217), following LocalFirst cutover:
+
+### 8.1 Invariants
+1. **Zero Automatic Sync:**
+   - NO automatic Pull.
+   - NO automatic Push.
+   - NO background polling or recurring sync workers.
+   - NO startup-time sync.
+   - NO periodic connectivity probes that open Azure SQL merely to discover changes.
+2. **Deliberate Operator Actions:**
+   - Azure synchronization must occur ONLY after an explicit user/operator action:
+     - `Pull Now` — fetch remote changes into local database.
+     - `Push Now` — dispatch pending local outbox changes to Azure.
+     - Combined `Sync Now` (when implemented) must respect existing push-before-pull invariants and fail closed if pending outbox entries exist.
+3. **Configuration Posture:**
+   - Committed safe defaults must remain disabled:
+     - `Sync:PullEnabled = false`
+     - `Sync:PushEnabled = false`
+   - Future LocalFirst activation must not reinterpret these flags as permission for background sync.

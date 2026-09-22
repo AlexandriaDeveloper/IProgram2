@@ -96,7 +96,7 @@ function Execute-Sql($connStr, $sql) {
 }
 
 $passedTests = 0
-$totalTests = 27
+$totalTests = 29
 
 function Assert-Test([string]$Name, [scriptblock]$Action) {
     Write-Host -NoNewline "Running Test $Name..."
@@ -1175,7 +1175,7 @@ Assert-Test "U: Production mode strictly rejects CLI -Azure2026ConnectionString 
         & $operatorScript -Execute -AllowProductionExecution `
             -ProductionApprovalReference "ISSUE-14-TEST" `
             -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
-            -Azure2026ConnectionString "Server=iprogram-sql-prod-01.database.windows.net;Database=IProgramDb2026;" 2>&1 | Out-Null
+            -Azure2026ConnectionString "Server=localhost;Database=SyntheticTestFixtureDb_U;Integrated Security=true;" 2>&1 | Out-Null
     } catch {
         if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Azure2026ConnectionString\) is strictly forbidden in production mode") {
             $threw = $true
@@ -1195,7 +1195,7 @@ Assert-Test "V: Production mode strictly rejects CLI -Azure2027ConnectionString 
         & $operatorScript -Execute -AllowProductionExecution `
             -ProductionApprovalReference "ISSUE-14-TEST" `
             -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
-            -Azure2027ConnectionString "Server=iprogram-sql-prod-01.database.windows.net;Database=IProgramDb2027;" 2>&1 | Out-Null
+            -Azure2027ConnectionString "Server=localhost;Database=SyntheticTestFixtureDb_V;Integrated Security=true;" 2>&1 | Out-Null
     } catch {
         if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Azure2027ConnectionString\) is strictly forbidden in production mode") {
             $threw = $true
@@ -1215,7 +1215,7 @@ Assert-Test "W: Production mode strictly rejects CLI -Local2026ConnectionString 
         & $operatorScript -Execute -AllowProductionExecution `
             -ProductionApprovalReference "ISSUE-14-TEST" `
             -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
-            -Local2026ConnectionString "Server=localhost;Database=IProgramLocalDb2026;" 2>&1 | Out-Null
+            -Local2026ConnectionString "Server=localhost;Database=SyntheticTestFixtureDb_W;Integrated Security=true;" 2>&1 | Out-Null
     } catch {
         if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Local2026ConnectionString\) is strictly forbidden in production mode") {
             $threw = $true
@@ -1235,7 +1235,7 @@ Assert-Test "X: Production mode strictly rejects CLI -Local2027ConnectionString 
         & $operatorScript -Execute -AllowProductionExecution `
             -ProductionApprovalReference "ISSUE-14-TEST" `
             -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
-            -Local2027ConnectionString "Server=localhost;Database=IProgramLocalDb2027;" 2>&1 | Out-Null
+            -Local2027ConnectionString "Server=localhost;Database=SyntheticTestFixtureDb_X;Integrated Security=true;" 2>&1 | Out-Null
     } catch {
         if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying connection strings via command-line parameter \(-Local2027ConnectionString\) is strictly forbidden in production mode") {
             $threw = $true
@@ -1249,7 +1249,7 @@ Assert-Test "X: Production mode strictly rejects CLI -Local2027ConnectionString 
 # ------------------------------------------------------------------------------
 # TEST Y: Isolated mode allows fixture connection strings; production non-CLI resolution avoids logging
 # ------------------------------------------------------------------------------
-Assert-Test "Y: Isolated mode accepts fixture connection strings; zero secret leakage" {
+Assert-Test "Y: Isolated mode accepts fixture connection strings; zero secret leakage; rejects operational DBs" {
     # 1. Normal isolated execution can still inject transient fixture connection strings
     $threwIsolated = $false
     try {
@@ -1272,8 +1272,8 @@ Assert-Test "Y: Isolated mode accepts fixture connection strings; zero secret le
     # P0-3 INVARIANT: NEVER set or point to *.database.windows.net or operational database names in test harness!
     # Validate resolution via environment using strictly isolated localhost test databases.
     $secretMarker = "SuperSecretMarker_$(Get-Random)!"
-    $testEnvConn2026 = "Server=localhost;Database=$remoteDb2026;User ID=test_user;Password=$secretMarker;TrustServerCertificate=True;"
-    $testEnvConn2027 = "Server=localhost;Database=$remoteDb2027;User ID=test_user;Password=$secretMarker;TrustServerCertificate=True;"
+    $testEnvConn2026 = "Server=localhost;Database=$remoteDb2026;Trusted_Connection=True;Application Name=$secretMarker;TrustServerCertificate=True;"
+    $testEnvConn2027 = "Server=localhost;Database=$remoteDb2027;Trusted_Connection=True;Application Name=$secretMarker;TrustServerCertificate=True;"
     Assert-TestIsolationGuard $testEnvConn2026 "TestY_Env2026"
     Assert-TestIsolationGuard $testEnvConn2027 "TestY_Env2027"
 
@@ -1295,6 +1295,23 @@ Assert-Test "Y: Isolated mode accepts fixture connection strings; zero secret le
         $env:ConnectionStrings__DefaultConnection = $origConn2026
         $env:ConnectionStrings__CON2027 = $origConn2027
     }
+
+    # 3. Isolated mode rejects operational catalogs resolved via environment
+    $badEnvConn = "Server=localhost;Database=IProgramDb2026;Trusted_Connection=True;"
+    $threwBad = $false
+    try {
+        $env:ConnectionStrings__DefaultConnection = $badEnvConn
+        & $operatorScript -DryRun -AllowIsolatedExecutionOnly `
+            -Local2026ConnectionString $localConn2026Str `
+            -Local2027ConnectionString $localConn2027Str 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "ISOLATION_VIOLATION.*targets operational database catalog 'iprogramdb2026'") {
+            $threwBad = $true
+        }
+    } finally {
+        $env:ConnectionStrings__DefaultConnection = $origConn2026
+    }
+    if (-not $threwBad) { throw "Expected ISOLATION_VIOLATION for operational catalog in isolated mode was not thrown." }
 }
 
 # ------------------------------------------------------------------------------
@@ -1385,6 +1402,113 @@ UPDATE [sync].[ServerState] SET CurrentVersion = 2 WHERE DatabaseId = '2026';
 
     # Reset test databases cleanly
     Init-IsolatedDatabases
+}
+
+# ------------------------------------------------------------------------------
+# TEST Z3: Child process environment composition & preflighted binding inheritance (P0-2)
+# ------------------------------------------------------------------------------
+Assert-Test "Z3: Child process environment binds exact preflighted connection strings with zero fallback" {
+    # Part 1: Verify pure composition function Get-ChildProcessEnvironment for Production mode
+    $prodAzure2026 = "Server=tcp:approved-prod.database.windows.net,1433;Database=IProgramDb2026;Encrypt=True;"
+    $prodAzure2027 = "Server=tcp:approved-prod.database.windows.net,1433;Database=IProgramDb2027;Encrypt=True;"
+    $prodLocal2026 = "Server=localhost;Database=IProgramLocalDb2026;Trusted_Connection=True;"
+    $prodLocal2027 = "Server=localhost;Database=IProgramLocalDb2027;Trusted_Connection=True;"
+    $prodToken = "ApprovedTokenKey12345678901234567890"
+
+    $prodEnv = Get-ChildProcessEnvironment -Port 5199 -IsIsolatedMode $false `
+        -Azure2026ConnectionString $prodAzure2026 `
+        -Azure2027ConnectionString $prodAzure2027 `
+        -Local2026ConnectionString $prodLocal2026 `
+        -Local2027ConnectionString $prodLocal2027 `
+        -TokenKey $prodToken
+
+    if ($prodEnv["ASPNETCORE_URLS"] -ne "http://127.0.0.1:5199") { throw "Production child URL must be loopback only." }
+    if ($prodEnv["ASPNETCORE_ENVIRONMENT"] -ne "Production") { throw "Production child environment mismatch." }
+    if ($prodEnv["Sync__PullEnabled"] -ne "true") { throw "Sync__PullEnabled must be true." }
+    if ($prodEnv["Sync__PushEnabled"] -ne "false") { throw "Sync__PushEnabled must be false." }
+    if ($prodEnv["Sync__AuthoritativeTrackingEnabled"] -ne "true") { throw "Authoritative tracking must remain true." }
+    if ($prodEnv["LocalFirst__Enabled"] -ne "false") { throw "Production LocalFirst must remain false." }
+    if ($prodEnv["ConnectionStrings__DefaultConnection"] -ne $prodAzure2026) { throw "Child ConnectionStrings__DefaultConnection mismatch." }
+    if ($prodEnv["ConnectionStrings__CON2027"] -ne $prodAzure2027) { throw "Child ConnectionStrings__CON2027 mismatch." }
+    if ($prodEnv["ConnectionStrings__LocalConnection2026"] -ne $prodLocal2026) { throw "Child ConnectionStrings__LocalConnection2026 mismatch." }
+    if ($prodEnv["ConnectionStrings__LocalConnection2027"] -ne $prodLocal2027) { throw "Child ConnectionStrings__LocalConnection2027 mismatch." }
+    if ($prodEnv["Token__Key"] -ne $prodToken) { throw "Child Token__Key mismatch." }
+
+    # Part 2: Verify pure composition function Get-ChildProcessEnvironment for Isolated mode
+    $isoEnv = Get-ChildProcessEnvironment -Port 5198 -IsIsolatedMode $true `
+        -Azure2026ConnectionString $remoteConn2026Str `
+        -Azure2027ConnectionString $remoteConn2027Str `
+        -Local2026ConnectionString $localConn2026Str `
+        -Local2027ConnectionString $localConn2027Str `
+        -TokenKey $prodToken
+
+    if ($isoEnv["ASPNETCORE_ENVIRONMENT"] -ne "Testing") { throw "Isolated child environment mismatch." }
+    if ($isoEnv["LocalFirst__Enabled"] -ne "true") { throw "Isolated LocalFirst must be true." }
+    if ($isoEnv["ConnectionStrings__TestRemoteConnection2026"] -ne $remoteConn2026Str) { throw "Child TestRemoteConnection2026 mismatch." }
+    if ($isoEnv["ConnectionStrings__TestRemoteConnection2027"] -ne $remoteConn2027Str) { throw "Child TestRemoteConnection2027 mismatch." }
+    if ($isoEnv["ConnectionStrings__LocalConnection2026"] -ne $localConn2026Str) { throw "Child LocalConnection2026 mismatch." }
+    if ($isoEnv["ConnectionStrings__LocalConnection2027"] -ne $localConn2027Str) { throw "Child LocalConnection2027 mismatch." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST Z4: Preflight mirror fails closed on terminal SOFT_DELETE with IsActive=true (P0-3)
+# ------------------------------------------------------------------------------
+Assert-Test "Z4: Preflight mirror enforces terminal SOFT_DELETE state invariant in dbo.Daily" {
+    $testSyncId = [Guid]::NewGuid()
+    $testServerVersion = [int64]100
+
+    # 1. Insert terminal SOFT_DELETE event into ServerChangeFeed and insert active row in dbo.Daily (IsActive = 1)
+    $connR = New-Object SqlConnection($remoteConn2026Str)
+    $connR.Open()
+    try {
+        # Insert Daily row with IsActive = 1 (mismatch with SOFT_DELETE!)
+        $cmdD = $connR.CreateCommand()
+        $cmdD.CommandText = @"
+INSERT INTO [dbo].[Daily] ([SyncId], [Name], [DailyDate], [Closed], [CreatedAt], [IsActive])
+VALUES (@SyncId, 'PreflightSoftDeleteTest', '2026-01-01', 0, GETUTCDATE(), 1);
+"@
+        $pS = $cmdD.CreateParameter(); $pS.ParameterName = "@SyncId"; $pS.Value = $testSyncId; $cmdD.Parameters.Add($pS) | Out-Null
+        $cmdD.ExecuteNonQuery() | Out-Null
+
+        # Feed list representing window with terminal SOFT_DELETE
+        $feedList = @(
+            [PSCustomObject]@{
+                ServerVersion = $testServerVersion
+                EntityType = "Daily"
+                EntitySyncId = $testSyncId
+                OperationType = "SOFT_DELETE"
+            }
+        )
+
+        # Preflight must fail closed because authoritative IsActive is true (1)
+        $threwActiveMismatch = $false
+        try {
+            Assert-FeedWindowIntegrity -AzureConn $connR -Year "2026" -W ($testServerVersion - 1) -VObserved $testServerVersion -FeedList $feedList
+        } catch {
+            if ($_.Exception.Message -match "PREFLIGHT_FAIL: Terminal SOFT_DELETE Daily SyncId '.*' at version $testServerVersion has IsActive=true in authoritative dbo.Daily for DatabaseId '2026'") {
+                $threwActiveMismatch = $true
+            } else {
+                Write-Host "DEBUG_Z4_MISMATCH: $($_.Exception.Message)"
+            }
+        }
+        if (-not $threwActiveMismatch) { throw "Expected PREFLIGHT_FAIL for terminal SOFT_DELETE with IsActive=true was not thrown." }
+
+        # 2. Now update authoritative dbo.Daily to IsActive = 0 (valid soft delete state)
+        $cmdUpd = $connR.CreateCommand()
+        $cmdUpd.CommandText = "UPDATE [dbo].[Daily] SET [IsActive] = 0 WHERE [SyncId] = @SyncId;"
+        $pU = $cmdUpd.CreateParameter(); $pU.ParameterName = "@SyncId"; $pU.Value = $testSyncId; $cmdUpd.Parameters.Add($pU) | Out-Null
+        $cmdUpd.ExecuteNonQuery() | Out-Null
+
+        # Preflight must now PASS
+        Assert-FeedWindowIntegrity -AzureConn $connR -Year "2026" -W ($testServerVersion - 1) -VObserved $testServerVersion -FeedList $feedList
+    } finally {
+        # Cleanup seeded test row
+        $cmdDel = $connR.CreateCommand()
+        $cmdDel.CommandText = "DELETE FROM [dbo].[Daily] WHERE [SyncId] = @SyncId;"
+        $pD = $cmdDel.CreateParameter(); $pD.ParameterName = "@SyncId"; $pD.Value = $testSyncId; $cmdDel.Parameters.Add($pD) | Out-Null
+        $cmdDel.ExecuteNonQuery() | Out-Null
+        $connR.Close()
+    }
 }
 
 # Clean up isolated test databases

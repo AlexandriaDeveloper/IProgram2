@@ -160,13 +160,37 @@ powershell -ExecutionPolicy Bypass -File script/sync-rollout/execute_daily_pull_
     -Execute `
     -AllowProductionExecution `
     -ProductionApprovalReference "ISSUE-14-BO-AUTH-<reference>" `
-    -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
-    -Expected2026LocalW 0 `
-    -Expected2027LocalW 0 `
-    -Expected2026ObservedV 8 `
-    -Expected2027ObservedV 8
+    -ExpectedMasterSha "<approved-current-master-sha>" `
+    -Expected2026LocalW <approved-2026-local-W> `
+    -Expected2027LocalW <approved-2027-local-W> `
+    -Expected2026ObservedV <approved-2026-observed-V> `
+    -Expected2027ObservedV <approved-2027-observed-V>
 
 # Step 3: Clear transient environment credentials immediately
 $env:IPROGRAM_OPERATOR_PASSWORD = $null
 ```
+
+> [!NOTE]
+> - `<approved-current-master-sha>` must be resolved from live `origin/master` (`git rev-parse origin/master` / `git ls-remote origin refs/heads/master`) at the execution authorization gate after PR #36 merge.
+> - The watermark ($W$) and remote version ($V$) parameters are dynamic baseline values captured during formal preflight authorization and must not be treated as permanent constants.
+
+---
+
+## 6. LocalFirst Post-Cutover Operational Invariants (Manual Sync Only)
+
+In accordance with Business Owner directive (Issue #14, Comment #5779393217):
+
+1. **Strict Manual Invocation**:
+   - Zero automatic Pull or Push.
+   - Zero background polling or scheduled sync workers.
+   - Zero startup-time sync.
+   - Zero periodic connectivity checks opening Azure SQL merely to detect changes.
+2. **Deliberate Operator Actions**:
+   - `Pull Now`: Explicit operator action fetching remote changes into local databases.
+   - `Push Now`: Explicit operator action dispatching pending local outbox changes to Azure.
+   - Combined `Sync Now` (future): Must respect push-before-pull invariants and fail closed if pending outbox entries exist.
+3. **Safe Default Configuration**:
+   - `Sync:PullEnabled = false`
+   - `Sync:PushEnabled = false`
+   - Future LocalFirst activation must not reinterpret these flags as permission for background sync.
 

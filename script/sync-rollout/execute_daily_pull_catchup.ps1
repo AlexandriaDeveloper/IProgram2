@@ -289,8 +289,23 @@ function Assert-DatabaseBinding {
     $initialCatalog = if ($builder.InitialCatalog) { $builder.InitialCatalog.Trim() } else { "" }
     $serverHost = $dataSource -replace '^(?i)tcp:', '' -replace ',\s*[0-9]+$', ''
 
-    if ($ExpectedTarget -eq "Azure") {
-        if (-not $IsIsolatedMode) {
+    if ($IsIsolatedMode) {
+        if ($serverHost.ToLowerInvariant() -like "*database.windows.net*" -or $serverHost.ToLowerInvariant() -like "*azure*") {
+            throw "ISOLATION_VIOLATION: Isolated mode connection string for $ExpectedTarget $ExpectedYear targets remote/Azure endpoint '$serverHost'."
+        }
+        $operationalCatalogs = @("iprogramdb2026", "iprogramdb2027", "iprogramlocaldb2026", "iprogramlocaldb2027")
+        if ($operationalCatalogs -contains $initialCatalog.ToLowerInvariant()) {
+            throw "ISOLATION_VIOLATION: Isolated mode connection string for $ExpectedTarget $ExpectedYear targets operational database catalog '$initialCatalog'."
+        }
+        $isLocalEndpoint = $serverHost.ToLowerInvariant() -eq "localhost" -or $serverHost.ToLowerInvariant() -eq "(local)" -or 
+                           $serverHost.ToLowerInvariant() -eq "127.0.0.1" -or $serverHost.ToLowerInvariant() -eq "." -or
+                           $serverHost.ToLowerInvariant().StartsWith("localhost\") -or $serverHost.ToLowerInvariant().StartsWith("(local)\") -or
+                           $serverHost.ToLowerInvariant().StartsWith(".\") -or $serverHost.ToLowerInvariant() -like "(localdb)\*"
+        if (-not $isLocalEndpoint) {
+            throw "ISOLATION_VIOLATION: Isolated mode connection string for $ExpectedTarget $ExpectedYear server '$serverHost' is not a valid local/isolated endpoint."
+        }
+    } else {
+        if ($ExpectedTarget -eq "Azure") {
             $expectedCatalog = if ($ExpectedYear -eq "2026") { "IProgramDb2026" } else { "IProgramDb2027" }
             if ($initialCatalog -ne $expectedCatalog) {
                 throw "BINDING_ERROR: Azure $ExpectedYear InitialCatalog mismatch. Expected '$expectedCatalog', got '$initialCatalog'."
@@ -299,16 +314,14 @@ function Assert-DatabaseBinding {
             if (-not $isAzure) {
                 throw "BINDING_ERROR: Azure $ExpectedYear DataSource is not a trusted Azure SQL endpoint (*.database.windows.net)."
             }
-        }
-    } elseif ($ExpectedTarget -eq "Local") {
-        if (-not $IsIsolatedMode) {
+        } elseif ($ExpectedTarget -eq "Local") {
             $expectedCatalog = if ($ExpectedYear -eq "2026") { "IProgramLocalDb2026" } else { "IProgramLocalDb2027" }
             if ($initialCatalog -ne $expectedCatalog) {
                 throw "BINDING_ERROR: Local $ExpectedYear InitialCatalog mismatch. Expected '$expectedCatalog', got '$initialCatalog'."
             }
-        }
-        if ($serverHost.ToLowerInvariant().Contains(".database.windows.net")) {
-            throw "BINDING_ERROR: Local $ExpectedYear DataSource cannot point to an Azure endpoint."
+            if ($serverHost.ToLowerInvariant().Contains(".database.windows.net")) {
+                throw "BINDING_ERROR: Local $ExpectedYear DataSource cannot point to an Azure endpoint."
+            }
         }
     }
 
@@ -498,13 +511,23 @@ function Assert-FeedWindowIntegrity {
                 throw "PREFLIGHT_FAIL: Active/soft-deleted Daily SyncId '$syncId' unexpectedly exists in Tombstones for DatabaseId '$Year'."
             }
 
-            # 2. Verify authoritative dbo.Daily has matching record
+            # 2. Verify authoritative dbo.Daily has matching record and check IsActive for terminal SOFT_DELETE
             $cmdD = $AzureConn.CreateCommand()
-            $cmdD.CommandText = "SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = @SyncId;"
+            $cmdD.CommandText = "SELECT IsActive FROM [dbo].[Daily] WHERE SyncId = @SyncId;"
             $pd = $cmdD.CreateParameter(); $pd.ParameterName = "@SyncId"; $pd.Value = $syncId; $cmdD.Parameters.Add($pd) | Out-Null
-            $dailyCount = [int]$cmdD.ExecuteScalar()
-            if ($dailyCount -ne 1) {
-                throw "PREFLIGHT_FAIL: Terminal $opType Daily SyncId '$syncId' requires exactly 1 record in authoritative dbo.Daily, found $dailyCount for DatabaseId '$Year'."
+            $dailyReader = $cmdD.ExecuteReader()
+            $dailyRows = 0
+            $isActive = $null
+            while ($dailyReader.Read()) {
+                $dailyRows++
+                $isActive = [bool]$dailyReader["IsActive"]
+            }
+            $dailyReader.Close()
+            if ($dailyRows -ne 1) {
+                throw "PREFLIGHT_FAIL: Terminal $opType Daily SyncId '$syncId' requires exactly 1 record in authoritative dbo.Daily, found $dailyRows for DatabaseId '$Year'."
+            }
+            if ($opType -eq "SOFT_DELETE" -and $isActive -eq $true) {
+                throw "PREFLIGHT_FAIL: Terminal SOFT_DELETE Daily SyncId '$syncId' at version $termVer has IsActive=true in authoritative dbo.Daily for DatabaseId '$Year'."
             }
         }
     }
@@ -786,6 +809,46 @@ function Assert-JwtClaims {
     }
 }
 
+# --- 13. Pure Child Process Environment Composition ---
+function Get-ChildProcessEnvironment {
+    param(
+        [int]$Port,
+        [bool]$IsIsolatedMode,
+        [string]$Azure2026ConnectionString,
+        [string]$Azure2027ConnectionString,
+        [string]$Local2026ConnectionString,
+        [string]$Local2027ConnectionString,
+        [string]$TokenKey = $null
+    )
+
+    $envMap = [ordered]@{}
+    $envMap["ASPNETCORE_URLS"] = "http://127.0.0.1:$Port"
+    $envMap["ASPNETCORE_ENVIRONMENT"] = if ($IsIsolatedMode) { "Testing" } else { "Production" }
+    $envMap["Sync__PullEnabled"] = "true"
+    $envMap["Sync__PushEnabled"] = "false"
+    $envMap["Sync__AuthoritativeTrackingEnabled"] = "true"
+    $envMap["LocalFirst__Enabled"] = if ($IsIsolatedMode) { "true" } else { "false" }
+    $envMap["LocalFirst__ReadOnlyMode"] = "false"
+
+    if ($IsIsolatedMode) {
+        $envMap["ConnectionStrings__TestRemoteConnection2026"] = $Azure2026ConnectionString
+        $envMap["ConnectionStrings__TestRemoteConnection2027"] = $Azure2027ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2026"] = $Local2026ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2027"] = $Local2027ConnectionString
+    } else {
+        $envMap["ConnectionStrings__DefaultConnection"] = $Azure2026ConnectionString
+        $envMap["ConnectionStrings__CON2027"] = $Azure2027ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2026"] = $Local2026ConnectionString
+        $envMap["ConnectionStrings__LocalConnection2027"] = $Local2027ConnectionString
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($TokenKey)) {
+        $envMap["Token__Key"] = $TokenKey
+    }
+
+    return $envMap
+}
+
 # In-memory export support for testing pure operator functions without execution
 if ($ExportFunctionsOnly) {
     return
@@ -832,44 +895,81 @@ Assert-CommittedConfigurationGuard -Root $repoRoot
 Write-Host " PASS (AuthoritativeTrackingEnabled=true, all other sync flags disabled)" -ForegroundColor Green
 
 # Resolve Connection Strings
-if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString) -or [string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
-    $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
-    if (Test-Path $apiProj) {
-        $secrets = dotnet user-secrets list --project $apiProj 2>$null
-        foreach ($line in $secrets) {
-            if ($line.StartsWith("ConnectionStrings:DefaultConnection = ")) {
-                if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
-                    $Azure2026ConnectionString = $line.Substring("ConnectionStrings:DefaultConnection = ".Length).Trim()
+if ($AllowIsolatedExecutionOnly) {
+    # P0-1: IN ISOLATED TEST MODE, NEVER QUERY PRODUCTION USER SECRETS!
+    # Remote connection strings must come strictly from CLI parameters or isolated environment variables
+    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__TestRemoteConnection2026)) {
+            $Azure2026ConnectionString = $env:ConnectionStrings__TestRemoteConnection2026
+        } elseif (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__DefaultConnection)) {
+            $Azure2026ConnectionString = $env:ConnectionStrings__DefaultConnection
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__TestRemoteConnection2027)) {
+            $Azure2027ConnectionString = $env:ConnectionStrings__TestRemoteConnection2027
+        } elseif (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__CON2027)) {
+            $Azure2027ConnectionString = $env:ConnectionStrings__CON2027
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Local2026ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__LocalConnection2026)) {
+            $Local2026ConnectionString = $env:ConnectionStrings__LocalConnection2026
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($Local2027ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__LocalConnection2027)) {
+            $Local2027ConnectionString = $env:ConnectionStrings__LocalConnection2027
+        }
+    }
+
+    # Validate all final resolved connection strings against strict physical isolation rules
+    Assert-DatabaseBinding -ConnectionString $Azure2026ConnectionString -ExpectedTarget "Azure" -ExpectedYear "2026" -IsIsolatedMode $true | Out-Null
+    Assert-DatabaseBinding -ConnectionString $Azure2027ConnectionString -ExpectedTarget "Azure" -ExpectedYear "2027" -IsIsolatedMode $true | Out-Null
+    Assert-DatabaseBinding -ConnectionString $Local2026ConnectionString -ExpectedTarget "Local" -ExpectedYear "2026" -IsIsolatedMode $true | Out-Null
+    Assert-DatabaseBinding -ConnectionString $Local2027ConnectionString -ExpectedTarget "Local" -ExpectedYear "2027" -IsIsolatedMode $true | Out-Null
+} else {
+    # Production / non-isolated modes:
+    # Resolve from User Secrets first, then fallback to environment variables
+    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString) -or [string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+        $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
+        if (Test-Path $apiProj) {
+            $secrets = dotnet user-secrets list --project $apiProj 2>$null
+            foreach ($line in $secrets) {
+                if ($line.StartsWith("ConnectionStrings:DefaultConnection = ")) {
+                    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
+                        $Azure2026ConnectionString = $line.Substring("ConnectionStrings:DefaultConnection = ".Length).Trim()
+                    }
                 }
-            }
-            if ($line.StartsWith("ConnectionStrings:CON2027 = ")) {
-                if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
-                    $Azure2027ConnectionString = $line.Substring("ConnectionStrings:CON2027 = ".Length).Trim()
+                if ($line.StartsWith("ConnectionStrings:CON2027 = ")) {
+                    if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+                        $Azure2027ConnectionString = $line.Substring("ConnectionStrings:CON2027 = ".Length).Trim()
+                    }
                 }
             }
         }
     }
-}
 
-if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
-    if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__DefaultConnection)) {
-        $Azure2026ConnectionString = $env:ConnectionStrings__DefaultConnection
+    if ([string]::IsNullOrWhiteSpace($Azure2026ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__DefaultConnection)) {
+            $Azure2026ConnectionString = $env:ConnectionStrings__DefaultConnection
+        }
     }
-}
-if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
-    if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__CON2027)) {
-        $Azure2027ConnectionString = $env:ConnectionStrings__CON2027
+    if ([string]::IsNullOrWhiteSpace($Azure2027ConnectionString)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:ConnectionStrings__CON2027)) {
+            $Azure2027ConnectionString = $env:ConnectionStrings__CON2027
+        }
     }
-}
 
-$appsettingsPath = Join-Path $repoRoot "src\Api\appsettings.json"
-$appsettings = Get-Content $appsettingsPath -Raw | ConvertFrom-Json
+    $appsettingsPath = Join-Path $repoRoot "src\Api\appsettings.json"
+    $appsettings = Get-Content $appsettingsPath -Raw | ConvertFrom-Json
 
-if ([string]::IsNullOrWhiteSpace($Local2026ConnectionString)) {
-    $Local2026ConnectionString = $appsettings.ConnectionStrings.LocalConnection2026
-}
-if ([string]::IsNullOrWhiteSpace($Local2027ConnectionString)) {
-    $Local2027ConnectionString = $appsettings.ConnectionStrings.LocalConnection2027
+    if ([string]::IsNullOrWhiteSpace($Local2026ConnectionString)) {
+        $Local2026ConnectionString = $appsettings.ConnectionStrings.LocalConnection2026
+    }
+    if ([string]::IsNullOrWhiteSpace($Local2027ConnectionString)) {
+        $Local2027ConnectionString = $appsettings.ConnectionStrings.LocalConnection2027
+    }
 }
 
 # Run initial preflight verification for both 2026 and 2027
@@ -933,6 +1033,7 @@ if ($Execute) {
         "Sync__PullEnabled", "Sync__PushEnabled", "Sync__AuthoritativeTrackingEnabled",
         "LocalFirst__Enabled", "LocalFirst__ReadOnlyMode",
         "Token__Key",
+        "ConnectionStrings__DefaultConnection", "ConnectionStrings__CON2027",
         "ConnectionStrings__TestRemoteConnection2026", "ConnectionStrings__TestRemoteConnection2027",
         "ConnectionStrings__LocalConnection2026", "ConnectionStrings__LocalConnection2027"
     )
@@ -947,38 +1048,39 @@ if ($Execute) {
     $tempErr = [System.IO.Path]::GetTempFileName()
 
     try {
-        # Configure dedicated loopback process environment
-        $env:ASPNETCORE_URLS = "http://127.0.0.1:$Port"
-        $env:ASPNETCORE_ENVIRONMENT = if ($AllowIsolatedExecutionOnly) { "Testing" } else { "Production" }
-        $env:Sync__PullEnabled = "true"
-        $env:Sync__PushEnabled = "false"
-        $env:Sync__AuthoritativeTrackingEnabled = "true" # MUST REMAIN TRUE
-        $env:LocalFirst__Enabled = if ($AllowIsolatedExecutionOnly) { "true" } else { "false" }
-        $env:LocalFirst__ReadOnlyMode = "false"
-
-        if ($AllowIsolatedExecutionOnly) {
-            $env:ConnectionStrings__TestRemoteConnection2026 = $Azure2026ConnectionString
-            $env:ConnectionStrings__TestRemoteConnection2027 = $Azure2027ConnectionString
-            $env:ConnectionStrings__LocalConnection2026 = $Local2026ConnectionString
-            $env:ConnectionStrings__LocalConnection2027 = $Local2027ConnectionString
-        }
-
         # Resolve Token:Key for JWT validation
         $tokenKey = $null
-        $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
-        if (Test-Path $apiProj) {
-            $secrets = dotnet user-secrets list --project $apiProj 2>$null
-            foreach ($line in $secrets) {
-                if ($line.StartsWith("Token:Key = ")) {
-                    $tokenKey = $line.Substring("Token:Key = ".Length).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($env:Token__Key)) {
+            $tokenKey = $env:Token__Key
+        } else {
+            $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
+            if (Test-Path $apiProj) {
+                $secrets = dotnet user-secrets list --project $apiProj 2>$null
+                foreach ($line in $secrets) {
+                    if ($line.StartsWith("Token:Key = ")) {
+                        $tokenKey = $line.Substring("Token:Key = ".Length).Trim()
+                    }
                 }
             }
+            if ([string]::IsNullOrWhiteSpace($tokenKey) -and $appsettings -and $appsettings.Token -and -not [string]::IsNullOrWhiteSpace($appsettings.Token.Key)) {
+                $tokenKey = $appsettings.Token.Key
+            }
+            if ([string]::IsNullOrWhiteSpace($tokenKey)) {
+                $tokenKey = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+            }
         }
-        if ([string]::IsNullOrWhiteSpace($tokenKey)) {
-            $tokenKey = $appsettings.Token.Key
-        }
-        if (-not [string]::IsNullOrWhiteSpace($tokenKey)) {
-            $env:Token__Key = $tokenKey
+
+        # Compose dedicated loopback child process environment (P0-2)
+        $childEnv = Get-ChildProcessEnvironment -Port $Port `
+            -IsIsolatedMode $AllowIsolatedExecutionOnly `
+            -Azure2026ConnectionString $Azure2026ConnectionString `
+            -Azure2027ConnectionString $Azure2027ConnectionString `
+            -Local2026ConnectionString $Local2026ConnectionString `
+            -Local2027ConnectionString $Local2027ConnectionString `
+            -TokenKey $tokenKey
+
+        foreach ($k in $childEnv.Keys) {
+            [Environment]::SetEnvironmentVariable($k, $childEnv[$k], "Process")
         }
 
         Write-Host "Starting dedicated operator API process on port $Port..." -NoNewline
