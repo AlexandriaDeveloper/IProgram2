@@ -21,7 +21,9 @@ $targetScripts = @(
     "script/sync-rollout/execute_daily_pull_catchup.ps1",
     "script/sync-rollout/test_execute_daily_pull_catchup_isolated.ps1",
     "script/sync-rollout/test_isolated_local_cutover_rehearsal.ps1",
-    "script/sync-rollout/test_slice_4_5d_production_enablement.ps1"
+    "script/sync-rollout/test_slice_4_5d_production_enablement.ps1",
+    "script/sync-rollout/start_localfirst_runtime.ps1",
+    "script/sync-rollout/test_start_localfirst_runtime.ps1"
 )
 
 Write-Host "============================================================" -ForegroundColor Cyan
