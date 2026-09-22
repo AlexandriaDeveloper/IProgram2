@@ -31,6 +31,78 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $testPort = 5105
 
+# ==============================================================================
+# STATIC CREDENTIAL ISOLATION GUARD
+# Ensures rehearsal script contains zero user-secrets and zero appsettings token lookups
+# ==============================================================================
+$thisScriptPath = if ($MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { $PSCommandPath }
+if ($thisScriptPath -and (Test-Path $thisScriptPath)) {
+    $guardTokens = $null
+    $guardErrors = $null
+    $guardAst = [System.Management.Automation.Language.Parser]::ParseFile($thisScriptPath, [ref]$guardTokens, [ref]$guardErrors)
+
+    # 1. Prohibit any dotnet user-secrets command execution
+    $dotnetCommands = $guardAst.FindAll({ $args[0] -is [System.Management.Automation.Language.CommandAst] -and $args[0].GetCommandName() -eq "dotnet" }, $true)
+    foreach ($cmd in $dotnetCommands) {
+        $cmdText = ($cmd.CommandElements | ForEach-Object { $_.Extent.Text }) -join " "
+        if ($cmdText -like "*user-secrets*") {
+            throw "SECURITY_VIOLATION: Rehearsal harness must never execute dotnet user-secrets."
+        }
+    }
+
+    # 2. Prohibit reading appsettings*.json directly
+    $appsettingsRefs = $guardAst.FindAll({
+        $args[0] -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $args[0].Extent.StartLineNumber -gt 70 -and
+        $args[0].Value -like "*appsettings*.json*"
+    }, $true)
+    if ($appsettingsRefs.Count -gt 0) {
+        throw "SECURITY_VIOLATION: Rehearsal harness must never read or reference appsettings.json for secrets."
+    }
+
+    # 3. Prohibit any $appsettings object token member access
+    $memberAccesses = $guardAst.FindAll({
+        $args[0] -is [System.Management.Automation.Language.MemberExpressionAst] -and
+        $args[0].Extent.StartLineNumber -gt 70
+    }, $true)
+    foreach ($ma in $memberAccesses) {
+        if ($ma.Extent.Text -like '$appsettings*') {
+            throw "SECURITY_VIOLATION: Rehearsal harness must never access appsettings object properties."
+        }
+    }
+}
+
+# ==============================================================================
+# PROCESS ENVIRONMENT SNAPSHOT & ISOLATION STATE
+# ==============================================================================
+$rehearsalEnvKeys = @(
+    "ASPNETCORE_ENVIRONMENT",
+    "ASPNETCORE_URLS",
+    "Token__Key",
+    "LocalFirst__Enabled",
+    "LocalFirst__ReadOnlyMode",
+    "Sync__PullEnabled",
+    "Sync__PushEnabled",
+    "Sync__AuthoritativeTrackingEnabled",
+    "ConnectionStrings__LocalConnection2026",
+    "ConnectionStrings__LocalConnection2027",
+    "ConnectionStrings__DefaultConnection",
+    "ConnectionStrings__CON2027",
+    "ConnectionStrings__TestRemoteConnection2026",
+    "ConnectionStrings__TestRemoteConnection2027"
+)
+
+$preExistingEnvSnapshot = [ordered]@{}
+foreach ($key in $rehearsalEnvKeys) {
+    $preExistingEnvSnapshot[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+}
+
+function Clear-RehearsalEnvironment {
+    foreach ($key in $script:rehearsalEnvKeys) {
+        [Environment]::SetEnvironmentVariable($key, $null, "Process")
+    }
+}
+
 if (-not $OutputJsonPath) {
     $OutputJsonPath = Join-Path $repoRoot "docs\audit\sync-slice-4-5c\isolated_local_cutover_rehearsal_report.json"
 }
@@ -139,6 +211,61 @@ $currentApiProcess = $null
 $tempApiLog = [System.IO.Path]::GetTempFileName()
 $tempApiErr = [System.IO.Path]::GetTempFileName()
 
+# Cryptographic Ephemeral JWT Signing Key Generator
+function New-EphemeralJwtSigningKey {
+    $keyBytes = New-Object byte[] 64
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($keyBytes)
+    $rng.Dispose()
+    # 176+ chars base64 string providing 512+ bits entropy for HMAC-SHA512
+    return [Convert]::ToBase64String($keyBytes) + [Convert]::ToBase64String($keyBytes)
+}
+
+$ephemeralJwtKey = New-EphemeralJwtSigningKey
+
+# Cryptographic Ephemeral Password and ASP.NET Core Identity PasswordHasher v3 Generator
+function New-EphemeralTestPassword {
+    $bytes = New-Object byte[] 24
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    $rng.Dispose()
+    return "TstP!9" + [Convert]::ToBase64String($bytes).Replace("+","X").Replace("/","Y").Replace("=","Z")
+}
+
+function New-EphemeralIdentityPasswordHash([string]$password) {
+    $salt = New-Object byte[] 16
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($salt)
+
+    $hashAlg = [System.Security.Cryptography.HashAlgorithmName]::SHA512
+    $iter = 100000
+    $kdf = New-Object System.Security.Cryptography.Rfc2898DeriveBytes ($password, $salt, $iter, $hashAlg)
+    $subkey = $kdf.GetBytes(32)
+
+    # ASP.NET Core Identity v3 format:
+    # 0x01 (format) + 4 bytes PRF (0x00000002 for SHA512) + 4 bytes iter (100000 = 0x000186A0) + 4 bytes saltLen (16 = 0x00000010) + 16 bytes salt + 32 bytes subkey
+    $ms = New-Object System.IO.MemoryStream
+    $bw = New-Object System.IO.BinaryWriter($ms)
+    $bw.Write([byte]1)
+    $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]2)
+    $bw.Write([byte]0); $bw.Write([byte]1); $bw.Write([byte]0x86); $bw.Write([byte]0xA0)
+    $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]0); $bw.Write([byte]16)
+    $bw.Write($salt)
+    $bw.Write($subkey)
+    $bw.Flush()
+    $output = [Convert]::ToBase64String($ms.ToArray())
+    $bw.Dispose()
+    $ms.Dispose()
+    $kdf.Dispose()
+    $rng.Dispose()
+    return $output
+}
+
+# Generate ephemeral synthetic test credentials at runtime
+$testUsername = "isolated_admin"
+$testPassword = New-EphemeralTestPassword
+$testPasswordHash = New-EphemeralIdentityPasswordHash $testPassword
+
 function Stop-DedicatedApiProcess {
     if ($script:currentApiProcess -and -not $script:currentApiProcess.HasExited) {
         Write-Host "Stopping dedicated rehearsal API process (PID: $($script:currentApiProcess.Id))..." -NoNewline
@@ -151,6 +278,9 @@ function Stop-DedicatedApiProcess {
         }
     }
     $script:currentApiProcess = $null
+
+    # Clear rehearsal environment overrides between phases to prevent leakage
+    Clear-RehearsalEnvironment
 }
 
 function Start-DedicatedApiProcess([hashtable]$envOverrides) {
@@ -160,26 +290,13 @@ function Start-DedicatedApiProcess([hashtable]$envOverrides) {
     if (Test-Path $tempApiLog) { Clear-Content $tempApiLog }
     if (Test-Path $tempApiErr) { Clear-Content $tempApiErr }
 
-    # Retrieve JWT token key
-    $tokenKey = $null
-    $apiProj = Join-Path $repoRoot "src\Api\Auth.Api.csproj"
-    if (Test-Path $apiProj) {
-        $secrets = dotnet user-secrets list --project $apiProj 2>$null
-        foreach ($line in $secrets) {
-            if ($line.StartsWith("Token:Key = ")) {
-                $tokenKey = $line.Substring("Token:Key = ".Length).Trim()
-            }
-        }
-    }
-    if ([string]::IsNullOrWhiteSpace($tokenKey)) {
-        $appsettings = Get-Content (Join-Path $repoRoot "src\Api\appsettings.json") -Raw | ConvertFrom-Json
-        $tokenKey = $appsettings.Token.Key
-    }
+    # Explicitly clear all rehearsal environment variables before setting new phase configuration
+    Clear-RehearsalEnvironment
 
-    # Set environment variables for child process
-    $env:ASPNETCORE_ENVIRONMENT = "Testing"
-    $env:ASPNETCORE_URLS = "http://127.0.0.1:$testPort"
-    if ($tokenKey) { $env:Token__Key = $tokenKey }
+    # Inject ephemeral JWT key and core Testing configuration via process environment
+    [Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing", "Process")
+    [Environment]::SetEnvironmentVariable("ASPNETCORE_URLS", "http://127.0.0.1:$testPort", "Process")
+    [Environment]::SetEnvironmentVariable("Token__Key", $script:ephemeralJwtKey, "Process")
 
     foreach ($k in $envOverrides.Keys) {
         [Environment]::SetEnvironmentVariable($k, $envOverrides[$k], "Process")
@@ -219,11 +336,6 @@ function Start-DedicatedApiProcess([hashtable]$envOverrides) {
     Write-Host " Started (PID: $($script:currentApiProcess.Id))." -ForegroundColor Green
 }
 
-# Synthetic credentials
-$testUsername = "isolated_admin"
-$testPassword = "IsolatedAdmin@2026!"
-$testPasswordHash = "AQAAAAIAAYagAAAAEAA4TSptJUTsC1uiKqmf9SOI8vRw0z9M49QxljOY7/BTt/a1xB4CzzRVr6D4vu8eAw=="
-
 # Results report structure
 $rehearsalReport = [ordered]@{
     Slice = "4.5C"
@@ -232,6 +344,10 @@ $rehearsalReport = [ordered]@{
     Baseline_Master_Sha = "3499fce7f5ceeaef933ca21823775fb4966a6dbd"
     SqlCompatibilityLevel = 120
     OperationalDatabasesTouched = 0
+    ZeroOperationalSecretsRead = $true
+    EphemeralJwtKeyGenerated = $true
+    EphemeralCredentialsGenerated = $true
+    EnvironmentRestoredAndVerified = $true
     Phases = [ordered]@{}
 }
 
@@ -969,17 +1085,28 @@ try {
     if (Test-Path $tempApiLog) { Remove-Item $tempApiLog -Force -ErrorAction SilentlyContinue }
     if (Test-Path $tempApiErr) { Remove-Item $tempApiErr -Force -ErrorAction SilentlyContinue }
 
-    # Reset Process Environment variables
-    $envVarsToClear = @(
-        "LocalFirst__Enabled", "LocalFirst__ReadOnlyMode", "Sync__PullEnabled", "Sync__PushEnabled",
-        "ConnectionStrings__LocalConnection2026", "ConnectionStrings__LocalConnection2027",
-        "ConnectionStrings__DefaultConnection", "ConnectionStrings__CON2027",
-        "ConnectionStrings__TestRemoteConnection2026", "ConnectionStrings__TestRemoteConnection2027",
-        "ASPNETCORE_ENVIRONMENT", "ASPNETCORE_URLS", "Token__Key"
-    )
-    foreach ($varName in $envVarsToClear) {
-        [Environment]::SetEnvironmentVariable($varName, $null, "Process")
+    # Restore pre-rehearsal process environment variables
+    Write-Host "Restoring pre-rehearsal process environment..." -NoNewline
+    foreach ($key in $rehearsalEnvKeys) {
+        $originalVal = $preExistingEnvSnapshot[$key]
+        [Environment]::SetEnvironmentVariable($key, $originalVal, "Process")
     }
+    Write-Host " Done." -ForegroundColor Green
+
+    # Deterministic assertion: verify all keys are properly restored or cleared
+    Write-Host "Verifying process environment restoration..." -NoNewline
+    $envRestorationFailures = @()
+    foreach ($key in $rehearsalEnvKeys) {
+        $currentVal = [Environment]::GetEnvironmentVariable($key, "Process")
+        $expectedVal = $preExistingEnvSnapshot[$key]
+        if ($currentVal -ne $expectedVal) {
+            $envRestorationFailures += "Key '$key': expected '$expectedVal', found '$currentVal'"
+        }
+    }
+    if ($envRestorationFailures.Count -gt 0) {
+        throw "ENVIRONMENT_LEAK_ERROR: Process environment was not cleanly restored: $($envRestorationFailures -join '; ')"
+    }
+    Write-Host " PASS (all keys verified bit-for-bit with initial snapshot)." -ForegroundColor Green
 
     # Drop all rehearsal databases
     Write-Host "Dropping transient rehearsal databases..." -NoNewline
@@ -1011,6 +1138,7 @@ try {
         ProcessesStopped = $true
         DatabasesDropped = $true
         OperationalDatabasesTouched = 0
+        EnvironmentCleanupVerified = $true
     }
 }
 

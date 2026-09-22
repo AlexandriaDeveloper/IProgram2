@@ -16,16 +16,23 @@ The primary architectural question answered by this rehearsal is:
 2. **Physical Isolation**:
    - Only transient rehearsal databases (`_Test` and `_SmokeTest` suffixes) are provisioned on localhost.
    - Operational local databases (`IProgramLocalDb2026`, `IProgramLocalDb2027`) and operational Azure databases (`IProgramDb2026`, `IProgramDb2027`) are **never accessed, connected to, or modified**.
-3. **Synthetic Identity & Business State**:
-   - No real user credentials, tokens, or business rows are copied.
-   - Uses synthetic ASP.NET Core Identity (`isolated_admin` / PBKDF2 hash).
-4. **Committed Defaults Invariant**:
+3. **Ephemeral Identity & Cryptographic Security**:
+   - Zero access or fallback to committed `appsettings.json` `Token.Key` or `dotnet user-secrets`.
+   - Ephemeral in-memory JWT signing key (64+ bytes / 512+ bits entropy) generated dynamically at runtime and injected into process environment (`Token__Key`).
+   - Zero hardcoded passwords or PBKDF2 hashes; dynamic CSPRNG test password generated at runtime and hashed using ASP.NET Core Identity v3 RFC2898DeriveBytes (HMAC-SHA512, 100,000 iterations, 16-byte salt, 32-byte subkey).
+   - Sensitive credentials and keys are never logged, printed, or persisted.
+   - Static AST machine-checkable guard assertion validates zero `dotnet user-secrets` invocations and zero `appsettings.json` token lookups.
+4. **Process Environment Snapshot & Verification**:
+   - Process environment variables are snapshotted prior to rehearsal execution.
+   - Environment variables are explicitly cleared between test phases to prevent configuration leakage.
+   - Teardown restores the snapshot and performs a deterministic bit-for-bit assertion verifying all keys are properly restored/cleared.
+5. **Committed Defaults Invariant**:
    - Committed application settings in `src/Api/appsettings.json` remain unchanged:
      - `Sync:AuthoritativeTrackingEnabled = true`
      - `Sync:PullEnabled = false`
      - `Sync:PushEnabled = false`
      - `LocalFirst:Enabled = false`
-5. **Testing Environment & Remote Tripwire**:
+6. **Testing Environment & Remote Tripwire**:
    - LocalFirst/Pull/Push flags and connection strings are supplied exclusively to a dedicated API process in the `Testing` environment.
    - When remote is supposed to be unavailable (Phases B, C, D, G), remote connection strings point to an unreachable tripwire endpoint (`127.0.0.1:59999`) to fail closed if any unexpected remote access is attempted.
 
@@ -123,6 +130,7 @@ powershell -ExecutionPolicy Bypass -File script/sync-rollout/test_isolated_local
    - Re-authenticated and served local reads directly from local data without remote access.
 8. **Clean Teardown & Audit (Phase H)**:
    - All API processes cleanly terminated.
+   - Pre-rehearsal process environment restored from initial snapshot and verified bit-for-bit with deterministic assertions (`EnvironmentCleanupVerified = true`).
    - All 6 transient rehearsal databases dropped.
    - Audit confirmed 0 operational databases touched.
 
