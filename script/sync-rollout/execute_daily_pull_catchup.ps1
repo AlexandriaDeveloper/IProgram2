@@ -55,7 +55,8 @@ param (
     [switch]$SkipGitVerification,           # Permitted ONLY when -AllowIsolatedExecutionOnly is true
     [string]$SimulatedBranch = $null,       # Permitted ONLY for isolated unit testing
     [string]$SimulatedHead = $null,         # Permitted ONLY for isolated unit testing
-    $SimulatedStatus = $null                # Permitted ONLY for isolated unit testing (untyped to distinguish null from empty string)
+    $SimulatedStatus = $null,               # Permitted ONLY for isolated unit testing (untyped to distinguish null from empty string)
+    [string]$SimulatedRemoteMasterSha = $null # Permitted ONLY for isolated unit testing
 )
 
 $ErrorActionPreference = "Stop"
@@ -80,8 +81,11 @@ if ($Execute) {
     }
 
     if ($AllowProductionExecution) {
-        if ($SkipGitVerification -or $SimulatedBranch -or $SimulatedHead -or $SimulatedStatus) {
+        if ($SkipGitVerification -or $SimulatedBranch -or $SimulatedHead -or ($SimulatedStatus -ne $null) -or $SimulatedRemoteMasterSha) {
             throw "SECURITY_VIOLATION: SkipGitVerification and simulated repository parameters are never permitted in production mode."
+        }
+        if ($PSBoundParameters.ContainsKey('Password')) {
+            throw "SECURITY_VIOLATION: Supplying password or secret material via command-line parameter (-Password) is strictly forbidden in production mode to prevent credential leakage in process lists and shell history. Use transient environment variable 'IPROGRAM_OPERATOR_PASSWORD' instead."
         }
         if ([string]::IsNullOrWhiteSpace($ProductionApprovalReference)) {
             throw "AUTHORIZATION_ERROR: -ProductionApprovalReference is required when -AllowProductionExecution is specified."
@@ -119,7 +123,8 @@ function Assert-RepositoryStateGuard {
         [bool]$SkipVerification = $false,
         [string]$SimBranch = $null,
         [string]$SimHead = $null,
-        $SimStatus = $null
+        $SimStatus = $null,
+        [string]$SimRemoteMaster = $null
     )
 
     if ($SkipVerification) {
@@ -132,14 +137,14 @@ function Assert-RepositoryStateGuard {
     }
 
     # 1. Check current branch is master
-    $currentBranch = if ($SimBranch) { $SimBranch } else { (git -C $Root branch --show-current 2>$null) }
+    $currentBranch = if ($SimBranch) { $SimBranch } else { (git -C "$Root" branch --show-current 2>$null) }
     if ($currentBranch) { $currentBranch = $currentBranch.Trim() }
     if ($currentBranch -ne "master") {
         throw "REPO_GUARD_VIOLATION: Production execution requires branch 'master', currently on '$currentBranch'."
     }
 
     # 2. Check current commit matches ExpectedSha
-    $currentHead = if ($SimHead) { $SimHead } else { (git -C $Root rev-parse HEAD 2>$null) }
+    $currentHead = if ($SimHead) { $SimHead } else { (git -C "$Root" rev-parse HEAD 2>$null) }
     if ($currentHead) { $currentHead = $currentHead.Trim() }
     if ($currentHead -ne $ExpectedSha) {
         throw "REPO_GUARD_VIOLATION: Current HEAD commit ($currentHead) does not match expected master SHA ($ExpectedSha)."
@@ -152,25 +157,41 @@ function Assert-RepositoryStateGuard {
         throw "REPO_GUARD_VIOLATION: Working tree is not clean. Production execution requires an unmodified working tree."
     }
 
-    # 4. Check sync with origin/master if remote origin exists and not simulated
-    if (-not $SimHead -and -not $SimBranch) {
-        $remotes = (git -C $Root remote 2>$null)
-        if ($remotes -and ($remotes -split "`r?`n" -contains "origin")) {
-            $originHead = (git -C $Root rev-parse --verify origin/master 2>$null)
-            if ($originHead) {
-                $originHead = ($originHead | Out-String).Trim()
-                if ($originHead -ne $currentHead) {
-                    throw "REPO_GUARD_VIOLATION: Local master ($currentHead) is not synchronized with origin/master ($originHead)."
-                }
-            }
+    # 4. Check sync with live remote origin/master (Fail Closed)
+    $remoteMasterSha = $null
+    if (-not [string]::IsNullOrWhiteSpace($SimRemoteMaster)) {
+        $remoteMasterSha = $SimRemoteMaster.Trim()
+    } else {
+        $remotes = (& git -C "$Root" remote 2>$null)
+        if (-not $remotes -or ($remotes -split "`r?`n" -notcontains "origin")) {
+            throw "REPO_GUARD_VIOLATION: Remote 'origin' is required for repository state verification but was not found."
         }
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $lsRemoteOut = (& git -C "$Root" ls-remote --exit-code origin refs/heads/master 2>&1)
+        $ErrorActionPreference = $prevEap
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($lsRemoteOut)) {
+            $errStr = ($lsRemoteOut | Out-String).Trim()
+            throw "REPO_GUARD_VIOLATION: Failed to query live remote origin/master (Exit code $LASTEXITCODE). Error: $errStr"
+        }
+        $remoteMasterSha = ($lsRemoteOut -split "\s+")[0].Trim()
+    }
+
+    if ([string]::IsNullOrWhiteSpace($remoteMasterSha) -or $remoteMasterSha.Length -ne 40) {
+        throw "REPO_GUARD_VIOLATION: Invalid remote master SHA format received from origin: '$remoteMasterSha'."
+    }
+    if ($remoteMasterSha -ne $currentHead) {
+        throw "REPO_GUARD_VIOLATION: Local master ($currentHead) is not synchronized with live remote origin/master ($remoteMasterSha)."
+    }
+    if ($remoteMasterSha -ne $ExpectedSha) {
+        throw "REPO_GUARD_VIOLATION: Live remote origin/master ($remoteMasterSha) does not match approved ExpectedMasterSha ($ExpectedSha)."
     }
 }
 
 if ($Execute -and $AllowProductionExecution) {
     Write-Host "Verifying repository state invariants..." -NoNewline
-    Assert-RepositoryStateGuard -Root $repoRoot -ExpectedSha $ExpectedMasterSha -SkipVerification $SkipGitVerification -SimBranch $SimulatedBranch -SimHead $SimulatedHead -SimStatus $SimulatedStatus
-    Write-Host " PASS (Branch=master, Head=$ExpectedMasterSha, Clean=True)" -ForegroundColor Green
+    Assert-RepositoryStateGuard -Root $repoRoot -ExpectedSha $ExpectedMasterSha -SkipVerification $SkipGitVerification -SimBranch $SimulatedBranch -SimHead $SimulatedHead -SimStatus $SimulatedStatus -SimRemoteMaster $SimulatedRemoteMasterSha
+    Write-Host " PASS (Branch=master, Head=$ExpectedMasterSha, Clean=True, LiveRemoteOrigin=Aligned)" -ForegroundColor Green
 }
 
 # --- 3. Committed Configuration Guard (Current Master Baseline) ---
@@ -633,8 +654,19 @@ if ($Execute) {
     Write-Host "  STARTING CONTROLLED CATCH-UP EXECUTION                                  " -ForegroundColor Yellow
     Write-Host "==========================================================================" -ForegroundColor Yellow
 
-    if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
-        throw "OPERATOR_CREDENTIALS_MISSING: Operator credentials must be supplied via -Username/-Password or env vars IPROGRAM_OPERATOR_USERNAME/IPROGRAM_OPERATOR_PASSWORD."
+    if ($AllowProductionExecution) {
+        if ([string]::IsNullOrWhiteSpace($env:IPROGRAM_OPERATOR_PASSWORD)) {
+            throw "OPERATOR_CREDENTIALS_MISSING: Production execution requires operator credentials supplied via transient environment variable 'IPROGRAM_OPERATOR_PASSWORD'."
+        }
+        $Password = $env:IPROGRAM_OPERATOR_PASSWORD
+        $Username = if (-not [string]::IsNullOrWhiteSpace($env:IPROGRAM_OPERATOR_USERNAME)) { $env:IPROGRAM_OPERATOR_USERNAME } else { $Username }
+        if ([string]::IsNullOrWhiteSpace($Username)) {
+            throw "OPERATOR_CREDENTIALS_MISSING: Operator username must be supplied via environment variable 'IPROGRAM_OPERATOR_USERNAME' or -Username parameter."
+        }
+    } else {
+        if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
+            throw "OPERATOR_CREDENTIALS_MISSING: Operator credentials must be supplied via -Username/-Password or env vars IPROGRAM_OPERATOR_USERNAME/IPROGRAM_OPERATOR_PASSWORD."
+        }
     }
 
     # Expected-State Stale-Authorization Verification

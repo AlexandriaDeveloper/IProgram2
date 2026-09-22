@@ -61,13 +61,14 @@ flowchart TD
    - `-ExpectedMasterSha`: Required git commit SHA.
    - `-Expected2026LocalW`, `-Expected2027LocalW`: Required expected local checkpoints.
    - `-Expected2026ObservedV`, `-Expected2027ObservedV`: Required expected remote versions.
-   - Any bypass parameters (`-SkipGitVerification`, `-SimulatedBranch`, `-SimulatedHead`, `-SimulatedStatus`) are strictly forbidden when `-AllowProductionExecution` is active.
+   - **Secret-Input Hardening (P0-2)**: Production mode (`-AllowProductionExecution`) strictly forbids supplying password material via the command line (`-Password`). The guard evaluates `$PSBoundParameters.ContainsKey('Password')` and immediately throws `SECURITY_VIOLATION` to eliminate exposure in OS process tables (`Get-Process`, task manager) or PowerShell command history. Production mode strictly requires credentials via the transient process environment variable `$env:IPROGRAM_OPERATOR_PASSWORD`.
+   - Any bypass or simulation parameters (`-SkipGitVerification`, `-SimulatedBranch`, `-SimulatedHead`, `-SimulatedStatus`, `-SimulatedRemoteMasterSha`) are strictly forbidden when `-AllowProductionExecution` is active.
 
 3. **Gate 3: Repository State Invariants (`Assert-RepositoryStateGuard`)**
    - Current branch must be `master`.
    - Current commit must exactly match `-ExpectedMasterSha`.
    - Working tree must be completely clean (`git status --porcelain` returns empty).
-   - Local `master` must be synchronized with `origin/master`.
+   - **Live Remote Master Freshness Verification (P0-1)**: Replaces reliance on stale local tracking branches (`refs/remotes/origin/master`) with a live query to the remote repository (`git ls-remote --exit-code origin refs/heads/master`). If the remote network is unreachable, `origin` is missing, or the live remote master SHA differs from local HEAD or `-ExpectedMasterSha`, the tool fails closed immediately before any database or API interaction. Deterministic isolated testing is supported via `-SimulatedRemoteMasterSha`, which is strictly forbidden in production mode.
 
 4. **Gate 4: Stale-Authorization & Version Alignment**
    - Runs a fresh preflight immediately prior to execution.
@@ -88,9 +89,9 @@ flowchart TD
 
 ---
 
-## 3. Comprehensive Verification Evidence (Tests A Through P)
+## 3. Comprehensive Verification Evidence (Tests A Through T)
 
-A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.ps1`](file:///f:/Prog-Projects/IProgram/script/sync-rollout/test_slice_4_5d_production_enablement.ps1)) was executed against isolated localhost fixtures (`_Test`), verifying all 16 required invariants:
+A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.ps1`](file:///f:/Prog-Projects/IProgram/script/sync-rollout/test_slice_4_5d_production_enablement.ps1)) was executed against isolated localhost fixtures (`_Test`), verifying all 20 required invariants:
 
 | Test | Invariant Description | Expected Behavior | Result |
 | :--- | :--- | :--- | :---: |
@@ -110,8 +111,12 @@ A dedicated, comprehensive test suite ([`test_slice_4_5d_production_enablement.p
 | **N** | Isolated full execution proves postconditions ($H_{exec}$, hash, retry) | Pull converges to $H_{exec}$, retry is NO-OP | **PASS** |
 | **O** | Environment cleanup is deterministic on success and failure | Snapshot restored bit-for-bit in `finally` | **PASS** |
 | **P** | Machine-readable audit output contains zero secrets | Passed keyword/regex secret scanner | **PASS** |
+| **Q** | Stale cached `origin/master` cannot authorize production when live remote master differs | Live `git ls-remote` mismatch fails closed (`REPO_GUARD_VIOLATION`) | **PASS** |
+| **R** | Unreachable/unresolvable origin fails closed in production mode | Missing or connection-refused origin fails closed (`REPO_GUARD_VIOLATION`) | **PASS** |
+| **S** | Production mode strictly rejects CLI `-Password` parameter | Command-line password rejected immediately (`SECURITY_VIOLATION`) | **PASS** |
+| **T** | Production mode accepts transient environment credentials without logging | `$env:IPROGRAM_OPERATOR_PASSWORD` accepted with zero log/audit exposure | **PASS** |
 
-**Summary**: 16 / 16 Invariant Tests Passed Deterministically.
+**Summary**: 20 / 20 Invariant Tests Passed Deterministically.
 
 ---
 

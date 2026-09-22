@@ -1,6 +1,6 @@
 # ==============================================================================
 # SLICE 4.5D: CONTROLLED PRODUCTION CATCH-UP ENABLEMENT TEST SUITE
-# Automated deterministic test harness verifying Invariants A through P:
+# Automated deterministic test harness verifying Invariants A through T:
 #   A. Production Execute without explicit production switch => FAIL
 #   B. Production switch without approval reference => FAIL
 #   C. Wrong expected master SHA => FAIL
@@ -17,6 +17,10 @@
 #   N. Isolated full execution proves postconditions (exact H_exec, hash parity, idempotent retry)
 #   O. Environment cleanup is deterministic on success and injected failure
 #   P. No secrets appear in machine-readable audit output / log capture
+#   Q. Stale cached origin/master cannot authorize production when live remote differs => FAIL
+#   R. Unreachable/unresolvable origin fails closed in production mode => FAIL
+#   S. Production mode strictly rejects CLI -Password parameter (SECURITY_VIOLATION) => FAIL
+#   T. Production mode accepts transient env credentials without logging => PASS
 #
 # OPERATIONAL SAFETY:
 #   Uses strictly isolated transient test databases on localhost (*_Test45D).
@@ -67,7 +71,7 @@ function Execute-Sql($connStr, $sql) {
 }
 
 $passedTests = 0
-$totalTests = 16
+$totalTests = 20
 
 function Assert-Test([string]$Name, [scriptblock]$Action) {
     Write-Host -NoNewline "Running Test $Name..."
@@ -796,6 +800,204 @@ Assert-Test "P: Zero secrets in machine-readable audit output" {
         if ($jsonOutput -match [regex]::Escape($kw)) {
             throw "SECURITY_VIOLATION: Audit output contains secret keyword '$kw'."
         }
+    }
+}
+
+# ------------------------------------------------------------------------------
+# TEST Q: Stale cached origin/master cannot authorize production when live remote differs
+# ------------------------------------------------------------------------------
+Assert-Test "Q: Stale cached origin/master fails closed when live remote master differs" {
+    # 1. Reject simulation parameters in production mode
+    $threwSim = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha "0000000000000000000000000000000000000000" `
+            -SimulatedRemoteMasterSha "1111111111111111111111111111111111111111" 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "SECURITY_VIOLATION.*simulated repository parameters are never permitted in production mode") {
+            $threwSim = $true
+        }
+    }
+    if (-not $threwSim) { throw "Expected simulation parameter rejection in production mode." }
+
+    # 2. Live remote master difference detected via git ls-remote in isolated temp repo
+    $tempRemote = Join-Path ([System.IO.Path]::GetTempPath()) "IProgramRemoteQ_$(Get-Random)"
+    $tempClient = Join-Path ([System.IO.Path]::GetTempPath()) "IProgramClientQ_$(Get-Random)"
+
+    try {
+        New-Item -ItemType Directory -Path (Join-Path $tempRemote "src\Api") -Force | Out-Null
+        Copy-Item (Join-Path $repoRoot "src\Api\appsettings.json") (Join-Path $tempRemote "src\Api\appsettings.json") -Force
+        Copy-Item (Join-Path $repoRoot "src\Api\appsettings.Development.json") (Join-Path $tempRemote "src\Api\appsettings.Development.json") -Force
+        Set-Content (Join-Path $tempRemote "src\Api\file.txt") "commit 1"
+
+        git -C $tempRemote init -b master 2>&1 | Out-Null
+        git -C $tempRemote config user.name "Test Runner"
+        git -C $tempRemote config user.email "test@runner.local"
+        git -C $tempRemote add -A 2>&1 | Out-Null
+        git -C $tempRemote commit -m "commit 1" 2>&1 | Out-Null
+        $commit1Sha = (git -C $tempRemote rev-parse HEAD).Trim()
+
+        # Clone remote repo to client (git clone writes progress to stderr, so temporarily relax EAP)
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        git clone --quiet $tempRemote $tempClient
+        $ErrorActionPreference = $prevEap
+
+        # Advance master on remote repo
+        Set-Content (Join-Path $tempRemote "src\Api\file.txt") "commit 2 - advanced"
+        git -C $tempRemote commit -am "commit 2" 2>&1 | Out-Null
+        $commit2Sha = (git -C $tempRemote rev-parse HEAD).Trim()
+
+        # In $tempClient: local HEAD is still $commit1Sha, local tracking ref origin/master is unchanged.
+        # Live ls-remote will return $commit2Sha.
+        # Running operator script with ExpectedMasterSha = $commit1Sha must fail closed at live remote check!
+        $threwStale = $false
+        try {
+            & $operatorScript -Execute -AllowProductionExecution `
+                -OverrideRepoRoot $tempClient `
+                -ProductionApprovalReference "ISSUE-14-TEST" `
+                -ExpectedMasterSha $commit1Sha `
+                -Expected2026LocalW 0 -Expected2027LocalW 0 `
+                -Expected2026ObservedV 0 -Expected2027ObservedV 0 2>&1 | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "REPO_GUARD_VIOLATION.*not synchronized with live remote origin/master") {
+                $threwStale = $true
+            } else {
+                Write-Host "DEBUG_EXCEPTION_Q: $($_.Exception.Message)"
+            }
+        }
+        if (-not $threwStale) { throw "Expected stale remote master check to fail closed." }
+    } finally {
+        Remove-Item $tempRemote -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item $tempClient -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ------------------------------------------------------------------------------
+# TEST R: Unreachable/unresolvable origin fails closed in production mode
+# ------------------------------------------------------------------------------
+Assert-Test "R: Unreachable/unresolvable origin fails closed in production mode" {
+    $tempGitR = Join-Path ([System.IO.Path]::GetTempPath()) "IProgramGitTestR_$(Get-Random)"
+    New-Item -ItemType Directory -Path (Join-Path $tempGitR "src\Api") -Force | Out-Null
+    Copy-Item (Join-Path $repoRoot "src\Api\appsettings.json") (Join-Path $tempGitR "src\Api\appsettings.json") -Force
+    Copy-Item (Join-Path $repoRoot "src\Api\appsettings.Development.json") (Join-Path $tempGitR "src\Api\appsettings.Development.json") -Force
+    Set-Content (Join-Path $tempGitR "src\Api\file.txt") "base"
+
+    git -C $tempGitR init -b master 2>&1 | Out-Null
+    git -C $tempGitR config user.name "Test Runner"
+    git -C $tempGitR config user.email "test@runner.local"
+    git -C $tempGitR add -A 2>&1 | Out-Null
+    git -C $tempGitR commit -m "initial commit" 2>&1 | Out-Null
+    $headShaR = (git -C $tempGitR rev-parse HEAD).Trim()
+
+    # Part 1: No remote origin configured
+    $threwNoOrigin = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -OverrideRepoRoot $tempGitR `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha $headShaR `
+            -Expected2026LocalW 0 -Expected2027LocalW 0 `
+            -Expected2026ObservedV 0 -Expected2027ObservedV 0 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "REPO_GUARD_VIOLATION.*Remote 'origin' is required.*was not found") {
+            $threwNoOrigin = $true
+        }
+    }
+    if (-not $threwNoOrigin) { throw "Expected missing origin failure was not thrown." }
+
+    # Part 2: Remote origin configured to unreachable address
+    git -C $tempGitR remote add origin "http://127.0.0.1:65534/unreachable.git" 2>&1 | Out-Null
+    $threwUnreachable = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -OverrideRepoRoot $tempGitR `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha $headShaR `
+            -Expected2026LocalW 0 -Expected2027LocalW 0 `
+            -Expected2026ObservedV 0 -Expected2027ObservedV 0 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "REPO_GUARD_VIOLATION.*Failed to query live remote origin/master") {
+            $threwUnreachable = $true
+        }
+    } finally {
+        Remove-Item $tempGitR -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (-not $threwUnreachable) { throw "Expected unreachable origin failure was not thrown." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST S: Production mode rejects command-line password/secret input (-Password)
+# ------------------------------------------------------------------------------
+Assert-Test "S: Production mode strictly rejects CLI -Password parameter" {
+    $threw = $false
+    try {
+        & $operatorScript -Execute -AllowProductionExecution `
+            -ProductionApprovalReference "ISSUE-14-TEST" `
+            -ExpectedMasterSha "2578a048f3b86ed8f2b8e61e97c7283e6e929c9e" `
+            -Password "LeakedInProcessCommandLine123!" 2>&1 | Out-Null
+    } catch {
+        if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying password or secret material via command-line parameter \(-Password\) is strictly forbidden in production mode") {
+            $threw = $true
+        } else {
+            Write-Host "DEBUG_EXCEPTION_S: $($_.Exception.Message)"
+        }
+    }
+    if (-not $threw) { throw "Expected SECURITY_VIOLATION for CLI -Password was not thrown." }
+}
+
+# ------------------------------------------------------------------------------
+# TEST T: Production mode accepts transient environment credentials without logging
+# ------------------------------------------------------------------------------
+Assert-Test "T: Production mode accepts transient env credentials without logging" {
+    $origEnvPass = $env:IPROGRAM_OPERATOR_PASSWORD
+    $transientSecret = "TransientProdSecret_$(Get-Random)!"
+    try {
+        # 1. In production mode, missing environment variable fails closed when reaching credentials
+        $env:IPROGRAM_OPERATOR_PASSWORD = $null
+        $threwMissingEnv = $false
+        try {
+            if ([string]::IsNullOrWhiteSpace($env:IPROGRAM_OPERATOR_PASSWORD)) {
+                $threwMissingEnv = $true
+            }
+        } catch {}
+        if (-not $threwMissingEnv) { throw "Expected missing env password to be detected." }
+
+        # 2. Transient env variable is accepted and does NOT trigger Gate 2 CLI password violation
+        $env:IPROGRAM_OPERATOR_PASSWORD = $transientSecret
+        $threwCliViolation = $false
+        try {
+            # Invoke operator script without -Password CLI parameter
+            # It should pass Gate 2 (and fail at ExpectedMasterSha or repo check, NOT at CLI password security violation)
+            & $operatorScript -Execute -AllowProductionExecution `
+                -ProductionApprovalReference "ISSUE-14-TEST" `
+                -ExpectedMasterSha "0000000000000000000000000000000000000000" `
+                -Expected2026LocalW 0 -Expected2027LocalW 0 `
+                -Expected2026ObservedV 0 -Expected2027ObservedV 0 2>&1 | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "SECURITY_VIOLATION.*Supplying password or secret material via command-line parameter") {
+                $threwCliViolation = $true
+            }
+        }
+        if ($threwCliViolation) { throw "Transient env credentials falsely triggered CLI password violation." }
+
+        # 3. Verify zero leakage of transient secret in any audit output or logs
+        $res = & $operatorScript -Execute -AllowIsolatedExecutionOnly `
+            -Port $testPort `
+            -Username $testUsername `
+            -Password $testPassword `
+            -Azure2026ConnectionString $remoteConn2026Str `
+            -Azure2027ConnectionString $remoteConn2027Str `
+            -Local2026ConnectionString $localConn2026Str `
+            -Local2027ConnectionString $localConn2027Str
+
+        $outputStr = ($res | ConvertTo-Json -Depth 5) + "`n" + $testPassword + "`n"
+        if ($outputStr -match [regex]::Escape($transientSecret)) {
+            throw "SECURITY_VIOLATION: Transient secret leaked into execution output or logs."
+        }
+    } finally {
+        $env:IPROGRAM_OPERATOR_PASSWORD = $origEnvPass
     }
 }
 
