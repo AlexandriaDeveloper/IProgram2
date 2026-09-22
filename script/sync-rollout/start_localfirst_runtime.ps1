@@ -21,7 +21,7 @@ using namespace System.Net.Sockets
 [CmdletBinding()]
 param (
     [Parameter(Position = 0)]
-    [ValidateSet("Start", "Stop", "Status", "Restart")]
+    [ValidateSet("Start", "Stop", "Status", "Restart", "Run")]
     [string]$Action = "Start",
 
     [int]$Port = 5000,
@@ -31,6 +31,7 @@ param (
     [string]$OverrideLocal2026ConnStr,
     [string]$OverrideLocal2027ConnStr,
     [string]$OverridePidFilePath,
+    [switch]$Wait,
     [switch]$ExportFunctionsOnly
 )
 
@@ -436,6 +437,16 @@ switch ($Action) {
         return
     }
 
+    "Run" {
+        & $PSCommandPath Start -Port $Port -ExpectedMasterSha $ExpectedMasterSha `
+            -SkipGitVerification:$SkipGitVerification `
+            -AllowIsolatedTestMode:$AllowIsolatedTestMode `
+            -OverrideLocal2026ConnStr $OverrideLocal2026ConnStr `
+            -OverrideLocal2027ConnStr $OverrideLocal2027ConnStr `
+            -OverridePidFilePath $OverridePidFilePath -Wait
+        return
+    }
+
     "Start" {
         Write-Host "==========================================================================" -ForegroundColor Cyan
         Write-Host "  STARTING OPERATIONAL LOCALFIRST RUNTIME                                 " -ForegroundColor Cyan
@@ -548,6 +559,16 @@ switch ($Action) {
             Write-Host "Azure Connections:     BLOCKED (Loopback Tripwire Active)"
             Write-Host "Process PID:           $($proc.Id)"
             Write-Host "==========================================================================" -ForegroundColor Green
+
+            if ($Wait) {
+                Write-Host "LocalFirst runtime running in foreground (Ctrl+C or Stop command to terminate)..."
+                try {
+                    $proc.WaitForExit()
+                } finally {
+                    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                }
+                return
+            }
 
             return [PSCustomObject]@{
                 Status = "RUNNING"
