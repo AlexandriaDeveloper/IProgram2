@@ -134,3 +134,6 @@ tests/pdf_debug.txt
 script/*.sql
 *.generated.sql
 
+# Runtime PID files
+*.pid
+.localfirst_runtime.pid
