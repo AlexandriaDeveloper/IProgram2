@@ -1,0 +1,65 @@
+﻿{
+    "Slice":  "4.5C",
+    "Title":  "Isolated Local Cutover Rehearsal Report",
+    "TimestampUtc":  "2026-09-22T05:22:55Z",
+    "Baseline_Master_Sha":  "3499fce7f5ceeaef933ca21823775fb4966a6dbd",
+    "SqlCompatibilityLevel":  120,
+    "OperationalDatabasesTouched":  0,
+    "Phases":  {
+                   "Phase_A_Bootstrap_Readiness":  {
+                                                       "WriteGateFailClosedProven":  true,
+                                                       "Status":  "PASS",
+                                                       "VerifiedReadyPermitted":  true,
+                                                       "Sql2014Compatibility":  120
+                                                   },
+                   "Phase_B_Local_Runtime_Remote_Unavailable":  {
+                                                                    "RuntimeMode":  "OfflineReadWritePilot",
+                                                                    "LocalReadsVerified":  true,
+                                                                    "ReadOnlyMode":  false,
+                                                                    "RemoteTripwireUntouched":  true,
+                                                                    "LocalAuthenticationVerified":  true,
+                                                                    "Status":  "PASS",
+                                                                    "LocalFirstEnabled":  true
+                                                                },
+                   "Phase_C_Offline_Daily_Write_And_Rollback":  {
+                                                                    "Status":  "PASS",
+                                                                    "AtomicWriteCommitted":  true,
+                                                                    "FaultInjectionRollbackProven":  true,
+                                                                    "OutOfScopeWriteBlocked":  true
+                                                                },
+                   "Phase_D_Restart_Durability":  {
+                                                      "Status":  "PASS",
+                                                      "RestartSuccessful":  true,
+                                                      "SecondOfflineMutationSucceeded":  true,
+                                                      "DailyRowPersisted":  true,
+                                                      "PendingOutboxPersisted":  true
+                                                  },
+                   "Phase_E_Isolated_Push":  {
+                                                 "RemoteServerVersion":  2,
+                                                 "Status":  "PASS",
+                                                 "OutboxPushed":  2,
+                                                 "IdempotentRetryZeroDuplicates":  true,
+                                                 "RemoteFeedCount":  2
+                                             },
+                   "Phase_F_Isolated_Pull_Convergence":  {
+                                                             "ClientBFinalWatermark":  2,
+                                                             "ClientBInitialWatermark":  0,
+                                                             "CryptographicHashParity":  true,
+                                                             "RemoteServerVersion":  2,
+                                                             "Status":  "PASS",
+                                                             "IdempotentPullNoOp":  true
+                                                         },
+                   "Phase_G_Final_Restart_Local_Usability":  {
+                                                                 "Status":  "PASS",
+                                                                 "ZeroRemoteDependencyConfirmed":  true,
+                                                                 "LocalUsabilityVerified":  true
+                                                             },
+                   "Phase_H_Clean_Teardown":  {
+                                                  "Status":  "PASS",
+                                                  "ProcessesStopped":  true,
+                                                  "OperationalDatabasesTouched":  0,
+                                                  "DatabasesDropped":  true
+                                              }
+               },
+    "OverallResult":  "PASS"
+}
