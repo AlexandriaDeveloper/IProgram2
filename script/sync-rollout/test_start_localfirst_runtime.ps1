@@ -257,23 +257,59 @@ try {
         if ($validFixture.InitialCatalog -ne $fixtureDb2026) { throw "Fixture binding mismatch" }
     }
 
-    # --- TEST 3: CLI Connection String Override Guard (P0-3) ---
-    Assert-Test "Operational mode strictly rejects CLI connection string overrides" {
-        $failedCli = $false
+    # --- TEST 3: CLI Connection String & Git Override Guards (P0-3 & P0-A) ---
+    Assert-Test "Operational mode strictly rejects CLI connection string and git bypass flags" {
+        # A. Connection string override rejected
+        $failedConn = $false
         try {
-            # Execute launcher without -AllowIsolatedTestMode but with CLI override
             & $launcherScript Status -OverrideLocal2026ConnStr "Server=localhost;Database=fake;" | Out-Null
         } catch {
-            if ($_.Exception.Message -match "CLI_OVERRIDE_FORBIDDEN") { $failedCli = $true }
+            if ($_.Exception.Message -match "CLI_OVERRIDE_FORBIDDEN") { $failedConn = $true }
         }
-        if (-not $failedCli) { throw "Failed to reject CLI connection string override in operational mode!" }
+        if (-not $failedConn) { throw "Failed to reject CLI connection string override in operational mode!" }
+
+        # B. -SkipGitVerification rejected in operational mode
+        $failedSkipGit = $false
+        try {
+            & $launcherScript Status -SkipGitVerification | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "CLI_OVERRIDE_FORBIDDEN") { $failedSkipGit = $true }
+        }
+        if (-not $failedSkipGit) { throw "Failed to reject -SkipGitVerification in operational mode!" }
+
+        # C. -AllowNonMaster rejected in operational mode
+        $failedAllowNonMaster = $false
+        try {
+            & $launcherScript Status -AllowNonMaster | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "CLI_OVERRIDE_FORBIDDEN") { $failedAllowNonMaster = $true }
+        }
+        if (-not $failedAllowNonMaster) { throw "Failed to reject -AllowNonMaster in operational mode!" }
     }
 
-    # --- TEST 4: Git Operational Safety Gate (P0-2) ---
-    Assert-Test "Git safety gate validates master branch and clean working tree in operational mode" {
+    # --- TEST 4: Git Operational Safety Gate (P0-2 & P0-A) ---
+    Assert-Test "Git safety gate validates master branch, rejects bypass flags in operational mode, and allows them in test mode" {
+        # A. In operational mode (IsTestMode = false), passing SkipGit throws CLI_OVERRIDE_FORBIDDEN
+        $failedOpSkip = $false
+        try {
+            Assert-GitOperationalSafety -RepoRoot $repoRoot -SkipGit $true -IsTestMode $false | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "CLI_OVERRIDE_FORBIDDEN") { $failedOpSkip = $true }
+        }
+        if (-not $failedOpSkip) { throw "Assert-GitOperationalSafety failed to reject SkipGit in operational mode!" }
+
+        # B. In operational mode (IsTestMode = false), passing AllowNonMaster throws CLI_OVERRIDE_FORBIDDEN
+        $failedOpNonMaster = $false
+        try {
+            Assert-GitOperationalSafety -RepoRoot $repoRoot -AllowNonMaster $true -IsTestMode $false | Out-Null
+        } catch {
+            if ($_.Exception.Message -match "CLI_OVERRIDE_FORBIDDEN") { $failedOpNonMaster = $true }
+        }
+        if (-not $failedOpNonMaster) { throw "Assert-GitOperationalSafety failed to reject AllowNonMaster in operational mode!" }
+
+        # C. Non-master branch without bypass throws fail-closed
         $currentBranch = (git -C $repoRoot branch --show-current).Trim()
         if ($currentBranch -ne "master") {
-            # Since we are currently on a feature branch, operational mode must fail closed
             $failedBranch = $false
             try {
                 Assert-GitOperationalSafety -RepoRoot $repoRoot -SkipGit $false -AllowNonMaster $false -IsTestMode $false | Out-Null
@@ -283,9 +319,13 @@ try {
             if (-not $failedBranch) { throw "Failed to reject non-master branch in operational mode!" }
         }
 
-        # Test mode allows bypass
+        # D. In test mode (IsTestMode = true), AllowNonMaster passes
         $testPass = Assert-GitOperationalSafety -RepoRoot $repoRoot -SkipGit $false -AllowNonMaster $true -IsTestMode $true
         if (-not $testPass) { throw "Test mode Git bypass returned false" }
+
+        # E. In test mode (IsTestMode = true), SkipGit passes
+        $testSkipPass = Assert-GitOperationalSafety -RepoRoot $repoRoot -SkipGit $true -IsTestMode $true
+        if (-not $testSkipPass) { throw "Test mode SkipGit returned false" }
     }
 
     # --- TEST 5: Token Key Secret Boundary (P0-4) ---
@@ -496,6 +536,21 @@ VALUES ('2026', 'UPSERT', 'Daily', NEWID(), '{"Name":"Legitimate Offline Daily W
                 }
                 Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
             }
+        }
+    }
+
+    # --- TEST 9: Artifact Identity & Deterministic Build (P0-7 & P0-B) ---
+    Assert-Test "Assert-LocalReleaseArtifact unconditionally executes local build in operational mode" {
+        # A. In operational mode (IsTestMode = false), Assert-LocalReleaseArtifact executes build and returns valid DLL
+        $builtDll = Assert-LocalReleaseArtifact -RepoRoot $repoRoot -IsTestMode $false
+        if (-not (Test-Path $builtDll)) {
+            throw "Assert-LocalReleaseArtifact failed to produce DLL at $builtDll"
+        }
+
+        # B. In test mode (IsTestMode = true), fast path succeeds without error
+        $testDll = Assert-LocalReleaseArtifact -RepoRoot $repoRoot -IsTestMode $true
+        if ($testDll -ne $builtDll) {
+            throw "Test mode artifact mismatch"
         }
     }
 } finally {

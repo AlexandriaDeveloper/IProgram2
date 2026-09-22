@@ -224,7 +224,7 @@ function Assert-LocalPhysicalBinding {
     return $builder
 }
 
-# --- 4. Git Operational Safety Gate (P0-2) ---
+# --- 4. Git Operational Safety Gate (P0-2 & P0-A) ---
 function Assert-GitOperationalSafety {
     param(
         [string]$RepoRoot,
@@ -233,9 +233,14 @@ function Assert-GitOperationalSafety {
         [bool]$IsTestMode = $false
     )
 
-    if ($SkipGit) { return $true }
+    if (-not $IsTestMode) {
+        if ($SkipGit) {
+            throw "CLI_OVERRIDE_FORBIDDEN: -SkipGitVerification is strictly forbidden in operational mode. Operational LocalFirst runtime must verify git master parity. Pass -AllowIsolatedTestMode for test fixtures."
+        }
+        if ($AllowNonMaster) {
+            throw "CLI_OVERRIDE_FORBIDDEN: -AllowNonMaster is strictly forbidden in operational mode. Operational LocalFirst runtime must run exclusively from 'master'. Pass -AllowIsolatedTestMode for test fixtures."
+        }
 
-    if (-not $IsTestMode -and -not $AllowNonMaster) {
         # 1. Branch must be master
         $branch = (git -C $RepoRoot branch --show-current 2>$null)
         if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
@@ -266,10 +271,14 @@ function Assert-GitOperationalSafety {
             throw "PREFLIGHT_FAIL: Local HEAD ($localHead) does not match live origin/master ($remoteSha)."
         }
     } else {
-        # Test mode: verify local HEAD exists
-        $localHead = (git -C $RepoRoot rev-parse HEAD 2>$null)
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($localHead)) {
-            throw "PREFLIGHT_FAIL: Unable to resolve local git HEAD commit."
+        if ($SkipGit) { return $true }
+        if ($AllowNonMaster) {
+            # In test mode with AllowNonMaster, verify local HEAD exists
+            $localHead = (git -C $RepoRoot rev-parse HEAD 2>$null)
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($localHead)) {
+                throw "PREFLIGHT_FAIL: Unable to resolve local git HEAD commit."
+            }
+            return $true
         }
     }
 
@@ -481,6 +490,36 @@ function Assert-ProcessMatchesState($proc, $state) {
     return $true
 }
 
+# --- 7. Artifact Identity & Deterministic Build (P0-7 & P0-B) ---
+function Assert-LocalReleaseArtifact {
+    param(
+        [string]$RepoRoot,
+        [bool]$IsTestMode = $false
+    )
+
+    $apiDll = Join-Path $RepoRoot "src\Api\bin\Release\net10.0\Auth.Api.dll"
+    $apiProj = Join-Path $RepoRoot "src\Api\Auth.Api.csproj"
+
+    if (-not $IsTestMode) {
+        Write-Host "Building Release binary locally from current verified commit..." -NoNewline
+        $buildOut = (& dotnet build $apiProj -c Release --no-restore 2>&1)
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $apiDll)) {
+            Write-Host " FAILED" -ForegroundColor Red
+            throw "BUILD_FAILED: Local Release build failed. Cannot launch operational runtime.`n$buildOut"
+        }
+        Write-Host " Done." -ForegroundColor Green
+    } else {
+        if (-not (Test-Path $apiDll)) {
+            $buildOut = (& dotnet build $apiProj -c Release --no-restore 2>&1)
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $apiDll)) {
+                throw "BUILD_FAILED: Local Release build failed. Cannot launch runtime.`n$buildOut"
+            }
+        }
+    }
+
+    return $apiDll
+}
+
 if ($ExportFunctionsOnly) {
     return
 }
@@ -498,8 +537,14 @@ $stateFilePath = if (-not [string]::IsNullOrWhiteSpace($OverrideStateFilePath)) 
     Join-Path $PSScriptRoot ".localfirst_runtime_state.json"
 }
 
-# CLI Connection String Overrides Guard (P0-3)
+# CLI Parameter Overrides Guard (P0-3 & P0-A)
 if (-not $AllowIsolatedTestMode) {
+    if ($SkipGitVerification) {
+        throw "CLI_OVERRIDE_FORBIDDEN: -SkipGitVerification is strictly forbidden in operational mode. Operational LocalFirst runtime must verify git master parity. Pass -AllowIsolatedTestMode for test fixtures."
+    }
+    if ($AllowNonMaster) {
+        throw "CLI_OVERRIDE_FORBIDDEN: -AllowNonMaster is strictly forbidden in operational mode. Operational LocalFirst runtime must run exclusively from 'master'. Pass -AllowIsolatedTestMode for test fixtures."
+    }
     if (-not [string]::IsNullOrWhiteSpace($OverrideLocal2026ConnStr) -or -not [string]::IsNullOrWhiteSpace($OverrideLocal2027ConnStr)) {
         throw "CLI_OVERRIDE_FORBIDDEN: Connection string CLI overrides are strictly forbidden in operational mode to prevent secrets and foreign topologies from shell history. In operational mode, connections are loaded exclusively from appsettings.json. Pass -AllowIsolatedTestMode for test fixtures."
     }
@@ -668,15 +713,8 @@ switch ($Action) {
             [Environment]::SetEnvironmentVariable($k, $childEnv[$k], "Process")
         }
 
-        # 5. Artifact Identity & Verification (P0-7)
-        $apiDll = Join-Path $repoRoot "src\Api\bin\Release\net10.0\Auth.Api.dll"
-        if (-not (Test-Path $apiDll)) {
-            Write-Host "Application binary missing at '$apiDll'. Building Release binary locally..."
-            & dotnet build (Join-Path $repoRoot "src\Api\Auth.Api.csproj") -c Release --no-restore
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $apiDll)) {
-                throw "BUILD_FAILED: Local Release build failed. Cannot launch runtime."
-            }
-        }
+        # 5. Artifact Identity & Verification (P0-7 & P0-B)
+        $apiDll = Assert-LocalReleaseArtifact -RepoRoot $repoRoot -IsTestMode $AllowIsolatedTestMode
 
         # 6. Log Directory & File (P1)
         $logsDir = Join-Path $PSScriptRoot "logs"
