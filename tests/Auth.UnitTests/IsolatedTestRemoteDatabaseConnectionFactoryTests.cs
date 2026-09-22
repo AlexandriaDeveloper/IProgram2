@@ -56,7 +56,7 @@ namespace Auth.UnitTests
         {
             var inMemorySettings = new Dictionary<string, string?>
             {
-                { "ConnectionStrings:SomeOtherConnection", "Server=test;" }
+                { "ConnectionStrings:SomeOtherConnection", "MUST_NOT_BE_READ" }
             };
             var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
             var factory = new IsolatedTestRemoteDatabaseConnectionFactory(config);
@@ -75,7 +75,7 @@ namespace Auth.UnitTests
         {
             var inMemorySettings = new Dictionary<string, string?>
             {
-                { "ConnectionStrings:SomeOtherConnection", "Server=test;" }
+                { "ConnectionStrings:SomeOtherConnection", "MUST_NOT_BE_READ" }
             };
             var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
             var factory = new IsolatedTestRemoteDatabaseConnectionFactory(config);
@@ -92,10 +92,10 @@ namespace Auth.UnitTests
         [Fact]
         public async Task CreateOpenConnectionAsync_2026_WithProductionDefaultConnectionPresent_DoesNotFallback_ThrowsInvalidOperationException()
         {
-            // Even if DefaultConnection (Azure Production) is configured, the factory must fail closed and NEVER fall back
+            // Even if DefaultConnection is configured, the factory must fail closed and NEVER fall back
             var inMemorySettings = new Dictionary<string, string?>
             {
-                { "ConnectionStrings:DefaultConnection", "Server=tcp:iprogram-server.database.windows.net;Database=IProgramDb2026;" }
+                { "ConnectionStrings:DefaultConnection", "MUST_NOT_BE_READ" }
             };
             var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
             var factory = new IsolatedTestRemoteDatabaseConnectionFactory(config);
@@ -112,10 +112,10 @@ namespace Auth.UnitTests
         [Fact]
         public async Task CreateOpenConnectionAsync_2027_WithProductionCON2027Present_DoesNotFallback_ThrowsInvalidOperationException()
         {
-            // Even if CON2027 (Azure Production) is configured, the factory must fail closed and NEVER fall back
+            // Even if CON2027 is configured, the factory must fail closed and NEVER fall back
             var inMemorySettings = new Dictionary<string, string?>
             {
-                { "ConnectionStrings:CON2027", "Server=tcp:iprogram-server.database.windows.net;Database=IProgramDb2027;" }
+                { "ConnectionStrings:CON2027", "MUST_NOT_BE_READ" }
             };
             var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
             var factory = new IsolatedTestRemoteDatabaseConnectionFactory(config);
