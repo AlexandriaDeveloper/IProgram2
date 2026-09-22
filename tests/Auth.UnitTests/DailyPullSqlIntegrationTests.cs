@@ -1608,5 +1608,300 @@ namespace Auth.UnitTests
         }
 
         #endregion
+        #region Scenario 18: Deterministic Concurrent Authoritative Advance Blocked Under Reader Fence
+
+        private sealed class HookedAzureFencedBatchReader : IAzureFencedBatchReader
+        {
+            private readonly IRemoteDatabaseConnectionFactory _remoteFactory;
+            private readonly Func<long, SqlConnection, SqlTransaction, Task> _onFenceAcquired;
+
+            public HookedAzureFencedBatchReader(
+                IRemoteDatabaseConnectionFactory remoteFactory,
+                Func<long, SqlConnection, SqlTransaction, Task> onFenceAcquired)
+            {
+                _remoteFactory = remoteFactory;
+                _onFenceAcquired = onFenceAcquired;
+            }
+
+            public async Task<FencedPullBatch> ReadFencedBatchAsync(string databaseId, long localLastServerVersion, CancellationToken cancellationToken)
+            {
+                await using var connection = (SqlConnection)await _remoteFactory.CreateOpenConnectionAsync(databaseId, cancellationToken);
+                await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+                // Phase 1: High-Watermark Fence with (UPDLOCK, HOLDLOCK)
+                long highWatermark;
+                await using (var stateCmd = connection.CreateCommand())
+                {
+                    stateCmd.Transaction = transaction;
+                    stateCmd.CommandText = @"
+                        SELECT CurrentVersion
+                        FROM [sync].[ServerState] WITH (UPDLOCK, HOLDLOCK)
+                        WHERE DatabaseId = @DatabaseId;";
+                    stateCmd.Parameters.AddWithValue("@DatabaseId", databaseId);
+                    var scalar = await stateCmd.ExecuteScalarAsync(cancellationToken);
+                    highWatermark = Convert.ToInt64(scalar);
+                }
+
+                // Deterministic Coordination Hook: Invoke callback while lock is actively held!
+                await _onFenceAcquired(highWatermark, connection, transaction);
+
+                // Checkpoint comparison
+                if (highWatermark == localLastServerVersion)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                    return FencedPullBatch.CreateNoOp(databaseId, localLastServerVersion);
+                }
+
+                // Phase 2: Feed Window
+                var rawFeedEvents = new List<ServerChangeFeed>();
+                await using (var feedCmd = connection.CreateCommand())
+                {
+                    feedCmd.Transaction = transaction;
+                    feedCmd.CommandText = @"
+                        SELECT FeedId, ServerVersion, DatabaseId, EntityType, EntitySyncId, OperationType, OriginDeviceId, TimestampUtc
+                        FROM [sync].[ServerChangeFeed]
+                        WHERE DatabaseId = @DatabaseId
+                          AND ServerVersion > @LowWatermark
+                          AND ServerVersion <= @HighWatermark
+                        ORDER BY ServerVersion ASC;";
+                    feedCmd.Parameters.AddWithValue("@DatabaseId", databaseId);
+                    feedCmd.Parameters.AddWithValue("@LowWatermark", localLastServerVersion);
+                    feedCmd.Parameters.AddWithValue("@HighWatermark", highWatermark);
+
+                    await using var reader = await feedCmd.ExecuteReaderAsync(cancellationToken);
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        rawFeedEvents.Add(new ServerChangeFeed
+                        {
+                            FeedId = reader.GetInt64(0),
+                            ServerVersion = reader.GetInt64(1),
+                            DatabaseId = reader.GetString(2),
+                            EntityType = reader.GetString(3),
+                            EntitySyncId = reader.GetGuid(4),
+                            OperationType = reader.GetString(5),
+                            OriginDeviceId = reader.GetGuid(6),
+                            TimestampUtc = reader.GetDateTime(7)
+                        });
+                    }
+                }
+
+                // Phase 3 & 4: Materialize
+                var commands = new List<PullCommand>();
+                foreach (var evt in rawFeedEvents)
+                {
+                    if (evt.OperationType.Equals("INSERT", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await using var dailyCmd = connection.CreateCommand();
+                        dailyCmd.Transaction = transaction;
+                        dailyCmd.CommandText = "SELECT SyncId, Name, DailyDate, Closed, CreatedAt, IsActive FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                        dailyCmd.Parameters.AddWithValue("@SyncId", evt.EntitySyncId);
+                        await using var rdr = await dailyCmd.ExecuteReaderAsync(cancellationToken);
+                        if (await rdr.ReadAsync(cancellationToken))
+                        {
+                            var snapshot = new DailyAuthoritativeSnapshot
+                            {
+                                SyncId = rdr.GetGuid(0),
+                                Name = rdr.GetString(1),
+                                DailyDate = rdr.GetDateTime(2),
+                                Closed = rdr.GetBoolean(3),
+                                CreatedAt = rdr.GetDateTime(4),
+                                IsActive = rdr.GetBoolean(5)
+                            };
+                            commands.Add(PullCommand.CreateUpsert(snapshot, evt.ServerVersion));
+                        }
+                    }
+                }
+
+                // Phase 5: Commit and release Azure fence
+                await transaction.CommitAsync(cancellationToken);
+
+                return new FencedPullBatch
+                {
+                    DatabaseId = databaseId,
+                    LowWatermark = localLastServerVersion,
+                    HighWatermark = highWatermark,
+                    IsNoOp = false,
+                    Commands = commands
+                };
+            }
+        }
+
+        [Fact]
+        public async Task Scenario18_DeterministicConcurrentAuthoritativeAdvance_BlockedUnderReaderFence_DoesNotCorruptCompletedAttempt()
+        {
+            await using var ctx = await PullSqlTestContext.CreateAsync("2026");
+            var syncId1 = Guid.NewGuid();
+            var syncId2 = Guid.NewGuid();
+
+            // 1. Seed Remote with version 1: Daily record 'Daily_V1', feed event 1, ServerState.CurrentVersion = 1
+            await using (var seedConn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await seedConn.OpenAsync();
+                await using var cmd = seedConn.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE [sync].[ServerState] SET CurrentVersion = 1, LastUpdatedUtc = SYSUTCDATETIME() WHERE DatabaseId = '2026';
+                    INSERT INTO [sync].[ServerChangeFeed]
+                    (ServerVersion, DatabaseId, EntityType, EntitySyncId, OperationType, OriginDeviceId, TimestampUtc)
+                    VALUES
+                    (1, '2026', 'Daily', @SyncId1, 'INSERT', NEWID(), SYSUTCDATETIME());
+                    INSERT INTO [dbo].[Daily]
+                    (SyncId, Name, DailyDate, Closed, CreatedAt, IsActive)
+                    VALUES
+                    (@SyncId1, 'Daily_V1', '2026-03-01', 0, SYSUTCDATETIME(), 1);";
+                cmd.Parameters.AddWithValue("@SyncId1", syncId1);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Local starts at W = 0 (< H = 1)
+            var localVerInitial = await GetLocalServerVersionAsync(ctx.LocalConnStr, "2026");
+            Assert.Equal(0, localVerInitial);
+
+            var writerStartedTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var writerCompleted = false;
+
+            // Define the hook to run while reader holds the fence lock:
+            Task writerTask = Task.CompletedTask;
+            var hookedReader = new HookedAzureFencedBatchReader(ctx.CreateRemoteFactory(), async (highWatermark, readerConn, readerTx) =>
+            {
+                Assert.Equal(1, highWatermark); // H_exec = 1
+
+                // Get reader SPID
+                int readerSpid;
+                await using (var spidCmd = readerConn.CreateCommand())
+                {
+                    spidCmd.Transaction = readerTx;
+                    spidCmd.CommandText = "SELECT @@SPID;";
+                    readerSpid = Convert.ToInt32(await spidCmd.ExecuteScalarAsync());
+                }
+
+                // Start concurrent authoritative writer attempting version 2 while reader fence is held
+                writerTask = Task.Run(async () =>
+                {
+                    await using var writerConn = new SqlConnection(ctx.RemoteConnStr);
+                    await writerConn.OpenAsync();
+
+                    int writerSpid;
+                    await using (var wSpidCmd = writerConn.CreateCommand())
+                    {
+                        wSpidCmd.CommandText = "SELECT @@SPID;";
+                        writerSpid = Convert.ToInt32(await wSpidCmd.ExecuteScalarAsync());
+                    }
+                    writerStartedTcs.SetResult(writerSpid);
+
+                    await using var writerTx = (SqlTransaction)await writerConn.BeginTransactionAsync(IsolationLevel.Serializable);
+                    await using var writerCmd = writerConn.CreateCommand();
+                    writerCmd.Transaction = writerTx;
+                    writerCmd.CommandTimeout = 30;
+                    writerCmd.CommandText = @"
+                        SELECT CurrentVersion FROM [sync].[ServerState] WITH (UPDLOCK, HOLDLOCK) WHERE DatabaseId = '2026';
+                        UPDATE [sync].[ServerState] SET CurrentVersion = 2, LastUpdatedUtc = SYSUTCDATETIME() WHERE DatabaseId = '2026';
+                        INSERT INTO [sync].[ServerChangeFeed]
+                        (ServerVersion, DatabaseId, EntityType, EntitySyncId, OperationType, OriginDeviceId, TimestampUtc)
+                        VALUES
+                        (2, '2026', 'Daily', @SyncId2, 'INSERT', NEWID(), SYSUTCDATETIME());
+                        INSERT INTO [dbo].[Daily]
+                        (SyncId, Name, DailyDate, Closed, CreatedAt, IsActive)
+                        VALUES
+                        (@SyncId2, 'Daily_V2', '2026-03-02', 0, SYSUTCDATETIME(), 1);";
+                    writerCmd.Parameters.AddWithValue("@SyncId2", syncId2);
+                    await writerCmd.ExecuteNonQueryAsync();
+                    await writerTx.CommitAsync();
+                    writerCompleted = true;
+                });
+
+                var writerSpidVal = await writerStartedTcs.Task;
+
+                // Deterministic coordination evidence: Poll sys.dm_os_waiting_tasks
+                // Proves that writer is actively blocked by the reader's lock on ServerState
+                var isBlocked = false;
+                for (var i = 0; i < 50; i++)
+                {
+                    await Task.Delay(50);
+                    await using var diagConn = new SqlConnection(ctx.RemoteConnStr);
+                    await diagConn.OpenAsync();
+                    await using var diagCmd = diagConn.CreateCommand();
+                    diagCmd.CommandText = @"
+                        SELECT COUNT(*)
+                        FROM sys.dm_os_waiting_tasks
+                        WHERE session_id = @WriterSpid
+                          AND blocking_session_id = @ReaderSpid
+                          AND wait_type LIKE 'LCK%';";
+                    diagCmd.Parameters.AddWithValue("@WriterSpid", writerSpidVal);
+                    diagCmd.Parameters.AddWithValue("@ReaderSpid", readerSpid);
+                    var count = Convert.ToInt32(await diagCmd.ExecuteScalarAsync());
+                    if (count > 0)
+                    {
+                        isBlocked = true;
+                        break;
+                    }
+                }
+
+                Assert.True(isBlocked, "Concurrent writer MUST be deterministically blocked by the reader's UPDLOCK/HOLDLOCK fence in sys.dm_os_waiting_tasks.");
+                Assert.False(writerCompleted, "Writer must not complete while fence is held.");
+
+                // While writer is blocked, verify remote ServerState is still 1
+                await using (var chkConn = new SqlConnection(ctx.RemoteConnStr))
+                {
+                    await chkConn.OpenAsync();
+                    await using var chkCmd = chkConn.CreateCommand();
+                    chkCmd.CommandText = "SELECT CurrentVersion FROM [sync].[ServerState] WITH (NOLOCK) WHERE DatabaseId = '2026';";
+                    var verWhileBlocked = Convert.ToInt64(await chkCmd.ExecuteScalarAsync());
+                    Assert.Equal(1, verWhileBlocked);
+                }
+            });
+
+            // 3. Execute Pull 1 using hooked reader
+            var syncProvider = ctx.CreateSyncProvider();
+            var leaseManager = new LocalPullLeaseManager(syncProvider, NullLogger<LocalPullLeaseManager>.Instance);
+            var coordinator = new LocalPullTransactionCoordinator(syncProvider, NullLogger<LocalPullTransactionCoordinator>.Instance);
+            var pullConfig = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sync:PullEnabled"] = "true",
+                ["Sync:PushEnabled"] = "false",
+                ["Sync:AuthoritativeTrackingEnabled"] = "false"
+            }).Build();
+
+            var pullService = new LocalDailyPullService(syncProvider, leaseManager, hookedReader, coordinator, pullConfig, NullLogger<LocalDailyPullService>.Instance);
+            var pullResult1 = await pullService.PullDailyChangesAsync(CancellationToken.None);
+
+            // 4. Invariant checks for Pull 1:
+            // FinalServerVersion equals exactly the fenced H_exec (1)
+            Assert.Equal(1, pullResult1.FinalServerVersion);
+            Assert.Equal(0, pullResult1.PreviousWatermark);
+            Assert.False(pullResult1.IsNoOp);
+
+            // Local LastServerVersion equals exactly H_exec (1)
+            var localVerAfterPull1 = await GetLocalServerVersionAsync(ctx.LocalConnStr, "2026");
+            Assert.Equal(1, localVerAfterPull1);
+
+            // 5. After reader released fence (upon transaction commit), writer completes
+            await writerTask;
+            Assert.True(writerCompleted, "Concurrent writer must complete after reader releases fence.");
+
+            // Verify remote ServerState is now 2
+            await using (var postConn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await postConn.OpenAsync();
+                await using var postCmd = postConn.CreateCommand();
+                postCmd.CommandText = "SELECT CurrentVersion FROM [sync].[ServerState] WHERE DatabaseId = '2026';";
+                var verAfterWriter = Convert.ToInt64(await postCmd.ExecuteScalarAsync());
+                Assert.Equal(2, verAfterWriter);
+            }
+
+            // 6. Next pull attempt advances to version 2
+            var actualReader = new AzureFencedBatchReader(ctx.CreateRemoteFactory(), NullLogger<AzureFencedBatchReader>.Instance);
+            var standardPullService = new LocalDailyPullService(syncProvider, leaseManager, actualReader, coordinator, pullConfig, NullLogger<LocalDailyPullService>.Instance);
+            var pullResult2 = await standardPullService.PullDailyChangesAsync(CancellationToken.None);
+
+            Assert.Equal(2, pullResult2.FinalServerVersion);
+            Assert.Equal(1, pullResult2.PreviousWatermark);
+            Assert.False(pullResult2.IsNoOp);
+
+            var localVerAfterPull2 = await GetLocalServerVersionAsync(ctx.LocalConnStr, "2026");
+            Assert.Equal(2, localVerAfterPull2);
+        }
+
+        #endregion
     }
 }
+
