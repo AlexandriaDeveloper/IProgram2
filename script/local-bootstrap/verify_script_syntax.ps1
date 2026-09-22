@@ -17,7 +17,9 @@ $targetScripts = @(
     "script/local-bootstrap/verify_authoritative_daily_tracking_smoke.ps1",
     "script/sync-rollout/audit_production_baseline.ps1",
     "script/sync-rollout/test_audit_production_baseline.ps1",
-    "script/sync-rollout/audit_authoritative_cutover.ps1"
+    "script/sync-rollout/audit_authoritative_cutover.ps1",
+    "script/sync-rollout/execute_daily_pull_catchup.ps1",
+    "script/sync-rollout/test_execute_daily_pull_catchup_isolated.ps1"
 )
 
 Write-Host "============================================================" -ForegroundColor Cyan
