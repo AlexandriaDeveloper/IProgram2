@@ -3,13 +3,21 @@
 # Dynamic, fail-closed, observable operator tool for Daily Pull catch-up.
 #
 # Semantic Model:
-#   W        = current local LastServerVersion
-#   V_target = remote ServerState.CurrentVersion captured at start of catch-up attempt
+#   W          = Current local LastServerVersion (local checkpoint).
+#   V_observed = Advisory remote ServerState.CurrentVersion observed by operator during preflight.
+#   H_exec     = Authoritative execution target captured by AzureFencedBatchReader
+#                inside its SERIALIZABLE (UPDLOCK, HOLDLOCK) fence.
 #   Invariants:
-#     - W <= V_target required.
-#     - W == V_target : Deterministic NO-OP (0 business mutations).
-#     - W < V_target  : Advance local checkpoint to V_target.
-#     - W > V_target  : FAIL CLOSED (Checkpoint ahead of server invariant violation).
+#     - W <= V_observed required for preflight integrity.
+#     - W > V_observed  : FAIL CLOSED immediately before any sync calls
+#                         (INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER).
+#     - The pull applies exactly H_exec under Azure fence.
+#     - Local checkpoint after success equals exactly H_exec.
+#     - If W == H_exec  : Deterministic NO-OP (0 business data mutations, unchanged checkpoint).
+#     - Authoritative writers attempting to advance ServerState AFTER H_exec is fenced
+#       must wait until reader releases fence; those belong to the next pull attempt.
+#     - If remote advanced BEFORE execution fence was acquired, that newer version
+#       is legitimately part of the current H_exec.
 #
 # Modes:
 #   -DryRun  : Pure read-only preflight verification across Remote & Local.
@@ -272,15 +280,15 @@ function Invoke-PreflightVerification {
     $localConn.Open()
 
     try {
-        # A. Remote Invariants: Capture V_target
+        # A. Remote Invariants: Capture V_observed (Advisory Preflight Observation)
         $cmdAz = $azureConn.CreateCommand()
         $cmdAz.CommandText = "SELECT CurrentVersion FROM [sync].[ServerState] WHERE DatabaseId = @DatabaseId;"
         $p = $cmdAz.CreateParameter(); $p.ParameterName = "@DatabaseId"; $p.Value = $Year; $cmdAz.Parameters.Add($p) | Out-Null
-        $vTargetObj = $cmdAz.ExecuteScalar()
-        if ($vTargetObj -eq $null -or $vTargetObj -eq [DBNull]::Value) {
+        $vObservedObj = $cmdAz.ExecuteScalar()
+        if ($vObservedObj -eq $null -or $vObservedObj -eq [DBNull]::Value) {
             throw "PREFLIGHT_FAIL: Remote ServerState record does not exist for DatabaseId '$Year'."
         }
-        $vTarget = [int64]$vTargetObj
+        $vObserved = [int64]$vObservedObj
 
         # Remote Feed Entries
         $cmdFeed = $azureConn.CreateCommand()
@@ -310,26 +318,26 @@ function Invoke-PreflightVerification {
         $w = [int64]$wObj
 
         # Dynamic Watermark Validation
-        Write-Host "  Watermark check for $($Year): Local W=$w, Remote V_target=$vTarget" -ForegroundColor Cyan
+        Write-Host "  Watermark check for $($Year): Local W=$w, Remote V_observed=$vObserved" -ForegroundColor Cyan
         
-        # Guard: W <= V_target required. Fail closed if W > V_target
-        if ($w -gt $vTarget) {
-            throw "INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER: Local checkpoint W ($w) is ahead of remote V_target ($vTarget) for DatabaseId '$Year'."
+        # Guard: W <= V_observed required. Fail closed if W > V_observed
+        if ($w -gt $vObserved) {
+            throw "INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER: Local checkpoint W ($w) is ahead of observed remote version V_observed ($vObserved) for DatabaseId '$Year'."
         }
 
         $catchupStatus = "UNKNOWN"
-        if ($w -eq $vTarget) {
+        if ($w -eq $vObserved) {
             $catchupStatus = "NO_OP_ALREADY_CAUGHT_UP"
-            Write-Host "  -> Local state is already at parity with remote (W == V_target == $w). Catch-up will be a NO-OP." -ForegroundColor Green
+            Write-Host "  -> Local state is already at parity with remote (W == V_observed == $w). Catch-up will be a NO-OP under lease fencing." -ForegroundColor Green
         } else {
             $catchupStatus = "NEEDS_CATCH_UP"
-            $delta = $vTarget - $w
-            Write-Host "  -> Catch-up needed: Delta = $delta version(s) (advancing from $w to $vTarget)." -ForegroundColor Yellow
+            $delta = $vObserved - $w
+            Write-Host "  -> Catch-up needed: Advisory Delta = $delta version(s) (W=$w, V_observed=$vObserved)." -ForegroundColor Yellow
 
-            # Verify feed window continuity for (W, V_target]
-            $windowFeeds = $feedList | Where-Object { $_.ServerVersion -gt $w -and $_.ServerVersion -le $vTarget }
+            # Verify feed window continuity for (W, V_observed]
+            $windowFeeds = $feedList | Where-Object { $_.ServerVersion -gt $w -and $_.ServerVersion -le $vObserved }
             if ($windowFeeds.Count -eq 0 -and $delta -gt 0) {
-                throw "PREFLIGHT_FAIL: No feed entries found in range ($w, $vTarget] for DatabaseId '$Year'."
+                throw "PREFLIGHT_FAIL: No feed entries found in range ($w, $vObserved] for DatabaseId '$Year'."
             }
         }
 
@@ -365,7 +373,8 @@ WHERE DatabaseId = @DatabaseId;
         return [PSCustomObject]@{
             Year = $Year
             W = $w
-            V_target = $vTarget
+            V_observed = $vObserved
+            V_target = $vObserved # alias for backward compatibility
             CatchupStatus = $catchupStatus
             FeedCount = $feedList.Count
             LocalDailyRows = $locDaily.TotalRows
@@ -385,20 +394,22 @@ function Assert-RemotePostPullInvariance {
     param(
         [string]$Year,
         [string]$RemoteConnStr,
-        [psobject]$PreflightData
+        [psobject]$PreflightData,
+        [int64]$HExec = 0
     )
 
     Write-Host "Auditing $Year post-pull Remote invariance..." -NoNewline
     $remConn = New-Object SqlConnection($RemoteConnStr)
     $remConn.Open()
     try {
-        # 1. CurrentVersion must not decrease (>= captured V_target)
+        # 1. CurrentVersion must not decrease (>= H_exec or >= V_observed)
+        $expectedMin = if ($HExec -gt 0) { $HExec } else { $PreflightData.V_observed }
         $cmdV = $remConn.CreateCommand()
         $cmdV.CommandText = "SELECT CurrentVersion FROM [sync].[ServerState] WHERE DatabaseId = @DatabaseId;"
         $p = $cmdV.CreateParameter(); $p.ParameterName = "@DatabaseId"; $p.Value = $Year; $cmdV.Parameters.Add($p) | Out-Null
         $curVer = [int64]$cmdV.ExecuteScalar()
-        if ($curVer -lt $PreflightData.V_target) {
-            throw "REMOTE_POST_AUDIT_ERROR: Remote ServerState.CurrentVersion decreased to $curVer (Expected >= $($PreflightData.V_target))."
+        if ($curVer -lt $expectedMin) {
+            throw "REMOTE_POST_AUDIT_ERROR: Remote ServerState.CurrentVersion decreased to $curVer (Expected >= $expectedMin)."
         }
 
         # 2. ServerChangeFeed count must not decrease
@@ -589,7 +600,7 @@ if ($Execute) {
 
         # --- Phase 1: Catch-Up Year 2026 ---
         Write-Host "`n==========================================================================" -ForegroundColor Cyan
-        Write-Host "  PHASE 1: CATCH-UP YEAR 2026 (W=$($pre2026.W), V_target=$($pre2026.V_target))" -ForegroundColor Cyan
+        Write-Host "  PHASE 1: CATCH-UP YEAR 2026 (W=$($pre2026.W), V_observed=$($pre2026.V_observed))" -ForegroundColor Cyan
         Write-Host "==========================================================================" -ForegroundColor Cyan
 
         # A. Obtain Admin JWT for 2026
@@ -644,21 +655,31 @@ if ($Execute) {
         Write-Host " PASS (PrevWatermark=$($pullRes2026.previousWatermark), FinalServerVer=$($pullRes2026.finalServerVersion), IsNoOp=$($pullRes2026.isNoOp))" -ForegroundColor Green
 
         # C. Post-condition verification for 2026
-        if ($pre2026.W -eq $pre2026.V_target) {
-            # Expected deterministic NO-OP
-            if (-not $pullRes2026.isNoOp) {
-                throw "PULL_RESULT_ERROR: 2026 was already caught up (W==V_target==$($pre2026.W)), expected IsNoOp=true, got IsNoOp=$($pullRes2026.isNoOp)."
-            }
-            if ($pullRes2026.finalServerVersion -ne $pre2026.V_target) {
-                throw "PULL_RESULT_ERROR: 2026 NO-OP finalServerVersion mismatch. Expected $($pre2026.V_target), got $($pullRes2026.finalServerVersion)."
+        $hExec2026 = [int64]$pullRes2026.finalServerVersion
+        $prevW2026 = [int64]$pullRes2026.previousWatermark
+        Write-Host "  Authoritative execution fence captured by AzureFencedBatchReader: H_exec=$hExec2026 (Preflight advisory was V_observed=$($pre2026.V_observed))" -ForegroundColor Cyan
+
+        if ($pre2026.W -eq $pre2026.V_observed) {
+            if ($hExec2026 -eq $pre2026.W) {
+                # Deterministic NO-OP under lease fencing
+                if (-not $pullRes2026.isNoOp) {
+                    throw "PULL_RESULT_ERROR: 2026 was already caught up (W==H_exec==$($pre2026.W)), expected IsNoOp=true, got IsNoOp=$($pullRes2026.isNoOp)."
+                }
+                if ($hExec2026 -ne $pre2026.W) {
+                    throw "PULL_RESULT_ERROR: 2026 NO-OP H_exec mismatch. Expected $($pre2026.W), got $hExec2026."
+                }
+                Write-Host "  -> Deterministic NO-OP confirmed: IsNoOp=True, PreviousWatermark=$prevW2026, H_exec=$hExec2026." -ForegroundColor Green
+            } else {
+                # Remote legitimately advanced before reader acquired its UPDLOCK/HOLDLOCK fence
+                Write-Host "  -> Remote advanced before reader acquired fence (V_observed=$($pre2026.V_observed) -> H_exec=$hExec2026). Newer versions were atomically applied." -ForegroundColor Yellow
             }
         } else {
             # Catch-up executed: watermark must advance
-            if ($pullRes2026.previousWatermark -ne $pre2026.W) {
-                throw "PULL_RESULT_ERROR: 2026 PreviousWatermark mismatch. Expected $($pre2026.W), got $($pullRes2026.previousWatermark)."
+            if ($prevW2026 -ne $pre2026.W) {
+                throw "PULL_RESULT_ERROR: 2026 PreviousWatermark mismatch. Expected $($pre2026.W), got $prevW2026."
             }
-            if ($pullRes2026.finalServerVersion -lt $pre2026.V_target) {
-                throw "PULL_RESULT_ERROR: 2026 FinalServerVersion ($($pullRes2026.finalServerVersion)) is less than captured V_target ($($pre2026.V_target))."
+            if ($hExec2026 -lt $pre2026.V_observed) {
+                throw "PULL_RESULT_ERROR: 2026 FinalServerVersion H_exec ($hExec2026) is less than preflight observed V_observed ($($pre2026.V_observed)). Server versions cannot decrease."
             }
         }
 
@@ -670,19 +691,19 @@ if ($Execute) {
             $cmdV26 = $locConn2026.CreateCommand()
             $cmdV26.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2026';"
             $postVer2026 = [int64]$cmdV26.ExecuteScalar()
-            if ($postVer2026 -ne $pullRes2026.finalServerVersion) {
-                throw "POST_AUDIT_ERROR: 2026 Local LastServerVersion is $postVer2026 (Expected: $($pullRes2026.finalServerVersion))."
+            if ($postVer2026 -ne $hExec2026) {
+                throw "POST_AUDIT_ERROR: 2026 Local LastServerVersion is $postVer2026 (Expected exactly H_exec: $hExec2026)."
             }
         } finally {
             $locConn2026.Close()
         }
-        Write-Host " PASS (LastServerVersion=$postVer2026)" -ForegroundColor Green
+        Write-Host " PASS (LastServerVersion=$postVer2026 equals H_exec exactly)" -ForegroundColor Green
 
-        Assert-RemotePostPullInvariance -Year "2026" -RemoteConnStr $Azure2026ConnectionString -PreflightData $pre2026
+        Assert-RemotePostPullInvariance -Year "2026" -RemoteConnStr $Azure2026ConnectionString -PreflightData $pre2026 -HExec $hExec2026
 
         # --- Phase 2: Catch-Up Year 2027 ---
         Write-Host "`n==========================================================================" -ForegroundColor Cyan
-        Write-Host "  PHASE 2: CATCH-UP YEAR 2027 (W=$($pre2027.W), V_target=$($pre2027.V_target))" -ForegroundColor Cyan
+        Write-Host "  PHASE 2: CATCH-UP YEAR 2027 (W=$($pre2027.W), V_observed=$($pre2027.V_observed))" -ForegroundColor Cyan
         Write-Host "==========================================================================" -ForegroundColor Cyan
 
         # Re-verify preflight immediately before 2027 execution
@@ -740,21 +761,31 @@ if ($Execute) {
         Write-Host " PASS (PrevWatermark=$($pullRes2027.previousWatermark), FinalServerVer=$($pullRes2027.finalServerVersion), IsNoOp=$($pullRes2027.isNoOp))" -ForegroundColor Green
 
         # C. Post-condition verification for 2027
-        if ($pre2027.W -eq $pre2027.V_target) {
-            # Expected deterministic NO-OP
-            if (-not $pullRes2027.isNoOp) {
-                throw "PULL_RESULT_ERROR: 2027 was already caught up (W==V_target==$($pre2027.W)), expected IsNoOp=true, got IsNoOp=$($pullRes2027.isNoOp)."
-            }
-            if ($pullRes2027.finalServerVersion -ne $pre2027.V_target) {
-                throw "PULL_RESULT_ERROR: 2027 NO-OP finalServerVersion mismatch. Expected $($pre2027.V_target), got $($pullRes2027.finalServerVersion)."
+        $hExec2027 = [int64]$pullRes2027.finalServerVersion
+        $prevW2027 = [int64]$pullRes2027.previousWatermark
+        Write-Host "  Authoritative execution fence captured by AzureFencedBatchReader: H_exec=$hExec2027 (Preflight advisory was V_observed=$($pre2027.V_observed))" -ForegroundColor Cyan
+
+        if ($pre2027.W -eq $pre2027.V_observed) {
+            if ($hExec2027 -eq $pre2027.W) {
+                # Deterministic NO-OP under lease fencing
+                if (-not $pullRes2027.isNoOp) {
+                    throw "PULL_RESULT_ERROR: 2027 was already caught up (W==H_exec==$($pre2027.W)), expected IsNoOp=true, got IsNoOp=$($pullRes2027.isNoOp)."
+                }
+                if ($hExec2027 -ne $pre2027.W) {
+                    throw "PULL_RESULT_ERROR: 2027 NO-OP H_exec mismatch. Expected $($pre2027.W), got $hExec2027."
+                }
+                Write-Host "  -> Deterministic NO-OP confirmed: IsNoOp=True, PreviousWatermark=$prevW2027, H_exec=$hExec2027." -ForegroundColor Green
+            } else {
+                # Remote legitimately advanced before reader acquired its UPDLOCK/HOLDLOCK fence
+                Write-Host "  -> Remote advanced before reader acquired fence (V_observed=$($pre2027.V_observed) -> H_exec=$hExec2027). Newer versions were atomically applied." -ForegroundColor Yellow
             }
         } else {
             # Catch-up executed: watermark must advance
-            if ($pullRes2027.previousWatermark -ne $pre2027.W) {
-                throw "PULL_RESULT_ERROR: 2027 PreviousWatermark mismatch. Expected $($pre2027.W), got $($pullRes2027.previousWatermark)."
+            if ($prevW2027 -ne $pre2027.W) {
+                throw "PULL_RESULT_ERROR: 2027 PreviousWatermark mismatch. Expected $($pre2027.W), got $prevW2027."
             }
-            if ($pullRes2027.finalServerVersion -lt $pre2027.V_target) {
-                throw "PULL_RESULT_ERROR: 2027 FinalServerVersion ($($pullRes2027.finalServerVersion)) is less than captured V_target ($($pre2027.V_target))."
+            if ($hExec2027 -lt $pre2027.V_observed) {
+                throw "PULL_RESULT_ERROR: 2027 FinalServerVersion H_exec ($hExec2027) is less than preflight observed V_observed ($($pre2027.V_observed)). Server versions cannot decrease."
             }
         }
 
@@ -766,15 +797,15 @@ if ($Execute) {
             $cmdV27 = $locConn2027.CreateCommand()
             $cmdV27.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2027';"
             $postVer2027 = [int64]$cmdV27.ExecuteScalar()
-            if ($postVer2027 -ne $pullRes2027.finalServerVersion) {
-                throw "POST_AUDIT_ERROR: 2027 Local LastServerVersion is $postVer2027 (Expected: $($pullRes2027.finalServerVersion))."
+            if ($postVer2027 -ne $hExec2027) {
+                throw "POST_AUDIT_ERROR: 2027 Local LastServerVersion is $postVer2027 (Expected exactly H_exec: $hExec2027)."
             }
         } finally {
             $locConn2027.Close()
         }
-        Write-Host " PASS (LastServerVersion=$postVer2027)" -ForegroundColor Green
+        Write-Host " PASS (LastServerVersion=$postVer2027 equals H_exec exactly)" -ForegroundColor Green
 
-        Assert-RemotePostPullInvariance -Year "2027" -RemoteConnStr $Azure2027ConnectionString -PreflightData $pre2027
+        Assert-RemotePostPullInvariance -Year "2027" -RemoteConnStr $Azure2027ConnectionString -PreflightData $pre2027 -HExec $hExec2027
 
         Write-Host "`n==========================================================================" -ForegroundColor Green
         Write-Host "  DYNAMIC CONTROLLED CATCH-UP EXECUTION COMPLETED SUCCESSFULLY            " -ForegroundColor Green

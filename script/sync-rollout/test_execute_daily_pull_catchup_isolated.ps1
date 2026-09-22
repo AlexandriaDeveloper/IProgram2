@@ -74,6 +74,41 @@ function Execute-SqlScalar($connStr, $sql) {
     }
 }
 
+function Get-DailyTableHash($connStr) {
+    $conn = New-Object SqlConnection($connStr)
+    $conn.Open()
+    try {
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = "SELECT SyncId, Name, DailyDate, Closed, IsActive FROM [dbo].[Daily] ORDER BY SyncId;"
+        $reader = $cmd.ExecuteReader()
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $ms = New-Object System.IO.MemoryStream
+        $bw = New-Object System.IO.BinaryWriter($ms)
+        $count = 0
+        while ($reader.Read()) {
+            $count++
+            $bw.Write(([Guid]$reader["SyncId"]).ToByteArray())
+            $bw.Write([string]$reader["Name"])
+            $bw.Write(([DateTime]$reader["DailyDate"]).Ticks)
+            $bw.Write([bool]$reader["Closed"])
+            $bw.Write([bool]$reader["IsActive"])
+        }
+        $reader.Close()
+        $bw.Flush()
+        $bytes = $ms.ToArray()
+        $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace("-", "")
+        $bw.Dispose()
+        $ms.Dispose()
+        $sha.Dispose()
+        return @{
+            RowCount = $count
+            Hash = $hash
+        }
+    } finally {
+        $conn.Close()
+    }
+}
+
 Write-Host "Provisioning isolated test databases on localhost..." -NoNewline
 
 # Ensure isolated test databases exist (clean recreation)
@@ -328,27 +363,33 @@ if ($LASTEXITCODE -ne 0 -and -not ($dryRunOutput -match "READY_FOR_CATCHUP|PREFL
 }
 Write-Host " PASS (AuthoritativeTrackingEnabled=true baseline accepted)" -ForegroundColor Green
 
-# --- TEST 2: Invariant Check W > V_target Fails Closed ---
-Write-Host "`n[TEST 2] Testing W > V_target invariant violation (Fail Closed)..." -NoNewline
+# --- TEST 2: Invariant Check W > V_observed Fails Closed ---
+Write-Host "`n[TEST 2] Testing W > V_observed invariant violation (Fail Closed)..." -NoNewline
 # Set remote version = 1, but local version = 3 on 2026
 Execute-Sql $remoteConn2026Str "UPDATE [sync].[ServerState] SET CurrentVersion = 1 WHERE DatabaseId = '2026';"
 Execute-Sql $remoteConn2027Str "UPDATE [sync].[ServerState] SET CurrentVersion = 1 WHERE DatabaseId = '2027';"
 Execute-Sql $localConn2026Str "UPDATE [sync].[LocalState] SET LastServerVersion = 3 WHERE DatabaseId = '2026';"
 
-$failClosedErr = $null
-try {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -DryRun -AllowIsolatedExecutionOnly `
-        -Azure2026ConnectionString $remoteConn2026Str `
-        -Azure2027ConnectionString $remoteConn2027Str `
-        -Local2026ConnectionString $localConn2026Str `
-        -Local2027ConnectionString $localConn2027Str 2>&1 | Out-String -OutVariable failOutput
-    if ($failOutput -notmatch "INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER") {
-        throw "TEST_2_FAILED: Expected INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER, got: $failOutput"
-    }
-} catch {
-    # Expected
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$failOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -DryRun -AllowIsolatedExecutionOnly `
+    -Azure2026ConnectionString $remoteConn2026Str `
+    -Azure2027ConnectionString $remoteConn2027Str `
+    -Local2026ConnectionString $localConn2026Str `
+    -Local2027ConnectionString $localConn2027Str 2>&1 | Out-String
+
+$exitCode = $LASTEXITCODE
+$ErrorActionPreference = $prevEap
+
+if ($exitCode -eq 0) {
+    throw "TEST_2_FAILED: Expected non-zero exit code on invariant violation, but got 0. Output:`n$failOutput"
 }
-Write-Host " PASS (W > V_target failed closed with INVARIANT_VIOLATION)" -ForegroundColor Green
+
+if ($failOutput -notmatch "INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER") {
+    throw "TEST_2_FAILED: Expected error marker 'INVARIANT_VIOLATION_CHECKPOINT_AHEAD_OF_SERVER' not found in output:`n$failOutput"
+}
+
+Write-Host " PASS (W > V_observed correctly failed closed with non-zero exit code and exact error marker)" -ForegroundColor Green
 
 # Reset local 2026 back to 0
 Execute-Sql $localConn2026Str "UPDATE [sync].[LocalState] SET LastServerVersion = 0 WHERE DatabaseId = '2026';"
@@ -417,20 +458,48 @@ VALUES ('$yr', 4, 'Daily', '$v4SyncId', 'HARD_DELETE', '00000000-0000-0000-0000-
     # Set CurrentVersion = 4
     Execute-Sql $remConn "INSERT INTO [sync].[ServerState] ([DatabaseId], [CurrentVersion]) VALUES ('$yr', 4);"
 }
-Write-Host " Seeded (V_target=4, non-canary multi-version sequence across both years)." -ForegroundColor Green
+Write-Host " Seeded (V_observed=4, non-canary multi-version sequence across both years)." -ForegroundColor Green
 
-# --- TEST 3: Dynamic Preflight Dry-Run ---
+# --- TEST 3: Dynamic Preflight Dry-Run Assertions ---
 Write-Host "`n[TEST 3] Running dynamic preflight Dry-Run on multi-version dataset..." -NoNewline
-$dryRunResult = & powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -DryRun -AllowIsolatedExecutionOnly `
+$dryRunOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -DryRun -AllowIsolatedExecutionOnly `
     -Azure2026ConnectionString $remoteConn2026Str `
     -Azure2027ConnectionString $remoteConn2027Str `
     -Local2026ConnectionString $localConn2026Str `
-    -Local2027ConnectionString $localConn2027Str
+    -Local2027ConnectionString $localConn2027Str 2>&1 | Out-String
 
-Write-Host " PASS (Status: READY_FOR_CATCHUP, W=0, V_target=4 detected dynamically)" -ForegroundColor Green
+if ($LASTEXITCODE -ne 0) {
+    throw "TEST_3_FAILED: DryRun exited with non-zero code $LASTEXITCODE. Output:`n$dryRunOutput"
+}
 
-# --- TEST 4: Full Catch-Up Execution (W=0 -> V_target=4) ---
-Write-Host "`n[TEST 4] Executing controlled catch-up (W=0 -> V_target=4)..." -ForegroundColor Cyan
+if ($dryRunOutput -notmatch "Mode: DRY-RUN") {
+    throw "TEST_3_FAILED: Expected 'Mode: DRY-RUN' not found in output:`n$dryRunOutput"
+}
+
+if ($dryRunOutput -notmatch "Committed Config Guard: PASS") {
+    throw "TEST_3_FAILED: Expected 'Committed Config Guard: PASS' not found in output:`n$dryRunOutput"
+}
+
+if ($dryRunOutput -notmatch "Physical Binding Guard: PASS") {
+    throw "TEST_3_FAILED: Expected 'Physical Binding Guard: PASS' not found in output:`n$dryRunOutput"
+}
+
+# Assert parsed preflight state for both years
+foreach ($yr in $years) {
+    if ($dryRunOutput -notmatch "$yr Status: NEEDS_CATCH_UP") {
+        throw "TEST_3_FAILED: Expected '$yr Status: NEEDS_CATCH_UP' not found in output:`n$dryRunOutput"
+    }
+    if ($dryRunOutput -notmatch "Watermark check for ${yr}: Local W=0, Remote V_observed=4") {
+        throw "TEST_3_FAILED: Watermark check line for $yr (W=0, V_observed=4) not found in output:`n$dryRunOutput"
+    }
+    if ($dryRunOutput -notmatch "Catch-up needed: Advisory Delta = 4 version\(s\)") {
+        throw "TEST_3_FAILED: Catch-up needed line for $yr (Delta = 4) not found in output:`n$dryRunOutput"
+    }
+}
+Write-Host " PASS (Mode: DRY-RUN, 2026/2027 Status: NEEDS_CATCH_UP, W=0, V_observed=4 verified)" -ForegroundColor Green
+
+# --- TEST 4: Full Catch-Up Execution (W=0 -> H_exec=4) ---
+Write-Host "`n[TEST 4] Executing controlled catch-up (W=0 -> H_exec=4)..." -ForegroundColor Cyan
 & powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -Execute -AllowIsolatedExecutionOnly `
     -Port $testPort `
     -Username $testUsername `
@@ -470,28 +539,66 @@ foreach ($yr in $years) {
 }
 Write-Host " PASS (Local checkpoints advanced 0 -> 4, all entity operations synchronized exactly)" -ForegroundColor Green
 
-# --- TEST 5: Idempotent Retry (W == V_target Deterministic NO-OP) ---
-Write-Host "`n[TEST 5] Testing idempotent retry when already caught up (W == V_target == 4)..." -NoNewline
-& powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -Execute -AllowIsolatedExecutionOnly `
+# --- TEST 5: Idempotent Retry (W == V_observed == 4 Deterministic NO-OP) ---
+Write-Host "`n[TEST 5] Testing idempotent retry when already caught up (W == V_observed == 4)..." -NoNewline
+
+# Capture pre-no-op Daily business state and hashes
+$preNoOpDailyCounts = @{}
+$preNoOpDailyHashes = @{}
+foreach ($yr in $years) {
+    $locConn = if ($yr -eq "2026") { $localConn2026Str } else { $localConn2027Str }
+    $hashObj = Get-DailyTableHash $locConn
+    $preNoOpDailyCounts[$yr] = $hashObj.RowCount
+    $preNoOpDailyHashes[$yr] = $hashObj.Hash
+    $wBefore = [int64](Execute-SqlScalar $locConn "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '$yr';")
+    if ($wBefore -ne 4) {
+        throw "TEST_5_FAILED: Pre-condition watermark for $yr is $wBefore (Expected: 4)."
+    }
+}
+
+$noOpOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -Execute -AllowIsolatedExecutionOnly `
     -Port $testPort `
     -Username $testUsername `
     -Password $testPassword `
     -Azure2026ConnectionString $remoteConn2026Str `
     -Azure2027ConnectionString $remoteConn2027Str `
     -Local2026ConnectionString $localConn2026Str `
-    -Local2027ConnectionString $localConn2027Str
+    -Local2027ConnectionString $localConn2027Str 2>&1 | Out-String
+
+if ($LASTEXITCODE -ne 0) {
+    throw "TEST_5_FAILED: Operator exited with non-zero code on idempotent retry. Output:`n$noOpOutput"
+}
+
+# Assert NO-OP returned by API for both years
+if ($noOpOutput -notmatch "PrevWatermark=4, FinalServerVer=4, IsNoOp=True") {
+    throw "TEST_5_FAILED: Expected 'PrevWatermark=4, FinalServerVer=4, IsNoOp=True' not observed in output:`n$noOpOutput"
+}
 
 foreach ($yr in $years) {
     $locConn = if ($yr -eq "2026") { $localConn2026Str } else { $localConn2027Str }
-    $localVer = [int64](Execute-SqlScalar $locConn "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '$yr';")
-    if ($localVer -ne 4) {
-        throw "TEST_5_FAILED: Local LastServerVersion changed on idempotent retry to $localVer (Expected: 4)."
+    
+    # Checkpoint must remain unchanged
+    $localVerAfter = [int64](Execute-SqlScalar $locConn "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '$yr';")
+    if ($localVerAfter -ne 4) {
+        throw "TEST_5_FAILED: Local LastServerVersion mutated on idempotent retry to $localVerAfter (Expected: 4)."
+    }
+
+    # Zero business data mutation: daily count and deterministic hash must be strictly identical
+    $postHashObj = Get-DailyTableHash $locConn
+    $postNoOpCount = $postHashObj.RowCount
+    $postNoOpHash = $postHashObj.Hash
+
+    if ($postNoOpCount -ne $preNoOpDailyCounts[$yr]) {
+        throw "TEST_5_FAILED: Daily business row count changed during NO-OP for $yr (Before: $($preNoOpDailyCounts[$yr]), After: $postNoOpCount)."
+    }
+    if ($postNoOpHash -ne $preNoOpDailyHashes[$yr]) {
+        throw "TEST_5_FAILED: Daily business hash changed during NO-OP for $yr (Before: $($preNoOpDailyHashes[$yr]), After: $postNoOpHash)."
     }
 }
-Write-Host " PASS (Idempotent retry was a deterministic NO-OP, watermark remained at 4)" -ForegroundColor Green
+Write-Host " PASS (IsNoOp=True, W=4 unchanged, zero business data mutation verified)" -ForegroundColor Green
 
-# --- TEST 6: Partial Catch-Up (0 < W < V_target) ---
-Write-Host "`n[TEST 6] Testing partial catch-up (advancing from W=4 to V_target=6)..." -ForegroundColor Cyan
+# --- TEST 6: Partial Catch-Up (0 < W < V_observed) ---
+Write-Host "`n[TEST 6] Testing partial catch-up (advancing from W=4 to V_observed=6)..." -ForegroundColor Cyan
 foreach ($yr in $years) {
     $remConn = if ($yr -eq "2026") { $remoteConn2026Str } else { $remoteConn2027Str }
 
@@ -533,7 +640,164 @@ foreach ($yr in $years) {
 }
 Write-Host " PASS (Partial catch-up succeeded: local advanced 4 -> 6 cleanly)" -ForegroundColor Green
 
-# --- TEST 7: Teardown and Cleanup ---
+# --- TEST 7: Deterministic Concurrent Authoritative Advance Blocked Under Reader Fence ---
+Write-Host "`n[TEST 7] Testing concurrent authoritative advance blocked under reader fence..." -ForegroundColor Cyan
+
+# Context: Local is at W=6, Remote is at 6 on year 2026 (from TEST 6).
+# 1. Advance remote to version 7
+$v7SyncId = [Guid]::NewGuid()
+Execute-Sql $remoteConn2026Str @"
+INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId])
+VALUES ('Daily_V7', '2026-07-03T10:00:00', 0, 1, '$v7SyncId');
+INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
+VALUES ('2026', 7, 'Daily', '$v7SyncId', 'INSERT', '00000000-0000-0000-0000-000000000000');
+UPDATE [sync].[ServerState] SET [CurrentVersion] = 7 WHERE [DatabaseId] = '2026';
+"@
+
+# 2. Connection 1 (Reader Fence) starts SERIALIZABLE transaction and acquires (UPDLOCK, HOLDLOCK)
+$fenceConn = New-Object SqlConnection($remoteConn2026Str)
+$fenceConn.Open()
+$fenceTx = $fenceConn.BeginTransaction([System.Data.IsolationLevel]::Serializable)
+$fenceCmd = $fenceConn.CreateCommand()
+$fenceCmd.Transaction = $fenceTx
+$fenceCmd.CommandText = "SELECT @@SPID; SELECT CurrentVersion FROM [sync].[ServerState] WITH (UPDLOCK, HOLDLOCK) WHERE DatabaseId = '2026';"
+$readerRdr = $fenceCmd.ExecuteReader()
+$readerRdr.Read() | Out-Null
+$readerSpid = [int]$readerRdr[0]
+$readerRdr.NextResult() | Out-Null
+$readerRdr.Read() | Out-Null
+$hExecFenced = [int64]$readerRdr[0]
+$readerRdr.Close()
+
+Write-Host "  Reader fence acquired: SPID=$readerSpid, H_exec=$hExecFenced under (UPDLOCK, HOLDLOCK)." -ForegroundColor Cyan
+if ($hExecFenced -ne 7) {
+    throw "TEST_7_FAILED: Expected fenced version to be 7, got $hExecFenced."
+}
+
+# 3. Connection 2 (Concurrent Authoritative Writer) attempts to advance ServerState to version 8 in background job
+$writerJob = Start-Job -ScriptBlock {
+    param($connStr, $syncId8)
+    Add-Type -AssemblyName "System.Data"
+    $conn = New-Object System.Data.SqlClient.SqlConnection($connStr)
+    $conn.Open()
+    $tx = $conn.BeginTransaction([System.Data.IsolationLevel]::Serializable)
+    $cmd = $conn.CreateCommand()
+    $cmd.Transaction = $tx
+    $cmd.CommandTimeout = 30
+    $cmd.CommandText = @"
+SELECT @@SPID;
+SELECT CurrentVersion FROM [sync].[ServerState] WITH (UPDLOCK, HOLDLOCK) WHERE DatabaseId = '2026';
+UPDATE [sync].[ServerState] SET CurrentVersion = 8 WHERE DatabaseId = '2026';
+INSERT INTO [sync].[ServerChangeFeed] (DatabaseId, ServerVersion, EntityType, EntitySyncId, OperationType, OriginDeviceId)
+VALUES ('2026', 8, 'Daily', '$syncId8', 'INSERT', '00000000-0000-0000-0000-000000000000');
+INSERT INTO [dbo].[Daily] (Name, DailyDate, Closed, IsActive, SyncId)
+VALUES ('Daily_V8', '2026-07-04T10:00:00', 0, 1, '$syncId8');
+"@
+    $r = $cmd.ExecuteReader()
+    $r.Read() | Out-Null
+    $spid = [int]$r[0]
+    $r.Close()
+
+    # Finish transaction
+    $tx.Commit()
+    $conn.Close()
+    return $spid
+} -ArgumentList $remoteConn2026Str, ([Guid]::NewGuid().ToString())
+
+# 4. Deterministic Locking Evidence: Poll sys.dm_os_waiting_tasks
+# Proves that the writer is actively blocked by the reader's SPID
+Write-Host "  Polling sys.dm_os_waiting_tasks for deterministic locking evidence..." -NoNewline
+$diagConn = New-Object SqlConnection($remoteConn2026Str)
+$diagConn.Open()
+$isBlocked = $false
+for ($i = 0; $i -lt 50; $i++) {
+    Start-Sleep -Milliseconds 100
+    $diagCmd = $diagConn.CreateCommand()
+    $diagCmd.CommandText = @"
+SELECT COUNT(*)
+FROM sys.dm_os_waiting_tasks
+WHERE blocking_session_id = @ReaderSpid
+  AND wait_type LIKE 'LCK%';
+"@
+    $p = $diagCmd.CreateParameter(); $p.ParameterName = "@ReaderSpid"; $p.Value = $readerSpid; $diagCmd.Parameters.Add($p) | Out-Null
+    $blockedCount = [int]$diagCmd.ExecuteScalar()
+    if ($blockedCount -gt 0) {
+        $isBlocked = $true
+        break
+    }
+}
+$diagConn.Close()
+
+if (-not $isBlocked) {
+    $fenceTx.Rollback()
+    $fenceConn.Close()
+    Stop-Job $writerJob; Remove-Job $writerJob
+    throw "TEST_7_FAILED: Writer was not blocked by reader fence in sys.dm_os_waiting_tasks."
+}
+Write-Host " PASS (Writer confirmed blocked on LCK by Reader SPID $readerSpid)" -ForegroundColor Green
+
+# 5. While writer is blocked, verify remote ServerState is still 7 (writer cannot advance)
+$chkVer = [int64](Execute-SqlScalar $remoteConn2026Str "SELECT CurrentVersion FROM [sync].[ServerState] WITH (NOLOCK) WHERE DatabaseId = '2026';")
+if ($chkVer -ne 7) {
+    throw "TEST_7_FAILED: ServerState was prematurely advanced to $chkVer while reader fence was held."
+}
+Write-Host "  Verified ServerState.CurrentVersion remains exactly 7 while fence is held." -ForegroundColor Green
+
+# 6. Reader commits and releases fence
+$fenceTx.Commit()
+$fenceConn.Close()
+Write-Host "  Reader released fence (committed). Writer unblocking..." -ForegroundColor Cyan
+
+# 7. Writer completes now that fence is released
+$writerRes = Wait-Job $writerJob -Timeout 10 | Receive-Job
+Remove-Job $writerJob
+
+$postWriterVer = [int64](Execute-SqlScalar $remoteConn2026Str "SELECT CurrentVersion FROM [sync].[ServerState] WHERE DatabaseId = '2026';")
+if ($postWriterVer -ne 8) {
+    throw "TEST_7_FAILED: Writer failed to advance ServerState to 8 after fence release (Got: $postWriterVer)."
+}
+Write-Host "  Writer committed version 8 successfully after fence release." -ForegroundColor Green
+
+# Also advance 2027 to 8 to keep both years aligned for operator execution
+Execute-Sql $remoteConn2027Str @"
+DECLARE @SyncId7 UNIQUEIDENTIFIER = NEWID();
+DECLARE @SyncId8 UNIQUEIDENTIFIER = NEWID();
+
+INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId])
+VALUES ('Daily_V7_2027', '2026-07-03T10:00:00', 0, 1, @SyncId7);
+
+INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
+VALUES ('2027', 7, 'Daily', @SyncId7, 'INSERT', '00000000-0000-0000-0000-000000000000');
+
+INSERT INTO [dbo].[Daily] ([Name], [DailyDate], [Closed], [IsActive], [SyncId])
+VALUES ('Daily_V8_2027', '2026-07-04T10:00:00', 0, 1, @SyncId8);
+
+INSERT INTO [sync].[ServerChangeFeed] ([DatabaseId], [ServerVersion], [EntityType], [EntitySyncId], [OperationType], [OriginDeviceId])
+VALUES ('2027', 8, 'Daily', @SyncId8, 'INSERT', '00000000-0000-0000-0000-000000000000');
+
+UPDATE [sync].[ServerState] SET [CurrentVersion] = 8 WHERE [DatabaseId] = '2027';
+"@
+
+# 8. Run catch-up operator: it must catch up to the new version 8
+& powershell -NoProfile -ExecutionPolicy Bypass -File $operatorScript -Execute -AllowIsolatedExecutionOnly `
+    -Port $testPort `
+    -Username $testUsername `
+    -Password $testPassword `
+    -Azure2026ConnectionString $remoteConn2026Str `
+    -Azure2027ConnectionString $remoteConn2027Str `
+    -Local2026ConnectionString $localConn2026Str `
+    -Local2027ConnectionString $localConn2027Str
+
+foreach ($yr in $years) {
+    $locConn = if ($yr -eq "2026") { $localConn2026Str } else { $localConn2027Str }
+    $localVer = [int64](Execute-SqlScalar $locConn "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '$yr';")
+    if ($localVer -ne 8) {
+        throw "TEST_7_FAILED: Local LastServerVersion for $yr after catch-up is $localVer (Expected: 8)."
+    }
+}
+Write-Host " PASS (Lock fence deterministically proven; subsequent catch-up advanced 6 -> 8 cleanly)" -ForegroundColor Green
+
+# --- TEST 8: Teardown and Cleanup ---
 Write-Host "`nTearing down isolated test databases..." -NoNewline
 Execute-Sql $masterConnStr @"
 IF DB_ID('$remoteDb2026') IS NOT NULL BEGIN ALTER DATABASE [$remoteDb2026] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$remoteDb2026]; END;
