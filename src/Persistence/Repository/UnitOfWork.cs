@@ -275,10 +275,18 @@ namespace Persistence.Repository
                     // Step 2: Save business changes without accepting changes yet
                     var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
 
-                    // Step 3: Insert corresponding [sync].[LocalOutbox] records on the exact same connection and transaction
-                    var operationTimestamp = DateTime.UtcNow;
-                    foreach (var mutation in capturedMutations)
+                    // Step 3: Insert corresponding [sync].[LocalOutbox] records in deterministic topological dependency order
+                    var orderedMutations = capturedMutations
+                        .OrderBy(GetOfflineMutationTopologicalRank)
+                        .ToList();
+
+                    var baseTimestamp = DateTime.UtcNow;
+                    for (int i = 0; i < orderedMutations.Count; i++)
                     {
+                        var mutation = orderedMutations[i];
+                        // Strictly monotonic timestamp ensuring topological FIFO ordering in SQL DATETIME2
+                        var operationTimestamp = baseTimestamp.AddMilliseconds(i * 50);
+
                         string payloadJson;
                         if (mutation.Entity is Daily d)
                         {
@@ -784,6 +792,10 @@ namespace Persistence.Repository
             var p = cmd.CreateParameter();
             p.ParameterName = name;
             p.Value = value ?? DBNull.Value;
+            if (value is DateTime)
+            {
+                p.DbType = System.Data.DbType.DateTime2;
+            }
             cmd.Parameters.Add(p);
         }
 
@@ -1008,8 +1020,15 @@ namespace Persistence.Repository
 
         private async Task<Guid?> ResolveDailySyncIdAsync(Form form, DbConnection connection, DbTransaction transaction, CancellationToken ct)
         {
-            if (!form.DailyId.HasValue) return null;
             if (form.Daily != null && form.Daily.SyncId != Guid.Empty) return form.Daily.SyncId;
+
+            var trackedDailyByNav = _context.ChangeTracker.Entries<Daily>().FirstOrDefault(e => form.Daily != null && e.Entity == form.Daily);
+            if (trackedDailyByNav != null && trackedDailyByNav.Entity.SyncId != Guid.Empty)
+            {
+                return trackedDailyByNav.Entity.SyncId;
+            }
+
+            if (!form.DailyId.HasValue) return null;
 
             var trackedDaily = _context.ChangeTracker.Entries<Daily>().FirstOrDefault(e => e.Entity.Id == form.DailyId.Value);
             if (trackedDaily != null && trackedDaily.Entity.SyncId != Guid.Empty)
@@ -1053,6 +1072,28 @@ namespace Persistence.Repository
             }
 
             throw new OfflineWriteScopeException($"Form with Id {formDetails.FormId} could not be resolved for FormDetails {formDetails.SyncId}.");
+        }
+
+        private static int GetOfflineMutationTopologicalRank(CapturedOfflineMutation m)
+        {
+            bool isDelete = m.OperationType == "SOFT_DELETE" || m.OperationType == "HARD_DELETE";
+            if (isDelete)
+            {
+                return m.EntityType switch
+                {
+                    "FormDetails" => 10,
+                    "Form" => 20,
+                    "Daily" => 30,
+                    _ => 40
+                };
+            }
+            return m.EntityType switch
+            {
+                "Daily" => 100,
+                "Form" => 110,
+                "FormDetails" => 120,
+                _ => 130
+            };
         }
 
         private sealed class CapturedOfflineMutation

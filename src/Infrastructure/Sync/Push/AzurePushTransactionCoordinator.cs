@@ -798,6 +798,10 @@ namespace Auth.Infrastructure.Sync.Push
             var p = cmd.CreateParameter();
             p.ParameterName = name;
             p.Value = value ?? DBNull.Value;
+            if (value is DateTime)
+            {
+                p.DbType = System.Data.DbType.DateTime2;
+            }
             cmd.Parameters.Add(p);
         }
 

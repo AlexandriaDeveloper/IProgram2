@@ -371,6 +371,8 @@ namespace Auth.UnitTests
                         ELSE
                         BEGIN
                             DELETE FROM [sync].[LocalOutbox];
+                            IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_SimulatedFailure')
+                                ALTER TABLE [sync].[LocalOutbox] DROP CONSTRAINT [CK_SimulatedFailure];
                         END;
 
                         IF OBJECT_ID('[sync].[ScopeBaseline]', 'U') IS NULL
@@ -412,6 +414,8 @@ namespace Auth.UnitTests
                             IF OBJECT_ID('[dbo].[Daily]', 'U') IS NOT NULL DELETE FROM [dbo].[Daily];
                             IF OBJECT_ID('[dbo].[Employee]', 'U') IS NOT NULL DELETE FROM [dbo].[Employee];
                             IF OBJECT_ID('[sync].[ScopeBaseline]', 'U') IS NOT NULL DELETE FROM [sync].[ScopeBaseline];
+                            IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_SimulatedFailure')
+                                ALTER TABLE [sync].[LocalOutbox] DROP CONSTRAINT [CK_SimulatedFailure];
                             IF OBJECT_ID('[sync].[LocalOutbox]', 'U') IS NOT NULL DELETE FROM [sync].[LocalOutbox];
                             IF OBJECT_ID('[sync].[LocalState]', 'U') IS NOT NULL DELETE FROM [sync].[LocalState];";
                         await cleanCmd.ExecuteNonQueryAsync();
@@ -1278,43 +1282,156 @@ namespace Auth.UnitTests
                     SyncId = archiveFormSyncId,
                     IsActive = true
                 };
-                context.Set<Form>().Add(archiveForm);
-                await uow.SaveChangesAsync();
 
-                // Add copied details
+                // Add copied details directly via navigation collection in a SINGLE atomic save
                 var detail = new FormDetails
                 {
-                    FormId = archiveForm.Id,
                     EmployeeId = "12345678901234",
                     Amount = 2500.0,
                     OrderNum = 1,
                     SyncId = copiedDetailSyncId,
                     IsActive = true
                 };
-                context.Set<FormDetails>().Add(detail);
+                archiveForm.FormDetails.Add(detail);
+
+                context.Set<Form>().Add(archiveForm);
+                // SINGLE SaveChangesAsync executing both entity inserts and outbox generation in one transaction
                 await uow.SaveChangesAsync();
             }
 
-            // Verify Outbox payload has resolvable FormSyncId and null DailySyncId
+            // Verify Outbox payload has resolvable FormSyncId and null DailySyncId, and monotonic timestamps
             await using (var localConn = new SqlConnection(ctx.LocalConnStr))
             {
                 await localConn.OpenAsync();
 
                 // Verify Form Outbox has DailySyncId = null
                 await using var cmdFormOb = localConn.CreateCommand();
-                cmdFormOb.CommandText = "SELECT PayloadJson FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
+                cmdFormOb.CommandText = "SELECT PayloadJson, CreatedAtUtc FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
                 cmdFormOb.Parameters.AddWithValue("@SyncId", archiveFormSyncId);
-                var formJson = (string)(await cmdFormOb.ExecuteScalarAsync())!;
+                await using var formRdr = await cmdFormOb.ExecuteReaderAsync();
+                Assert.True(await formRdr.ReadAsync());
+                var formJson = formRdr.GetString(0);
+                var formCreatedAt = formRdr.GetDateTime(1);
+                await formRdr.CloseAsync();
+
                 using var formDoc = JsonDocument.Parse(formJson);
                 Assert.Equal(JsonValueKind.Null, formDoc.RootElement.GetProperty("entityData").GetProperty("DailySyncId").ValueKind);
 
                 // Verify Details Outbox has FormSyncId pointing to archive form
                 await using var cmdDetOb = localConn.CreateCommand();
-                cmdDetOb.CommandText = "SELECT PayloadJson FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
+                cmdDetOb.CommandText = "SELECT PayloadJson, CreatedAtUtc FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
                 cmdDetOb.Parameters.AddWithValue("@SyncId", copiedDetailSyncId);
-                var detJson = (string)(await cmdDetOb.ExecuteScalarAsync())!;
+                await using var detRdr = await cmdDetOb.ExecuteReaderAsync();
+                Assert.True(await detRdr.ReadAsync());
+                var detJson = detRdr.GetString(0);
+                var detCreatedAt = detRdr.GetDateTime(1);
+                await detRdr.CloseAsync();
+
                 using var detDoc = JsonDocument.Parse(detJson);
                 Assert.Equal(archiveFormSyncId.ToString(), detDoc.RootElement.GetProperty("entityData").GetProperty("FormSyncId").GetString());
+
+                // Assert strictly monotonic FIFO timestamp: Form < FormDetails
+                Assert.True(formCreatedAt < detCreatedAt, $"Expected Form CreatedAtUtc ({formCreatedAt:O}) < FormDetails CreatedAtUtc ({detCreatedAt:O})");
+            }
+        }
+
+        [Fact]
+        public async Task Test09b_CopyFormToArchive_RollbackOnFailure_LeavesZeroOrphans()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            try
+            {
+                await using (var conn = new SqlConnection(ctx.LocalConnStr))
+                {
+                    await conn.OpenAsync();
+                    await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baseline", CancellationToken.None);
+
+                    // Add a check constraint on LocalOutbox that fails when FormDetails.Insert is inserted,
+                    // simulating an outbox failure midway through the atomic save transaction.
+                    await using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "ALTER TABLE [sync].[LocalOutbox] ADD CONSTRAINT [CK_SimulatedFailure] CHECK (CommandName <> 'FormDetails.Insert');";
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                var syncProviderMock = new Mock<ISyncConnectionProvider>();
+                syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+                syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+                syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+                syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+                var options = new DbContextOptionsBuilder<ApplicationContext>()
+                    .UseSqlServer(ctx.LocalConnStr)
+                    .Options;
+
+                var archiveFormSyncId = Guid.NewGuid();
+                var copiedDetailSyncId = Guid.NewGuid();
+
+                using (var context = new ApplicationContext(options))
+                {
+                    var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                    var archiveForm = new Form
+                    {
+                        Name = "Archived Bonus Form That Must Rollback",
+                        DailyId = null,
+                        Index = 1,
+                        SyncId = archiveFormSyncId,
+                        IsActive = true
+                    };
+
+                    var detail = new FormDetails
+                    {
+                        EmployeeId = "12345678901234",
+                        Amount = 999.0,
+                        OrderNum = 1,
+                        SyncId = copiedDetailSyncId,
+                        IsActive = true
+                    };
+                    archiveForm.FormDetails.Add(detail);
+
+                    context.Set<Form>().Add(archiveForm);
+
+                    // ACT: SaveChangesAsync should fail and trigger transaction rollback
+                    await Assert.ThrowsAnyAsync<Exception>(() => uow.SaveChangesAsync());
+                }
+
+                // ASSERT: Verify ZERO orphans survive across Form, FormDetails, and LocalOutbox
+                await using (var localConn = new SqlConnection(ctx.LocalConnStr))
+                {
+                    await localConn.OpenAsync();
+
+                    // 1. Zero Form rows
+                    await using var cmdForm = localConn.CreateCommand();
+                    cmdForm.CommandText = "SELECT COUNT(*) FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                    cmdForm.Parameters.AddWithValue("@SyncId", archiveFormSyncId);
+                    var formCount = (int)(await cmdForm.ExecuteScalarAsync())!;
+                    Assert.Equal(0, formCount);
+
+                    // 2. Zero FormDetails rows
+                    await using var cmdDetails = localConn.CreateCommand();
+                    cmdDetails.CommandText = "SELECT COUNT(*) FROM [dbo].[FormDetails] WHERE SyncId = @SyncId;";
+                    cmdDetails.Parameters.AddWithValue("@SyncId", copiedDetailSyncId);
+                    var detailsCount = (int)(await cmdDetails.ExecuteScalarAsync())!;
+                    Assert.Equal(0, detailsCount);
+
+                    // 3. Zero LocalOutbox rows
+                    await using var cmdOutbox = localConn.CreateCommand();
+                    cmdOutbox.CommandText = "SELECT COUNT(*) FROM [sync].[LocalOutbox] WHERE EntitySyncId IN (@FormSyncId, @DetailsSyncId);";
+                    cmdOutbox.Parameters.AddWithValue("@FormSyncId", archiveFormSyncId);
+                    cmdOutbox.Parameters.AddWithValue("@DetailsSyncId", copiedDetailSyncId);
+                    var outboxCount = (int)(await cmdOutbox.ExecuteScalarAsync())!;
+                    Assert.Equal(0, outboxCount);
+                }
+            }
+            finally
+            {
+                await using var cleanConn = new SqlConnection(ctx.LocalConnStr);
+                await cleanConn.OpenAsync();
+                await using var dropCmd = cleanConn.CreateCommand();
+                dropCmd.CommandText = "IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_SimulatedFailure') ALTER TABLE [sync].[LocalOutbox] DROP CONSTRAINT [CK_SimulatedFailure];";
+                await dropCmd.ExecuteNonQueryAsync();
             }
         }
 
@@ -1338,6 +1455,393 @@ namespace Auth.UnitTests
             context.Departments.Add(new Department { Name = "Disallowed Department" });
             var ex = await Assert.ThrowsAsync<OfflineWriteScopeException>(() => uow.SaveChangesAsync());
             Assert.Contains("غير مصرح بتعديله في وضع Offline Read-Write Pilot", ex.Message);
+        }
+
+        [Fact]
+        public async Task Test11_MultiEntityAtomicSave_ProducesTopologicalFifoQueue()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baseline", CancellationToken.None);
+            }
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            var dailySyncId = Guid.NewGuid();
+            var formSyncId = Guid.NewGuid();
+            var detailsSyncId = Guid.NewGuid();
+
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                var daily = new Daily
+                {
+                    Name = "Daily With Graph",
+                    DailyDate = DateTime.UtcNow.Date,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = dailySyncId,
+                    IsActive = true
+                };
+
+                var form = new Form
+                {
+                    Name = "Form in Graph",
+                    Daily = daily,
+                    Index = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = formSyncId,
+                    IsActive = true
+                };
+
+                var details = new FormDetails
+                {
+                    Form = form,
+                    EmployeeId = "12345678901234",
+                    Amount = 1500.0,
+                    OrderNum = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = detailsSyncId,
+                    IsActive = true
+                };
+
+                // Add root and child navigation
+                form.FormDetails.Add(details);
+                context.Set<Daily>().Add(daily);
+                context.Set<Form>().Add(form);
+
+                await uow.SaveChangesAsync();
+            }
+
+            // Verify Outbox order and strictly monotonic timestamps
+            await using (var localConn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await localConn.OpenAsync();
+                await using var cmd = localConn.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT CommandName, AggregateType, EntitySyncId, CreatedAtUtc 
+                    FROM [sync].[LocalOutbox] 
+                    WHERE EntitySyncId IN (@DailySyncId, @FormSyncId, @DetailsSyncId)
+                    ORDER BY CreatedAtUtc ASC;";
+                cmd.Parameters.AddWithValue("@DailySyncId", dailySyncId);
+                cmd.Parameters.AddWithValue("@FormSyncId", formSyncId);
+                cmd.Parameters.AddWithValue("@DetailsSyncId", detailsSyncId);
+
+                var records = new List<(string CommandName, string AggregateType, Guid EntitySyncId, DateTime CreatedAtUtc)>();
+                await using var rdr = await cmd.ExecuteReaderAsync();
+                while (await rdr.ReadAsync())
+                {
+                    records.Add((
+                        rdr.GetString(0),
+                        rdr.GetString(1),
+                        rdr.GetGuid(2),
+                        rdr.GetDateTime(3)
+                    ));
+                }
+
+                Assert.Equal(3, records.Count);
+
+                // 1. Daily.Insert (Rank 1)
+                Assert.Equal("Daily.Insert", records[0].CommandName);
+                Assert.Equal("Daily", records[0].AggregateType);
+                Assert.Equal(dailySyncId, records[0].EntitySyncId);
+
+                // 2. Form.Insert (Rank 2)
+                Assert.Equal("Form.Insert", records[1].CommandName);
+                Assert.Equal("Form", records[1].AggregateType);
+                Assert.Equal(formSyncId, records[1].EntitySyncId);
+
+                // 3. FormDetails.Insert (Rank 3)
+                Assert.Equal("FormDetails.Insert", records[2].CommandName);
+                Assert.Equal("FormDetails", records[2].AggregateType);
+                Assert.Equal(detailsSyncId, records[2].EntitySyncId);
+
+                // Verify strictly monotonic timestamps: Daily < Form < FormDetails
+                Assert.True(records[0].CreatedAtUtc < records[1].CreatedAtUtc,
+                    $"Expected Daily CreatedAtUtc ({records[0].CreatedAtUtc:O}) < Form CreatedAtUtc ({records[1].CreatedAtUtc:O})");
+                Assert.True(records[1].CreatedAtUtc < records[2].CreatedAtUtc,
+                    $"Expected Form CreatedAtUtc ({records[1].CreatedAtUtc:O}) < FormDetails CreatedAtUtc ({records[2].CreatedAtUtc:O})");
+            }
+        }
+
+        [Fact]
+        public async Task Test12_PushService_PushesMultiEntityAtomicBatch_InOrderWithFkResolution()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baseline", CancellationToken.None);
+            }
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            var dailySyncId = Guid.NewGuid();
+            var formSyncId = Guid.NewGuid();
+            var detailsSyncId = Guid.NewGuid();
+
+            // 1. Create multi-entity graph in single SaveChangesAsync
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                var daily = new Daily
+                {
+                    Name = "Daily Batch Push",
+                    DailyDate = DateTime.UtcNow.Date,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = dailySyncId,
+                    IsActive = true
+                };
+
+                var form = new Form
+                {
+                    Name = "Form in Batch Push",
+                    Daily = daily,
+                    Index = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = formSyncId,
+                    IsActive = true
+                };
+
+                var details = new FormDetails
+                {
+                    Form = form,
+                    EmployeeId = "12345678901234",
+                    Amount = 1850.0,
+                    OrderNum = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = detailsSyncId,
+                    IsActive = true
+                };
+
+                form.FormDetails.Add(details);
+                context.Set<Daily>().Add(daily);
+                context.Set<Form>().Add(form);
+
+                await uow.SaveChangesAsync();
+            }
+
+            // 2. Setup real LocalOutboxPushService targeting ctx.RemoteConnStr
+            var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+            remoteFactoryMock.Setup(f => f.CreateOpenConnectionAsync("2026", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() =>
+                {
+                    var c = new SqlConnection(ctx.RemoteConnStr);
+                    c.Open();
+                    return c;
+                });
+
+            var inMemoryConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Sync:PushEnabled"] = "true" })
+                .Build();
+
+            var leaseManager = new LocalPushLeaseManager(syncProviderMock.Object, NullLogger<LocalPushLeaseManager>.Instance);
+            var pushCoordinator = new AzurePushTransactionCoordinator(NullLogger<AzurePushTransactionCoordinator>.Instance);
+            var pushService = new LocalOutboxPushService(
+                syncProviderMock.Object,
+                remoteFactoryMock.Object,
+                pushCoordinator,
+                leaseManager,
+                inMemoryConfig,
+                NullLogger<LocalOutboxPushService>.Instance,
+                baselineService);
+
+            // ACT: Execute real push over multi-entity queue
+            var batchResult = await pushService.PushPendingOutboxAsync(CancellationToken.None);
+
+            // ASSERT:
+            Assert.Equal(3, batchResult.TotalProcessed);
+            Assert.Equal(3, batchResult.Succeeded);
+
+            // Verify local outbox rows are COMPLETED
+            await using (var localConn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await localConn.OpenAsync();
+                await using var cmd = localConn.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM [sync].[LocalOutbox] WHERE Status = 'COMPLETED';";
+                var completedCount = (int)(await cmd.ExecuteScalarAsync())!;
+                Assert.Equal(3, completedCount);
+            }
+
+            // Verify Remote DB has all 3 entities linked correctly with remote FKs
+            await using (var remoteConn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await remoteConn.OpenAsync();
+
+                // Daily exists
+                int remoteDailyId;
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Id, Name FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", dailySyncId);
+                    await using var rdr = await cmd.ExecuteReaderAsync();
+                    Assert.True(await rdr.ReadAsync());
+                    remoteDailyId = rdr.GetInt32(0);
+                    Assert.Equal("Daily Batch Push", rdr.GetString(1));
+                }
+
+                // Form exists and DailyId points to remote Daily
+                int remoteFormId;
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Id, DailyId, Name FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", formSyncId);
+                    await using var rdr = await cmd.ExecuteReaderAsync();
+                    Assert.True(await rdr.ReadAsync());
+                    remoteFormId = rdr.GetInt32(0);
+                    Assert.Equal(remoteDailyId, rdr.GetInt32(1));
+                    Assert.Equal("Form in Batch Push", rdr.GetString(2));
+                }
+
+                // FormDetails exists and FormId points to remote Form
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT FormId, EmployeeId, Amount FROM [dbo].[FormDetails] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", detailsSyncId);
+                    await using var rdr = await cmd.ExecuteReaderAsync();
+                    Assert.True(await rdr.ReadAsync());
+                    Assert.Equal(remoteFormId, rdr.GetInt32(0));
+                    Assert.Equal("12345678901234", rdr.GetString(1));
+                    Assert.Equal(1850.0, rdr.GetDouble(2));
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Test13_PushService_ArchiveFormAndCopiedDetails_PushesInOrder()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baseline", CancellationToken.None);
+            }
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            var archiveFormSyncId = Guid.NewGuid();
+            var copiedDetailSyncId = Guid.NewGuid();
+
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                var archiveForm = new Form
+                {
+                    Name = "Archived Bonus Form for Push",
+                    DailyId = null,
+                    Index = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = archiveFormSyncId,
+                    IsActive = true
+                };
+
+                var detail = new FormDetails
+                {
+                    EmployeeId = "12345678901234",
+                    Amount = 3200.0,
+                    OrderNum = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = copiedDetailSyncId,
+                    IsActive = true
+                };
+                archiveForm.FormDetails.Add(detail);
+
+                context.Set<Form>().Add(archiveForm);
+                await uow.SaveChangesAsync();
+            }
+
+            var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+            remoteFactoryMock.Setup(f => f.CreateOpenConnectionAsync("2026", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() =>
+                {
+                    var c = new SqlConnection(ctx.RemoteConnStr);
+                    c.Open();
+                    return c;
+                });
+
+            var inMemoryConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Sync:PushEnabled"] = "true" })
+                .Build();
+
+            var leaseManager = new LocalPushLeaseManager(syncProviderMock.Object, NullLogger<LocalPushLeaseManager>.Instance);
+            var pushCoordinator = new AzurePushTransactionCoordinator(NullLogger<AzurePushTransactionCoordinator>.Instance);
+            var pushService = new LocalOutboxPushService(
+                syncProviderMock.Object,
+                remoteFactoryMock.Object,
+                pushCoordinator,
+                leaseManager,
+                inMemoryConfig,
+                NullLogger<LocalOutboxPushService>.Instance,
+                baselineService);
+
+            var batchResult = await pushService.PushPendingOutboxAsync(CancellationToken.None);
+
+            Assert.Equal(2, batchResult.TotalProcessed);
+            Assert.Equal(2, batchResult.Succeeded);
+
+            await using (var remoteConn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await remoteConn.OpenAsync();
+
+                // Archive Form on Remote has NULL DailyId
+                int remoteFormId;
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Id, DailyId, Name FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", archiveFormSyncId);
+                    await using var rdr = await cmd.ExecuteReaderAsync();
+                    Assert.True(await rdr.ReadAsync());
+                    remoteFormId = rdr.GetInt32(0);
+                    Assert.True(rdr.IsDBNull(1));
+                    Assert.Equal("Archived Bonus Form for Push", rdr.GetString(2));
+                }
+
+                // Copied details on Remote has FormId pointing to remote archive Form
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT FormId, EmployeeId, Amount FROM [dbo].[FormDetails] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", copiedDetailSyncId);
+                    await using var rdr = await cmd.ExecuteReaderAsync();
+                    Assert.True(await rdr.ReadAsync());
+                    Assert.Equal(remoteFormId, rdr.GetInt32(0));
+                    Assert.Equal("12345678901234", rdr.GetString(1));
+                    Assert.Equal(3200.0, rdr.GetDouble(2));
+                }
+            }
         }
     }
 }

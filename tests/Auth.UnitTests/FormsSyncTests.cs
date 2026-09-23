@@ -7,6 +7,18 @@ using Auth.Infrastructure.Sync.Pull;
 using Core.Models;
 using Core.Exceptions;
 using Core.Models.Sync;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Api.Controllers;
+using Auth.Api.Middleware;
+using Auth.Infrastructure.Sync.Push;
+using Core.Interfaces;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Persistence.Repository;
 using Xunit;
 
@@ -276,5 +288,154 @@ namespace Auth.UnitTests
             var ex = new SyncPullForeignKeyResolutionException("تعذر العثور على المفتاح الأجنبي FormSyncId محلياً.");
             Assert.Equal("PULL_FOREIGN_KEY_RESOLUTION_FAILED", ex.ErrorCode);
         }
+
+        #region P0-A Scope Baseline Security Gate Tests
+
+        [Fact]
+        public void LocalDailyPullService_Constructor_ThrowsArgumentNullException_WhenBaselineServiceNull()
+        {
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            var leaseMock = new Mock<ILocalPullLeaseManager>();
+            var readerMock = new Mock<IAzureFencedBatchReader>();
+            var coordinatorMock = new Mock<ILocalPullTransactionCoordinator>();
+            var config = new ConfigurationBuilder().Build();
+
+            Assert.Throws<ArgumentNullException>("scopeBaselineService", () =>
+                new LocalDailyPullService(
+                    syncProviderMock.Object,
+                    leaseMock.Object,
+                    readerMock.Object,
+                    coordinatorMock.Object,
+                    config,
+                    NullLogger<LocalDailyPullService>.Instance,
+                    null!));
+        }
+
+        [Fact]
+        public void LocalOutboxPushService_Constructor_ThrowsArgumentNullException_WhenBaselineServiceNull()
+        {
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+            var coordinatorMock = new Mock<IAzurePushTransactionCoordinator>();
+            var leaseMock = new Mock<ILocalPushLeaseManager>();
+            var config = new ConfigurationBuilder().Build();
+
+            Assert.Throws<ArgumentNullException>("scopeBaselineService", () =>
+                new LocalOutboxPushService(
+                    syncProviderMock.Object,
+                    remoteFactoryMock.Object,
+                    coordinatorMock.Object,
+                    leaseMock.Object,
+                    config,
+                    NullLogger<LocalOutboxPushService>.Instance,
+                    null!));
+        }
+
+        [Fact]
+        public void SyncController_Constructor_ThrowsArgumentNullException_WhenBaselineServiceNull()
+        {
+            var pushMock = new Mock<ILocalOutboxPushService>();
+            var pullMock = new Mock<ILocalDailyPullService>();
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            var config = new ConfigurationBuilder().Build();
+
+            Assert.Throws<ArgumentNullException>("scopeBaselineService", () =>
+                new SyncController(
+                    pushMock.Object,
+                    pullMock.Object,
+                    syncProviderMock.Object,
+                    config,
+                    NullLogger<SyncController>.Instance,
+                    null!));
+        }
+
+        [Fact]
+        public async Task ReadOnlyModeMiddleware_FormsRoute_Returns503FailClosed_WhenBaselineServiceMissing()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LocalFirst:Enabled"] = "true",
+                    ["LocalFirst:ReadOnlyMode"] = "false"
+                })
+                .Build();
+
+            bool nextCalled = false;
+            RequestDelegate next = ctx =>
+            {
+                nextCalled = true;
+                return Task.CompletedTask;
+            };
+
+            var middleware = new ReadOnlyModeMiddleware(next, config, NullLogger<ReadOnlyModeMiddleware>.Instance);
+
+            var context = new DefaultHttpContext();
+            context.Request.Method = "POST";
+            context.Request.Path = "/api/form";
+            context.Response.Body = new MemoryStream();
+
+            var serviceProviderMock = new Mock<IServiceProvider>();
+            var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
+            syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(ISyncConnectionProvider))).Returns(syncConnectionProviderMock.Object);
+            // ILocalScopeBaselineService is NOT registered (returns null)
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(ILocalScopeBaselineService))).Returns((object?)null);
+            context.RequestServices = serviceProviderMock.Object;
+
+            await middleware.InvokeAsync(context);
+
+            Assert.False(nextCalled, "Middleware MUST NOT call _next when baseline service is missing.");
+            Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
+
+            context.Response.Body.Seek(0, SeekOrigin.Begin);
+            using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
+            var bodyText = await reader.ReadToEndAsync();
+            Assert.Contains("SCOPE_BASELINE_SERVICE_UNAVAILABLE", bodyText);
+        }
+
+        [Fact]
+        public async Task ReadOnlyModeMiddleware_FormsRoute_Returns503FailClosed_WhenSyncConnectionProviderMissing()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LocalFirst:Enabled"] = "true",
+                    ["LocalFirst:ReadOnlyMode"] = "false"
+                })
+                .Build();
+
+            bool nextCalled = false;
+            RequestDelegate next = ctx =>
+            {
+                nextCalled = true;
+                return Task.CompletedTask;
+            };
+
+            var middleware = new ReadOnlyModeMiddleware(next, config, NullLogger<ReadOnlyModeMiddleware>.Instance);
+
+            var context = new DefaultHttpContext();
+            context.Request.Method = "POST";
+            context.Request.Path = "/api/form";
+            context.Response.Body = new MemoryStream();
+
+            var serviceProviderMock = new Mock<IServiceProvider>();
+            var baselineServiceMock = new Mock<ILocalScopeBaselineService>();
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(ILocalScopeBaselineService))).Returns(baselineServiceMock.Object);
+            // ISyncConnectionProvider is NOT registered (returns null)
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(ISyncConnectionProvider))).Returns((object?)null);
+            context.RequestServices = serviceProviderMock.Object;
+
+            await middleware.InvokeAsync(context);
+
+            Assert.False(nextCalled, "Middleware MUST NOT call _next when sync connection provider is missing.");
+            Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
+
+            context.Response.Body.Seek(0, SeekOrigin.Begin);
+            using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);
+            var bodyText = await reader.ReadToEndAsync();
+            Assert.Contains("SCOPE_BASELINE_SERVICE_UNAVAILABLE", bodyText);
+        }
+
+        #endregion
     }
 }

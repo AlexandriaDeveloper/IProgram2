@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Auth.Infrastructure;
+using Auth.Infrastructure.Sync;
 using Auth.Infrastructure.Sync.Pull;
 using Auth.Infrastructure.Sync.Push;
 using Core.Exceptions;
@@ -346,7 +347,8 @@ namespace Auth.UnitTests
                     batchReader,
                     coordinator,
                     cfg,
-                    NullLogger<LocalDailyPullService>.Instance);
+                    NullLogger<LocalDailyPullService>.Instance,
+                    new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance));
             }
         }
 
@@ -1861,7 +1863,7 @@ namespace Auth.UnitTests
                 ["Sync:AuthoritativeTrackingEnabled"] = "false"
             }).Build();
 
-            var pullService = new LocalDailyPullService(syncProvider, leaseManager, hookedReader, coordinator, pullConfig, NullLogger<LocalDailyPullService>.Instance);
+            var pullService = new LocalDailyPullService(syncProvider, leaseManager, hookedReader, coordinator, pullConfig, NullLogger<LocalDailyPullService>.Instance, new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance));
             var pullResult1 = await pullService.PullDailyChangesAsync(CancellationToken.None);
 
             // 4. Invariant checks for Pull 1:
@@ -1890,7 +1892,7 @@ namespace Auth.UnitTests
 
             // 6. Next pull attempt advances to version 2
             var actualReader = new AzureFencedBatchReader(ctx.CreateRemoteFactory(), NullLogger<AzureFencedBatchReader>.Instance);
-            var standardPullService = new LocalDailyPullService(syncProvider, leaseManager, actualReader, coordinator, pullConfig, NullLogger<LocalDailyPullService>.Instance);
+            var standardPullService = new LocalDailyPullService(syncProvider, leaseManager, actualReader, coordinator, pullConfig, NullLogger<LocalDailyPullService>.Instance, new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance));
             var pullResult2 = await standardPullService.PullDailyChangesAsync(CancellationToken.None);
 
             Assert.Equal(2, pullResult2.FinalServerVersion);

@@ -23,7 +23,7 @@ namespace Api.Controllers
         private readonly ISyncConnectionProvider _syncConnectionProvider;
         private readonly IConfiguration _configuration;
         private readonly ILogger<SyncController> _logger;
-        private readonly ILocalScopeBaselineService? _scopeBaselineService;
+        private readonly ILocalScopeBaselineService _scopeBaselineService;
 
         public SyncController(
             ILocalOutboxPushService pushService,
@@ -31,14 +31,14 @@ namespace Api.Controllers
             ISyncConnectionProvider syncConnectionProvider,
             IConfiguration configuration,
             ILogger<SyncController> logger,
-            ILocalScopeBaselineService? scopeBaselineService = null)
+            ILocalScopeBaselineService scopeBaselineService)
         {
             _pushService = pushService ?? throw new ArgumentNullException(nameof(pushService));
             _pullService = pullService ?? throw new ArgumentNullException(nameof(pullService));
             _syncConnectionProvider = syncConnectionProvider ?? throw new ArgumentNullException(nameof(syncConnectionProvider));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _scopeBaselineService = scopeBaselineService;
+            _scopeBaselineService = scopeBaselineService ?? throw new ArgumentNullException(nameof(scopeBaselineService));
         }
 
         [HttpPost("push")]
@@ -438,15 +438,6 @@ namespace Api.Controllers
             await using var conn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
             await conn.OpenAsync(cancellationToken);
 
-            if (_scopeBaselineService == null)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
-                {
-                    statusCode = StatusCodes.Status503ServiceUnavailable,
-                    code = "SCOPE_BASELINE_SERVICE_UNAVAILABLE",
-                    message = "Scope baseline service is not available."
-                });
-            }
 
             var dailyStatus = await _scopeBaselineService.GetScopeStatusAsync(conn, null, databaseId, "Daily", cancellationToken);
             var formsStatus = await _scopeBaselineService.GetScopeStatusAsync(conn, null, databaseId, "Forms", cancellationToken);

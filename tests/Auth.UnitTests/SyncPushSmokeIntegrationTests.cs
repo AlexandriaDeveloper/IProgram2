@@ -768,7 +768,8 @@ namespace Auth.UnitTests
                 _coordinator,
                 leaseManager,
                 inMemoryConfig,
-                NullLogger<LocalOutboxPushService>.Instance);
+                NullLogger<LocalOutboxPushService>.Instance,
+                new Mock<ILocalScopeBaselineService>().Object);
 
             // ACT: Execute PushPendingOutboxAsync through the REAL LocalOutboxPushService
             var batchResult = await pushService.PushPendingOutboxAsync(CancellationToken.None);
@@ -938,7 +939,8 @@ namespace Auth.UnitTests
                 _coordinator,
                 leaseManager,
                 inMemoryConfig,
-                NullLogger<LocalOutboxPushService>.Instance);
+                NullLogger<LocalOutboxPushService>.Instance,
+                new Mock<ILocalScopeBaselineService>().Object);
 
             // ACT 1: Execute Push. Op 1 succeeds, Op 2 fails, queue halts and re-throws exception
             await Assert.ThrowsAsync<SyncPayloadValidationException>(async () =>
@@ -1676,7 +1678,8 @@ namespace Auth.UnitTests
                     _coordinator,
                     leaseManagerMock.Object,
                     inMemoryConfig,
-                    NullLogger<LocalOutboxPushService>.Instance);
+                    NullLogger<LocalOutboxPushService>.Instance,
+                    new Mock<ILocalScopeBaselineService>().Object);
 
                 // Queue processing MUST HALT on Op1 claim failure and throw SyncLeaseExpiredException
                 var ex = await Assert.ThrowsAsync<SyncLeaseExpiredException>(async () =>
@@ -1915,7 +1918,8 @@ namespace Auth.UnitTests
                     _coordinator,
                     leaseManager,
                     inMemoryConfig,
-                    NullLogger<LocalOutboxPushService>.Instance);
+                    NullLogger<LocalOutboxPushService>.Instance,
+                    new Mock<ILocalScopeBaselineService>().Object);
 
                 // FIRST ATTEMPT: Session B runs push.
                 // Expected: Queue head Op1 is IN_PROGRESS with unexpired lock.

@@ -68,7 +68,8 @@ namespace Auth.UnitTests
                 readerMock.Object,
                 coordinatorMock.Object,
                 config,
-                NullLogger<LocalDailyPullService>.Instance);
+                NullLogger<LocalDailyPullService>.Instance,
+                new Mock<ILocalScopeBaselineService>().Object);
 
             var ex = await Assert.ThrowsAsync<SyncPullDisabledException>(() =>
                 service.PullDailyChangesAsync(CancellationToken.None));

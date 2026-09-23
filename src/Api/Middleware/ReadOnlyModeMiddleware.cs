@@ -140,37 +140,56 @@ namespace Auth.Api.Middleware
                 {
                     var baselineService = context.RequestServices.GetService<Core.Interfaces.ILocalScopeBaselineService>();
                     var syncConnectionProvider = context.RequestServices.GetService<Core.Interfaces.ISyncConnectionProvider>();
-                    if (baselineService != null && syncConnectionProvider != null)
+                    if (baselineService == null || syncConnectionProvider == null)
                     {
-                        var databaseId = syncConnectionProvider.GetSelectedDatabaseId();
-                        var localConnStr = syncConnectionProvider.GetLocalConnectionString(databaseId);
-                        await using var baselineConn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
-                        await baselineConn.OpenAsync(context.RequestAborted);
+                        var blockedDepTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
+                        _logger.LogError(
+                            "Forms write request blocked: scope baseline security dependencies unavailable (TraceId: {TraceId})",
+                            blockedDepTraceId);
 
-                        var baselineStatus = await baselineService.GetScopeStatusAsync(
-                            baselineConn, null, databaseId, "Forms", context.RequestAborted);
+                        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                        context.Response.ContentType = "application/json; charset=utf-8";
 
-                        if (baselineStatus != Core.Interfaces.SyncScopeBaselineStatus.Baselined)
+                        var unavailablePayload = new
                         {
-                            var blockedBaselineTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
-                            _logger.LogWarning(
-                                "Forms write request blocked by ScopeBaseline guard: {Method} {Path} (DatabaseId: {DatabaseId}, Status: {Status}, TraceId: {TraceId})",
-                                method, path, databaseId, baselineStatus, blockedBaselineTraceId);
+                            statusCode = StatusCodes.Status503ServiceUnavailable,
+                            message = "خدمة التحقق من تأصيل النطاقات غير متوفرة (SCOPE_BASELINE_SERVICE_UNAVAILABLE). العمليات المحلية على النماذج معطلة احترازياً.",
+                            code = "SCOPE_BASELINE_SERVICE_UNAVAILABLE",
+                            traceId = blockedDepTraceId
+                        };
 
-                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                            context.Response.ContentType = "application/json; charset=utf-8";
+                        await context.Response.WriteAsJsonAsync(unavailablePayload);
+                        return;
+                    }
 
-                            var notBaselinedPayload = new
-                            {
-                                statusCode = StatusCodes.Status403Forbidden,
-                                message = "نطاق النماذج (Forms) غير مؤصل محلياً حتى الآن (NOT_BASELINED). العمليات المحلية على النماذج معطلة لحين إتمام التأصيل المعتمد.",
-                                code = "FORMS_SCOPE_NOT_BASELINED",
-                                traceId = blockedBaselineTraceId
-                            };
+                    var databaseId = syncConnectionProvider.GetSelectedDatabaseId();
+                    var localConnStr = syncConnectionProvider.GetLocalConnectionString(databaseId);
+                    await using var baselineConn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
+                    await baselineConn.OpenAsync(context.RequestAborted);
 
-                            await context.Response.WriteAsJsonAsync(notBaselinedPayload);
-                            return;
-                        }
+                    var baselineStatus = await baselineService.GetScopeStatusAsync(
+                        baselineConn, null, databaseId, "Forms", context.RequestAborted);
+
+                    if (baselineStatus != Core.Interfaces.SyncScopeBaselineStatus.Baselined)
+                    {
+                        var blockedBaselineTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
+                        _logger.LogWarning(
+                            "Forms write request blocked by ScopeBaseline guard: {Method} {Path} (DatabaseId: {DatabaseId}, Status: {Status}, TraceId: {TraceId})",
+                            method, path, databaseId, baselineStatus, blockedBaselineTraceId);
+
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        context.Response.ContentType = "application/json; charset=utf-8";
+
+                        var notBaselinedPayload = new
+                        {
+                            statusCode = StatusCodes.Status403Forbidden,
+                            message = "نطاق النماذج (Forms) غير مؤصل محلياً حتى الآن (NOT_BASELINED). العمليات المحلية على النماذج معطلة لحين إتمام التأصيل المعتمد.",
+                            code = "FORMS_SCOPE_NOT_BASELINED",
+                            traceId = blockedBaselineTraceId
+                        };
+
+                        await context.Response.WriteAsJsonAsync(notBaselinedPayload);
+                        return;
                     }
                 }
 
