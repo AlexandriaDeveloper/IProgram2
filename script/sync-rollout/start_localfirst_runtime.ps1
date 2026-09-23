@@ -178,6 +178,19 @@ function Get-LocalFirstChildEnvironment {
     # JWT key
     $envMap["Token__Key"] = $TokenKey
 
+    # Rehydrate manual sync remote connection strings from Windows User scope (or Process scope)
+    # Only if present; never disclose, log, or commit secret values.
+    foreach ($year in @("2026", "2027")) {
+        $varName = "ConnectionStrings__ManualSyncRemote$year"
+        $manualRemote = [Environment]::GetEnvironmentVariable($varName, "Process")
+        if ([string]::IsNullOrWhiteSpace($manualRemote)) {
+            $manualRemote = [Environment]::GetEnvironmentVariable($varName, "User")
+        }
+        if (-not [string]::IsNullOrWhiteSpace($manualRemote)) {
+            $envMap[$varName] = $manualRemote
+        }
+    }
+
     return $envMap
 }
 
