@@ -48,6 +48,7 @@ param (
     [string]$OverrideStateFilePath,
     [string]$OverridePidFilePath,
     [switch]$Wait,
+    [switch]$SimulatePreLaunchFailure,
     [switch]$ExportFunctionsOnly
 )
 
@@ -185,6 +186,10 @@ function Get-LocalFirstChildEnvironment {
 
     # JWT key
     $envMap["Token__Key"] = $TokenKey
+
+    if ($IsTestMode) {
+        $envMap["E2E__DiagnosticsEnabled"] = "true"
+    }
 
     return $envMap
 }
@@ -553,6 +558,9 @@ if (-not $AllowIsolatedTestMode) {
     if ($AllowNonMaster) {
         throw "CLI_OVERRIDE_FORBIDDEN: -AllowNonMaster is strictly forbidden in operational mode. Operational LocalFirst runtime must run exclusively from 'master'. Pass -AllowIsolatedTestMode for test fixtures."
     }
+    if ($SimulatePreLaunchFailure) {
+        throw "CLI_OVERRIDE_FORBIDDEN: -SimulatePreLaunchFailure is strictly forbidden in operational mode. Pass -AllowIsolatedTestMode for test fixtures."
+    }
     if (-not [string]::IsNullOrWhiteSpace($OverrideLocal2026ConnStr) -or -not [string]::IsNullOrWhiteSpace($OverrideLocal2027ConnStr)) {
         throw "CLI_OVERRIDE_FORBIDDEN: Connection string CLI overrides are strictly forbidden in operational mode to prevent secrets and foreign topologies from shell history. In operational mode, connections are loaded exclusively from appsettings.json. Pass -AllowIsolatedTestMode for test fixtures."
     }
@@ -715,48 +723,55 @@ switch ($Action) {
             -IsTestMode $AllowIsolatedTestMode `
             -LocalOnlyProduction:$LocalOnlyProduction
 
-        # Save snapshot of current process environment before launching
+        # Save snapshot of current process environment before mutating
         $envSnapshot = @{}
-        foreach ($k in $childEnv.Keys) {
-            if (Test-Path "Env:\$k") {
-                $envSnapshot[$k] = [Environment]::GetEnvironmentVariable($k, "Process")
-            } else {
-                $envSnapshot[$k] = $null
-            }
-            [Environment]::SetEnvironmentVariable($k, $childEnv[$k], "Process")
-        }
-
-        # P0-1: In LocalOnlyProduction, explicitly scrub ManualSyncRemote from Process environment
-        # to guarantee the launched child process never inherits pre-existing shell/Process values.
-        # Windows User-scope stored values are never touched. Never logs/prints secret values.
         $scrubbedRemoteKeys = @("ConnectionStrings__ManualSyncRemote2026", "ConnectionStrings__ManualSyncRemote2027")
+
+        foreach ($k in $childEnv.Keys) {
+            $envSnapshot[$k] = if (Test-Path "Env:\$k") { [Environment]::GetEnvironmentVariable($k, "Process") } else { $null }
+        }
         if ($LocalOnlyProduction) {
             foreach ($k in $scrubbedRemoteKeys) {
-                if (Test-Path "Env:\$k") {
-                    $envSnapshot[$k] = [Environment]::GetEnvironmentVariable($k, "Process")
-                    [Environment]::SetEnvironmentVariable($k, $null, "Process")
-                } else {
-                    $envSnapshot[$k] = $null
+                if (-not $envSnapshot.ContainsKey($k)) {
+                    $envSnapshot[$k] = if (Test-Path "Env:\$k") { [Environment]::GetEnvironmentVariable($k, "Process") } else { $null }
                 }
             }
         }
 
-        # 5. Artifact Identity & Verification (P0-7 & P0-B)
-        $apiDll = Assert-LocalReleaseArtifact -RepoRoot $repoRoot -IsTestMode $AllowIsolatedTestMode
-
-        # 6. Log Directory & File (P1)
-        $logsDir = Join-Path $PSScriptRoot "logs"
-        if (-not (Test-Path $logsDir)) {
-            New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
-        }
-        $timestampStr = (Get-Date).ToString("yyyyMMdd_HHmmss")
-        $logPath = Join-Path $logsDir "runtime_${Port}_${timestampStr}.log"
-        $errPath = Join-Path $logsDir "runtime_${Port}_${timestampStr}.err.log"
-
-        $currentCommit = (git -C $repoRoot rev-parse HEAD 2>$null)
-        $currentCommit = if ($currentCommit) { $currentCommit.ToString().Trim() } else { "UNKNOWN" }
-
         try {
+            foreach ($k in $childEnv.Keys) {
+                [Environment]::SetEnvironmentVariable($k, $childEnv[$k], "Process")
+            }
+
+            # P0-1: In LocalOnlyProduction, explicitly scrub ManualSyncRemote from Process environment
+            # to guarantee the launched child process never inherits pre-existing shell/Process values.
+            # Windows User-scope stored values are never touched. Never logs/prints secret values.
+            if ($LocalOnlyProduction) {
+                foreach ($k in $scrubbedRemoteKeys) {
+                    [Environment]::SetEnvironmentVariable($k, $null, "Process")
+                }
+            }
+
+            # Induced failure simulation to verify Process environment restoration on pre-launch aborts
+            if ($SimulatePreLaunchFailure) {
+                throw "SIMULATED_PRELAUNCH_FAILURE: Induced pre-launch failure for test harness verification."
+            }
+
+            # 5. Artifact Identity & Verification (P0-7 & P0-B)
+            $apiDll = Assert-LocalReleaseArtifact -RepoRoot $repoRoot -IsTestMode $AllowIsolatedTestMode
+
+            # 6. Log Directory & File (P1)
+            $logsDir = Join-Path $PSScriptRoot "logs"
+            if (-not (Test-Path $logsDir)) {
+                New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+            }
+            $timestampStr = (Get-Date).ToString("yyyyMMdd_HHmmss")
+            $logPath = Join-Path $logsDir "runtime_${Port}_${timestampStr}.log"
+            $errPath = Join-Path $logsDir "runtime_${Port}_${timestampStr}.err.log"
+
+            $currentCommit = (git -C $repoRoot rev-parse HEAD 2>$null)
+            $currentCommit = if ($currentCommit) { $currentCommit.ToString().Trim() } else { "UNKNOWN" }
+
             Write-Host "Launching local application process..." -NoNewline
             $proc = Start-Process -FilePath "dotnet" `
                 -ArgumentList "`"$apiDll`"" `
@@ -806,12 +821,21 @@ switch ($Action) {
 
             Write-Host " HEALTHY." -ForegroundColor Green
             Write-Host "`n==========================================================================" -ForegroundColor Green
-            Write-Host "  LOCALFIRST RUNTIME ACTIVATED SUCCESSFULLY                              " -ForegroundColor Green
+            if ($LocalOnlyProduction) {
+                Write-Host "  LOCAL-ONLY PRODUCTION RUNTIME ACTIVATED SUCCESSFULLY                   " -ForegroundColor Green
+            } else {
+                Write-Host "  LOCALFIRST RUNTIME ACTIVATED SUCCESSFULLY                              " -ForegroundColor Green
+            }
             Write-Host "==========================================================================" -ForegroundColor Green
             Write-Host "Local URL:             http://127.0.0.1:$Port"
             Write-Host "Operational Databases: IProgramLocalDb2026, IProgramLocalDb2027"
-            Write-Host "Runtime Mode:          LocalFirst=True, ReadOnly=False"
-            Write-Host "Sync Status:           Pull=Disabled, Push=Disabled (Manual Sync Only)"
+            if ($LocalOnlyProduction) {
+                Write-Host "Runtime Mode:          LocalOnlyProduction"
+                Write-Host "Sync Status:           Disabled (Local-Only Production; no cloud contact)"
+            } else {
+                Write-Host "Runtime Mode:          LocalFirst=True, ReadOnly=False"
+                Write-Host "Sync Status:           Pull=Disabled, Push=Disabled (Manual Sync Only)"
+            }
             Write-Host "Azure Connections:     BLOCKED (Loopback Tripwire Active)"
             Write-Host "Process PID:           $($proc.Id)"
             Write-Host "State File:            $stateFilePath"
@@ -835,7 +859,7 @@ switch ($Action) {
                 Url    = "http://127.0.0.1:$Port"
             }
         } finally {
-            # Restore parent process environment variables
+            # Unconditionally restore parent process environment variables
             foreach ($k in $envSnapshot.Keys) {
                 [Environment]::SetEnvironmentVariable($k, $envSnapshot[$k], "Process")
             }

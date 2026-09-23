@@ -68,7 +68,7 @@ namespace Persistence.Repository
             if (user == null) return null;
 
             bool isLocalRuntime = _dbConnectionProvider is ISyncConnectionProvider syncProvider &&
-                                  (syncProvider.IsLocalFirstEnabled || syncProvider.IsReadOnlyMode);
+                                  (syncProvider.IsLocalFirstEnabled || syncProvider.IsReadOnlyMode || syncProvider.IsLocalOnlyProduction);
             if (isLocalRuntime)
             {
                 if (string.IsNullOrEmpty(user.PasswordHash)) return null;

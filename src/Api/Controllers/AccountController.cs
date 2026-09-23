@@ -191,6 +191,7 @@ namespace Api.Controllers
 
 
         [HttpGet("logout")]
+        [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
             await _accountService.SignOut();

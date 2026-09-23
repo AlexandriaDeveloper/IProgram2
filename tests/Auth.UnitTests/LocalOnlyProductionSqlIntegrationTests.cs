@@ -15,6 +15,8 @@ using Core.Interfaces;
 using Core.Models;
 using Core.Models.Sync;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -81,6 +83,45 @@ namespace Auth.UnitTests
                     cmd.CommandText = @"
                         IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sync')
                             EXEC('CREATE SCHEMA [sync]');
+
+                        -- AspNetUsers
+                        CREATE TABLE [dbo].[AspNetUsers] (
+                            [Id] NVARCHAR(450) NOT NULL PRIMARY KEY,
+                            [UserName] NVARCHAR(256) NULL,
+                            [NormalizedUserName] NVARCHAR(256) NULL,
+                            [Email] NVARCHAR(256) NULL,
+                            [NormalizedEmail] NVARCHAR(256) NULL,
+                            [EmailConfirmed] BIT NOT NULL DEFAULT(0),
+                            [PasswordHash] NVARCHAR(MAX) NULL,
+                            [SecurityStamp] NVARCHAR(MAX) NULL,
+                            [ConcurrencyStamp] NVARCHAR(MAX) NULL,
+                            [PhoneNumber] NVARCHAR(MAX) NULL,
+                            [PhoneNumberConfirmed] BIT NOT NULL DEFAULT(0),
+                            [TwoFactorEnabled] BIT NOT NULL DEFAULT(0),
+                            [LockoutEnd] DATETIMEOFFSET NULL,
+                            [LockoutEnabled] BIT NOT NULL DEFAULT(0),
+                            [AccessFailedCount] INT NOT NULL DEFAULT(0),
+                            [DisplayName] NVARCHAR(MAX) NULL,
+                            [DisplayImage] NVARCHAR(MAX) NULL
+                        );
+                        CREATE UNIQUE INDEX [IX_AspNetUsers_NormalizedUserName] ON [dbo].[AspNetUsers]([NormalizedUserName]) WHERE [NormalizedUserName] IS NOT NULL;
+
+                        -- AspNetRoles
+                        CREATE TABLE [dbo].[AspNetRoles] (
+                            [Id] NVARCHAR(450) NOT NULL PRIMARY KEY,
+                            [Name] NVARCHAR(256) NULL,
+                            [NormalizedName] NVARCHAR(256) NULL,
+                            [ConcurrencyStamp] NVARCHAR(MAX) NULL
+                        );
+
+                        -- AspNetUserRoles
+                        CREATE TABLE [dbo].[AspNetUserRoles] (
+                            [UserId] NVARCHAR(450) NOT NULL,
+                            [RoleId] NVARCHAR(450) NOT NULL,
+                            PRIMARY KEY ([UserId], [RoleId]),
+                            CONSTRAINT [FK_AspNetUserRoles_AspNetUsers] FOREIGN KEY ([UserId]) REFERENCES [dbo].[AspNetUsers]([Id]) ON DELETE CASCADE,
+                            CONSTRAINT [FK_AspNetUserRoles_AspNetRoles] FOREIGN KEY ([RoleId]) REFERENCES [dbo].[AspNetRoles]([Id]) ON DELETE CASCADE
+                        );
 
                         -- Departments
                         CREATE TABLE [dbo].[Departments] (
@@ -615,6 +656,207 @@ namespace Auth.UnitTests
                 () => statusService.CheckOnlineStatusAsync("2026", CancellationToken.None));
             Assert.Contains("ONLINE_CHECK_DISABLED_IN_LOCAL_ONLY_PRODUCTION", exStatus.Message);
             mockRemoteFactory.Verify(f => f.CreateOpenConnectionAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        // =========================================================================
+        // P0-2: Zero-Remote Runtime Acceptance (Startup -> Local Read -> Login -> Business Write -> Logout -> Audit)
+        // =========================================================================
+
+        [Fact]
+        public async Task LocalOnlyProduction_FullLifecycle_ZeroRemoteAcceptance_Audited()
+        {
+            await using var fixture = await LocalOnlyFixtureContext.CreateAsync();
+            var config = CreateLocalOnlyConfiguration(fixture);
+
+            var mockAccessor = new Mock<IHttpContextAccessor>();
+            var httpContext = new DefaultHttpContext();
+            httpContext.Request.Headers["X-Database-Id"] = "2026";
+            mockAccessor.Setup(a => a.HttpContext).Returns(httpContext);
+
+            var dbProvider = new DbConnectionProvider(mockAccessor.Object, config);
+            Assert.True(dbProvider.IsLocalOnlyProduction);
+            Assert.False(dbProvider.IsReadOnlyMode);
+            Assert.True(dbProvider.IsLocalFirstEnabled);
+
+            // Clear in-memory audit tracker to isolate this lifecycle run
+            ConnectionAuditTracker.Clear();
+
+            var interceptor = new ReadOnlyDbConnectionInterceptor(dbProvider);
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(fixture.LocalConnStr, o => o.UseCompatibilityLevel(120))
+                .AddInterceptors(interceptor)
+                .Options;
+
+            // 1. Startup & Identity Services
+            using (var dbContext = new ApplicationContext(options))
+            {
+                var userStore = new UserStore<ApplicationUser>(dbContext);
+                var roleStore = new RoleStore<IdentityRole>(dbContext);
+                var passwordHasher = new PasswordHasher<ApplicationUser>();
+                var userManager = new UserManager<ApplicationUser>(
+                    userStore, null!, passwordHasher, null!, null!, null!, null!, null!, null!);
+                var roleManager = new RoleManager<IdentityRole>(
+                    roleStore, null!, null!, null!, null!);
+                var mockSignIn = new Mock<SignInManager<ApplicationUser>>(
+                    userManager,
+                    new Mock<IHttpContextAccessor>().Object,
+                    new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>().Object,
+                    null!, null!, null!, null!);
+                mockSignIn.Setup(s => s.SignOutAsync()).Returns(Task.CompletedTask);
+
+                var accountRepo = new AccountRepository(
+                    userManager,
+                    roleManager,
+                    mockSignIn.Object,
+                    dbContext,
+                    dbProvider);
+
+                // Seed test user in isolated local fixture DB
+                var testUser = new ApplicationUser
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    UserName = "fixtureadmin",
+                    NormalizedUserName = "FIXTUREADMIN",
+                    Email = "admin@fixture.local",
+                    NormalizedEmail = "ADMIN@FIXTURE.LOCAL",
+                    SecurityStamp = Guid.NewGuid().ToString()
+                };
+                testUser.PasswordHash = passwordHasher.HashPassword(testUser, "LocalProduction123!");
+                dbContext.Users.Add(testUser);
+                await dbContext.SaveChangesAsync();
+
+                // 2. Runtime status / local read
+                var initialDepts = await dbContext.Departments.ToListAsync();
+                Assert.Empty(initialDepts);
+
+                // 3. Login / authenticated context
+                var loggedInUser = await accountRepo.Login("fixtureadmin", "LocalProduction123!");
+                Assert.NotNull(loggedInUser);
+                Assert.Equal("fixtureadmin", loggedInUser!.UserName);
+
+                // 4. Real Business write on Local fixture
+                var mockTracker = new Mock<IAuthoritativeDailyMutationTracker>();
+                var mockGuard = new Mock<IAuthoritativeDatabaseBindingGuard>();
+                var mockBaseline = new Mock<ILocalScopeBaselineService>();
+                var uow = new UnitOfWork(
+                    dbContext, dbProvider, mockTracker.Object, mockGuard.Object, config, mockBaseline.Object);
+
+                var dept = new Department
+                {
+                    Name = "Acceptance Test Dept",
+                    SyncId = Guid.NewGuid(),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                dbContext.Departments.Add(dept);
+                await uow.SaveChangesAsync();
+                Assert.True(dept.Id > 0);
+
+                var emp = new Employee
+                {
+                    Id = "29901011234567",
+                    Name = "Acceptance Test Employee",
+                    DepartmentId = dept.Id,
+                    SyncId = Guid.NewGuid(),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                dbContext.Employees.Add(emp);
+                await uow.SaveChangesAsync();
+
+                var daily = new Daily
+                {
+                    Name = "Acceptance Daily",
+                    DailyDate = new DateTime(2026, 9, 24),
+                    Closed = false,
+                    SyncId = Guid.NewGuid(),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                dbContext.Set<Daily>().Add(daily);
+                await uow.SaveChangesAsync();
+                Assert.True(daily.Id > 0);
+
+                var form = new Form
+                {
+                    DailyId = daily.Id,
+                    Name = "Acceptance Form",
+                    SyncId = Guid.NewGuid(),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                dbContext.Set<Form>().Add(form);
+                await uow.SaveChangesAsync();
+                Assert.True(form.Id > 0);
+
+                var formDetails = new FormDetails
+                {
+                    FormId = form.Id,
+                    EmployeeId = emp.Id,
+                    Amount = 1500.50,
+                    OrderNum = 1,
+                    SyncId = Guid.NewGuid(),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                dbContext.Set<FormDetails>().Add(formDetails);
+                await uow.SaveChangesAsync();
+                Assert.True(formDetails.Id > 0);
+
+                // Verify persistence via read
+                var persistedForm = await dbContext.Set<Form>()
+                    .Include(f => f.FormDetails)
+                    .FirstOrDefaultAsync(f => f.Id == form.Id);
+                Assert.NotNull(persistedForm);
+                Assert.Single(persistedForm!.FormDetails);
+
+                // 5. Logout / session end
+                await accountRepo.SignOut();
+                mockSignIn.Verify(s => s.SignOutAsync(), Times.Once);
+            }
+
+            // 6. Prove ZERO remote / sync operations allowed
+            var mockRemoteFactory = new Mock<IRemoteDatabaseConnectionFactory>();
+            var mockPushTxCoord = new Mock<IAzurePushTransactionCoordinator>();
+            var mockPushLease = new Mock<ILocalPushLeaseManager>();
+            var mockBaseline2 = new Mock<ILocalScopeBaselineService>();
+            var pushService = new LocalOutboxPushService(
+                dbProvider, mockRemoteFactory.Object, mockPushTxCoord.Object, mockPushLease.Object, config, NullLogger<LocalOutboxPushService>.Instance, mockBaseline2.Object);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => pushService.PushPendingOutboxAsync(CancellationToken.None, isExplicitManual: true));
+
+            var mockPullLease = new Mock<ILocalPullLeaseManager>();
+            var mockPullTxCoord = new Mock<ILocalPullTransactionCoordinator>();
+            var mockBatchReader = new Mock<IAzureFencedBatchReader>();
+            var pullService = new LocalDailyPullService(
+                dbProvider, mockPullLease.Object, mockBatchReader.Object, mockPullTxCoord.Object, config, NullLogger<LocalDailyPullService>.Instance, mockBaseline2.Object);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => pullService.PullDailyChangesAsync(CancellationToken.None, isExplicitManual: true));
+
+            var statusService = new SyncStatusService(
+                dbProvider, mockRemoteFactory.Object, mockBaseline2.Object, NullLogger<SyncStatusService>.Instance);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => statusService.CheckOnlineStatusAsync("2026", CancellationToken.None));
+
+            mockRemoteFactory.Verify(f => f.CreateOpenConnectionAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
+            // 7. Audit Tracker Verification:
+            // - Every connection was local loopback only
+            // - Every connection targeted the local fixture database
+            // - ZERO Azure connection attempts
+            // - ZERO disallowed connection attempts
+            var records = ConnectionAuditTracker.GetRecords();
+            Assert.NotEmpty(records);
+            Assert.All(records, r => Assert.True(r.Allowed));
+            Assert.All(records, r => Assert.True(r.IsLocal));
+            Assert.All(records, r => Assert.False(r.IsFallbackEndpoint));
+            Assert.All(records, r => Assert.Equal(fixture.LocalDbName, r.Database, ignoreCase: true));
+
+            var disallowed = records.Where(r => !r.Allowed || !r.IsLocal || r.IsFallbackEndpoint).ToList();
+            Assert.Empty(disallowed);
         }
     }
 }

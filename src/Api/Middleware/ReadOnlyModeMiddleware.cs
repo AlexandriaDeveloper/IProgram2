@@ -64,6 +64,7 @@ namespace Auth.Api.Middleware
             {
                 if (path.StartsWith("/api/sync/pull", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/api/sync/push", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/api/sync/check-online", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/api/sync/status/check-online", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/api/migration", StringComparison.OrdinalIgnoreCase))
                 {

@@ -504,6 +504,7 @@ namespace Api.Controllers
         }
 
         [HttpPost("status/check-online")]
+        [HttpPost("check-online")]
         public async Task<IActionResult> CheckOnlineStatus(CancellationToken cancellationToken)
         {
             if (_syncConnectionProvider.IsLocalOnlyProduction)
