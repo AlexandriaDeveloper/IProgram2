@@ -95,11 +95,11 @@ namespace Auth.UnitTests
                         IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sync')
                             EXEC('CREATE SCHEMA [sync]');
 
-                        CREATE TABLE [dbo].[Employee] (
+                        CREATE TABLE [dbo].[Employees] (
                             [Id] NVARCHAR(14) NOT NULL PRIMARY KEY,
                             [Name] NVARCHAR(100) NOT NULL
                         );
-                        INSERT INTO [dbo].[Employee] (Id, Name) VALUES ('12345678901234', 'Integration Test Employee');
+                        INSERT INTO [dbo].[Employees] (Id, Name) VALUES ('12345678901234', 'Integration Test Employee');
 
                         CREATE TABLE [dbo].[Daily] (
                             [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -236,16 +236,16 @@ namespace Auth.UnitTests
                         IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sync')
                             EXEC('CREATE SCHEMA [sync]');
 
-                        IF OBJECT_ID('[dbo].[Employee]', 'U') IS NULL
+                        IF OBJECT_ID('[dbo].[Employees]', 'U') IS NULL
                         BEGIN
-                            CREATE TABLE [dbo].[Employee] (
+                            CREATE TABLE [dbo].[Employees] (
                                 [Id] NVARCHAR(14) NOT NULL PRIMARY KEY,
                                 [Name] NVARCHAR(100) NOT NULL
                             );
                         END;
-                        IF NOT EXISTS (SELECT 1 FROM [dbo].[Employee] WHERE [Id] = '12345678901234')
+                        IF NOT EXISTS (SELECT 1 FROM [dbo].[Employees] WHERE [Id] = '12345678901234')
                         BEGIN
-                            INSERT INTO [dbo].[Employee] (Id, Name) VALUES ('12345678901234', 'Integration Test Employee');
+                            INSERT INTO [dbo].[Employees] (Id, Name) VALUES ('12345678901234', 'Integration Test Employee');
                         END;
 
                         IF OBJECT_ID('[dbo].[FormRefernce]', 'U') IS NOT NULL DROP TABLE [dbo].[FormRefernce];
@@ -412,7 +412,7 @@ namespace Auth.UnitTests
                             IF OBJECT_ID('[dbo].[FormDetails]', 'U') IS NOT NULL DELETE FROM [dbo].[FormDetails];
                             IF OBJECT_ID('[dbo].[Form]', 'U') IS NOT NULL DELETE FROM [dbo].[Form];
                             IF OBJECT_ID('[dbo].[Daily]', 'U') IS NOT NULL DELETE FROM [dbo].[Daily];
-                            IF OBJECT_ID('[dbo].[Employee]', 'U') IS NOT NULL DELETE FROM [dbo].[Employee];
+                            IF OBJECT_ID('[dbo].[Employees]', 'U') IS NOT NULL DELETE FROM [dbo].[Employees];
                             IF OBJECT_ID('[sync].[ScopeBaseline]', 'U') IS NOT NULL DELETE FROM [sync].[ScopeBaseline];
                             IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_SimulatedFailure')
                                 ALTER TABLE [sync].[LocalOutbox] DROP CONSTRAINT [CK_SimulatedFailure];
@@ -2127,16 +2127,16 @@ namespace Auth.UnitTests
                         IF OBJECT_ID('[dbo].[FormDetails]', 'U') IS NOT NULL DROP TABLE [dbo].[FormDetails];
                         IF OBJECT_ID('[dbo].[Form]', 'U') IS NOT NULL DROP TABLE [dbo].[Form];
                         IF OBJECT_ID('[dbo].[Daily]', 'U') IS NOT NULL DROP TABLE [dbo].[Daily];
-                        IF OBJECT_ID('[dbo].[Employee]', 'U') IS NOT NULL DROP TABLE [dbo].[Employee];
+                        IF OBJECT_ID('[dbo].[Employees]', 'U') IS NOT NULL DROP TABLE [dbo].[Employees];
                         IF OBJECT_ID('[sync].[ScopeBaseline]', 'U') IS NOT NULL DROP TABLE [sync].[ScopeBaseline];
                         IF OBJECT_ID('[sync].[LocalOutbox]', 'U') IS NOT NULL DROP TABLE [sync].[LocalOutbox];
                         IF OBJECT_ID('[sync].[LocalState]', 'U') IS NOT NULL DROP TABLE [sync].[LocalState];
 
-                        CREATE TABLE [dbo].[Employee] (
+                        CREATE TABLE [dbo].[Employees] (
                             [Id] NVARCHAR(14) NOT NULL PRIMARY KEY,
                             [Name] NVARCHAR(100) NOT NULL
                         );
-                        INSERT INTO [dbo].[Employee] (Id, Name) VALUES ('12345678901234', 'Integration Test Employee');
+                        INSERT INTO [dbo].[Employees] (Id, Name) VALUES ('12345678901234', 'Integration Test Employee');
 
                         CREATE TABLE [dbo].[Daily] (
                             [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -2461,6 +2461,160 @@ namespace Auth.UnitTests
                         END;";
                     try { await dropCmd.ExecuteNonQueryAsync(); } catch { }
                 }
+            }
+        }
+
+        [Fact]
+        public async Task Test21_FormsPush_FormDetails_MissingEmployee_ThrowsSyncEntityNotFoundException()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+
+            var formSyncId = Guid.NewGuid();
+            var detailsSyncId = Guid.NewGuid();
+
+            // 1. Insert Form on remote
+            await using (var conn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await conn.OpenAsync();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    INSERT INTO [dbo].[Form] (SyncId, DailyId, Name, [Index], CreatedAt, IsActive)
+                    VALUES (@SyncId, NULL, 'Form for Missing Emp Test', 1, SYSUTCDATETIME(), 1);";
+                cmd.Parameters.AddWithValue("@SyncId", formSyncId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 2. Prepare FormDetails with non-existent EmployeeId
+            var missingEmpId = "99999999999999";
+            var detailsPayload = JsonSerializer.Serialize(new SortedDictionary<string, object?>
+            {
+                ["baseServerVersion"] = 0L,
+                ["createdAtUtc"] = DateTime.UtcNow.ToString("O"),
+                ["databaseId"] = "2026",
+                ["deviceId"] = ctx.DeviceId.ToString(),
+                ["entityData"] = new SortedDictionary<string, object?>
+                {
+                    ["FormSyncId"] = formSyncId.ToString(),
+                    ["EmployeeId"] = missingEmpId,
+                    ["Amount"] = 250.0,
+                    ["OrderNum"] = 1,
+                    ["IsActive"] = true,
+                    ["CreatedAt"] = DateTime.UtcNow.ToString("O"),
+                    ["CreatedBy"] = "offline_user",
+                    ["SyncId"] = detailsSyncId.ToString()
+                },
+                ["entitySyncId"] = detailsSyncId.ToString(),
+                ["entityType"] = "FormDetails",
+                ["operationType"] = "INSERT",
+                ["schemaVersion"] = 1
+            });
+
+            var detailsOutbox = new LocalOutbox
+            {
+                ClientOperationId = Guid.NewGuid(),
+                DatabaseId = "2026",
+                AggregateType = "FormDetails",
+                CommandName = "FormDetails.Insert",
+                EntitySyncId = detailsSyncId,
+                PayloadJson = detailsPayload,
+                CreatedAtUtc = DateTime.UtcNow,
+                Status = "PENDING"
+            };
+
+            var hashDetails = LocalOutboxPushService.ComputeRequestHash("2026", ctx.DeviceId, "FormDetails.Insert", "FormDetails", detailsSyncId, detailsPayload);
+            var pushCoordinator = new AzurePushTransactionCoordinator(NullLogger<AzurePushTransactionCoordinator>.Instance);
+
+            await using (var conn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await conn.OpenAsync();
+                var ex = await Assert.ThrowsAsync<SyncEntityNotFoundException>(() =>
+                    pushCoordinator.ApplyOperationAsync(conn, "2026", detailsOutbox, 0L, hashDetails, ctx.DeviceId, CancellationToken.None));
+
+                Assert.Contains("Referenced Employee with Id '99999999999999' not found", ex.Message);
+            }
+        }
+
+        [Fact]
+        public async Task Test22_FormsPush_FormDetails_Update_MissingEmployee_ThrowsSyncEntityNotFoundException()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+
+            var formSyncId = Guid.NewGuid();
+            var detailsSyncId = Guid.NewGuid();
+
+            // 1. Insert Form and valid FormDetails on remote
+            await using (var conn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await conn.OpenAsync();
+                int formId;
+                await using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Form] (SyncId, DailyId, Name, [Index], CreatedAt, IsActive)
+                        OUTPUT INSERTED.Id
+                        VALUES (@SyncId, NULL, 'Form for Update Missing Emp Test', 1, SYSUTCDATETIME(), 1);";
+                    cmd.Parameters.AddWithValue("@SyncId", formSyncId);
+                    formId = (int)(await cmd.ExecuteScalarAsync())!;
+                }
+
+                await using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[FormDetails] (SyncId, FormId, EmployeeId, Amount, OrderNum, CreatedAt, IsActive)
+                        VALUES (@SyncId, @FormId, '12345678901234', 100.0, 1, SYSUTCDATETIME(), 1);";
+                    cmd.Parameters.AddWithValue("@SyncId", detailsSyncId);
+                    cmd.Parameters.AddWithValue("@FormId", formId);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // 2. Prepare FormDetails UPDATE with non-existent EmployeeId
+            var missingEmpId = "88888888888888";
+            var detailsPayload = JsonSerializer.Serialize(new SortedDictionary<string, object?>
+            {
+                ["baseServerVersion"] = 0L,
+                ["createdAtUtc"] = DateTime.UtcNow.ToString("O"),
+                ["databaseId"] = "2026",
+                ["deviceId"] = ctx.DeviceId.ToString(),
+                ["entityData"] = new SortedDictionary<string, object?>
+                {
+                    ["FormSyncId"] = formSyncId.ToString(),
+                    ["EmployeeId"] = missingEmpId,
+                    ["Amount"] = 350.0,
+                    ["OrderNum"] = 1,
+                    ["IsActive"] = true,
+                    ["UpdatedAt"] = DateTime.UtcNow.ToString("O"),
+                    ["UpdatedBy"] = "offline_user",
+                    ["SyncId"] = detailsSyncId.ToString()
+                },
+                ["entitySyncId"] = detailsSyncId.ToString(),
+                ["entityType"] = "FormDetails",
+                ["operationType"] = "UPDATE",
+                ["schemaVersion"] = 1
+            });
+
+            var detailsOutbox = new LocalOutbox
+            {
+                ClientOperationId = Guid.NewGuid(),
+                DatabaseId = "2026",
+                AggregateType = "FormDetails",
+                CommandName = "FormDetails.Update",
+                EntitySyncId = detailsSyncId,
+                PayloadJson = detailsPayload,
+                CreatedAtUtc = DateTime.UtcNow,
+                Status = "PENDING"
+            };
+
+            var hashDetails = LocalOutboxPushService.ComputeRequestHash("2026", ctx.DeviceId, "FormDetails.Update", "FormDetails", detailsSyncId, detailsPayload);
+            var pushCoordinator = new AzurePushTransactionCoordinator(NullLogger<AzurePushTransactionCoordinator>.Instance);
+
+            await using (var conn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await conn.OpenAsync();
+                var ex = await Assert.ThrowsAsync<SyncEntityNotFoundException>(() =>
+                    pushCoordinator.ApplyOperationAsync(conn, "2026", detailsOutbox, 0L, hashDetails, ctx.DeviceId, CancellationToken.None));
+
+                Assert.Contains("Referenced Employee with Id '88888888888888' not found", ex.Message);
             }
         }
     }

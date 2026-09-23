@@ -1030,7 +1030,7 @@ namespace Auth.Infrastructure.Sync.Push
             {
                 await using var empCmd = connection.CreateCommand();
                 empCmd.Transaction = transaction;
-                empCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Employee] WHERE [Id] = @EmployeeId;";
+                empCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Employees] WHERE [Id] = @EmployeeId;";
                 AddParam(empCmd, "@EmployeeId", payload.EmployeeId);
                 var empCount = Convert.ToInt32(await empCmd.ExecuteScalarAsync(ct));
                 if (empCount == 0)
@@ -1123,7 +1123,7 @@ namespace Auth.Infrastructure.Sync.Push
             {
                 await using var empCmd = connection.CreateCommand();
                 empCmd.Transaction = transaction;
-                empCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Employee] WHERE [Id] = @EmployeeId;";
+                empCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Employees] WHERE [Id] = @EmployeeId;";
                 AddParam(empCmd, "@EmployeeId", payload.EmployeeId);
                 var empCount = Convert.ToInt32(await empCmd.ExecuteScalarAsync(ct));
                 if (empCount == 0)
