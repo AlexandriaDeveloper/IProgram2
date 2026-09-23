@@ -1843,5 +1843,251 @@ namespace Auth.UnitTests
                 }
             }
         }
+
+        [Fact]
+        public async Task Test14_CrossTransactionFifo_LargeBatchFollowedByImmediateTransaction_ReplaysInStrictOrder()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baseline", CancellationToken.None);
+            }
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            // Transaction A: 1 Daily, 1 Form, 20 FormDetails (total 22 mutations in Tx A)
+            var dailyASyncId = Guid.NewGuid();
+            var formASyncId = Guid.NewGuid();
+            var formADetailsSyncIds = new List<Guid>();
+            for (int i = 0; i < 20; i++)
+            {
+                formADetailsSyncIds.Add(Guid.NewGuid());
+            }
+
+            using (var contextA = new ApplicationContext(options))
+            {
+                var uowA = new UnitOfWork(contextA, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                var dailyA = new Daily
+                {
+                    Name = "Daily Tx A",
+                    DailyDate = new DateTime(2026, 3, 1),
+                    SyncId = dailyASyncId,
+                    IsActive = true
+                };
+                var formA = new Form
+                {
+                    Name = "Form Tx A",
+                    Daily = dailyA,
+                    Index = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = formASyncId,
+                    IsActive = true
+                };
+                for (int i = 0; i < 20; i++)
+                {
+                    formA.FormDetails.Add(new FormDetails
+                    {
+                        EmployeeId = "12345678901234",
+                        Amount = 100.0 + i,
+                        OrderNum = i + 1,
+                        CreatedAt = DateTime.UtcNow,
+                        SyncId = formADetailsSyncIds[i],
+                        IsActive = true
+                    });
+                }
+
+                contextA.Set<Daily>().Add(dailyA);
+                contextA.Set<Form>().Add(formA);
+                await uowA.SaveChangesAsync();
+            }
+
+            // Transaction B: Executed immediately after Tx A.
+            // Tx B: 1 Form pointing to dailyA, 2 FormDetails (total 3 mutations in Tx B)
+            var formBSyncId = Guid.NewGuid();
+            var formBDetailsSyncIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
+
+            using (var contextB = new ApplicationContext(options))
+            {
+                var uowB = new UnitOfWork(contextB, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                var existingDailyA = await contextB.Set<Daily>().FirstAsync(d => d.SyncId == dailyASyncId);
+
+                var formB = new Form
+                {
+                    Name = "Form Tx B",
+                    Daily = existingDailyA,
+                    Index = 2,
+                    CreatedAt = DateTime.UtcNow,
+                    SyncId = formBSyncId,
+                    IsActive = true
+                };
+                for (int i = 0; i < formBDetailsSyncIds.Count; i++)
+                {
+                    formB.FormDetails.Add(new FormDetails
+                    {
+                        EmployeeId = "12345678901234",
+                        Amount = 500.0 + i,
+                        OrderNum = i + 1,
+                        CreatedAt = DateTime.UtcNow,
+                        SyncId = formBDetailsSyncIds[i],
+                        IsActive = true
+                    });
+                }
+
+                contextB.Set<Form>().Add(formB);
+                await uowB.SaveChangesAsync();
+            }
+
+            // Assert Outbox timestamps and ordering
+            var allTxASyncIds = new HashSet<Guid>(formADetailsSyncIds) { dailyASyncId, formASyncId };
+            var allTxBSyncIds = new HashSet<Guid>(formBDetailsSyncIds) { formBSyncId };
+
+            var outboxRecords = new List<(Guid EntitySyncId, string AggregateType, DateTime CreatedAtUtc)>();
+            await using (var localConn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await localConn.OpenAsync();
+                await using var cmd = localConn.CreateCommand();
+                cmd.CommandText = "SELECT EntitySyncId, AggregateType, CreatedAtUtc FROM [sync].[LocalOutbox] WHERE DatabaseId = '2026' ORDER BY CreatedAtUtc ASC;";
+                await using var rdr = await cmd.ExecuteReaderAsync();
+                while (await rdr.ReadAsync())
+                {
+                    outboxRecords.Add((rdr.GetGuid(0), rdr.GetString(1), rdr.GetDateTime(2)));
+                }
+            }
+
+            // Total outbox rows = 22 (Tx A) + 3 (Tx B) = 25
+            Assert.Equal(25, outboxRecords.Count);
+
+            var txARecords = outboxRecords.Where(r => allTxASyncIds.Contains(r.EntitySyncId)).ToList();
+            var txBRecords = outboxRecords.Where(r => allTxBSyncIds.Contains(r.EntitySyncId)).ToList();
+
+            Assert.Equal(22, txARecords.Count);
+            Assert.Equal(3, txBRecords.Count);
+
+            // Cross-transaction monotonic FIFO invariant:
+            // Max(Tx A CreatedAtUtc) < Min(Tx B CreatedAtUtc)
+            var maxTxACreatedAtUtc = txARecords.Max(r => r.CreatedAtUtc);
+            var minTxBCreatedAtUtc = txBRecords.Min(r => r.CreatedAtUtc);
+            Assert.True(maxTxACreatedAtUtc < minTxBCreatedAtUtc,
+                $"Expected Max(Tx A CreatedAtUtc) [{maxTxACreatedAtUtc:O}] < Min(Tx B CreatedAtUtc) [{minTxBCreatedAtUtc:O}]");
+
+            // Complete chronological sequence check: every single Tx A record must precede every Tx B record in the queue
+            for (int i = 0; i < 22; i++)
+            {
+                Assert.Contains(outboxRecords[i].EntitySyncId, allTxASyncIds);
+            }
+            for (int i = 22; i < 25; i++)
+            {
+                Assert.Contains(outboxRecords[i].EntitySyncId, allTxBSyncIds);
+            }
+
+            // Topological ordering within Tx A: Daily (index 0) < Form (index 1) < Details (indices 2..21)
+            Assert.Equal(dailyASyncId, outboxRecords[0].EntitySyncId);
+            Assert.Equal(formASyncId, outboxRecords[1].EntitySyncId);
+
+            // Topological ordering within Tx B: Form (index 22) < Details (indices 23..24)
+            Assert.Equal(formBSyncId, outboxRecords[22].EntitySyncId);
+
+            // Now test real LocalOutboxPushService replays in strict chronological order with valid remote FK resolution
+            var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+            remoteFactoryMock.Setup(f => f.CreateOpenConnectionAsync("2026", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(() =>
+                {
+                    var c = new SqlConnection(ctx.RemoteConnStr);
+                    c.Open();
+                    return c;
+                });
+
+            var inMemoryConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Sync:PushEnabled"] = "true" })
+                .Build();
+
+            var leaseManager = new LocalPushLeaseManager(syncProviderMock.Object, NullLogger<LocalPushLeaseManager>.Instance);
+            var pushCoordinator = new AzurePushTransactionCoordinator(NullLogger<AzurePushTransactionCoordinator>.Instance);
+            var pushService = new LocalOutboxPushService(
+                syncProviderMock.Object,
+                remoteFactoryMock.Object,
+                pushCoordinator,
+                leaseManager,
+                inMemoryConfig,
+                NullLogger<LocalOutboxPushService>.Instance,
+                baselineService);
+
+            var batchResult = await pushService.PushPendingOutboxAsync(CancellationToken.None);
+
+            Assert.Equal(25, batchResult.TotalProcessed);
+            Assert.Equal(25, batchResult.Succeeded);
+
+            // Verify remote database integrity
+            await using (var remoteConn = new SqlConnection(ctx.RemoteConnStr))
+            {
+                await remoteConn.OpenAsync();
+
+                // Daily A on Remote
+                int remoteDailyId;
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Id FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", dailyASyncId);
+                    var obj = await cmd.ExecuteScalarAsync();
+                    Assert.NotNull(obj);
+                    remoteDailyId = (int)obj;
+                }
+
+                // Form A on Remote with DailyId pointing to remoteDailyId
+                int remoteFormAId;
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Id, DailyId FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", formASyncId);
+                    await using var rdr = await cmd.ExecuteReaderAsync();
+                    Assert.True(await rdr.ReadAsync());
+                    remoteFormAId = rdr.GetInt32(0);
+                    Assert.Equal(remoteDailyId, rdr.GetInt32(1));
+                }
+
+                // FormDetails A count on Remote
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT COUNT(*) FROM [dbo].[FormDetails] WHERE FormId = @FormId;";
+                    cmd.Parameters.AddWithValue("@FormId", remoteFormAId);
+                    var count = (int)(await cmd.ExecuteScalarAsync())!;
+                    Assert.Equal(20, count);
+                }
+
+                // Form B on Remote with DailyId pointing to remoteDailyId
+                int remoteFormBId;
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Id, DailyId FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                    cmd.Parameters.AddWithValue("@SyncId", formBSyncId);
+                    await using var rdr = await cmd.ExecuteReaderAsync();
+                    Assert.True(await rdr.ReadAsync());
+                    remoteFormBId = rdr.GetInt32(0);
+                    Assert.Equal(remoteDailyId, rdr.GetInt32(1));
+                }
+
+                // FormDetails B count on Remote
+                await using (var cmd = remoteConn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT COUNT(*) FROM [dbo].[FormDetails] WHERE FormId = @FormId;";
+                    cmd.Parameters.AddWithValue("@FormId", remoteFormBId);
+                    var count = (int)(await cmd.ExecuteScalarAsync())!;
+                    Assert.Equal(2, count);
+                }
+            }
+        }
     }
 }

@@ -26,6 +26,7 @@ namespace Persistence.Repository
         private readonly IAuthoritativeDatabaseBindingGuard? _bindingGuard;
         private readonly IConfiguration? _configuration;
         private readonly ILocalScopeBaselineService? _scopeBaselineService;
+        public static readonly TimeSpan MonotonicQueueIncrement = TimeSpan.FromTicks(10);
 
         public UnitOfWork(
             ApplicationContext context,
@@ -280,12 +281,19 @@ namespace Persistence.Repository
                         .OrderBy(GetOfflineMutationTopologicalRank)
                         .ToList();
 
-                    var baseTimestamp = DateTime.UtcNow;
+                    var previousMaxCreatedAtUtc = await GetMaxOutboxCreatedAtUtcAsync(
+                        dbConnection, dbTransaction, databaseId, cancellationToken);
+                    var now = DateTime.UtcNow;
+                    var minAllowed = previousMaxCreatedAtUtc.HasValue
+                        ? previousMaxCreatedAtUtc.Value.Add(MonotonicQueueIncrement)
+                        : DateTime.MinValue;
+                    var baseTimestamp = now > minAllowed ? now : minAllowed;
+
                     for (int i = 0; i < orderedMutations.Count; i++)
                     {
                         var mutation = orderedMutations[i];
-                        // Strictly monotonic timestamp ensuring topological FIFO ordering in SQL DATETIME2
-                        var operationTimestamp = baseTimestamp.AddMilliseconds(i * 50);
+                        // Strictly monotonic timestamp ensuring topological FIFO ordering in SQL DATETIME2(7)
+                        var operationTimestamp = baseTimestamp.AddTicks(i * MonotonicQueueIncrement.Ticks);
 
                         string payloadJson;
                         if (mutation.Entity is Daily d)
@@ -727,6 +735,34 @@ namespace Persistence.Repository
             }
 
             return (deviceId, lastServerVersion);
+        }
+
+        private static async Task<DateTime?> GetMaxOutboxCreatedAtUtcAsync(
+            DbConnection dbConnection,
+            DbTransaction dbTransaction,
+            string databaseId,
+            CancellationToken cancellationToken)
+        {
+            using var cmd = dbConnection.CreateCommand();
+            cmd.Transaction = dbTransaction;
+            cmd.CommandText = @"
+                SELECT MAX(CreatedAtUtc)
+                FROM [sync].[LocalOutbox] WITH (UPDLOCK, HOLDLOCK)
+                WHERE DatabaseId = @DatabaseId;";
+
+            var param = cmd.CreateParameter();
+            param.ParameterName = "@DatabaseId";
+            param.Value = databaseId;
+            cmd.Parameters.Add(param);
+
+            var result = await cmd.ExecuteScalarAsync(cancellationToken);
+            if (result == null || result == DBNull.Value)
+            {
+                return null;
+            }
+
+            var maxUtc = (DateTime)result;
+            return DateTime.SpecifyKind(maxUtc, DateTimeKind.Utc);
         }
 
         private static async Task InsertOutboxRecordAsync(

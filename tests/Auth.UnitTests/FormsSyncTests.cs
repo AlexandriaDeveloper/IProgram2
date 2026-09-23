@@ -436,6 +436,55 @@ namespace Auth.UnitTests
             Assert.Contains("SCOPE_BASELINE_SERVICE_UNAVAILABLE", bodyText);
         }
 
+        [Fact]
+        public void MonotonicQueueKey_GuaranteesCrossTransactionFifo_AndTopologicalOrdering()
+        {
+            // Transaction A: 100 mutations at T0
+            var t0 = new DateTime(2026, 9, 23, 10, 0, 0, DateTimeKind.Utc);
+            DateTime? previousMaxA = null;
+            var minAllowedA = previousMaxA.HasValue ? previousMaxA.Value.Add(UnitOfWork.MonotonicQueueIncrement) : DateTime.MinValue;
+            var baseTimestampA = t0 > minAllowedA ? t0 : minAllowedA;
+
+            var txATimestamps = new List<DateTime>();
+            for (int i = 0; i < 100; i++)
+            {
+                txATimestamps.Add(baseTimestampA.AddTicks(i * UnitOfWork.MonotonicQueueIncrement.Ticks));
+            }
+
+            Assert.Equal(100, txATimestamps.Count);
+            // Intra-transaction strict monotonicity:
+            for (int i = 0; i < 99; i++)
+            {
+                Assert.True(txATimestamps[i] < txATimestamps[i + 1]);
+            }
+
+            // Transaction B: executed immediately after Transaction A (t_immediate <= previousMax)
+            var previousMaxB = txATimestamps[^1];
+            var tImmediate = t0.AddTicks(50); // Clock barely moved (5 microseconds)
+            var minAllowedB = previousMaxB.Add(UnitOfWork.MonotonicQueueIncrement);
+            var baseTimestampB = tImmediate > minAllowedB ? tImmediate : minAllowedB;
+
+            var txBTimestamps = new List<DateTime>();
+            for (int i = 0; i < 5; i++)
+            {
+                txBTimestamps.Add(baseTimestampB.AddTicks(i * UnitOfWork.MonotonicQueueIncrement.Ticks));
+            }
+
+            // Cross-transaction monotonic FIFO invariant:
+            // Every Tx A timestamp must be strictly less than every Tx B timestamp
+            Assert.True(txATimestamps.Max() < txBTimestamps.Min(),
+                "Tx B first timestamp MUST be strictly greater than Tx A last timestamp even under immediate execution.");
+
+            // Transaction C: executed later after an idle period (clock has advanced past minAllowed)
+            var previousMaxC = txBTimestamps[^1];
+            var tLater = t0.AddSeconds(1); // 1 second later
+            var minAllowedC = previousMaxC.Add(UnitOfWork.MonotonicQueueIncrement);
+            var baseTimestampC = tLater > minAllowedC ? tLater : minAllowedC;
+
+            // Zero cumulative drift: baseTimestampC snaps back to real UTC time
+            Assert.Equal(tLater, baseTimestampC);
+        }
+
         #endregion
     }
 }

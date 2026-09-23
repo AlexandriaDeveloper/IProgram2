@@ -48,7 +48,7 @@ if ($p.ExitCode -ne 0) {
     Write-Host " FormsSyncTests failed with exit code $($p.ExitCode)" -ForegroundColor Red
     exit $p.ExitCode
 }
-Write-Host " FormsSyncTests Passed (17/17 tests)." -ForegroundColor Green
+Write-Host " FormsSyncTests Passed (18/18 tests)." -ForegroundColor Green
 
 Write-Host "[3/3] Executing Isolated Database SQL Integration Tests (Transient DBs)..."
 $integrationTestArgs = @(
