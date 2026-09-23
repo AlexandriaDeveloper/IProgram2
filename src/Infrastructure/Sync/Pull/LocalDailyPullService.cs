@@ -18,6 +18,7 @@ namespace Auth.Infrastructure.Sync.Pull
         private readonly ILocalPullLeaseManager _leaseManager;
         private readonly IAzureFencedBatchReader _fencedBatchReader;
         private readonly ILocalPullTransactionCoordinator _transactionCoordinator;
+        private readonly ILocalScopeBaselineService? _scopeBaselineService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<LocalDailyPullService> _logger;
 
@@ -27,7 +28,8 @@ namespace Auth.Infrastructure.Sync.Pull
             IAzureFencedBatchReader fencedBatchReader,
             ILocalPullTransactionCoordinator transactionCoordinator,
             IConfiguration configuration,
-            ILogger<LocalDailyPullService> logger)
+            ILogger<LocalDailyPullService> logger,
+            ILocalScopeBaselineService? scopeBaselineService = null)
         {
             _syncConnectionProvider = syncConnectionProvider ?? throw new ArgumentNullException(nameof(syncConnectionProvider));
             _leaseManager = leaseManager ?? throw new ArgumentNullException(nameof(leaseManager));
@@ -35,6 +37,7 @@ namespace Auth.Infrastructure.Sync.Pull
             _transactionCoordinator = transactionCoordinator ?? throw new ArgumentNullException(nameof(transactionCoordinator));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _scopeBaselineService = scopeBaselineService;
         }
 
         public async Task<PullResultDto> PullDailyChangesAsync(CancellationToken cancellationToken)
@@ -82,6 +85,17 @@ namespace Auth.Infrastructure.Sync.Pull
 
                 // 8. Materialize Fenced Azure Batch
                 var batch = await _fencedBatchReader.ReadFencedBatchAsync(normDbId, localCheckpoint, cancellationToken);
+
+                // 8b. If batch contains Forms entities, enforce persistent Forms scope baseline (fail-closed)
+                if (batch.Commands.Any(i => i.EntityType == "Form" || i.EntityType == "FormDetails" || i.EntityType == "FormRefernce"))
+                {
+                    if (_scopeBaselineService != null)
+                    {
+                        await using var baselineConn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
+                        await baselineConn.OpenAsync(cancellationToken);
+                        await _scopeBaselineService.EnsureScopeBaselinedAsync(baselineConn, null, normDbId, "Forms", cancellationToken);
+                    }
+                }
 
                 // 9. If No-Op (H == L)
                 if (batch.IsNoOp)

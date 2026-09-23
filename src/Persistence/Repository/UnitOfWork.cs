@@ -25,19 +25,22 @@ namespace Persistence.Repository
         private readonly IAuthoritativeDailyMutationTracker? _authoritativeTracker;
         private readonly IAuthoritativeDatabaseBindingGuard? _bindingGuard;
         private readonly IConfiguration? _configuration;
+        private readonly ILocalScopeBaselineService? _scopeBaselineService;
 
         public UnitOfWork(
             ApplicationContext context,
             IDbConnectionProvider? dbConnectionProvider = null,
             IAuthoritativeDailyMutationTracker? authoritativeTracker = null,
             IAuthoritativeDatabaseBindingGuard? bindingGuard = null,
-            IConfiguration? configuration = null)
+            IConfiguration? configuration = null,
+            ILocalScopeBaselineService? scopeBaselineService = null)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _dbConnectionProvider = dbConnectionProvider;
             _authoritativeTracker = authoritativeTracker;
             _bindingGuard = bindingGuard;
             _configuration = configuration;
+            _scopeBaselineService = scopeBaselineService;
         }
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -260,6 +263,15 @@ namespace Persistence.Repository
                     var (deviceId, lastServerVersion) = await LockAndValidateLocalStateForOfflineWriteAsync(
                         dbConnection, dbTransaction, databaseId, cancellationToken);
 
+                    // Step 1b: Verify Scope Baseline for Forms if Form/FormDetails are present (FAIL CLOSED)
+                    if (capturedMutations.Any(m => m.EntityType == "Form" || m.EntityType == "FormDetails"))
+                    {
+                        var baselineService = _scopeBaselineService ?? new Auth.Infrastructure.Sync.LocalScopeBaselineService(
+                            Microsoft.Extensions.Logging.Abstractions.NullLogger<Auth.Infrastructure.Sync.LocalScopeBaselineService>.Instance);
+                        await baselineService.EnsureScopeBaselinedAsync(
+                            dbConnection, dbTransaction, databaseId, "Forms", cancellationToken);
+                    }
+
                     // Step 2: Save business changes without accepting changes yet
                     var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
 
@@ -440,7 +452,8 @@ namespace Persistence.Repository
                             EntityType = "Form",
                             Entity = form,
                             OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
-                            EntitySyncId = form.SyncId
+                            EntitySyncId = form.SyncId,
+                            FormOriginalSnapshot = CaptureFormOriginalSnapshot(entry)
                         });
                     }
                     else if (entry.State == EntityState.Deleted)
@@ -454,7 +467,8 @@ namespace Persistence.Repository
                             EntityType = "Form",
                             Entity = form,
                             OperationType = "HARD_DELETE",
-                            EntitySyncId = syncId
+                            EntitySyncId = syncId,
+                            FormOriginalSnapshot = CaptureFormOriginalSnapshot(entry)
                         });
                     }
                 }
@@ -489,7 +503,8 @@ namespace Persistence.Repository
                             EntityType = "FormDetails",
                             Entity = formDetails,
                             OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
-                            EntitySyncId = formDetails.SyncId
+                            EntitySyncId = formDetails.SyncId,
+                            FormDetailsOriginalSnapshot = CaptureFormDetailsOriginalSnapshot(entry)
                         });
                     }
                     else if (entry.State == EntityState.Deleted)
@@ -503,7 +518,8 @@ namespace Persistence.Repository
                             EntityType = "FormDetails",
                             Entity = formDetails,
                             OperationType = "HARD_DELETE",
-                            EntitySyncId = syncId
+                            EntitySyncId = syncId,
+                            FormDetailsOriginalSnapshot = CaptureFormDetailsOriginalSnapshot(entry)
                         });
                     }
                 }
@@ -538,7 +554,8 @@ namespace Persistence.Repository
                             EntityType = "FormRefernce",
                             Entity = formRefernce,
                             OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
-                            EntitySyncId = formRefernce.SyncId
+                            EntitySyncId = formRefernce.SyncId,
+                            FormRefernceOriginalSnapshot = CaptureFormRefernceOriginalSnapshot(entry)
                         });
                     }
                     else if (entry.State == EntityState.Deleted)
@@ -552,7 +569,8 @@ namespace Persistence.Repository
                             EntityType = "FormRefernce",
                             Entity = formRefernce,
                             OperationType = "HARD_DELETE",
-                            EntitySyncId = syncId
+                            EntitySyncId = syncId,
+                            FormRefernceOriginalSnapshot = CaptureFormRefernceOriginalSnapshot(entry)
                         });
                     }
                 }
@@ -825,6 +843,73 @@ namespace Persistence.Repository
                 DeactivatedAt = (DateTime?)originalValues[nameof(Daily.DeactivatedAt)],
                 DeactivatedBy = (string?)originalValues[nameof(Daily.DeactivatedBy)],
                 IsActive = (bool)originalValues[nameof(Daily.IsActive)]!
+            };
+        }
+
+        internal static AuthoritativeFormOriginalSnapshot CaptureFormOriginalSnapshot(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry)
+        {
+            var originalValues = entry.OriginalValues;
+            return new AuthoritativeFormOriginalSnapshot
+            {
+                SyncId = (Guid)originalValues[nameof(Form.SyncId)]!,
+                Name = (string?)originalValues[nameof(Form.Name)],
+                DailyId = (int?)originalValues[nameof(Form.DailyId)],
+                Index = (int?)originalValues[nameof(Form.Index)],
+                Description = (string?)originalValues[nameof(Form.Description)],
+                CreatedAt = (DateTime)originalValues[nameof(Form.CreatedAt)]!,
+                CreatedBy = (string?)originalValues[nameof(Form.CreatedBy)],
+                UpdatedAt = (DateTime?)originalValues[nameof(Form.UpdatedAt)],
+                UpdatedBy = (string?)originalValues[nameof(Form.UpdatedBy)],
+                DeactivatedAt = (DateTime?)originalValues[nameof(Form.DeactivatedAt)],
+                DeactivatedBy = (string?)originalValues[nameof(Form.DeactivatedBy)],
+                IsActive = (bool)originalValues[nameof(Form.IsActive)]!
+            };
+        }
+
+        internal static AuthoritativeFormDetailsOriginalSnapshot CaptureFormDetailsOriginalSnapshot(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry)
+        {
+            var originalValues = entry.OriginalValues;
+            return new AuthoritativeFormDetailsOriginalSnapshot
+            {
+                SyncId = (Guid)originalValues[nameof(FormDetails.SyncId)]!,
+                FormId = (int)originalValues[nameof(FormDetails.FormId)]!,
+                EmployeeId = (string)originalValues[nameof(FormDetails.EmployeeId)]!,
+                Amount = Convert.ToDouble(originalValues[nameof(FormDetails.Amount)]!),
+                OrderNum = (int)originalValues[nameof(FormDetails.OrderNum)]!,
+                IsReviewed = (bool)originalValues[nameof(FormDetails.IsReviewed)]!,
+                IsReviewedBy = (string?)originalValues[nameof(FormDetails.IsReviewedBy)],
+                ReviewedAt = (DateTime?)originalValues[nameof(FormDetails.ReviewedAt)],
+                ReviewComments = (string?)originalValues[nameof(FormDetails.ReviewComments)],
+                IsSummaryReviewed = (bool)originalValues[nameof(FormDetails.IsSummaryReviewed)]!,
+                IsSummaryReviewedBy = (string?)originalValues[nameof(FormDetails.IsSummaryReviewedBy)],
+                SummaryReviewedAt = (DateTime?)originalValues[nameof(FormDetails.SummaryReviewedAt)],
+                SummaryComments = (string?)originalValues[nameof(FormDetails.SummaryComments)],
+                SummaryReviewMethod = (string?)originalValues[nameof(FormDetails.SummaryReviewMethod)],
+                CreatedAt = (DateTime)originalValues[nameof(FormDetails.CreatedAt)]!,
+                CreatedBy = (string?)originalValues[nameof(FormDetails.CreatedBy)],
+                UpdatedAt = (DateTime?)originalValues[nameof(FormDetails.UpdatedAt)],
+                UpdatedBy = (string?)originalValues[nameof(FormDetails.UpdatedBy)],
+                DeactivatedAt = (DateTime?)originalValues[nameof(FormDetails.DeactivatedAt)],
+                DeactivatedBy = (string?)originalValues[nameof(FormDetails.DeactivatedBy)],
+                IsActive = (bool)originalValues[nameof(FormDetails.IsActive)]!
+            };
+        }
+
+        internal static AuthoritativeFormRefernceOriginalSnapshot CaptureFormRefernceOriginalSnapshot(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry)
+        {
+            var originalValues = entry.OriginalValues;
+            return new AuthoritativeFormRefernceOriginalSnapshot
+            {
+                SyncId = (Guid)originalValues[nameof(FormRefernce.SyncId)]!,
+                FormId = (int)originalValues[nameof(FormRefernce.FormId)]!,
+                ReferencePath = (string?)originalValues[nameof(FormRefernce.ReferencePath)],
+                CreatedAt = (DateTime)originalValues[nameof(FormRefernce.CreatedAt)]!,
+                CreatedBy = (string?)originalValues[nameof(FormRefernce.CreatedBy)],
+                UpdatedAt = (DateTime?)originalValues[nameof(FormRefernce.UpdatedAt)],
+                UpdatedBy = (string?)originalValues[nameof(FormRefernce.UpdatedBy)],
+                DeactivatedAt = (DateTime?)originalValues[nameof(FormRefernce.DeactivatedAt)],
+                DeactivatedBy = (string?)originalValues[nameof(FormRefernce.DeactivatedBy)],
+                IsActive = (bool)originalValues[nameof(FormRefernce.IsActive)]!
             };
         }
 

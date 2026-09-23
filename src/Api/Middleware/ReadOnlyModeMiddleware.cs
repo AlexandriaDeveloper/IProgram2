@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Auth.Api.Middleware
@@ -15,6 +16,23 @@ namespace Auth.Api.Middleware
         private static readonly Regex UncloseDailyRegex = new Regex(@"^/api/daily/unclosedaily/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex DeleteDailyRegex = new Regex(@"^/api/daily/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex SoftDeleteDailyRegex = new Regex(@"^/api/daily/softdelete/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        // Form Regexes
+        private static readonly Regex FormIdRegex = new Regex(@"^/api/form/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex HideFormRegex = new Regex(@"^/api/form/hide-form/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RestoreFormRegex = new Regex(@"^/api/form/restore-form/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex UpdateDescriptionRegex = new Regex(@"^/api/form/updatedescription/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex SoftDeleteFormRegex = new Regex(@"^/api/form/softdelete/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex CopyFormToArchiveRegex = new Regex(@"^/api/form/copyformtoarchive/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        // FormDetails Regexes
+        private static readonly Regex ReOrderRowsRegex = new Regex(@"^/api/formdetails/reorderrows/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex MarkAsReviewedRegex = new Regex(@"^/api/formdetails/markasreviewed/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex MarkAsSummaryReviewedRegex = new Regex(@"^/api/formdetails/markassummaryreviewed/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex DeleteFormDetailsRegex = new Regex(@"^/api/formdetails/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        // FormArchived Regexes
+        private static readonly Regex DeleteFormArchivedRegex = new Regex(@"^/api/formarchived/\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly RequestDelegate _next;
         private readonly IConfiguration _configuration;
@@ -45,12 +63,12 @@ namespace Auth.Api.Middleware
             var method = context.Request.Method;
             var path = context.Request.Path.Value?.TrimEnd('/') ?? "";
 
-            // 1. Block known mutating GET routes (e.g. archiving/copying forms) in all local modes
-            if (path.StartsWith("/api/form/copyformtoarchive", StringComparison.OrdinalIgnoreCase))
+            // 1. Block mutating GET routes (e.g. archiving/copying forms) in OfflineReadOnly mode
+            if (isReadOnly && path.StartsWith("/api/form/copyformtoarchive", StringComparison.OrdinalIgnoreCase))
             {
                 var blockedTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
                 _logger.LogWarning(
-                    "Mutating GET request blocked by ReadOnlyModeMiddleware: {Method} {Path} (TraceId: {TraceId})",
+                    "Mutating GET request blocked by ReadOnlyModeMiddleware in ReadOnly mode: {Method} {Path} (TraceId: {TraceId})",
                     method, path, blockedTraceId);
 
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -59,8 +77,8 @@ namespace Auth.Api.Middleware
                 var blockedPayload = new
                 {
                     statusCode = StatusCodes.Status403Forbidden,
-                    message = "العملية المطلوبة غير مسموحة في الوضع المحلي. جميع عمليات الأرشفة معطلة.",
-                    code = isReadOnly ? "READ_ONLY_MODE_BLOCKED" : "OFFLINE_WRITE_SCOPE_BLOCKED",
+                    message = "العملية المطلوبة غير مسموحة في وضع القراءة المحلية فقط. جميع عمليات الأرشفة معطلة.",
+                    code = "READ_ONLY_MODE_BLOCKED",
                     traceId = blockedTraceId
                 };
 
@@ -68,8 +86,8 @@ namespace Auth.Api.Middleware
                 return;
             }
 
-            // 2. Safe read-only HTTP methods are permitted
-            if (HttpMethods.IsGet(method) ||
+            // 2. Safe read-only HTTP methods are permitted (excluding mutating GET routes like CopyFormToArchive)
+            if ((HttpMethods.IsGet(method) && !path.StartsWith("/api/form/copyformtoarchive", StringComparison.OrdinalIgnoreCase)) ||
                 HttpMethods.IsHead(method) ||
                 HttpMethods.IsOptions(method))
             {
@@ -114,9 +132,48 @@ namespace Auth.Api.Middleware
             }
 
             // 5. OfflineReadWritePilot mode (isLocalFirst == true && isReadOnly == false):
-            // Strictly check allowlist for permitted Daily pilot operations
+            // Strictly check allowlist for permitted Daily and Forms pilot operations
             if (IsPermittedOfflineWritePilotRoute(method, path, _configuration))
             {
+                // If the route belongs to Forms scope, enforce Forms scope baseline readiness (fail-closed)
+                if (IsFormsScopeRoute(method, path))
+                {
+                    var baselineService = context.RequestServices.GetService<Core.Interfaces.ILocalScopeBaselineService>();
+                    var syncConnectionProvider = context.RequestServices.GetService<Core.Interfaces.ISyncConnectionProvider>();
+                    if (baselineService != null && syncConnectionProvider != null)
+                    {
+                        var databaseId = syncConnectionProvider.GetSelectedDatabaseId();
+                        var localConnStr = syncConnectionProvider.GetLocalConnectionString(databaseId);
+                        await using var baselineConn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
+                        await baselineConn.OpenAsync(context.RequestAborted);
+
+                        var baselineStatus = await baselineService.GetScopeStatusAsync(
+                            baselineConn, null, databaseId, "Forms", context.RequestAborted);
+
+                        if (baselineStatus != Core.Interfaces.SyncScopeBaselineStatus.Baselined)
+                        {
+                            var blockedBaselineTraceId = Activity.Current?.Id ?? context.TraceIdentifier;
+                            _logger.LogWarning(
+                                "Forms write request blocked by ScopeBaseline guard: {Method} {Path} (DatabaseId: {DatabaseId}, Status: {Status}, TraceId: {TraceId})",
+                                method, path, databaseId, baselineStatus, blockedBaselineTraceId);
+
+                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                            context.Response.ContentType = "application/json; charset=utf-8";
+
+                            var notBaselinedPayload = new
+                            {
+                                statusCode = StatusCodes.Status403Forbidden,
+                                message = "نطاق النماذج (Forms) غير مؤصل محلياً حتى الآن (NOT_BASELINED). العمليات المحلية على النماذج معطلة لحين إتمام التأصيل المعتمد.",
+                                code = "FORMS_SCOPE_NOT_BASELINED",
+                                traceId = blockedBaselineTraceId
+                            };
+
+                            await context.Response.WriteAsJsonAsync(notBaselinedPayload);
+                            return;
+                        }
+                    }
+                }
+
                 await _next(context);
                 return;
             }
@@ -133,7 +190,7 @@ namespace Auth.Api.Middleware
             var scopeResponsePayload = new
             {
                 statusCode = StatusCodes.Status403Forbidden,
-                message = "العملية المطلوبة غير مسموحة في وضع Offline Read-Write Pilot. العمليات المصرح بها محصورة في اليوميات (Daily) فقط.",
+                message = "العملية المطلوبة غير مسموحة في وضع Offline Read-Write Pilot. العمليات المصرح بها محصورة في اليوميات (Daily) والاستمارات (Forms) المصرح بها فقط.",
                 code = "OFFLINE_WRITE_SCOPE_BLOCKED",
                 traceId = blockedScopeTraceId
             };
@@ -141,8 +198,54 @@ namespace Auth.Api.Middleware
             await context.Response.WriteAsJsonAsync(scopeResponsePayload);
         }
 
+        public static bool IsFormsScopeRoute(string method, string path)
+        {
+            if (HttpMethods.IsPost(method))
+            {
+                return string.Equals(path, "/api/form", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(path, "/api/form/upload-excel-form", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(path, "/api/form/upload-json-form", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(path, "/api/formdetails/AddEmployeeToFormDetails", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(path, "/api/formarchived/deleteMultiForms", StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (HttpMethods.IsPut(method))
+            {
+                return string.Equals(path, "/api/form/MoveFormDailyArchives", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(path, "/api/formdetails/EditEmployeeToFormDetails", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(path, "/api/formarchived/MoveFormArchiveToDaily", StringComparison.OrdinalIgnoreCase) ||
+                       FormIdRegex.IsMatch(path) ||
+                       HideFormRegex.IsMatch(path) ||
+                       RestoreFormRegex.IsMatch(path) ||
+                       UpdateDescriptionRegex.IsMatch(path) ||
+                       ReOrderRowsRegex.IsMatch(path) ||
+                       MarkAsReviewedRegex.IsMatch(path) ||
+                       MarkAsSummaryReviewedRegex.IsMatch(path);
+            }
+
+            if (HttpMethods.IsDelete(method))
+            {
+                return SoftDeleteFormRegex.IsMatch(path) ||
+                       FormIdRegex.IsMatch(path) ||
+                       DeleteFormDetailsRegex.IsMatch(path) ||
+                       DeleteFormArchivedRegex.IsMatch(path);
+            }
+
+            if (HttpMethods.IsGet(method))
+            {
+                return CopyFormToArchiveRegex.IsMatch(path);
+            }
+
+            return false;
+        }
+
         public static bool IsPermittedOfflineWritePilotRoute(string method, string path, IConfiguration? configuration = null)
         {
+            if (IsFormsScopeRoute(method, path))
+            {
+                return true;
+            }
+
             if (HttpMethods.IsPost(method))
             {
                 if (string.Equals(path, "/api/daily", StringComparison.OrdinalIgnoreCase))

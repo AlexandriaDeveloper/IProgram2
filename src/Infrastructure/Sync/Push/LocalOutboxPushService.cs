@@ -21,6 +21,7 @@ namespace Auth.Infrastructure.Sync.Push
         private readonly IRemoteDatabaseConnectionFactory _remoteConnectionFactory;
         private readonly IAzurePushTransactionCoordinator _transactionCoordinator;
         private readonly ILocalPushLeaseManager _leaseManager;
+        private readonly ILocalScopeBaselineService? _scopeBaselineService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<LocalOutboxPushService> _logger;
 
@@ -30,7 +31,8 @@ namespace Auth.Infrastructure.Sync.Push
             IAzurePushTransactionCoordinator transactionCoordinator,
             ILocalPushLeaseManager leaseManager,
             IConfiguration configuration,
-            ILogger<LocalOutboxPushService> logger)
+            ILogger<LocalOutboxPushService> logger,
+            ILocalScopeBaselineService? scopeBaselineService = null)
         {
             _syncConnectionProvider = syncConnectionProvider ?? throw new ArgumentNullException(nameof(syncConnectionProvider));
             _remoteConnectionFactory = remoteConnectionFactory ?? throw new ArgumentNullException(nameof(remoteConnectionFactory));
@@ -38,6 +40,7 @@ namespace Auth.Infrastructure.Sync.Push
             _leaseManager = leaseManager ?? throw new ArgumentNullException(nameof(leaseManager));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _scopeBaselineService = scopeBaselineService;
         }
 
         public async Task<PushBatchResult> PushPendingOutboxAsync(CancellationToken cancellationToken)
@@ -92,6 +95,17 @@ namespace Auth.Infrastructure.Sync.Push
                 {
                     batchResult.FinalServerVersion = expectedServerVersion;
                     return batchResult;
+                }
+
+                // If any pending outbox operation is Form or FormDetails, enforce Forms scope baseline (fail-closed)
+                if (pendingOperations.Any(o => o.AggregateType == "Form" || o.AggregateType == "FormDetails"))
+                {
+                    if (_scopeBaselineService != null)
+                    {
+                        await using var baselineConn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
+                        await baselineConn.OpenAsync(cancellationToken);
+                        await _scopeBaselineService.EnsureScopeBaselinedAsync(baselineConn, null, databaseId, "Forms", cancellationToken);
+                    }
                 }
 
                 // 7. Open dedicated remote connection

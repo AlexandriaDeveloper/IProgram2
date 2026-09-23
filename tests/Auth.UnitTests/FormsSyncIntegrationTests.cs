@@ -2,19 +2,30 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Api.Controllers;
+using Auth.Api.Middleware;
+using Auth.Infrastructure;
+using Auth.Infrastructure.Sync;
 using Auth.Infrastructure.Sync.Pull;
 using Auth.Infrastructure.Sync.Push;
 using Core.Exceptions;
 using Core.Interfaces;
+using Core.Models;
 using Core.Models.Sync;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Persistence.Repository;
 using Xunit;
 
 namespace Auth.UnitTests
@@ -362,6 +373,23 @@ namespace Auth.UnitTests
                             DELETE FROM [sync].[LocalOutbox];
                         END;
 
+                        IF OBJECT_ID('[sync].[ScopeBaseline]', 'U') IS NULL
+                        BEGIN
+                            CREATE TABLE [sync].[ScopeBaseline] (
+                                [DatabaseId] NVARCHAR(32) NOT NULL,
+                                [Scope] NVARCHAR(50) NOT NULL,
+                                [Status] NVARCHAR(20) NOT NULL,
+                                [BaselineVersion] BIGINT NULL,
+                                [BaselinedAtUtc] DATETIME2 NOT NULL,
+                                [Notes] NVARCHAR(MAX) NULL,
+                                CONSTRAINT [PK_ScopeBaseline] PRIMARY KEY ([DatabaseId], [Scope])
+                            );
+                        END
+                        ELSE
+                        BEGIN
+                            DELETE FROM [sync].[ScopeBaseline];
+                        END;
+
                         INSERT INTO [sync].[LocalState] (DatabaseId, DeviceId, DeviceName, LastServerVersion)
                         VALUES ('2026', '{DeviceId}', 'FormsTestDevice', 0);
                     ";
@@ -383,6 +411,7 @@ namespace Auth.UnitTests
                             IF OBJECT_ID('[dbo].[Form]', 'U') IS NOT NULL DELETE FROM [dbo].[Form];
                             IF OBJECT_ID('[dbo].[Daily]', 'U') IS NOT NULL DELETE FROM [dbo].[Daily];
                             IF OBJECT_ID('[dbo].[Employee]', 'U') IS NOT NULL DELETE FROM [dbo].[Employee];
+                            IF OBJECT_ID('[sync].[ScopeBaseline]', 'U') IS NOT NULL DELETE FROM [sync].[ScopeBaseline];
                             IF OBJECT_ID('[sync].[LocalOutbox]', 'U') IS NOT NULL DELETE FROM [sync].[LocalOutbox];
                             IF OBJECT_ID('[sync].[LocalState]', 'U') IS NOT NULL DELETE FROM [sync].[LocalState];";
                         await cleanCmd.ExecuteNonQueryAsync();
@@ -859,6 +888,456 @@ namespace Auth.UnitTests
             Assert.Equal("BOTH_CHANGED_CONFLICT_RISK", ex.ErrorCode);
             Assert.Equal(2L, ex.LocalVersion);
             Assert.Equal(5L, ex.ServerVersion);
+        }
+
+        [Fact]
+        public async Task Test05_FormsScopeBaseline_DefaultNotBaselined_BlocksFormsOperations_PassesWhenBaselined()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            await using var conn = new SqlConnection(ctx.LocalConnStr);
+            await conn.OpenAsync();
+
+            // 1. Initial State: ScopeBaseline table has no record for Forms -> strictly NOT_BASELINED
+            var formsStatus = await baselineService.GetScopeStatusAsync(conn, null, "2026", "Forms", CancellationToken.None);
+            Assert.Equal(SyncScopeBaselineStatus.NotBaselined, formsStatus);
+
+            // 2. EnsureScopeBaselinedAsync fails closed with FormsScopeNotBaselinedException
+            var ex = await Assert.ThrowsAsync<FormsScopeNotBaselinedException>(() =>
+                baselineService.EnsureScopeBaselinedAsync(conn, null, "2026", "Forms", CancellationToken.None));
+            Assert.Equal("FORMS_SCOPE_NOT_BASELINED", ex.ErrorCode);
+
+            // 3. Daily scope retains its existing baseline readiness via LocalState fallback
+            var dailyStatus = await baselineService.GetScopeStatusAsync(conn, null, "2026", "Daily", CancellationToken.None);
+            Assert.Equal(SyncScopeBaselineStatus.Baselined, dailyStatus);
+
+            // 4. Record Forms baseline readiness
+            await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 5L, "Baseline verified", CancellationToken.None);
+
+            var updatedFormsStatus = await baselineService.GetScopeStatusAsync(conn, null, "2026", "Forms", CancellationToken.None);
+            Assert.Equal(SyncScopeBaselineStatus.Baselined, updatedFormsStatus);
+
+            // 5. EnsureScopeBaselinedAsync now succeeds
+            await baselineService.EnsureScopeBaselinedAsync(conn, null, "2026", "Forms", CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task Test06_ReadOnlyModeMiddleware_FormsRoute_BlocksWhenNotBaselined_AllowsWhenBaselined_AndMutatingGet()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var serviceCollection = new ServiceCollection();
+            serviceCollection.AddSingleton<ILocalScopeBaselineService>(baselineService);
+            serviceCollection.AddSingleton<ISyncConnectionProvider>(syncProviderMock.Object);
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+
+            var rwConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "LocalFirst:Enabled", "true" },
+                    { "LocalFirst:ReadOnlyMode", "false" }
+                })
+                .Build();
+
+            // Scenario A: Forms route when NOT_BASELINED -> 403 Forbidden with FORMS_SCOPE_NOT_BASELINED
+            bool nextCalled = false;
+            var rwMiddleware = new ReadOnlyModeMiddleware(
+                next: c => { nextCalled = true; return Task.CompletedTask; },
+                configuration: rwConfig,
+                logger: NullLogger<ReadOnlyModeMiddleware>.Instance);
+
+            var context1 = new DefaultHttpContext();
+            context1.RequestServices = serviceProvider;
+            context1.Request.Method = "POST";
+            context1.Request.Path = "/api/form";
+            context1.Response.Body = new MemoryStream();
+
+            await rwMiddleware.InvokeAsync(context1);
+            Assert.False(nextCalled);
+            Assert.Equal(StatusCodes.Status403Forbidden, context1.Response.StatusCode);
+
+            context1.Response.Body.Seek(0, SeekOrigin.Begin);
+            using (var reader = new StreamReader(context1.Response.Body))
+            {
+                var body = await reader.ReadToEndAsync();
+                Assert.Contains("FORMS_SCOPE_NOT_BASELINED", body);
+            }
+
+            // Scenario B: Forms route when BASELINED -> Allowed (Next invoked)
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baselined", CancellationToken.None);
+            }
+
+            bool nextCalledAfterBaseline = false;
+            var rwMiddlewareBaselined = new ReadOnlyModeMiddleware(
+                next: c => { nextCalledAfterBaseline = true; return Task.CompletedTask; },
+                configuration: rwConfig,
+                logger: NullLogger<ReadOnlyModeMiddleware>.Instance);
+
+            var context2 = new DefaultHttpContext();
+            context2.RequestServices = serviceProvider;
+            context2.Request.Method = "POST";
+            context2.Request.Path = "/api/form";
+
+            await rwMiddlewareBaselined.InvokeAsync(context2);
+            Assert.True(nextCalledAfterBaseline);
+
+            // Scenario C: OfflineReadOnly mode -> Forms writes blocked fail-closed
+            var roConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "LocalFirst:Enabled", "true" },
+                    { "LocalFirst:ReadOnlyMode", "true" }
+                })
+                .Build();
+
+            var roMiddleware = new ReadOnlyModeMiddleware(
+                next: c => Task.CompletedTask,
+                configuration: roConfig,
+                logger: NullLogger<ReadOnlyModeMiddleware>.Instance);
+
+            var contextRo = new DefaultHttpContext();
+            contextRo.RequestServices = serviceProvider;
+            contextRo.Request.Method = "POST";
+            contextRo.Request.Path = "/api/form";
+            contextRo.Response.Body = new MemoryStream();
+
+            await roMiddleware.InvokeAsync(contextRo);
+            Assert.Equal(StatusCodes.Status403Forbidden, contextRo.Response.StatusCode);
+
+            contextRo.Response.Body.Seek(0, SeekOrigin.Begin);
+            using (var reader = new StreamReader(contextRo.Response.Body))
+            {
+                var body = await reader.ReadToEndAsync();
+                Assert.Contains("READ_ONLY_MODE_BLOCKED", body);
+            }
+
+            // Scenario D: Mutating GET /api/form/CopyFormToArchive/42
+            // In ReadOnlyMode -> Blocked with READ_ONLY_MODE_BLOCKED
+            var contextCopyRo = new DefaultHttpContext();
+            contextCopyRo.RequestServices = serviceProvider;
+            contextCopyRo.Request.Method = "GET";
+            contextCopyRo.Request.Path = "/api/form/CopyFormToArchive/42";
+            contextCopyRo.Response.Body = new MemoryStream();
+
+            await roMiddleware.InvokeAsync(contextCopyRo);
+            Assert.Equal(StatusCodes.Status403Forbidden, contextCopyRo.Response.StatusCode);
+
+            // In OfflineReadWritePilot (with Baselined Forms) -> Permitted
+            bool copyNextCalled = false;
+            var rwCopyMiddleware = new ReadOnlyModeMiddleware(
+                next: c => { copyNextCalled = true; return Task.CompletedTask; },
+                configuration: rwConfig,
+                logger: NullLogger<ReadOnlyModeMiddleware>.Instance);
+
+            var contextCopyRw = new DefaultHttpContext();
+            contextCopyRw.RequestServices = serviceProvider;
+            contextCopyRw.Request.Method = "GET";
+            contextCopyRw.Request.Path = "/api/form/CopyFormToArchive/42";
+
+            await rwCopyMiddleware.InvokeAsync(contextCopyRw);
+            Assert.True(copyNextCalled);
+        }
+
+        [Fact]
+        public async Task Test07_FormAndDetails_OfflineWrite_WritesBusinessAndOutboxAtomically()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            var formSyncId = Guid.NewGuid();
+            var detailsSyncId = Guid.NewGuid();
+            var dailySyncId = Guid.NewGuid();
+
+            // Part A: Before baselining Forms, UnitOfWork write throws FormsScopeNotBaselinedException
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+                context.Set<Daily>().Add(new Daily { Name = "Daily Pre-Baseline", DailyDate = DateTime.UtcNow, SyncId = dailySyncId, IsActive = true });
+                await uow.SaveChangesAsync(); // Daily succeeds
+
+                context.Set<Form>().Add(new Form { Name = "Form Pre-Baseline", Index = 1, SyncId = formSyncId, IsActive = true });
+                var ex = await Assert.ThrowsAsync<FormsScopeNotBaselinedException>(() => uow.SaveChangesAsync());
+                Assert.Equal("FORMS_SCOPE_NOT_BASELINED", ex.ErrorCode);
+            }
+
+            // Part B: Baseline Forms scope
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Test Baseline", CancellationToken.None);
+            }
+
+            // Part C: Insert Form and FormDetails atomically in a single UnitOfWork SaveChangesAsync
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                var daily = await context.Set<Daily>().FirstAsync(d => d.SyncId == dailySyncId);
+                var form = new Form
+                {
+                    Name = "Atomic Form 1",
+                    Description = "Atomic Description",
+                    Index = 1,
+                    DailyId = daily.Id,
+                    SyncId = formSyncId,
+                    IsActive = true
+                };
+                context.Set<Form>().Add(form);
+                await uow.SaveChangesAsync();
+
+                var details = new FormDetails
+                {
+                    FormId = form.Id,
+                    EmployeeId = "12345678901234",
+                    Amount = 1500.50,
+                    OrderNum = 1,
+                    SyncId = detailsSyncId,
+                    IsActive = true
+                };
+                context.Set<FormDetails>().Add(details);
+                await uow.SaveChangesAsync();
+            }
+
+            // Part D: Verify physical SQL rows and PENDING Outbox rows
+            await using (var localConn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await localConn.OpenAsync();
+
+                // Form business row
+                await using var cmdForm = localConn.CreateCommand();
+                cmdForm.CommandText = "SELECT COUNT(*) FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                cmdForm.Parameters.AddWithValue("@SyncId", formSyncId);
+                Assert.Equal(1, (int)(await cmdForm.ExecuteScalarAsync())!);
+
+                // FormDetails business row
+                await using var cmdDet = localConn.CreateCommand();
+                cmdDet.CommandText = "SELECT COUNT(*) FROM [dbo].[FormDetails] WHERE SyncId = @SyncId;";
+                cmdDet.Parameters.AddWithValue("@SyncId", detailsSyncId);
+                Assert.Equal(1, (int)(await cmdDet.ExecuteScalarAsync())!);
+
+                // Outbox row for Form.Insert
+                await using var cmdObForm = localConn.CreateCommand();
+                cmdObForm.CommandText = "SELECT CommandName, Status, AggregateType FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
+                cmdObForm.Parameters.AddWithValue("@SyncId", formSyncId);
+                await using var rdrForm = await cmdObForm.ExecuteReaderAsync();
+                Assert.True(await rdrForm.ReadAsync());
+                Assert.Equal("Form.Insert", rdrForm.GetString(0));
+                Assert.Equal("PENDING", rdrForm.GetString(1));
+                Assert.Equal("Form", rdrForm.GetString(2));
+                await rdrForm.CloseAsync();
+
+                // Outbox row for FormDetails.Insert
+                await using var cmdObDet = localConn.CreateCommand();
+                cmdObDet.CommandText = "SELECT CommandName, Status, AggregateType FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
+                cmdObDet.Parameters.AddWithValue("@SyncId", detailsSyncId);
+                await using var rdrDet = await cmdObDet.ExecuteReaderAsync();
+                Assert.True(await rdrDet.ReadAsync());
+                Assert.Equal("FormDetails.Insert", rdrDet.GetString(0));
+                Assert.Equal("PENDING", rdrDet.GetString(1));
+                Assert.Equal("FormDetails", rdrDet.GetString(2));
+            }
+        }
+
+        [Fact]
+        public async Task Test08_FormDetails_UpdateAndSoftDelete_GeneratesPendingOutbox()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            // Baseline Forms scope
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baseline", CancellationToken.None);
+            }
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            var formSyncId = Guid.NewGuid();
+            var detailsSyncId = Guid.NewGuid();
+
+            // 1. Initial Insert
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+                var form = new Form { Name = "Form For Details Mutations", Index = 1, SyncId = formSyncId, IsActive = true };
+                context.Set<Form>().Add(form);
+                await uow.SaveChangesAsync();
+
+                var details = new FormDetails { FormId = form.Id, EmployeeId = "12345678901234", Amount = 100.0, OrderNum = 1, SyncId = detailsSyncId, IsActive = true };
+                context.Set<FormDetails>().Add(details);
+                await uow.SaveChangesAsync();
+            }
+
+            // 2. UPDATE operation on FormDetails
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+                var details = await context.Set<FormDetails>().FirstAsync(d => d.SyncId == detailsSyncId);
+                details.Amount = 550.0;
+                details.IsReviewed = true;
+                await uow.SaveChangesAsync();
+            }
+
+            // 3. SOFT_DELETE operation on FormDetails
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+                var details = await context.Set<FormDetails>().FirstAsync(d => d.SyncId == detailsSyncId);
+                details.IsActive = false;
+                details.DeactivatedAt = DateTime.UtcNow;
+                await uow.SaveChangesAsync();
+            }
+
+            // 4. Verify LocalOutbox has UPDATE and SOFT_DELETE records
+            await using (var localConn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await localConn.OpenAsync();
+                await using var cmd = localConn.CreateCommand();
+                cmd.CommandText = "SELECT CommandName, Status FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId ORDER BY CreatedAtUtc ASC;";
+                cmd.Parameters.AddWithValue("@SyncId", detailsSyncId);
+                await using var rdr = await cmd.ExecuteReaderAsync();
+
+                Assert.True(await rdr.ReadAsync());
+                Assert.Equal("FormDetails.Insert", rdr.GetString(0));
+
+                Assert.True(await rdr.ReadAsync());
+                Assert.Equal("FormDetails.Update", rdr.GetString(0));
+                Assert.Equal("PENDING", rdr.GetString(1));
+
+                Assert.True(await rdr.ReadAsync());
+                Assert.Equal("FormDetails.SoftDelete", rdr.GetString(0));
+                Assert.Equal("PENDING", rdr.GetString(1));
+            }
+        }
+
+        [Fact]
+        public async Task Test09_CopyFormToArchive_AtomicCreation_ResolvableSyncIds()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var baselineService = new LocalScopeBaselineService(NullLogger<LocalScopeBaselineService>.Instance);
+
+            await using (var conn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await baselineService.SetScopeStatusAsync(conn, null, "2026", "Forms", SyncScopeBaselineStatus.Baselined, 1L, "Baseline", CancellationToken.None);
+            }
+
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            var archiveFormSyncId = Guid.NewGuid();
+            var copiedDetailSyncId = Guid.NewGuid();
+
+            using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, syncProviderMock.Object, authoritativeTracker: null, bindingGuard: null, configuration: null, scopeBaselineService: baselineService);
+
+                // Create Archived Form (DailyId = null)
+                var archiveForm = new Form
+                {
+                    Name = "Archived Annual Bonus Form",
+                    DailyId = null,
+                    Index = 1,
+                    SyncId = archiveFormSyncId,
+                    IsActive = true
+                };
+                context.Set<Form>().Add(archiveForm);
+                await uow.SaveChangesAsync();
+
+                // Add copied details
+                var detail = new FormDetails
+                {
+                    FormId = archiveForm.Id,
+                    EmployeeId = "12345678901234",
+                    Amount = 2500.0,
+                    OrderNum = 1,
+                    SyncId = copiedDetailSyncId,
+                    IsActive = true
+                };
+                context.Set<FormDetails>().Add(detail);
+                await uow.SaveChangesAsync();
+            }
+
+            // Verify Outbox payload has resolvable FormSyncId and null DailySyncId
+            await using (var localConn = new SqlConnection(ctx.LocalConnStr))
+            {
+                await localConn.OpenAsync();
+
+                // Verify Form Outbox has DailySyncId = null
+                await using var cmdFormOb = localConn.CreateCommand();
+                cmdFormOb.CommandText = "SELECT PayloadJson FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
+                cmdFormOb.Parameters.AddWithValue("@SyncId", archiveFormSyncId);
+                var formJson = (string)(await cmdFormOb.ExecuteScalarAsync())!;
+                using var formDoc = JsonDocument.Parse(formJson);
+                Assert.Equal(JsonValueKind.Null, formDoc.RootElement.GetProperty("entityData").GetProperty("DailySyncId").ValueKind);
+
+                // Verify Details Outbox has FormSyncId pointing to archive form
+                await using var cmdDetOb = localConn.CreateCommand();
+                cmdDetOb.CommandText = "SELECT PayloadJson FROM [sync].[LocalOutbox] WHERE EntitySyncId = @SyncId;";
+                cmdDetOb.Parameters.AddWithValue("@SyncId", copiedDetailSyncId);
+                var detJson = (string)(await cmdDetOb.ExecuteScalarAsync())!;
+                using var detDoc = JsonDocument.Parse(detJson);
+                Assert.Equal(archiveFormSyncId.ToString(), detDoc.RootElement.GetProperty("entityData").GetProperty("FormSyncId").GetString());
+            }
+        }
+
+        [Fact]
+        public async Task Test10_UnsupportedEntityMutation_FailsClosed()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+            syncProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns(ctx.LocalConnStr);
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(ctx.LocalConnStr)
+                .Options;
+
+            using var context = new ApplicationContext(options);
+            var uow = new UnitOfWork(context, syncProviderMock.Object);
+
+            context.Departments.Add(new Department { Name = "Disallowed Department" });
+            var ex = await Assert.ThrowsAsync<OfflineWriteScopeException>(() => uow.SaveChangesAsync());
+            Assert.Contains("غير مصرح بتعديله في وضع Offline Read-Write Pilot", ex.Message);
         }
     }
 }

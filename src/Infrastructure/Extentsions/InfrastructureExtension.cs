@@ -73,6 +73,7 @@ public static class InfrastructureExtension
         services.AddScoped<Core.Interfaces.IAzureFencedBatchReader, Sync.Pull.AzureFencedBatchReader>();
         services.AddScoped<Core.Interfaces.ILocalPullTransactionCoordinator, Sync.Pull.LocalPullTransactionCoordinator>();
         services.AddScoped<Core.Interfaces.ILocalDailyPullService, Sync.Pull.LocalDailyPullService>();
+        services.AddScoped<Core.Interfaces.ILocalScopeBaselineService, Sync.LocalScopeBaselineService>();
 
         services.AddDbContext<ApplicationContext>((serviceProvider, options) =>
         {

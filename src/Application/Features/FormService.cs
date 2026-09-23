@@ -767,9 +767,15 @@ namespace Application.Features
                 return persistenceGuard;
             }
 
-            // Step 6: Atomic Replacement in a Single SaveChangesAsync
-            var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
-            _formDetailsRepository.DeleteRange(deleteEntity);
+            // Step 6: Atomic Replacement in a Single SaveChangesAsync (Soft Delete existing records to maintain transactional sync outbox)
+            var deleteEntity = await _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId).ToListAsync();
+            foreach (var oldDetail in deleteEntity)
+            {
+                oldDetail.IsActive = false;
+                oldDetail.DeactivatedAt = now;
+                oldDetail.DeactivatedBy = currentUserId;
+                _formDetailsRepository.Update(oldDetail);
+            }
             await _formDetailsRepository.AddRange(detailsToInsert);
             await _unitOfWork.SaveChangesAsync();
             ClearFormDetailsCache(request.FormId);

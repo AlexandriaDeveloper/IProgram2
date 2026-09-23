@@ -512,12 +512,16 @@ namespace Auth.UnitTests
 
             Assert.True(result.IsSuccess);
 
-            // Only the new detail exists now
-            var details = await context.Set<FormDetails>().Where(f => f.FormId == 8).ToListAsync();
-            Assert.Single(details);
-            Assert.Equal(emp2.Id, details[0].EmployeeId);
-            Assert.Equal(99.0, details[0].Amount);
-            Assert.Equal(1, details[0].OrderNum);
+            // Only the new detail exists as active now
+            var activeDetails = await context.Set<FormDetails>().Where(f => f.FormId == 8 && f.IsActive).ToListAsync();
+            Assert.Single(activeDetails);
+            Assert.Equal(emp2.Id, activeDetails[0].EmployeeId);
+            Assert.Equal(99.0, activeDetails[0].Amount);
+            Assert.Equal(1, activeDetails[0].OrderNum);
+
+            // Previous details were soft-deleted (IsActive = false) to maintain transactional sync outbox invariants
+            var deactivatedDetails = await context.Set<FormDetails>().Where(f => f.FormId == 8 && !f.IsActive).ToListAsync();
+            Assert.Equal(2, deactivatedDetails.Count);
 
             guardMock.Verify(g => g.EnsureFormDailyOpenAsync(8), Times.Exactly(2));
             uowMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once());
