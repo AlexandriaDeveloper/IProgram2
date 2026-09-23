@@ -553,6 +553,167 @@ VALUES ('2026', 'UPSERT', 'Daily', NEWID(), '{"Name":"Legitimate Offline Daily W
             throw "Test mode artifact mismatch"
         }
     }
+
+    # --- TEST 10: ManualSyncRemote Inheritance & Safety Invariants (Comment #5801971999) ---
+    Assert-Test "ManualSyncRemote connection string inheritance from User/Process scope when present without disclosure" {
+        $fakeRemote2026 = "Server=127.0.0.1;Database=TestRemote2026;Integrated Security=True;"
+        $fakeRemote2027 = "Server=127.0.0.1;Database=TestRemote2027;Integrated Security=True;"
+
+        # Save existing process/user values if any
+        $origProc2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "Process")
+        $origProc2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "Process")
+
+        try {
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $fakeRemote2026, "Process")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $fakeRemote2027, "Process")
+
+            $envMap = Get-LocalFirstChildEnvironment -Port 5000 `
+                -Local2026ConnStr $fixtureConn2026 `
+                -Local2027ConnStr $fixtureConn2027 `
+                -TokenKey "test_token_key_64_characters_long_for_hmac_sha256_validation_12345678" `
+                -IsTestMode $true
+
+            if ($envMap["ConnectionStrings__ManualSyncRemote2026"] -ne $fakeRemote2026) {
+                throw "ManualSyncRemote2026 was not properly inherited into child environment!"
+            }
+            if ($envMap["ConnectionStrings__ManualSyncRemote2027"] -ne $fakeRemote2027) {
+                throw "ManualSyncRemote2027 was not properly inherited into child environment!"
+            }
+
+            # Invariant: Tripwires must remain strictly untouched
+            if ($envMap["ConnectionStrings__DefaultConnection"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+                throw "Tripwire DefaultConnection was corrupted!"
+            }
+            if ($envMap["ConnectionStrings__CON2027"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+                throw "Tripwire CON2027 was corrupted!"
+            }
+            if ($envMap["Sync__PullEnabled"] -ne "false" -or $envMap["Sync__PushEnabled"] -ne "false") {
+                throw "Sync pull/push flags must remain false!"
+            }
+        } finally {
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $origProc2026, "Process")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $origProc2027, "Process")
+        }
+    }
+
+    # --- TEST 11: ManualSyncRemote Absence Valid Startup & Fail-Closed Omission ---
+    Assert-Test "ManualSyncRemote absence remains valid for LocalFirst startup and omits manual remote keys" {
+        $origUser2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "User")
+        $origUser2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "User")
+        $origProc2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "Process")
+        $origProc2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "Process")
+
+        try {
+            # Temporarily clear both User and Process scopes
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $null, "User")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $null, "User")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $null, "Process")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $null, "Process")
+
+            $envMap = Get-LocalFirstChildEnvironment -Port 5000 `
+                -Local2026ConnStr $fixtureConn2026 `
+                -Local2027ConnStr $fixtureConn2027 `
+                -TokenKey "test_token_key_64_characters_long_for_hmac_sha256_validation_12345678" `
+                -IsTestMode $true
+
+            if ($envMap.ContainsKey("ConnectionStrings__ManualSyncRemote2026")) {
+                throw "ManualSyncRemote2026 must be absent from child environment when not configured!"
+            }
+            if ($envMap.ContainsKey("ConnectionStrings__ManualSyncRemote2027")) {
+                throw "ManualSyncRemote2027 must be absent from child environment when not configured!"
+            }
+
+            # Invariant: Basic LocalFirst settings and tripwires remain valid
+            if ($envMap["LocalFirst__Enabled"] -ne "true") { throw "LocalFirst__Enabled must be true" }
+            if ($envMap["ConnectionStrings__DefaultConnection"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+                throw "Tripwire DefaultConnection must reference DISABLED_REMOTE_TRIPWIRE"
+            }
+        } finally {
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $origUser2026, "User")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $origUser2027, "User")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $origProc2026, "Process")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $origProc2027, "Process")
+        }
+    }
+
+    # --- TEST 12: Start and Restart Lifecycle Rehydration & Zero Secret Leakage ---
+    Assert-Test "Start and Restart lifecycle rehydrates manual sync remote keys with parity and zero secret leakage into state/logs" {
+        $secretTestMarker = "SECRET_TOKEN_DO_NOT_LEAK_TO_DISK_OR_LOGS_987654321"
+        $fakeRemoteSecret = "Server=127.0.0.1;Database=TestRemoteLeakCheck;Password=$secretTestMarker;"
+
+        $testPort = 5195
+        $testStateFile = [System.IO.Path]::GetTempFileName()
+        Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+
+        $origProc2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "Process")
+        try {
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $fakeRemoteSecret, "Process")
+
+            # 1. Start runtime on isolated port
+            $startRes = & $launcherScript Start `
+                -Port $testPort `
+                -AllowIsolatedTestMode `
+                -SkipGitVerification `
+                -OverrideLocal2026ConnStr $fixtureConn2026 `
+                -OverrideLocal2027ConnStr $fixtureConn2027 `
+                -OverrideStateFilePath $testStateFile
+
+            if ($startRes.Status -ne "RUNNING") {
+                throw "Start failed: status=$($startRes.Status)"
+            }
+
+            # Verify /health responded
+            $h1 = Invoke-WebRequest -Uri "http://127.0.0.1:$testPort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
+            if ($h1.StatusCode -ne 200) { throw "Initial health check failed: $($h1.StatusCode)" }
+
+            # 2. Restart runtime on isolated port (testing Start/Restart parity)
+            & $launcherScript Restart `
+                -Port $testPort `
+                -AllowIsolatedTestMode `
+                -SkipGitVerification `
+                -OverrideLocal2026ConnStr $fixtureConn2026 `
+                -OverrideLocal2027ConnStr $fixtureConn2027 `
+                -OverrideStateFilePath $testStateFile
+
+            # Verify /health after restart
+            $h2 = Invoke-WebRequest -Uri "http://127.0.0.1:$testPort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
+            if ($h2.StatusCode -ne 200) { throw "Post-restart health check failed: $($h2.StatusCode)" }
+
+            # 3. Read state file and verify ZERO secret leakage
+            if (-not (Test-Path $testStateFile)) { throw "State file not found at $testStateFile" }
+            $stateContent = Get-Content $testStateFile -Raw
+            if ($stateContent -match $secretTestMarker) {
+                throw "SECURITY VIOLATION: Secret marker was leaked into structured state file!"
+            }
+
+            $stateObj = $stateContent | ConvertFrom-Json
+            if ($stateObj.logPath -and (Test-Path $stateObj.logPath)) {
+                $logContent = Get-Content $stateObj.logPath -Raw
+                if ($logContent -match $secretTestMarker) {
+                    throw "SECURITY VIOLATION: Secret marker was leaked into stdout runtime log!"
+                }
+            }
+            if ($stateObj.errPath -and (Test-Path $stateObj.errPath)) {
+                $errContent = Get-Content $stateObj.errPath -Raw
+                if ($errContent -match $secretTestMarker) {
+                    throw "SECURITY VIOLATION: Secret marker was leaked into stderr runtime log!"
+                }
+            }
+
+            # 4. Stop runtime cleanly
+            & $launcherScript Stop -Port $testPort -OverrideStateFilePath $testStateFile | Out-Null
+        } finally {
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $origProc2026, "Process")
+            if (Test-Path $testStateFile) {
+                $remState = Get-RuntimeState $testStateFile
+                if ($remState -and $remState.pid) {
+                    $p = Get-Process -Id ([int]$remState.pid) -ErrorAction SilentlyContinue
+                    if ($p -and $p.ProcessName -ieq "dotnet") { $p | Stop-Process -Force -ErrorAction SilentlyContinue }
+                }
+                Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
 } finally {
     # Complete cleanup of transient fixture databases (P0-6)
     Remove-TestFixtureDatabases
