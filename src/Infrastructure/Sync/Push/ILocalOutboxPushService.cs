@@ -7,6 +7,6 @@ namespace Auth.Infrastructure.Sync.Push
 {
     public interface ILocalOutboxPushService
     {
-        Task<PushBatchResult> PushPendingOutboxAsync(CancellationToken cancellationToken);
+        Task<PushBatchResult> PushPendingOutboxAsync(CancellationToken cancellationToken, bool isExplicitManual = false);
     }
 }

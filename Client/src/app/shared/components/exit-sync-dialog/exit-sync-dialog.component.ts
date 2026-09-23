@@ -8,6 +8,12 @@ import { SyncService } from '../../service/sync.service';
 
 export interface ExitSyncDialogData {
   pendingCount: number;
+  inProgressCount?: number;
+  failedCount?: number;
+  databaseId?: string;
+  lastCheckTime?: string | null;
+  lastKnownFreshness?: string | null;
+  isErrorState?: boolean;
 }
 
 export type ExitSyncDialogResult = 'PUSH_AND_EXIT' | 'EXIT_WITHOUT_PUSH' | 'CANCEL';

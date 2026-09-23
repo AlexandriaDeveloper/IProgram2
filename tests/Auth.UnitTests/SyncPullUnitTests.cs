@@ -108,18 +108,24 @@ namespace Auth.UnitTests
         [Fact]
         public async Task SyncController_Pull_FailsClosed_WhenPullDisabled()
         {
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: false);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: false);
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+
+            var pullServiceMock = new Mock<ILocalDailyPullService>();
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
+                .ThrowsAsync(new SyncPullDisabledException("Sync:PullEnabled is false"));
 
             var controller = new SyncController(
                 new Mock<ILocalOutboxPushService>().Object,
-                new Mock<ILocalDailyPullService>().Object,
+                pullServiceMock.Object,
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -131,9 +137,10 @@ namespace Auth.UnitTests
         [Fact]
         public async Task SyncController_Pull_FailsClosed_WhenReadOnlyModeActive()
         {
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: true, pullEnabled: true);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: true, pullEnabled: true);
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(true);
 
             var controller = new SyncController(
@@ -142,7 +149,8 @@ namespace Auth.UnitTests
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -154,9 +162,10 @@ namespace Auth.UnitTests
         [Fact]
         public async Task SyncController_Pull_FailsClosed_WhenDatabaseIdIsInvalid()
         {
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2025");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var controller = new SyncController(
@@ -165,7 +174,8 @@ namespace Auth.UnitTests
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -177,13 +187,14 @@ namespace Auth.UnitTests
         [Fact]
         public async Task SyncController_Pull_InvokesPullService_Successfully()
         {
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var pullServiceMock = new Mock<ILocalDailyPullService>();
-            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>()))
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ReturnsAsync(new PullResultDto
                 {
                     DatabaseId = "2026",
@@ -199,7 +210,8 @@ namespace Auth.UnitTests
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -217,15 +229,16 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncPullAlreadyRunningException_To_409Conflict()
         {
             var pullServiceMock = new Mock<ILocalDailyPullService>();
-            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>()))
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncPullAlreadyRunningException());
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -237,15 +250,16 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncPullBlockedLocalChangesPendingException_To_409Conflict()
         {
             var pullServiceMock = new Mock<ILocalDailyPullService>();
-            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>()))
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncPullBlockedLocalChangesPendingException());
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -257,15 +271,16 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncPullCheckpointAheadOfServerException_To_409Conflict()
         {
             var pullServiceMock = new Mock<ILocalDailyPullService>();
-            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>()))
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncPullCheckpointAheadOfServerException(5, 2));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -277,15 +292,16 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncPullFeedGapException_To_409Conflict()
         {
             var pullServiceMock = new Mock<ILocalDailyPullService>();
-            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>()))
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncPullFeedGapException("Feed gap"));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -297,15 +313,16 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncPullTombstoneValidationException_To_500InternalServerError()
         {
             var pullServiceMock = new Mock<ILocalDailyPullService>();
-            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>()))
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncPullTombstoneValidationException("Tombstone missing"));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -317,15 +334,16 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncPullUnsupportedEntityTypeException_To_400BadRequest()
         {
             var pullServiceMock = new Mock<ILocalDailyPullService>();
-            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>()))
+            pullServiceMock.Setup(s => s.PullDailyChangesAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncPullUnsupportedEntityTypeException("Unsupported EntityType"));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+            syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
-            var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pullEnabled: true);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);

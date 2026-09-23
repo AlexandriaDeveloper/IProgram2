@@ -130,21 +130,61 @@ export class NavbarComponent implements AfterViewInit, OnInit {
   }
 
   logout() {
-    const pending = this.syncService.pendingCount();
-    if (pending > 0) {
-      const dialogRef = this.dialog.open(ExitSyncDialogComponent, {
-        data: { pendingCount: pending },
-        width: '460px',
-        disableClose: true
-      });
-      dialogRef.afterClosed().subscribe((result: ExitSyncDialogResult | undefined) => {
-        if (result === 'PUSH_AND_EXIT' || result === 'EXIT_WITHOUT_PUSH') {
+    if (!this.auth.runtimeStatusSig()?.isLocalFirst) {
+      this.auth.logout();
+      return;
+    }
+
+    // P0-5: Perform fresh local-only status read before deciding whether to exit
+    this.syncService.fetchLocalStatus().subscribe({
+      next: (status) => {
+        const pending = status?.pendingCount ?? 0;
+        const failed = status?.failedCount ?? 0;
+        const inProgress = status?.inProgressCount ?? 0;
+        const totalUnsynced = pending + failed + inProgress;
+
+        if (totalUnsynced > 0) {
+          const dialogRef = this.dialog.open(ExitSyncDialogComponent, {
+            data: {
+              pendingCount: pending,
+              failedCount: failed,
+              inProgressCount: inProgress,
+              databaseId: status?.databaseId || this.auth.getSelectedDatabaseId() || '',
+              lastCheckTime: this.syncService.onlineStatus()?.checkedAtUtc ?? null,
+              lastKnownFreshness: this.syncService.onlineStatus()?.overallStatus ?? null,
+              isErrorState: false
+            },
+            width: '460px',
+            disableClose: true
+          });
+          dialogRef.afterClosed().subscribe((result: ExitSyncDialogResult | undefined) => {
+            if (result === 'PUSH_AND_EXIT' || result === 'EXIT_WITHOUT_PUSH') {
+              this.auth.logout();
+            }
+          });
+        } else {
           this.auth.logout();
         }
-      });
-    } else {
-      this.auth.logout();
-    }
+      },
+      error: (err) => {
+        // Fail-closed: do NOT assume pending = 0 on error!
+        console.warn('Failed to get fresh local status before logout. Failing closed:', err);
+        const dialogRef = this.dialog.open(ExitSyncDialogComponent, {
+          data: {
+            pendingCount: this.syncService.pendingCount(),
+            databaseId: this.auth.getSelectedDatabaseId() || '',
+            isErrorState: true
+          },
+          width: '460px',
+          disableClose: true
+        });
+        dialogRef.afterClosed().subscribe((result: ExitSyncDialogResult | undefined) => {
+          if (result === 'PUSH_AND_EXIT' || result === 'EXIT_WITHOUT_PUSH') {
+            this.auth.logout();
+          }
+        });
+      }
+    });
   }
 
   openSyncStatusDialog() {

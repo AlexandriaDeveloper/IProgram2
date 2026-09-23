@@ -26,10 +26,9 @@ export class SyncStatusDialogComponent implements OnInit {
   syncService = inject(SyncService);
 
   ngOnInit(): void {
-    // If no online status yet or status is stale, trigger check
-    if (!this.syncService.onlineStatus()) {
-      this.refreshStatus();
-    }
+    // P0-4: Opening status dialog is strictly LOCAL-ONLY (zero remote contact).
+    // Zero automatic remote check on ngOnInit.
+    this.syncService.fetchLocalStatus().subscribe();
   }
 
   refreshStatus(): void {
@@ -66,12 +65,16 @@ export class SyncStatusDialogComponent implements OnInit {
     switch (status) {
       case 'UP_TO_DATE':
         return 'badge-up-to-date';
+      case 'LOCAL_PENDING':
+        return 'badge-local-pending';
       case 'REMOTE_NEWER':
         return 'badge-remote-newer';
       case 'BOTH_CHANGED':
         return 'badge-both-changed';
       case 'NOT_BASELINED':
         return 'badge-not-baselined';
+      case 'SYNC_STATE_ERROR':
+        return 'badge-sync-error';
       case 'UNKNOWN':
       default:
         return 'badge-unknown';
@@ -82,12 +85,16 @@ export class SyncStatusDialogComponent implements OnInit {
     switch (status) {
       case 'UP_TO_DATE':
         return 'متطابق مع السحابة (UP_TO_DATE)';
+      case 'LOCAL_PENDING':
+        return 'تعديلات محلية بانتظار الرفع (LOCAL_PENDING)';
       case 'REMOTE_NEWER':
         return 'تحديثات سحابية أحدث (REMOTE_NEWER)';
       case 'BOTH_CHANGED':
         return 'تعديلات محلية وسحابية متزامنة (BOTH_CHANGED)';
       case 'NOT_BASELINED':
         return 'غير مطابق الأساس (NOT_BASELINED)';
+      case 'SYNC_STATE_ERROR':
+        return 'خطأ في حالة المزامنة (SYNC_STATE_ERROR)';
       case 'UNKNOWN':
       default:
         return 'غير معروف / تعذر الاتصال (UNKNOWN)';

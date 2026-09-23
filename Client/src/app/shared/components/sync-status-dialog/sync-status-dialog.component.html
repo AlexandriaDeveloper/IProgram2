@@ -16,6 +16,59 @@
       <span>جاري فحص الاتصال وقراءة حالة السحابة (فحص للقراءة فقط)...</span>
     </div>
 
+    <!-- Initial Local-Only state before explicit online check -->
+    <div *ngIf="!syncService.isCheckingOnline() && !syncService.onlineStatus()" class="local-only-card">
+      <div class="status-summary-card">
+        <div class="summary-top">
+          <div class="connection-status">
+            <mat-icon style="color: #0288d1">storage</mat-icon>
+            <span class="connection-text">الحالة المحلية (قاعدة البيانات: {{ syncService.localStatus()?.databaseId || '---' }})</span>
+          </div>
+          <div class="overall-badge badge-unknown">
+            لم يتم فحص السحابة بعد
+          </div>
+        </div>
+
+        <div class="version-stats-grid">
+          <div class="stat-box">
+            <span class="stat-label">الإصدار المحلي (Local Version)</span>
+            <span class="stat-value">v{{ syncService.localStatus()?.lastServerVersion ?? 0 }}</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">تعديلات معلقة للرفع</span>
+            <span class="stat-value" [class.has-pending]="(syncService.localStatus()?.pendingCount ?? 0) > 0">
+              {{ syncService.localStatus()?.pendingCount ?? 0 }}
+            </span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">عمليات فاشلة</span>
+            <span class="stat-value" [class.has-pending]="(syncService.localStatus()?.failedCount ?? 0) > 0">
+              {{ syncService.localStatus()?.failedCount ?? 0 }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="check-prompt-box">
+        <p>لعرض حالة التطابق وتحديثات النطاقات مع السحابة، انقر على زر فحص الحالة السحابية أدناه (فحص للقراءة فقط):</p>
+        <button mat-flat-button color="primary" (click)="refreshStatus()" class="action-btn">
+          <mat-icon>cloud_sync</mat-icon>
+          <span>فحص الحالة السحابية الآن</span>
+        </button>
+      </div>
+
+      <!-- Binary Availability Notice -->
+      <div class="binary-notice-card" style="margin-top: 14px;">
+        <div class="notice-header">
+          <mat-icon class="notice-icon">attachment</mat-icon>
+          <strong>تنبيه هام حول النسخ المرجعية والمستندات (PDF / صور):</strong>
+        </div>
+        <p class="notice-text">
+          بيانات المرفقات الوصفية قد تكون متوفرة محلياً، ولكن الملفات الثنائية غير مضمونة التوفر أوفلاين وقد تتطلب اتصالاً بالإنترنت (Online).
+        </p>
+      </div>
+    </div>
+
     <ng-container *ngIf="!syncService.isCheckingOnline() && syncService.onlineStatus() as status">
       <!-- Overall Cloud State Card -->
       <div class="status-summary-card" [class.offline]="!status.isOnline">
@@ -88,7 +141,7 @@
           <strong>تنبيه هام حول النسخ المرجعية والمستندات (PDF / صور):</strong>
         </div>
         <p class="notice-text">
-          المرفقات والملفات الثنائية (Binary attachments) تظل مخزنة سحابياً فقط حتى اعتماد آلية النسخ الاحتياطي الثنائي في مرحلة لاحقة. وجود بيانات النماذج محلياً لا يضمن توفر الملفات المرفقة أثناء انقطاع الاتصال.
+          بيانات المرفقات الوصفية قد تكون متوفرة محلياً، ولكن الملفات الثنائية غير مضمونة التوفر أوفلاين وقد تتطلب اتصالاً بالإنترنت (Online).
         </p>
       </div>
     </ng-container>

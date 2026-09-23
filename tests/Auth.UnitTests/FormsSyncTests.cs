@@ -346,7 +346,8 @@ namespace Auth.UnitTests
                     syncProviderMock.Object,
                     config,
                     NullLogger<SyncController>.Instance,
-                    null!));
+                    null!,
+                    new Mock<ISyncStatusService>().Object));
         }
 
         [Fact]

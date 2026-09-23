@@ -43,14 +43,17 @@ namespace Auth.Infrastructure.Sync.Push
             _scopeBaselineService = scopeBaselineService ?? throw new ArgumentNullException(nameof(scopeBaselineService));
         }
 
-        public async Task<PushBatchResult> PushPendingOutboxAsync(CancellationToken cancellationToken)
+        public async Task<PushBatchResult> PushPendingOutboxAsync(CancellationToken cancellationToken, bool isExplicitManual = false)
         {
-            // 1. Feature gate check: must be explicitly enabled
-            var isPushEnabled = _configuration.GetValue<bool>("Sync:PushEnabled", false);
-            if (!isPushEnabled)
+            // 1. Feature gate check: background/automatic push requires Sync:PushEnabled = true
+            if (!isExplicitManual)
             {
-                _logger.LogWarning("Push attempt rejected: Sync:PushEnabled is false.");
-                throw new SyncPushDisabledException("مزامنة الرفع (Push) معطلة على هذا النظام (Sync:PushEnabled = false).");
+                var isPushEnabled = _configuration.GetValue<bool>("Sync:PushEnabled", false);
+                if (!isPushEnabled)
+                {
+                    _logger.LogWarning("Push attempt rejected: Sync:PushEnabled is false.");
+                    throw new SyncPushDisabledException("مزامنة الرفع (Push) معطلة على هذا النظام (Sync:PushEnabled = false).");
+                }
             }
 
             // 2. Runtime mode check: must be strictly in OfflineReadWritePilot

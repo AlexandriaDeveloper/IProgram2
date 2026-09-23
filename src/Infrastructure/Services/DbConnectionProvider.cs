@@ -85,6 +85,35 @@ namespace Auth.Infrastructure.Services
             return connStr;
         }
 
+        public string GetManualSyncRemoteConnectionString(string databaseId)
+        {
+            if (string.IsNullOrWhiteSpace(databaseId))
+            {
+                throw new InvalidDatabaseSelectionException("Canonical database ID is required.");
+            }
+
+            var canonicalId = databaseId.Trim();
+            var connStrName = $"ManualSyncRemote{canonicalId}";
+            var connStr = _configuration.GetConnectionString(connStrName);
+
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                throw new InvalidOperationException("MANUAL_SYNC_REMOTE_NOT_CONFIGURED");
+            }
+
+            var builder = new SqlConnectionStringBuilder(connStr);
+            var expectedRemoteDb = DatabaseBindingValidator.GetExpectedRemoteDatabaseName(canonicalId);
+            if (!string.Equals(builder.InitialCatalog, expectedRemoteDb, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PhysicalDatabaseMismatchException(
+                    $"Physical database mismatch: Manual sync remote target for '{canonicalId}' must be '{expectedRemoteDb}', but found '{builder.InitialCatalog}'.");
+            }
+
+            DatabaseBindingValidator.ValidateAzureBinding(builder.DataSource, builder.InitialCatalog);
+
+            return connStr;
+        }
+
         public string GetLocalConnectionString(string databaseId)
         {
             var binding = GetLocalBinding(databaseId);

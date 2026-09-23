@@ -19,12 +19,13 @@ namespace Core.Models.Sync
         public string RuntimeMode { get; set; } = string.Empty;
         public bool IsReadOnly { get; set; }
         public bool IsLocalFirst { get; set; }
+        public bool HasOrphanInProgress { get; set; }
     }
 
     public class ScopeSyncStatusDto
     {
         public string Scope { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty; // UP_TO_DATE, REMOTE_NEWER, BOTH_CHANGED, UNKNOWN, SYNC_STATE_ERROR, NOT_BASELINED
+        public string Status { get; set; } = string.Empty; // UP_TO_DATE, LOCAL_PENDING, REMOTE_NEWER, BOTH_CHANGED, UNKNOWN, SYNC_STATE_ERROR, NOT_BASELINED
         public bool IsBaselined { get; set; }
         public long LocalVersion { get; set; }
         public long ServerVersion { get; set; }
@@ -36,7 +37,7 @@ namespace Core.Models.Sync
     {
         public string DatabaseId { get; set; } = string.Empty;
         public bool IsOnline { get; set; }
-        public string OverallStatus { get; set; } = string.Empty; // UP_TO_DATE, REMOTE_NEWER, BOTH_CHANGED, UNKNOWN, SYNC_STATE_ERROR, NOT_BASELINED
+        public string OverallStatus { get; set; } = string.Empty; // UP_TO_DATE, LOCAL_PENDING, REMOTE_NEWER, BOTH_CHANGED, UNKNOWN, SYNC_STATE_ERROR, NOT_BASELINED
         public long ServerVersion { get; set; }
         public long LocalVersion { get; set; }
         public int TotalPendingCount { get; set; }

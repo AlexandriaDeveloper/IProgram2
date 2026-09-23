@@ -54,6 +54,39 @@
       }
     }
 
+    .exit-context-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #fafafa;
+      border: 1px solid #eeeeee;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+
+      .context-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .context-label {
+          color: #616161;
+        }
+
+        .context-val {
+          font-weight: 600;
+          color: #212121;
+        }
+
+        &.alert-item {
+          .context-val.error-text {
+            color: #d32f2f;
+          }
+        }
+      }
+    }
+
     .notice-box {
       display: flex;
       align-items: flex-start;

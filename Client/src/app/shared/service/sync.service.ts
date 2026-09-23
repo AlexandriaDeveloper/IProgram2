@@ -22,7 +22,7 @@ export interface LocalSyncStatus {
 
 export interface ScopeSyncStatus {
   scope: string; // 'Daily' | 'Forms'
-  status: string; // 'UP_TO_DATE' | 'REMOTE_NEWER' | 'BOTH_CHANGED' | 'UNKNOWN' | 'SYNC_STATE_ERROR' | 'NOT_BASELINED'
+  status: string; // 'UP_TO_DATE' | 'LOCAL_PENDING' | 'REMOTE_NEWER' | 'BOTH_CHANGED' | 'UNKNOWN' | 'SYNC_STATE_ERROR' | 'NOT_BASELINED'
   isBaselined: boolean;
   localVersion: number;
   serverVersion: number;
@@ -33,7 +33,7 @@ export interface ScopeSyncStatus {
 export interface OnlineSyncStatus {
   databaseId: string;
   isOnline: boolean;
-  overallStatus: string;
+  overallStatus: string; // 'UP_TO_DATE' | 'LOCAL_PENDING' | 'REMOTE_NEWER' | 'BOTH_CHANGED' | 'UNKNOWN' | 'SYNC_STATE_ERROR' | 'NOT_BASELINED'
   serverVersion: number;
   localVersion: number;
   totalPendingCount: number;
@@ -85,14 +85,14 @@ export class SyncService {
   private hubConnection: HubConnection | null = null;
 
   constructor() {
-    this.startConnection();
+    // P0-4: Automatic SignalR connection and reconnect loop disabled in LocalFirst / Manual Sync UX.
+    // Zero background connection loops on startup.
   }
 
-  private startConnection() {
+  startLegacyConnection() {
     try {
       this.hubConnection = new HubConnectionBuilder()
         .withUrl(environment.apiUrl.replace('/api/', '/migrationHub'))
-        .withAutomaticReconnect()
         .build();
 
       this.hubConnection

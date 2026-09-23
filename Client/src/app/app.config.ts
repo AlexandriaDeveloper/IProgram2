@@ -1,4 +1,5 @@
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
+import { syncMutationInterceptor } from './shared/interceptors/sync-mutation.interceptor';
 import { ApplicationConfig, importProvidersFrom } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { routes } from './app.routes';
@@ -29,7 +30,7 @@ export const appConfig: ApplicationConfig = {
 
     provideRouter(routes),
     provideHttpClient(withInterceptors(
-      [AuthInterceptor, ResponseInterceptor, ErrorInterceptor]
+      [AuthInterceptor, ResponseInterceptor, ErrorInterceptor, syncMutationInterceptor]
     )),
     importProvidersFrom(MatProgressSpinnerModule)
     , provideAnimations(),

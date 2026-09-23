@@ -381,6 +381,7 @@ namespace Auth.UnitTests
             public string GetSelectedDatabaseId() => _canonicalDbId;
             public string GetLocalConnectionString(string databaseId) => _localConnStr;
             public string GetRemoteConnectionString(string databaseId) => _remoteConnStr;
+            public string GetManualSyncRemoteConnectionString(string databaseId) => _remoteConnStr;
             public bool IsReadOnlyMode => false;
             public bool IsLocalFirstEnabled => true;
 
