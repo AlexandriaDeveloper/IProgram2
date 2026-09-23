@@ -95,12 +95,13 @@ namespace Auth.Api.Middleware
                 return;
             }
 
-            // 3. Exact allowlist for permitted non-mutating POST operations (Login, Logout, and read-only Export)
+            // 3. Exact allowlist for permitted non-mutating POST operations (Login, Logout, read-only Export, and read-only Sync Status Check)
             if (HttpMethods.IsPost(method))
             {
                 if (string.Equals(path, "/api/account/login", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(path, "/api/account/logout", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(path, "/api/form/download-form", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(path, "/api/sync/status/check-online", StringComparison.OrdinalIgnoreCase) ||
                     (_configuration.GetValue<bool>("E2E:DiagnosticsEnabled", false) && string.Equals(path, "/api/diagnostics/connection-audit/clear", StringComparison.OrdinalIgnoreCase)))
                 {
                     await _next(context);
