@@ -787,6 +787,89 @@ namespace Auth.UnitTests
             Assert.Equal("SYNC_STATE_ERROR", result.OverallStatus);
         }
 
+        [Fact]
+        public async Task CheckOnlineStatusAsync_WhenDailyHasRemoteChangesAndLocalPending_ReturnsBothChanged()
+        {
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns("Server=mock;Database=mock;");
+
+            var testRemoteConn = new TestDbConnection();
+            testRemoteConn.Command.ScalarResult = 15L; // Server = 15 > 8
+            testRemoteConn.Command.FeedEntityTypes = new List<string> { "Daily" };
+
+            var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+            remoteFactoryMock.Setup(f => f.CreateOpenConnectionAsync("2026", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(testRemoteConn);
+
+            var baselineServiceMock = new Mock<ILocalScopeBaselineService>();
+            baselineServiceMock.Setup(b => b.GetScopeStatusAsync(It.IsAny<DbConnection>(), It.IsAny<DbTransaction?>(), "2026", "Daily", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(SyncScopeBaselineStatus.Baselined);
+            baselineServiceMock.Setup(b => b.GetScopeStatusAsync(It.IsAny<DbConnection>(), It.IsAny<DbTransaction?>(), "2026", "Forms", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(SyncScopeBaselineStatus.Baselined);
+
+            var service = new TestableSyncStatusService(
+                syncProviderMock.Object,
+                remoteFactoryMock.Object,
+                baselineServiceMock.Object)
+            {
+                MockLocalStatus = new LocalSyncStatusDto { DatabaseId = "2026", LastServerVersion = 8L, PendingCount = 2 },
+                MockPendingDaily = 2,
+                MockPendingForms = 0
+            };
+
+            var result = await service.CheckOnlineStatusAsync("2026", CancellationToken.None);
+
+            var dailyScope = result.Scopes.Find(s => s.Scope == "Daily");
+            var formsScope = result.Scopes.Find(s => s.Scope == "Forms");
+
+            Assert.Equal("BOTH_CHANGED", dailyScope!.Status);
+            Assert.Equal("UP_TO_DATE", formsScope!.Status);
+            Assert.Equal("BOTH_CHANGED", result.OverallStatus);
+            Assert.Equal(2, result.TotalPendingCount);
+            Assert.Equal(2, dailyScope.PendingCount);
+        }
+
+        [Fact]
+        public async Task CheckOnlineStatusAsync_WhenFormsHasRemoteChangesAndLocalPending_WhenBaselined_ReturnsBothChanged()
+        {
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.GetLocalConnectionString("2026")).Returns("Server=mock;Database=mock;");
+
+            var testRemoteConn = new TestDbConnection();
+            testRemoteConn.Command.ScalarResult = 15L; // Server = 15 > 8
+            testRemoteConn.Command.FeedEntityTypes = new List<string> { "Form" };
+
+            var remoteFactoryMock = new Mock<IRemoteDatabaseConnectionFactory>();
+            remoteFactoryMock.Setup(f => f.CreateOpenConnectionAsync("2026", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(testRemoteConn);
+
+            var baselineServiceMock = new Mock<ILocalScopeBaselineService>();
+            baselineServiceMock.Setup(b => b.GetScopeStatusAsync(It.IsAny<DbConnection>(), It.IsAny<DbTransaction?>(), "2026", "Daily", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(SyncScopeBaselineStatus.Baselined);
+            baselineServiceMock.Setup(b => b.GetScopeStatusAsync(It.IsAny<DbConnection>(), It.IsAny<DbTransaction?>(), "2026", "Forms", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(SyncScopeBaselineStatus.Baselined);
+
+            var service = new TestableSyncStatusService(
+                syncProviderMock.Object,
+                remoteFactoryMock.Object,
+                baselineServiceMock.Object)
+            {
+                MockLocalStatus = new LocalSyncStatusDto { DatabaseId = "2026", LastServerVersion = 8L, PendingCount = 4 },
+                MockPendingDaily = 0,
+                MockPendingForms = 4
+            };
+
+            var result = await service.CheckOnlineStatusAsync("2026", CancellationToken.None);
+
+            var dailyScope = result.Scopes.Find(s => s.Scope == "Daily");
+            var formsScope = result.Scopes.Find(s => s.Scope == "Forms");
+
+            Assert.Equal("UP_TO_DATE", dailyScope!.Status);
+            Assert.Equal("BOTH_CHANGED", formsScope!.Status);
+            Assert.Equal("BOTH_CHANGED", result.OverallStatus);
+            Assert.Equal(4, formsScope.PendingCount);
+        }
+
         #endregion
     }
 }

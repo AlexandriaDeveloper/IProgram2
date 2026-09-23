@@ -2089,5 +2089,379 @@ namespace Auth.UnitTests
                 }
             }
         }
+
+        [Fact]
+        public async Task Test15_TwoDeviceSync_OfflineMutation_PushDeviceA_PullDeviceB_ExactParity()
+        {
+            await using var ctx = await FormsSyncTestContext.CreateAsync();
+
+            var localDbBName = "IProgramLocalDb2026_SmokeTest";
+            var localConnStrB = $"Server=localhost;Database={localDbBName};Integrated Security=True;TrustServerCertificate=True;";
+
+            // Create and initialize Device B database
+            await using (var masterConn = new SqlConnection(MasterConnStr))
+            {
+                await masterConn.OpenAsync();
+                await using var createCmd = masterConn.CreateCommand();
+                createCmd.CommandText = $@"
+                    IF DB_ID('{localDbBName}') IS NULL
+                    BEGIN
+                        CREATE DATABASE [{localDbBName}];
+                        ALTER DATABASE [{localDbBName}] SET COMPATIBILITY_LEVEL = 120;
+                    END;";
+                await createCmd.ExecuteNonQueryAsync();
+            }
+
+            try
+            {
+                // Initialize Device B schema identical to Device A
+                await using (var bConn = new SqlConnection(localConnStrB))
+                {
+                    await bConn.OpenAsync();
+                    await using var cmd = bConn.CreateCommand();
+                    cmd.CommandText = @"
+                        IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sync')
+                            EXEC('CREATE SCHEMA [sync]');
+
+                        IF OBJECT_ID('[dbo].[FormRefernce]', 'U') IS NOT NULL DROP TABLE [dbo].[FormRefernce];
+                        IF OBJECT_ID('[dbo].[FormDetails]', 'U') IS NOT NULL DROP TABLE [dbo].[FormDetails];
+                        IF OBJECT_ID('[dbo].[Form]', 'U') IS NOT NULL DROP TABLE [dbo].[Form];
+                        IF OBJECT_ID('[dbo].[Daily]', 'U') IS NOT NULL DROP TABLE [dbo].[Daily];
+                        IF OBJECT_ID('[dbo].[Employee]', 'U') IS NOT NULL DROP TABLE [dbo].[Employee];
+                        IF OBJECT_ID('[sync].[ScopeBaseline]', 'U') IS NOT NULL DROP TABLE [sync].[ScopeBaseline];
+                        IF OBJECT_ID('[sync].[LocalOutbox]', 'U') IS NOT NULL DROP TABLE [sync].[LocalOutbox];
+                        IF OBJECT_ID('[sync].[LocalState]', 'U') IS NOT NULL DROP TABLE [sync].[LocalState];
+
+                        CREATE TABLE [dbo].[Employee] (
+                            [Id] NVARCHAR(14) NOT NULL PRIMARY KEY,
+                            [Name] NVARCHAR(100) NOT NULL
+                        );
+                        INSERT INTO [dbo].[Employee] (Id, Name) VALUES ('12345678901234', 'Integration Test Employee');
+
+                        CREATE TABLE [dbo].[Daily] (
+                            [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [Name] NVARCHAR(100) NOT NULL,
+                            [DailyDate] DATETIME2 NOT NULL,
+                            [Closed] BIT NOT NULL DEFAULT(0),
+                            [CreatedBy] NVARCHAR(100) NULL,
+                            [CreatedAt] DATETIME2 NOT NULL,
+                            [UpdatedBy] NVARCHAR(100) NULL,
+                            [UpdatedAt] DATETIME2 NULL,
+                            [DeactivatedBy] NVARCHAR(100) NULL,
+                            [DeactivatedAt] DATETIME2 NULL,
+                            [IsActive] BIT NOT NULL DEFAULT(1),
+                            [SyncId] UNIQUEIDENTIFIER NOT NULL
+                        );
+                        CREATE UNIQUE INDEX [IX_Daily_SyncId] ON [dbo].[Daily]([SyncId]);
+
+                        CREATE TABLE [dbo].[Form] (
+                            [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [SyncId] UNIQUEIDENTIFIER NOT NULL,
+                            [DailyId] INT NULL,
+                            [Name] NVARCHAR(200) NOT NULL,
+                            [Description] NVARCHAR(MAX) NULL,
+                            [Index] INT NOT NULL,
+                            [CreatedBy] NVARCHAR(100) NULL,
+                            [CreatedAt] DATETIME2 NOT NULL,
+                            [UpdatedBy] NVARCHAR(100) NULL,
+                            [UpdatedAt] DATETIME2 NULL,
+                            [DeactivatedBy] NVARCHAR(100) NULL,
+                            [DeactivatedAt] DATETIME2 NULL,
+                            [IsActive] BIT NOT NULL DEFAULT(1),
+                            CONSTRAINT [FK_Form_Daily] FOREIGN KEY ([DailyId]) REFERENCES [dbo].[Daily]([Id])
+                        );
+                        CREATE UNIQUE INDEX [IX_Form_SyncId] ON [dbo].[Form]([SyncId]);
+
+                        CREATE TABLE [dbo].[FormDetails] (
+                            [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [SyncId] UNIQUEIDENTIFIER NOT NULL,
+                            [FormId] INT NOT NULL,
+                            [EmployeeId] NVARCHAR(14) NOT NULL,
+                            [Amount] FLOAT NOT NULL,
+                            [OrderNum] INT NOT NULL,
+                            [CreatedBy] NVARCHAR(100) NULL,
+                            [CreatedAt] DATETIME2 NOT NULL,
+                            [UpdatedBy] NVARCHAR(100) NULL,
+                            [UpdatedAt] DATETIME2 NULL,
+                            [DeactivatedBy] NVARCHAR(100) NULL,
+                            [DeactivatedAt] DATETIME2 NULL,
+                            [IsActive] BIT NOT NULL DEFAULT(1),
+                            [IsReviewed] BIT NOT NULL DEFAULT(0),
+                            [IsReviewedBy] NVARCHAR(100) NULL,
+                            [ReviewComments] NVARCHAR(MAX) NULL,
+                            [ReviewedAt] DATETIME2 NULL,
+                            [IsSummaryReviewed] BIT NOT NULL DEFAULT(0),
+                            [IsSummaryReviewedBy] NVARCHAR(100) NULL,
+                            [SummaryReviewedAt] DATETIME2 NULL,
+                            [SummaryComments] NVARCHAR(MAX) NULL,
+                            [SummaryReviewMethod] NVARCHAR(50) NULL,
+                            CONSTRAINT [FK_FormDetails_Form] FOREIGN KEY ([FormId]) REFERENCES [dbo].[Form]([Id])
+                        );
+                        CREATE UNIQUE INDEX [IX_FormDetails_SyncId] ON [dbo].[FormDetails]([SyncId]);
+
+                        CREATE TABLE [sync].[LocalState] (
+                            [DatabaseId] NVARCHAR(32) NOT NULL PRIMARY KEY,
+                            [DeviceId] UNIQUEIDENTIFIER NOT NULL,
+                            [DeviceName] NVARCHAR(100) NOT NULL,
+                            [LastServerVersion] BIGINT NOT NULL DEFAULT(0),
+                            [LastSuccessfulPushUtc] DATETIME2 NULL,
+                            [LastSuccessfulPullUtc] DATETIME2 NULL,
+                            [LastSyncAttemptUtc] DATETIME2 NULL,
+                            [LastSyncError] NVARCHAR(MAX) NULL,
+                            [ActiveLeaseToken] UNIQUEIDENTIFIER NULL,
+                            [LeaseExpiresAtUtc] DATETIME2 NULL
+                        );
+
+                        CREATE TABLE [sync].[LocalOutbox] (
+                            [Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [DatabaseId] NVARCHAR(32) NOT NULL,
+                            [ClientOperationId] UNIQUEIDENTIFIER NOT NULL,
+                            [CommandName] NVARCHAR(100) NOT NULL,
+                            [AggregateType] NVARCHAR(100) NOT NULL,
+                            [EntitySyncId] UNIQUEIDENTIFIER NOT NULL,
+                            [PayloadJson] NVARCHAR(MAX) NOT NULL,
+                            [CreatedAtUtc] DATETIME2 NOT NULL,
+                            [Status] NVARCHAR(20) NOT NULL,
+                            [ProcessedAtUtc] DATETIME2 NULL,
+                            [ErrorMessage] NVARCHAR(MAX) NULL,
+                            [RetryCount] INT NOT NULL DEFAULT(0)
+                        );
+
+                        CREATE TABLE [sync].[ScopeBaseline] (
+                            [DatabaseId] NVARCHAR(32) NOT NULL,
+                            [Scope] NVARCHAR(50) NOT NULL,
+                            [Status] NVARCHAR(20) NOT NULL,
+                            [BaselineVersion] BIGINT NULL,
+                            [BaselinedAtUtc] DATETIME2 NOT NULL,
+                            [Notes] NVARCHAR(MAX) NULL,
+                            CONSTRAINT [PK_ScopeBaseline_B] PRIMARY KEY ([DatabaseId], [Scope])
+                        );
+
+                        INSERT INTO [sync].[LocalState] (DatabaseId, DeviceId, DeviceName, LastServerVersion)
+                        VALUES ('2026', NEWID(), 'DeviceB', 1);
+
+                        INSERT INTO [sync].[ScopeBaseline] (DatabaseId, Scope, Status, BaselineVersion, BaselinedAtUtc, Notes)
+                        VALUES ('2026', 'Forms', 'BASELINED', 1, SYSUTCDATETIME(), 'DeviceB Baselined');
+                    ";
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                // 1. Pre-seed Daily in Remote, Device A, and Device B
+                var dailySyncId = Guid.NewGuid();
+                int remoteDailyId;
+                await using (var rConn = new SqlConnection(ctx.RemoteConnStr))
+                {
+                    await rConn.OpenAsync();
+                    await using var cmd = rConn.CreateCommand();
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Daily] (Name, DailyDate, CreatedAt, SyncId, IsActive)
+                        OUTPUT INSERTED.Id
+                        VALUES ('Shared Daily', SYSUTCDATETIME(), SYSUTCDATETIME(), @SyncId, 1);
+                        UPDATE [sync].[ServerState] SET CurrentVersion = 1 WHERE DatabaseId = '2026';
+                    ";
+                    cmd.Parameters.AddWithValue("@SyncId", dailySyncId);
+                    remoteDailyId = (int)(await cmd.ExecuteScalarAsync())!;
+                }
+
+                int deviceADailyId;
+                await using (var aConn = new SqlConnection(ctx.LocalConnStr))
+                {
+                    await aConn.OpenAsync();
+                    await using var cmd = aConn.CreateCommand();
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Daily] (Name, DailyDate, CreatedAt, SyncId, IsActive)
+                        OUTPUT INSERTED.Id
+                        VALUES ('Shared Daily', SYSUTCDATETIME(), SYSUTCDATETIME(), @SyncId, 1);
+                        UPDATE [sync].[LocalState] SET LastServerVersion = 1 WHERE DatabaseId = '2026';
+                    ";
+                    cmd.Parameters.AddWithValue("@SyncId", dailySyncId);
+                    deviceADailyId = (int)(await cmd.ExecuteScalarAsync())!;
+                }
+
+                int deviceBDailyId;
+                await using (var bConn = new SqlConnection(localConnStrB))
+                {
+                    await bConn.OpenAsync();
+                    await using var cmd = bConn.CreateCommand();
+                    cmd.CommandText = @"
+                        INSERT INTO [dbo].[Daily] (Name, DailyDate, CreatedAt, SyncId, IsActive)
+                        OUTPUT INSERTED.Id
+                        VALUES ('Shared Daily', SYSUTCDATETIME(), SYSUTCDATETIME(), @SyncId, 1);
+                    ";
+                    cmd.Parameters.AddWithValue("@SyncId", dailySyncId);
+                    deviceBDailyId = (int)(await cmd.ExecuteScalarAsync())!;
+                }
+
+                // 2. Device A: Mutate Form and FormDetails locally and push
+                var formSyncId = Guid.NewGuid();
+                var detailsSyncId = Guid.NewGuid();
+
+                var formPayload = JsonSerializer.Serialize(new SortedDictionary<string, object?>
+                {
+                    ["baseServerVersion"] = 1L,
+                    ["createdAtUtc"] = DateTime.UtcNow.ToString("O"),
+                    ["databaseId"] = "2026",
+                    ["deviceId"] = ctx.DeviceId.ToString(),
+                    ["entityData"] = new SortedDictionary<string, object?>
+                    {
+                        ["DailySyncId"] = dailySyncId.ToString(),
+                        ["Name"] = "Two-Device Form",
+                        ["Description"] = "Created by Device A",
+                        ["Index"] = 1,
+                        ["IsActive"] = true,
+                        ["CreatedAt"] = DateTime.UtcNow.ToString("O"),
+                        ["CreatedBy"] = "device_a_user"
+                    },
+                    ["entitySyncId"] = formSyncId.ToString(),
+                    ["entityType"] = "Form",
+                    ["operationType"] = "INSERT",
+                    ["schemaVersion"] = 1
+                });
+
+                var detailsPayload = JsonSerializer.Serialize(new SortedDictionary<string, object?>
+                {
+                    ["baseServerVersion"] = 1L,
+                    ["createdAtUtc"] = DateTime.UtcNow.ToString("O"),
+                    ["databaseId"] = "2026",
+                    ["deviceId"] = ctx.DeviceId.ToString(),
+                    ["entityData"] = new SortedDictionary<string, object?>
+                    {
+                        ["FormSyncId"] = formSyncId.ToString(),
+                        ["EmployeeId"] = "12345678901234",
+                        ["Amount"] = 1500.0,
+                        ["OrderNum"] = 1,
+                        ["IsActive"] = true,
+                        ["CreatedAt"] = DateTime.UtcNow.ToString("O"),
+                        ["CreatedBy"] = "device_a_user"
+                    },
+                    ["entitySyncId"] = detailsSyncId.ToString(),
+                    ["entityType"] = "FormDetails",
+                    ["operationType"] = "INSERT",
+                    ["schemaVersion"] = 1
+                });
+
+                var opIdForm = Guid.NewGuid();
+                var opIdDetails = Guid.NewGuid();
+                var hashForm = LocalOutboxPushService.ComputeRequestHash("2026", ctx.DeviceId, "Form.Insert", "Form", formSyncId, formPayload);
+                var hashDetails = LocalOutboxPushService.ComputeRequestHash("2026", ctx.DeviceId, "FormDetails.Insert", "FormDetails", detailsSyncId, detailsPayload);
+
+                var pushCoordinator = new AzurePushTransactionCoordinator(NullLogger<AzurePushTransactionCoordinator>.Instance);
+
+                await using (var rConn = new SqlConnection(ctx.RemoteConnStr))
+                {
+                    await rConn.OpenAsync();
+
+                    var resForm = await pushCoordinator.ApplyOperationAsync(rConn, "2026", new LocalOutbox
+                    {
+                        DatabaseId = "2026",
+                        ClientOperationId = opIdForm,
+                        CommandName = "Form.Insert",
+                        AggregateType = "Form",
+                        EntitySyncId = formSyncId,
+                        PayloadJson = formPayload,
+                        CreatedAtUtc = DateTime.UtcNow,
+                        Status = "IN_PROGRESS"
+                    }, 1L, hashForm, ctx.DeviceId, CancellationToken.None);
+
+                    Assert.Equal(2L, resForm.ServerVersion);
+
+                    var resDetails = await pushCoordinator.ApplyOperationAsync(rConn, "2026", new LocalOutbox
+                    {
+                        DatabaseId = "2026",
+                        ClientOperationId = opIdDetails,
+                        CommandName = "FormDetails.Insert",
+                        AggregateType = "FormDetails",
+                        EntitySyncId = detailsSyncId,
+                        PayloadJson = detailsPayload,
+                        CreatedAtUtc = DateTime.UtcNow,
+                        Status = "IN_PROGRESS"
+                    }, 2L, hashDetails, ctx.DeviceId, CancellationToken.None);
+
+                    Assert.Equal(3L, resDetails.ServerVersion);
+                }
+
+                // 3. Device B: Pull from Remote and apply
+                var remoteFactory = new TestRemoteDatabaseConnectionFactory(ctx.RemoteConnStr);
+                var reader = new AzureFencedBatchReader(remoteFactory, NullLogger<AzureFencedBatchReader>.Instance);
+                var batch = await reader.ReadFencedBatchAsync("2026", 1L, CancellationToken.None);
+
+                Assert.Equal(1L, batch.LowWatermark);
+                Assert.Equal(3L, batch.HighWatermark);
+                Assert.Equal(2, batch.Commands.Count);
+
+                var leaseTokenB = Guid.NewGuid();
+                await using (var bConn = new SqlConnection(localConnStrB))
+                {
+                    await bConn.OpenAsync();
+                    await using var cmd = bConn.CreateCommand();
+                    cmd.CommandText = $"UPDATE [sync].[LocalState] SET ActiveLeaseToken = '{leaseTokenB}', LeaseExpiresAtUtc = DATEADD(minute, 5, SYSUTCDATETIME()) WHERE DatabaseId = '2026';";
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                var mockProviderB = new Mock<ISyncConnectionProvider>();
+                mockProviderB.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+                mockProviderB.Setup(p => p.GetLocalConnectionString("2026")).Returns(localConnStrB);
+                mockProviderB.Setup(p => p.IsReadOnlyMode).Returns(false);
+
+                var coordinatorB = new LocalPullTransactionCoordinator(mockProviderB.Object, NullLogger<LocalPullTransactionCoordinator>.Instance);
+                var pullResult = await coordinatorB.ApplyPullBatchAsync("2026", batch, leaseTokenB, CancellationToken.None);
+
+                Assert.Equal(3L, pullResult.FinalServerVersion);
+                Assert.Equal(2, pullResult.Succeeded);
+
+                // 4. Verify 100% exact equality and referential integrity on Device B
+                await using (var bConn = new SqlConnection(localConnStrB))
+                {
+                    await bConn.OpenAsync();
+
+                    int bFormId;
+                    await using (var cmd = bConn.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT Id, DailyId, Name, Description FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                        cmd.Parameters.AddWithValue("@SyncId", formSyncId);
+                        await using var rdr = await cmd.ExecuteReaderAsync();
+                        Assert.True(await rdr.ReadAsync());
+                        bFormId = rdr.GetInt32(0);
+                        Assert.Equal(deviceBDailyId, rdr.GetInt32(1)); // DailyId FK points to Device B's Daily!
+                        Assert.Equal("Two-Device Form", rdr.GetString(2));
+                        Assert.Equal("Created by Device A", rdr.GetString(3));
+                    }
+
+                    await using (var cmd = bConn.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT Id, FormId, EmployeeId, Amount FROM [dbo].[FormDetails] WHERE SyncId = @SyncId;";
+                        cmd.Parameters.AddWithValue("@SyncId", detailsSyncId);
+                        await using var rdr = await cmd.ExecuteReaderAsync();
+                        Assert.True(await rdr.ReadAsync());
+                        Assert.Equal(bFormId, rdr.GetInt32(1)); // FormId FK points to Device B's Form!
+                        Assert.Equal("12345678901234", rdr.GetString(2));
+                        Assert.Equal(1500.0, rdr.GetDouble(3));
+                    }
+
+                    // Verify LocalState watermark updated to 3
+                    await using (var cmd = bConn.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT LastServerVersion FROM [sync].[LocalState] WHERE DatabaseId = '2026';";
+                        var ver = (long)(await cmd.ExecuteScalarAsync())!;
+                        Assert.Equal(3L, ver);
+                    }
+                }
+            }
+            finally
+            {
+                await using (var masterConn = new SqlConnection(MasterConnStr))
+                {
+                    await masterConn.OpenAsync();
+                    await using var dropCmd = masterConn.CreateCommand();
+                    dropCmd.CommandText = $@"
+                        IF DB_ID('{localDbBName}') IS NOT NULL
+                        BEGIN
+                            ALTER DATABASE [{localDbBName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                            DROP DATABASE [{localDbBName}];
+                        END;";
+                    try { await dropCmd.ExecuteNonQueryAsync(); } catch { }
+                }
+            }
+        }
     }
 }
