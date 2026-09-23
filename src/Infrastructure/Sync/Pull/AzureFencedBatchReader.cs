@@ -19,6 +19,11 @@ namespace Auth.Infrastructure.Sync.Pull
         private readonly IRemoteDatabaseConnectionFactory _remoteConnectionFactory;
         private readonly ILogger<AzureFencedBatchReader> _logger;
 
+        private static readonly HashSet<string> AllowedEntityTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Daily", "Form", "FormDetails", "FormRefernce"
+        };
+
         private static readonly HashSet<string> AllowedOperationTypes = new(StringComparer.OrdinalIgnoreCase)
         {
             "INSERT", "UPDATE", "SOFT_DELETE", "HARD_DELETE"
@@ -162,10 +167,10 @@ namespace Auth.Infrastructure.Sync.Pull
                             $"ServerChangeFeed event DatabaseId '{evt.DatabaseId}' does not match expected '{normDbId}'.");
                     }
 
-                    if (!string.Equals(evt.EntityType, "Daily", StringComparison.OrdinalIgnoreCase))
+                    if (!AllowedEntityTypes.Contains(evt.EntityType))
                     {
                         throw new SyncPullUnsupportedEntityTypeException(
-                            $"Unsupported EntityType '{evt.EntityType}' detected at ServerVersion {evt.ServerVersion}. Only 'Daily' is supported in Slice 4.5A.");
+                            $"Unsupported EntityType '{evt.EntityType}' detected at ServerVersion {evt.ServerVersion}. Only 'Daily', 'Form', 'FormDetails', 'FormRefernce' are supported.");
                     }
 
                     if (!AllowedOperationTypes.Contains(evt.OperationType))
@@ -185,21 +190,23 @@ namespace Auth.Infrastructure.Sync.Pull
                 }
 
                 // Phase 3: Coalescing Algorithm
-                // Group feed events in window (L, H] by EntitySyncId and select the terminal event with highest ServerVersion
-                var groupedBySyncId = rawFeedEvents
-                    .GroupBy(e => e.EntitySyncId)
+                // Group feed events in window (L, H] by (EntityType, EntitySyncId) and select the terminal event with highest ServerVersion
+                var groupedEvents = rawFeedEvents
+                    .GroupBy(e => (EntityType: CanonicalizeEntityType(e.EntityType), e.EntitySyncId))
                     .Select(g => g.OrderByDescending(e => e.ServerVersion).First())
                     .OrderBy(e => e.ServerVersion)
                     .ToList();
 
                 // Phase 4: Materialize terminal state under fence
                 var commands = new List<PullCommand>();
-                foreach (var terminalEvent in groupedBySyncId)
+                foreach (var terminalEvent in groupedEvents)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
+                    var entityType = CanonicalizeEntityType(terminalEvent.EntityType);
                     var syncId = terminalEvent.EntitySyncId;
                     var terminalVersion = terminalEvent.ServerVersion;
+                    var tableName = GetTableNameForEntityType(entityType);
 
                     if (string.Equals(terminalEvent.OperationType, "HARD_DELETE", StringComparison.OrdinalIgnoreCase))
                     {
@@ -211,11 +218,12 @@ namespace Auth.Infrastructure.Sync.Pull
                                 SELECT COUNT(*)
                                 FROM [sync].[Tombstones]
                                 WHERE DatabaseId = @DatabaseId
-                                  AND EntityType = 'Daily'
+                                  AND EntityType = @EntityType
                                   AND EntitySyncId = @EntitySyncId
                                   AND ServerVersion = @ServerVersion;";
 
                             AddParam(tombstoneCmd, "@DatabaseId", normDbId);
+                            AddParam(tombstoneCmd, "@EntityType", entityType);
                             AddParam(tombstoneCmd, "@EntitySyncId", syncId);
                             AddParam(tombstoneCmd, "@ServerVersion", terminalVersion);
 
@@ -223,35 +231,32 @@ namespace Auth.Infrastructure.Sync.Pull
                             if (tombstoneCount != 1)
                             {
                                 throw new SyncPullTombstoneValidationException(
-                                    $"Terminal HARD_DELETE for Daily SyncId '{syncId}' requires exactly one matching Tombstone at version {terminalVersion}, found {tombstoneCount}.");
+                                    $"Terminal HARD_DELETE for {entityType} SyncId '{syncId}' requires exactly one matching Tombstone at version {terminalVersion}, found {tombstoneCount}.");
                             }
                         }
 
-                        // Verify authoritative dbo.Daily does NOT contain this row
-                        await using (var dailyCheckCmd = connection.CreateCommand())
+                        // Verify authoritative table does NOT contain this row
+                        await using (var existsCmd = connection.CreateCommand())
                         {
-                            dailyCheckCmd.Transaction = transaction;
-                            dailyCheckCmd.CommandText = @"
-                                SELECT COUNT(*)
-                                FROM [dbo].[Daily]
-                                WHERE SyncId = @SyncId;";
+                            existsCmd.Transaction = transaction;
+                            existsCmd.CommandText = $"SELECT COUNT(*) FROM {tableName} WHERE SyncId = @SyncId;";
 
-                            AddParam(dailyCheckCmd, "@SyncId", syncId);
+                            AddParam(existsCmd, "@SyncId", syncId);
 
-                            var dailyCount = Convert.ToInt32(await dailyCheckCmd.ExecuteScalarAsync(cancellationToken));
-                            if (dailyCount > 0)
+                            var rowCount = Convert.ToInt32(await existsCmd.ExecuteScalarAsync(cancellationToken));
+                            if (rowCount > 0)
                             {
                                 throw new SyncPullTombstoneEntityStillActiveException(
-                                    $"Terminal HARD_DELETE Daily SyncId '{syncId}' still exists in authoritative dbo.Daily.");
+                                    $"Terminal HARD_DELETE {entityType} SyncId '{syncId}' still exists in authoritative {tableName}.");
                             }
                         }
 
-                        commands.Add(PullCommand.CreateDelete(syncId, terminalVersion));
+                        commands.Add(PullCommand.CreateDelete(entityType, syncId, terminalVersion));
                     }
                     else
                     {
                         // Terminal event is INSERT, UPDATE, or SOFT_DELETE
-                        // Verify no tombstone exists for this SyncId
+                        // Verify no tombstone exists for this EntityType + SyncId
                         await using (var tombstoneCheckCmd = connection.CreateCommand())
                         {
                             tombstoneCheckCmd.Transaction = transaction;
@@ -259,65 +264,236 @@ namespace Auth.Infrastructure.Sync.Pull
                                 SELECT COUNT(*)
                                 FROM [sync].[Tombstones]
                                 WHERE DatabaseId = @DatabaseId
-                                  AND EntityType = 'Daily'
+                                  AND EntityType = @EntityType
                                   AND EntitySyncId = @EntitySyncId;";
 
                             AddParam(tombstoneCheckCmd, "@DatabaseId", normDbId);
+                            AddParam(tombstoneCheckCmd, "@EntityType", entityType);
                             AddParam(tombstoneCheckCmd, "@EntitySyncId", syncId);
 
                             var tombstoneCount = Convert.ToInt32(await tombstoneCheckCmd.ExecuteScalarAsync(cancellationToken));
                             if (tombstoneCount > 0)
                             {
                                 throw new SyncPullTombstoneEntityStillActiveException(
-                                    $"Terminal mutation '{terminalEvent.OperationType}' for Daily SyncId '{syncId}' conflicts with existing Tombstone.");
+                                    $"Terminal mutation '{terminalEvent.OperationType}' for {entityType} SyncId '{syncId}' conflicts with existing Tombstone.");
                             }
                         }
 
-                        // Read authoritative snapshot from dbo.Daily
-                        DailyAuthoritativeSnapshot? snapshot = null;
-                        await using (var snapshotCmd = connection.CreateCommand())
+                        switch (entityType)
                         {
-                            snapshotCmd.Transaction = transaction;
-                            snapshotCmd.CommandText = @"
-                                SELECT SyncId, Name, DailyDate, Closed, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, DeactivatedAt, DeactivatedBy, IsActive
-                                FROM [dbo].[Daily]
-                                WHERE SyncId = @SyncId;";
-
-                            AddParam(snapshotCmd, "@SyncId", syncId);
-
-                            await using var snapReader = await snapshotCmd.ExecuteReaderAsync(cancellationToken);
-                            if (await snapReader.ReadAsync(cancellationToken))
+                            case "Daily":
                             {
-                                snapshot = new DailyAuthoritativeSnapshot
+                                DailyAuthoritativeSnapshot? snapshot = null;
+                                await using (var snapshotCmd = connection.CreateCommand())
                                 {
-                                    SyncId = snapReader.GetGuid(0),
-                                    Name = snapReader.GetString(1),
-                                    DailyDate = snapReader.GetDateTime(2),
-                                    Closed = snapReader.GetBoolean(3),
-                                    CreatedAt = snapReader.GetDateTime(4),
-                                    CreatedBy = snapReader.IsDBNull(5) ? null : snapReader.GetString(5),
-                                    UpdatedAt = snapReader.IsDBNull(6) ? null : snapReader.GetDateTime(6),
-                                    UpdatedBy = snapReader.IsDBNull(7) ? null : snapReader.GetString(7),
-                                    DeactivatedAt = snapReader.IsDBNull(8) ? null : snapReader.GetDateTime(8),
-                                    DeactivatedBy = snapReader.IsDBNull(9) ? null : snapReader.GetString(9),
-                                    IsActive = snapReader.GetBoolean(10)
-                                };
+                                    snapshotCmd.Transaction = transaction;
+                                    snapshotCmd.CommandText = @"
+                                        SELECT SyncId, Name, DailyDate, Closed, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, DeactivatedAt, DeactivatedBy, IsActive
+                                        FROM [dbo].[Daily]
+                                        WHERE SyncId = @SyncId;";
+
+                                    AddParam(snapshotCmd, "@SyncId", syncId);
+
+                                    await using var snapReader = await snapshotCmd.ExecuteReaderAsync(cancellationToken);
+                                    if (await snapReader.ReadAsync(cancellationToken))
+                                    {
+                                        snapshot = new DailyAuthoritativeSnapshot
+                                        {
+                                            SyncId = snapReader.GetGuid(0),
+                                            Name = snapReader.GetString(1),
+                                            DailyDate = snapReader.GetDateTime(2),
+                                            Closed = snapReader.GetBoolean(3),
+                                            CreatedAt = snapReader.GetDateTime(4),
+                                            CreatedBy = snapReader.IsDBNull(5) ? null : snapReader.GetString(5),
+                                            UpdatedAt = snapReader.IsDBNull(6) ? null : snapReader.GetDateTime(6),
+                                            UpdatedBy = snapReader.IsDBNull(7) ? null : snapReader.GetString(7),
+                                            DeactivatedAt = snapReader.IsDBNull(8) ? null : snapReader.GetDateTime(8),
+                                            DeactivatedBy = snapReader.IsDBNull(9) ? null : snapReader.GetString(9),
+                                            IsActive = snapReader.GetBoolean(10)
+                                        };
+                                    }
+                                }
+
+                                if (snapshot == null)
+                                {
+                                    throw new SyncPullAuthoritativeRowMissingException(
+                                        $"Terminal mutation '{terminalEvent.OperationType}' for Daily SyncId '{syncId}' not found in authoritative dbo.Daily table.");
+                                }
+
+                                if (string.Equals(terminalEvent.OperationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase) && snapshot.IsActive)
+                                {
+                                    throw new SyncPullAuthoritativeStateMismatchException(
+                                        $"Terminal SOFT_DELETE mutation for Daily SyncId '{syncId}' at version {terminalVersion} has IsActive=true in authoritative dbo.Daily.");
+                                }
+
+                                commands.Add(PullCommand.CreateUpsert(snapshot, terminalVersion));
+                                break;
                             }
-                        }
+                            case "Form":
+                            {
+                                FormAuthoritativeSnapshot? snapshot = null;
+                                await using (var snapshotCmd = connection.CreateCommand())
+                                {
+                                    snapshotCmd.Transaction = transaction;
+                                    snapshotCmd.CommandText = @"
+                                        SELECT f.SyncId, d.SyncId AS DailySyncId, f.[Index], f.Name, f.Description,
+                                               f.CreatedAt, f.CreatedBy, f.UpdatedAt, f.UpdatedBy, f.DeactivatedAt, f.DeactivatedBy, f.IsActive
+                                        FROM [dbo].[Form] f
+                                        LEFT JOIN [dbo].[Daily] d ON f.DailyId = d.Id
+                                        WHERE f.SyncId = @SyncId;";
 
-                        if (snapshot == null)
-                        {
-                            throw new SyncPullAuthoritativeRowMissingException(
-                                $"Terminal mutation '{terminalEvent.OperationType}' for Daily SyncId '{syncId}' not found in authoritative dbo.Daily table.");
-                        }
+                                    AddParam(snapshotCmd, "@SyncId", syncId);
 
-                        if (string.Equals(terminalEvent.OperationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase) && snapshot.IsActive)
-                        {
-                            throw new SyncPullAuthoritativeStateMismatchException(
-                                $"Terminal SOFT_DELETE mutation for Daily SyncId '{syncId}' at version {terminalVersion} has IsActive=true in authoritative dbo.Daily.");
-                        }
+                                    await using var snapReader = await snapshotCmd.ExecuteReaderAsync(cancellationToken);
+                                    if (await snapReader.ReadAsync(cancellationToken))
+                                    {
+                                        snapshot = new FormAuthoritativeSnapshot
+                                        {
+                                            SyncId = snapReader.GetGuid(0),
+                                            DailySyncId = snapReader.IsDBNull(1) ? null : snapReader.GetGuid(1),
+                                            Index = snapReader.IsDBNull(2) ? null : snapReader.GetInt32(2),
+                                            Name = snapReader.GetString(3),
+                                            Description = snapReader.IsDBNull(4) ? null : snapReader.GetString(4),
+                                            CreatedAt = snapReader.GetDateTime(5),
+                                            CreatedBy = snapReader.IsDBNull(6) ? null : snapReader.GetString(6),
+                                            UpdatedAt = snapReader.IsDBNull(7) ? null : snapReader.GetDateTime(7),
+                                            UpdatedBy = snapReader.IsDBNull(8) ? null : snapReader.GetString(8),
+                                            DeactivatedAt = snapReader.IsDBNull(9) ? null : snapReader.GetDateTime(9),
+                                            DeactivatedBy = snapReader.IsDBNull(10) ? null : snapReader.GetString(10),
+                                            IsActive = snapReader.GetBoolean(11)
+                                        };
+                                    }
+                                }
 
-                        commands.Add(PullCommand.CreateUpsert(snapshot, terminalVersion));
+                                if (snapshot == null)
+                                {
+                                    throw new SyncPullAuthoritativeRowMissingException(
+                                        $"Terminal mutation '{terminalEvent.OperationType}' for Form SyncId '{syncId}' not found in authoritative dbo.Form table.");
+                                }
+
+                                if (string.Equals(terminalEvent.OperationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase) && snapshot.IsActive)
+                                {
+                                    throw new SyncPullAuthoritativeStateMismatchException(
+                                        $"Terminal SOFT_DELETE mutation for Form SyncId '{syncId}' at version {terminalVersion} has IsActive=true in authoritative dbo.Form.");
+                                }
+
+                                commands.Add(PullCommand.CreateFormUpsert(snapshot, terminalVersion));
+                                break;
+                            }
+                            case "FormDetails":
+                            {
+                                FormDetailsAuthoritativeSnapshot? snapshot = null;
+                                await using (var snapshotCmd = connection.CreateCommand())
+                                {
+                                    snapshotCmd.Transaction = transaction;
+                                    snapshotCmd.CommandText = @"
+                                        SELECT fd.SyncId, f.SyncId AS FormSyncId, fd.EmployeeId, fd.Amount, fd.OrderNum,
+                                               fd.IsReviewed, fd.IsReviewedBy, fd.ReviewedAt, fd.ReviewComments,
+                                               fd.IsSummaryReviewed, fd.IsSummaryReviewedBy, fd.SummaryReviewedAt, fd.SummaryComments, fd.SummaryReviewMethod,
+                                               fd.CreatedAt, fd.CreatedBy, fd.UpdatedAt, fd.UpdatedBy, fd.DeactivatedAt, fd.DeactivatedBy, fd.IsActive
+                                        FROM [dbo].[FormDetails] fd
+                                        INNER JOIN [dbo].[Form] f ON fd.FormId = f.Id
+                                        WHERE fd.SyncId = @SyncId;";
+
+                                    AddParam(snapshotCmd, "@SyncId", syncId);
+
+                                    await using var snapReader = await snapshotCmd.ExecuteReaderAsync(cancellationToken);
+                                    if (await snapReader.ReadAsync(cancellationToken))
+                                    {
+                                        snapshot = new FormDetailsAuthoritativeSnapshot
+                                        {
+                                            SyncId = snapReader.GetGuid(0),
+                                            FormSyncId = snapReader.GetGuid(1),
+                                            EmployeeId = snapReader.IsDBNull(2) ? null : snapReader.GetString(2),
+                                            Amount = snapReader.GetDouble(3),
+                                            OrderNum = snapReader.GetInt32(4),
+                                            IsReviewed = snapReader.GetBoolean(5),
+                                            IsReviewedBy = snapReader.IsDBNull(6) ? null : snapReader.GetString(6),
+                                            ReviewedAt = snapReader.IsDBNull(7) ? null : snapReader.GetDateTime(7),
+                                            ReviewComments = snapReader.IsDBNull(8) ? null : snapReader.GetString(8),
+                                            IsSummaryReviewed = snapReader.GetBoolean(9),
+                                            IsSummaryReviewedBy = snapReader.IsDBNull(10) ? null : snapReader.GetString(10),
+                                            SummaryReviewedAt = snapReader.IsDBNull(11) ? null : snapReader.GetDateTime(11),
+                                            SummaryComments = snapReader.IsDBNull(12) ? null : snapReader.GetString(12),
+                                            SummaryReviewMethod = snapReader.IsDBNull(13) ? null : snapReader.GetString(13),
+                                            CreatedAt = snapReader.GetDateTime(14),
+                                            CreatedBy = snapReader.IsDBNull(15) ? null : snapReader.GetString(15),
+                                            UpdatedAt = snapReader.IsDBNull(16) ? null : snapReader.GetDateTime(16),
+                                            UpdatedBy = snapReader.IsDBNull(17) ? null : snapReader.GetString(17),
+                                            DeactivatedAt = snapReader.IsDBNull(18) ? null : snapReader.GetDateTime(18),
+                                            DeactivatedBy = snapReader.IsDBNull(19) ? null : snapReader.GetString(19),
+                                            IsActive = snapReader.GetBoolean(20)
+                                        };
+                                    }
+                                }
+
+                                if (snapshot == null)
+                                {
+                                    throw new SyncPullAuthoritativeRowMissingException(
+                                        $"Terminal mutation '{terminalEvent.OperationType}' for FormDetails SyncId '{syncId}' not found in authoritative dbo.FormDetails table.");
+                                }
+
+                                if (string.Equals(terminalEvent.OperationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase) && snapshot.IsActive)
+                                {
+                                    throw new SyncPullAuthoritativeStateMismatchException(
+                                        $"Terminal SOFT_DELETE mutation for FormDetails SyncId '{syncId}' at version {terminalVersion} has IsActive=true in authoritative dbo.FormDetails.");
+                                }
+
+                                commands.Add(PullCommand.CreateFormDetailsUpsert(snapshot, terminalVersion));
+                                break;
+                            }
+                            case "FormRefernce":
+                            {
+                                FormRefernceAuthoritativeSnapshot? snapshot = null;
+                                await using (var snapshotCmd = connection.CreateCommand())
+                                {
+                                    snapshotCmd.Transaction = transaction;
+                                    snapshotCmd.CommandText = @"
+                                        SELECT fr.SyncId, f.SyncId AS FormSyncId, fr.ReferencePath,
+                                               fr.CreatedAt, fr.CreatedBy, fr.UpdatedAt, fr.UpdatedBy, fr.DeactivatedAt, fr.DeactivatedBy, fr.IsActive
+                                        FROM [dbo].[FormRefernce] fr
+                                        INNER JOIN [dbo].[Form] f ON fr.FormId = f.Id
+                                        WHERE fr.SyncId = @SyncId;";
+
+                                    AddParam(snapshotCmd, "@SyncId", syncId);
+
+                                    await using var snapReader = await snapshotCmd.ExecuteReaderAsync(cancellationToken);
+                                    if (await snapReader.ReadAsync(cancellationToken))
+                                    {
+                                        snapshot = new FormRefernceAuthoritativeSnapshot
+                                        {
+                                            SyncId = snapReader.GetGuid(0),
+                                            FormSyncId = snapReader.GetGuid(1),
+                                            ReferencePath = snapReader.IsDBNull(2) ? null : snapReader.GetString(2),
+                                            CreatedAt = snapReader.GetDateTime(3),
+                                            CreatedBy = snapReader.IsDBNull(4) ? null : snapReader.GetString(4),
+                                            UpdatedAt = snapReader.IsDBNull(5) ? null : snapReader.GetDateTime(5),
+                                            UpdatedBy = snapReader.IsDBNull(6) ? null : snapReader.GetString(6),
+                                            DeactivatedAt = snapReader.IsDBNull(7) ? null : snapReader.GetDateTime(7),
+                                            DeactivatedBy = snapReader.IsDBNull(8) ? null : snapReader.GetString(8),
+                                            IsActive = snapReader.GetBoolean(9)
+                                        };
+                                    }
+                                }
+
+                                if (snapshot == null)
+                                {
+                                    throw new SyncPullAuthoritativeRowMissingException(
+                                        $"Terminal mutation '{terminalEvent.OperationType}' for FormRefernce SyncId '{syncId}' not found in authoritative dbo.FormRefernce table.");
+                                }
+
+                                if (string.Equals(terminalEvent.OperationType, "SOFT_DELETE", StringComparison.OrdinalIgnoreCase) && snapshot.IsActive)
+                                {
+                                    throw new SyncPullAuthoritativeStateMismatchException(
+                                        $"Terminal SOFT_DELETE mutation for FormRefernce SyncId '{syncId}' at version {terminalVersion} has IsActive=true in authoritative dbo.FormRefernce.");
+                                }
+
+                                commands.Add(PullCommand.CreateFormRefernceUpsert(snapshot, terminalVersion));
+                                break;
+                            }
+                            default:
+                                throw new SyncPullUnsupportedEntityTypeException($"Unsupported EntityType '{entityType}'.");
+                        }
                     }
                 }
 
@@ -357,5 +533,23 @@ namespace Auth.Infrastructure.Sync.Pull
             p.Value = value ?? DBNull.Value;
             cmd.Parameters.Add(p);
         }
+
+        private static string CanonicalizeEntityType(string entityType)
+        {
+            if (string.Equals(entityType, "Daily", StringComparison.OrdinalIgnoreCase)) return "Daily";
+            if (string.Equals(entityType, "Form", StringComparison.OrdinalIgnoreCase)) return "Form";
+            if (string.Equals(entityType, "FormDetails", StringComparison.OrdinalIgnoreCase)) return "FormDetails";
+            if (string.Equals(entityType, "FormRefernce", StringComparison.OrdinalIgnoreCase)) return "FormRefernce";
+            throw new SyncPullUnsupportedEntityTypeException($"Unsupported EntityType '{entityType}'.");
+        }
+
+        private static string GetTableNameForEntityType(string entityType) => entityType switch
+        {
+            "Daily" => "[dbo].[Daily]",
+            "Form" => "[dbo].[Form]",
+            "FormDetails" => "[dbo].[FormDetails]",
+            "FormRefernce" => "[dbo].[FormRefernce]",
+            _ => throw new SyncPullUnsupportedEntityTypeException($"Unsupported EntityType '{entityType}'.")
+        };
     }
 }

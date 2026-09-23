@@ -23,19 +23,22 @@ namespace Api.Controllers
         private readonly ISyncConnectionProvider _syncConnectionProvider;
         private readonly IConfiguration _configuration;
         private readonly ILogger<SyncController> _logger;
+        private readonly ILocalScopeBaselineService _scopeBaselineService;
 
         public SyncController(
             ILocalOutboxPushService pushService,
             ILocalDailyPullService pullService,
             ISyncConnectionProvider syncConnectionProvider,
             IConfiguration configuration,
-            ILogger<SyncController> logger)
+            ILogger<SyncController> logger,
+            ILocalScopeBaselineService scopeBaselineService)
         {
             _pushService = pushService ?? throw new ArgumentNullException(nameof(pushService));
             _pullService = pullService ?? throw new ArgumentNullException(nameof(pullService));
             _syncConnectionProvider = syncConnectionProvider ?? throw new ArgumentNullException(nameof(syncConnectionProvider));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _scopeBaselineService = scopeBaselineService ?? throw new ArgumentNullException(nameof(scopeBaselineService));
         }
 
         [HttpPost("push")]
@@ -415,6 +418,39 @@ namespace Api.Controllers
                     message = "An error occurred during pull processing."
                 });
             }
+        }
+
+        [HttpGet("scopes")]
+        public async Task<IActionResult> GetScopeReadiness(CancellationToken cancellationToken)
+        {
+            var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
+            if (string.IsNullOrWhiteSpace(databaseId) || (databaseId != "2026" && databaseId != "2027"))
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = "INVALID_DATABASE_SELECTION",
+                    message = $"Invalid canonical database ID '{databaseId}'. Expected '2026' or '2027'."
+                });
+            }
+
+            var localConnStr = _syncConnectionProvider.GetLocalConnectionString(databaseId);
+            await using var conn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
+            await conn.OpenAsync(cancellationToken);
+
+
+            var dailyStatus = await _scopeBaselineService.GetScopeStatusAsync(conn, null, databaseId, "Daily", cancellationToken);
+            var formsStatus = await _scopeBaselineService.GetScopeStatusAsync(conn, null, databaseId, "Forms", cancellationToken);
+
+            return Ok(new
+            {
+                databaseId,
+                scopes = new[]
+                {
+                    new { scope = "Daily", status = dailyStatus == Core.Interfaces.SyncScopeBaselineStatus.Baselined ? "BASELINED" : "NOT_BASELINED" },
+                    new { scope = "Forms", status = formsStatus == Core.Interfaces.SyncScopeBaselineStatus.Baselined ? "BASELINED" : "NOT_BASELINED" }
+                }
+            });
         }
     }
 }

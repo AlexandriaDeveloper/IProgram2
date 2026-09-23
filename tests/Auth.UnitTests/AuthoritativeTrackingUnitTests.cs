@@ -1061,6 +1061,303 @@ namespace Auth.UnitTests
             Assert.True(snapshot.IsActive);
         }
 
+        [Fact]
+        public void UnitOfWork_CapturesFormOriginalSnapshot_DirectlyFromEntityEntry()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            var syncId = Guid.NewGuid();
+            var createdAt = new DateTime(2026, 2, 1, 8, 0, 0, DateTimeKind.Utc);
+
+            using var context = new ApplicationContext(options);
+            var form = new Form
+            {
+                Id = 601,
+                Name = "Original Form Name",
+                DailyId = 10,
+                Index = 1,
+                Description = "Original Description",
+                CreatedAt = createdAt,
+                CreatedBy = "User1",
+                IsActive = true,
+                SyncId = syncId
+            };
+            context.Set<Form>().Add(form);
+            context.SaveChanges();
+
+            form.Name = "Modified Form Name";
+            form.Description = "Modified Description";
+
+            var entry = context.Entry(form);
+            Assert.Equal(EntityState.Modified, entry.State);
+
+            var snapshot = UnitOfWork.CaptureFormOriginalSnapshot(entry);
+
+            Assert.Equal(syncId, snapshot.SyncId);
+            Assert.Equal("Original Form Name", snapshot.Name);
+            Assert.Equal(10, snapshot.DailyId);
+            Assert.Equal(1, snapshot.Index);
+            Assert.Equal("Original Description", snapshot.Description);
+            Assert.Equal(createdAt, snapshot.CreatedAt);
+            Assert.Equal("User1", snapshot.CreatedBy);
+            Assert.True(snapshot.IsActive);
+        }
+
+        [Fact]
+        public void UnitOfWork_CapturesFormDetailsOriginalSnapshot_DirectlyFromEntityEntry()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            var syncId = Guid.NewGuid();
+            var createdAt = new DateTime(2026, 3, 1, 8, 0, 0, DateTimeKind.Utc);
+
+            using var context = new ApplicationContext(options);
+            var details = new FormDetails
+            {
+                Id = 701,
+                FormId = 20,
+                EmployeeId = "29001017777771",
+                Amount = 1500.75,
+                OrderNum = 1,
+                IsReviewed = false,
+                CreatedAt = createdAt,
+                CreatedBy = "User1",
+                IsActive = true,
+                SyncId = syncId
+            };
+            context.Set<FormDetails>().Add(details);
+            context.SaveChanges();
+
+            details.Amount = 2500.00;
+            details.IsReviewed = true;
+
+            var entry = context.Entry(details);
+            Assert.Equal(EntityState.Modified, entry.State);
+
+            var snapshot = UnitOfWork.CaptureFormDetailsOriginalSnapshot(entry);
+
+            Assert.Equal(syncId, snapshot.SyncId);
+            Assert.Equal(20, snapshot.FormId);
+            Assert.Equal("29001017777771", snapshot.EmployeeId);
+            Assert.Equal(1500.75, snapshot.Amount);
+            Assert.Equal(1, snapshot.OrderNum);
+            Assert.False(snapshot.IsReviewed);
+            Assert.Equal(createdAt, snapshot.CreatedAt);
+            Assert.True(snapshot.IsActive);
+        }
+
+        [Fact]
+        public async Task Tracker_PrepareBatch_Form_RowNotFound_ThrowsAuthoritativeConcurrencyConflictException()
+        {
+            var tracker = new AuthoritativeDailyMutationTracker(NullLogger<AuthoritativeDailyMutationTracker>.Instance);
+            var conn = new ConfigurableCountingDbConnection
+            {
+                ScalarHandler = sql => 1L,
+                ReaderHandler = sql => new FakeDbDataReader(new List<object[]>())
+            };
+            var trans = new FakeDbTransaction();
+
+            var formSyncId = Guid.NewGuid();
+            var mutations = new List<CapturedAuthoritativeDailyMutation>
+            {
+                new CapturedAuthoritativeDailyMutation
+                {
+                    EntityType = "Form",
+                    OperationType = "UPDATE",
+                    EntitySyncId = formSyncId,
+                    FormOriginalSnapshot = new AuthoritativeFormOriginalSnapshot
+                    {
+                        SyncId = formSyncId,
+                        Name = "Original Form",
+                        CreatedAt = DateTime.UtcNow,
+                        IsActive = true
+                    }
+                }
+            };
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(() =>
+                tracker.PrepareAuthoritativeBatchAsync(conn, trans, "2026", mutations, CancellationToken.None));
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains("Form with SyncId", ex.Message);
+            Assert.Contains("no longer exists", ex.Message);
+        }
+
+        [Fact]
+        public async Task Tracker_PrepareBatch_Form_ScalarFieldMismatch_ThrowsAuthoritativeConcurrencyConflictException()
+        {
+            var tracker = new AuthoritativeDailyMutationTracker(NullLogger<AuthoritativeDailyMutationTracker>.Instance);
+            var syncId = Guid.NewGuid();
+            var now = DateTime.UtcNow;
+
+            var conn = new ConfigurableCountingDbConnection
+            {
+                ScalarHandler = sql => 1L,
+                ReaderHandler = sql => new FakeDbDataReader(new List<object?[]>
+                {
+                    new object?[]
+                    {
+                        "Concurrent Online Change", // 0: Name (mismatched!)
+                        10,                          // 1: DailyId
+                        1,                           // 2: Index
+                        "Desc",                      // 3: Description
+                        now,                         // 4: CreatedAt
+                        "Admin",                     // 5: CreatedBy
+                        null,                        // 6: UpdatedAt
+                        null,                        // 7: UpdatedBy
+                        null,                        // 8: DeactivatedAt
+                        null,                        // 9: DeactivatedBy
+                        true                         // 10: IsActive
+                    }
+                })
+            };
+            var trans = new FakeDbTransaction();
+
+            var mutations = new List<CapturedAuthoritativeDailyMutation>
+            {
+                new CapturedAuthoritativeDailyMutation
+                {
+                    EntityType = "Form",
+                    OperationType = "UPDATE",
+                    EntitySyncId = syncId,
+                    FormOriginalSnapshot = new AuthoritativeFormOriginalSnapshot
+                    {
+                        SyncId = syncId,
+                        Name = "Expected Original Name",
+                        DailyId = 10,
+                        Index = 1,
+                        Description = "Desc",
+                        CreatedAt = now,
+                        CreatedBy = "Admin",
+                        IsActive = true
+                    }
+                }
+            };
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(() =>
+                tracker.PrepareAuthoritativeBatchAsync(conn, trans, "2026", mutations, CancellationToken.None));
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains("Database current values do not match original snapshot", ex.Message);
+            Assert.Contains("Field 'Name' differed", ex.Message);
+        }
+
+        [Fact]
+        public async Task Tracker_PrepareBatch_FormDetails_RowNotFound_ThrowsAuthoritativeConcurrencyConflictException()
+        {
+            var tracker = new AuthoritativeDailyMutationTracker(NullLogger<AuthoritativeDailyMutationTracker>.Instance);
+            var conn = new ConfigurableCountingDbConnection
+            {
+                ScalarHandler = sql => 1L,
+                ReaderHandler = sql => new FakeDbDataReader(new List<object[]>())
+            };
+            var trans = new FakeDbTransaction();
+
+            var detailsSyncId = Guid.NewGuid();
+            var mutations = new List<CapturedAuthoritativeDailyMutation>
+            {
+                new CapturedAuthoritativeDailyMutation
+                {
+                    EntityType = "FormDetails",
+                    OperationType = "UPDATE",
+                    EntitySyncId = detailsSyncId,
+                    FormDetailsOriginalSnapshot = new AuthoritativeFormDetailsOriginalSnapshot
+                    {
+                        SyncId = detailsSyncId,
+                        FormId = 5,
+                        EmployeeId = "123",
+                        Amount = 100.0,
+                        OrderNum = 1,
+                        IsReviewed = false,
+                        IsSummaryReviewed = false,
+                        CreatedAt = DateTime.UtcNow,
+                        IsActive = true
+                    }
+                }
+            };
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(() =>
+                tracker.PrepareAuthoritativeBatchAsync(conn, trans, "2026", mutations, CancellationToken.None));
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains("FormDetails with SyncId", ex.Message);
+            Assert.Contains("no longer exists", ex.Message);
+        }
+
+        [Fact]
+        public async Task Tracker_PrepareBatch_FormDetails_ScalarFieldMismatch_ThrowsAuthoritativeConcurrencyConflictException()
+        {
+            var tracker = new AuthoritativeDailyMutationTracker(NullLogger<AuthoritativeDailyMutationTracker>.Instance);
+            var syncId = Guid.NewGuid();
+            var now = DateTime.UtcNow;
+
+            var conn = new ConfigurableCountingDbConnection
+            {
+                ScalarHandler = sql => 1L,
+                ReaderHandler = sql => new FakeDbDataReader(new List<object?[]>
+                {
+                    new object?[]
+                    {
+                        5,                           // 0: FormId
+                        "12345678901234",            // 1: EmployeeId
+                        9999.00,                     // 2: Amount (mismatched!)
+                        1,                           // 3: OrderNum
+                        false,                       // 4: IsReviewed
+                        null,                        // 5: IsReviewedBy
+                        null,                        // 6: ReviewedAt
+                        null,                        // 7: ReviewComments
+                        false,                       // 8: IsSummaryReviewed
+                        null,                        // 9: IsSummaryReviewedBy
+                        null,                        // 10: SummaryReviewedAt
+                        null,                        // 11: SummaryComments
+                        null,                        // 12: SummaryReviewMethod
+                        now,                         // 13: CreatedAt
+                        "Admin",                     // 14: CreatedBy
+                        null,                        // 15: UpdatedAt
+                        null,                        // 16: UpdatedBy
+                        null,                        // 17: DeactivatedAt
+                        null,                        // 18: DeactivatedBy
+                        true                         // 19: IsActive
+                    }
+                })
+            };
+            var trans = new FakeDbTransaction();
+
+            var mutations = new List<CapturedAuthoritativeDailyMutation>
+            {
+                new CapturedAuthoritativeDailyMutation
+                {
+                    EntityType = "FormDetails",
+                    OperationType = "UPDATE",
+                    EntitySyncId = syncId,
+                    FormDetailsOriginalSnapshot = new AuthoritativeFormDetailsOriginalSnapshot
+                    {
+                        SyncId = syncId,
+                        FormId = 5,
+                        EmployeeId = "12345678901234",
+                        Amount = 100.0,              // Expected 100.0, DB had 9999.00
+                        OrderNum = 1,
+                        IsReviewed = false,
+                        IsSummaryReviewed = false,
+                        CreatedAt = now,
+                        CreatedBy = "Admin",
+                        IsActive = true
+                    }
+                }
+            };
+
+            var ex = await Assert.ThrowsAsync<AuthoritativeConcurrencyConflictException>(() =>
+                tracker.PrepareAuthoritativeBatchAsync(conn, trans, "2026", mutations, CancellationToken.None));
+
+            Assert.Equal("AUTHORITATIVE_CONCURRENCY_CONFLICT", ex.ErrorCode);
+            Assert.Contains("Database current values do not match original snapshot", ex.Message);
+            Assert.Contains("Field 'Amount' differed", ex.Message);
+        }
+
         #endregion
     }
 }

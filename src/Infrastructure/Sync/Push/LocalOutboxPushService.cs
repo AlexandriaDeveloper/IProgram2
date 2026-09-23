@@ -21,6 +21,7 @@ namespace Auth.Infrastructure.Sync.Push
         private readonly IRemoteDatabaseConnectionFactory _remoteConnectionFactory;
         private readonly IAzurePushTransactionCoordinator _transactionCoordinator;
         private readonly ILocalPushLeaseManager _leaseManager;
+        private readonly ILocalScopeBaselineService _scopeBaselineService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<LocalOutboxPushService> _logger;
 
@@ -30,7 +31,8 @@ namespace Auth.Infrastructure.Sync.Push
             IAzurePushTransactionCoordinator transactionCoordinator,
             ILocalPushLeaseManager leaseManager,
             IConfiguration configuration,
-            ILogger<LocalOutboxPushService> logger)
+            ILogger<LocalOutboxPushService> logger,
+            ILocalScopeBaselineService scopeBaselineService)
         {
             _syncConnectionProvider = syncConnectionProvider ?? throw new ArgumentNullException(nameof(syncConnectionProvider));
             _remoteConnectionFactory = remoteConnectionFactory ?? throw new ArgumentNullException(nameof(remoteConnectionFactory));
@@ -38,6 +40,7 @@ namespace Auth.Infrastructure.Sync.Push
             _leaseManager = leaseManager ?? throw new ArgumentNullException(nameof(leaseManager));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _scopeBaselineService = scopeBaselineService ?? throw new ArgumentNullException(nameof(scopeBaselineService));
         }
 
         public async Task<PushBatchResult> PushPendingOutboxAsync(CancellationToken cancellationToken)
@@ -92,6 +95,14 @@ namespace Auth.Infrastructure.Sync.Push
                 {
                     batchResult.FinalServerVersion = expectedServerVersion;
                     return batchResult;
+                }
+
+                // If any pending outbox operation is Form or FormDetails, enforce Forms scope baseline (fail-closed)
+                if (pendingOperations.Any(o => o.AggregateType == "Form" || o.AggregateType == "FormDetails"))
+                {
+                    await using var baselineConn = new Microsoft.Data.SqlClient.SqlConnection(localConnStr);
+                    await baselineConn.OpenAsync(cancellationToken);
+                    await _scopeBaselineService.EnsureScopeBaselinedAsync(baselineConn, null, databaseId, "Forms", cancellationToken);
                 }
 
                 // 7. Open dedicated remote connection
@@ -275,7 +286,7 @@ namespace Auth.Infrastructure.Sync.Push
                 FROM [sync].[LocalOutbox]
                 WHERE DatabaseId = @DatabaseId
                   AND Status IN ('PENDING', 'IN_PROGRESS')
-                ORDER BY CreatedAtUtc ASC, ClientOperationId ASC;";
+                ORDER BY CreatedAtUtc ASC;";
             cmd.Parameters.AddWithValue("@DatabaseId", databaseId);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -294,7 +305,33 @@ namespace Auth.Infrastructure.Sync.Push
                     RetryCount = reader.GetInt32(8)
                 });
             }
-            return list;
+            return list
+                .OrderBy(o => o.CreatedAtUtc)
+                .ThenBy(GetAggregateTopologicalRank)
+                .ToList();
+        }
+
+        private static int GetAggregateTopologicalRank(LocalOutbox o)
+        {
+            bool isDelete = o.CommandName.EndsWith(".SoftDelete", StringComparison.OrdinalIgnoreCase) ||
+                            o.CommandName.EndsWith(".Delete", StringComparison.OrdinalIgnoreCase);
+            if (isDelete)
+            {
+                return o.AggregateType switch
+                {
+                    "FormDetails" => 10,
+                    "Form" => 20,
+                    "Daily" => 30,
+                    _ => 40
+                };
+            }
+            return o.AggregateType switch
+            {
+                "Daily" => 100,
+                "Form" => 110,
+                "FormDetails" => 120,
+                _ => 130
+            };
         }
 
         public static async Task<bool> TryClaimOutboxInProgressAsync(string localConnStr, string databaseId, Guid clientOperationId, Guid leaseToken, CancellationToken ct)

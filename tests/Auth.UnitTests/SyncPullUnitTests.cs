@@ -118,7 +118,8 @@ namespace Auth.UnitTests
                 new Mock<ILocalDailyPullService>().Object,
                 syncConnectionProviderMock.Object,
                 config,
-                NullLogger<SyncController>.Instance);
+                NullLogger<SyncController>.Instance,
+                new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -140,7 +141,8 @@ namespace Auth.UnitTests
                 new Mock<ILocalDailyPullService>().Object,
                 syncConnectionProviderMock.Object,
                 config,
-                NullLogger<SyncController>.Instance);
+                NullLogger<SyncController>.Instance,
+                new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -162,7 +164,8 @@ namespace Auth.UnitTests
                 new Mock<ILocalDailyPullService>().Object,
                 syncConnectionProviderMock.Object,
                 config,
-                NullLogger<SyncController>.Instance);
+                NullLogger<SyncController>.Instance,
+                new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -195,7 +198,8 @@ namespace Auth.UnitTests
                 pullServiceMock.Object,
                 syncConnectionProviderMock.Object,
                 config,
-                NullLogger<SyncController>.Instance);
+                NullLogger<SyncController>.Instance,
+                new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None);
 
@@ -221,7 +225,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -241,7 +245,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -261,7 +265,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -281,7 +285,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -301,7 +305,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -321,7 +325,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: false, readOnlyMode: false, pullEnabled: true);
-            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance);
+            var controller = new SyncController(new Mock<ILocalOutboxPushService>().Object, pullServiceMock.Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
 
             var result = await controller.PullDaily(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);

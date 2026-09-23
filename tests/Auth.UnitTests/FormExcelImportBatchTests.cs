@@ -87,7 +87,7 @@ namespace Auth.UnitTests
                  Mock<IDailyClosureGuard> guardMock,
                  Mock<IMemoryCache> cacheMock,
                  Mock<IUnitOfWork> uowMock)
-            CreateFormServiceWithSpy(string dbName)
+            CreateFormServiceWithSpy(string dbName, IDbConnectionProvider? dbConnectionProvider = null)
         {
             var context = CreateContext(dbName);
 
@@ -113,10 +113,10 @@ namespace Auth.UnitTests
             var formDetailsRepo = new FormDetailsRepository(context, httpAccessorMock.Object);
             var dailyRepo = new DailyRepository(context, httpAccessorMock.Object);
 
-            var realUow = new UnitOfWork(context);
+            var realUow = new UnitOfWork(context, dbConnectionProvider);
             var uowMock = new Mock<IUnitOfWork>();
             uowMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .Returns<CancellationToken>(ct => realUow.SaveChangesAsync(ct));
+                .Returns<CancellationToken>(ct => context.SaveChangesAsync(ct));
 
             var userStoreMock = new Mock<IUserStore<ApplicationUser>>();
             var userManager = new UserManager<ApplicationUser>(userStoreMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
@@ -142,7 +142,8 @@ namespace Auth.UnitTests
                 cacheMock.Object,
                 cacheKeyFactoryMock.Object,
                 currentUserServiceMock.Object,
-                dailyClosureGuardMock.Object);
+                dailyClosureGuardMock.Object,
+                dbConnectionProvider);
 
             return (service, context, () => count, dailyClosureGuardMock, cacheMock, uowMock);
         }
@@ -512,12 +513,20 @@ namespace Auth.UnitTests
 
             Assert.True(result.IsSuccess);
 
-            // Only the new detail exists now
-            var details = await context.Set<FormDetails>().Where(f => f.FormId == 8).ToListAsync();
-            Assert.Single(details);
-            Assert.Equal(emp2.Id, details[0].EmployeeId);
-            Assert.Equal(99.0, details[0].Amount);
-            Assert.Equal(1, details[0].OrderNum);
+            // Only the new detail exists as active now
+            var activeDetails = await context.Set<FormDetails>().Where(f => f.FormId == 8 && f.IsActive).ToListAsync();
+            Assert.Single(activeDetails);
+            Assert.Equal(emp2.Id, activeDetails[0].EmployeeId);
+            Assert.Equal(99.0, activeDetails[0].Amount);
+            Assert.Equal(1, activeDetails[0].OrderNum);
+
+            // In Online mode, previous details are physically deleted (exact pre-PR master behavior)
+            var allDetails = await context.Set<FormDetails>().Where(f => f.FormId == 8).ToListAsync();
+            Assert.Single(allDetails);
+            Assert.Equal(emp2.Id, allDetails[0].EmployeeId);
+            Assert.Equal(99.0, allDetails[0].Amount);
+            Assert.Equal(1, allDetails[0].OrderNum);
+            Assert.True(allDetails[0].IsActive);
 
             guardMock.Verify(g => g.EnsureFormDailyOpenAsync(8), Times.Exactly(2));
             uowMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once());
@@ -634,6 +643,147 @@ namespace Auth.UnitTests
 
             // Both guards were checked before DB write attempt
             guardMock.Verify(g => g.EnsureFormDailyOpenAsync(200), Times.Exactly(2));
+        }
+
+        [Fact]
+        public async Task UploadExcelEmployeesToForm_OnlineMode_HardDeletesOldDetails_PreservingExactPrePrSemantics()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            // Online mode: dbConnectionProvider is null (or IsLocalFirstEnabled == false)
+            var (service, context, _, _, _, _) = CreateFormServiceWithSpy(dbName, dbConnectionProvider: null);
+
+            var empOld1 = new Employee { Id = "29001019999901", Name = "موظف قديم 1", IsActive = true };
+            var empOld2 = new Employee { Id = "29001019999902", Name = "موظف قديم 2", IsActive = true };
+            var empNew = new Employee { Id = "29001019999903", Name = "موظف جديد", IsActive = true };
+            context.Employees.AddRange(empOld1, empOld2, empNew);
+
+            var form = new Form { Id = 300, Name = "استمارة أونلاين 300", IsActive = true };
+            context.Set<Form>().Add(form);
+
+            context.Set<FormDetails>().AddRange(
+                new FormDetails { FormId = 300, EmployeeId = empOld1.Id, OrderNum = 1, Amount = 100.0, IsActive = true },
+                new FormDetails { FormId = 300, EmployeeId = empOld2.Id, OrderNum = 2, Amount = 200.0, IsActive = true }
+            );
+            await context.SaveChangesAsync();
+
+            var excelFile = CreateExcelFile(
+                ("29001019999903", "", "", "قسم", "موظف جديد", "500.0")
+            );
+
+            // Act
+            var result = await service.UploadExcelEmployeesToForm(new UploadEmployeesToFormRequest
+            {
+                FormId = 300,
+                File = excelFile,
+                ValidateName = false
+            });
+
+            // Assert
+            Assert.True(result.IsSuccess);
+
+            // In Online mode, old records MUST be physically hard-deleted from the table
+            var allDetailsInDb = await context.Set<FormDetails>().Where(f => f.FormId == 300).ToListAsync();
+            Assert.Single(allDetailsInDb);
+            Assert.Equal("29001019999903", allDetailsInDb[0].EmployeeId);
+            Assert.Equal(500.0, allDetailsInDb[0].Amount);
+            Assert.True(allDetailsInDb[0].IsActive);
+        }
+
+        [Fact]
+        public async Task UploadExcelEmployeesToForm_LocalFirstMode_SoftDeletesOldDetails_WithoutHardDelete()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var syncProviderMock = new Mock<ISyncConnectionProvider>();
+            syncProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            syncProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
+
+            var (service, context, _, _, _, _) = CreateFormServiceWithSpy(dbName, dbConnectionProvider: syncProviderMock.Object);
+
+            var empOld1 = new Employee { Id = "29001019999911", Name = "موظف محلي قديم 1", IsActive = true };
+            var empOld2 = new Employee { Id = "29001019999912", Name = "موظف محلي قديم 2", IsActive = true };
+            var empNew = new Employee { Id = "29001019999913", Name = "موظف محلي جديد", IsActive = true };
+            context.Employees.AddRange(empOld1, empOld2, empNew);
+
+            var form = new Form { Id = 301, Name = "استمارة محلي 301", IsActive = true };
+            context.Set<Form>().Add(form);
+
+            context.Set<FormDetails>().AddRange(
+                new FormDetails { FormId = 301, EmployeeId = empOld1.Id, OrderNum = 1, Amount = 150.0, IsActive = true },
+                new FormDetails { FormId = 301, EmployeeId = empOld2.Id, OrderNum = 2, Amount = 250.0, IsActive = true }
+            );
+            await context.SaveChangesAsync();
+
+            var excelFile = CreateExcelFile(
+                ("29001019999913", "", "", "قسم", "موظف محلي جديد", "700.0")
+            );
+
+            // Act
+            var result = await service.UploadExcelEmployeesToForm(new UploadEmployeesToFormRequest
+            {
+                FormId = 301,
+                File = excelFile,
+                ValidateName = false
+            });
+
+            // Assert
+            Assert.True(result.IsSuccess);
+
+            // In LocalFirst mode, old records MUST be preserved as soft-deleted (IsActive = false)
+            var allDetailsInDb = await context.Set<FormDetails>().Where(f => f.FormId == 301).OrderBy(f => f.OrderNum).ToListAsync();
+            Assert.Equal(3, allDetailsInDb.Count);
+
+            var deactivated = allDetailsInDb.Where(d => !d.IsActive).ToList();
+            Assert.Equal(2, deactivated.Count);
+            Assert.All(deactivated, d => Assert.False(d.IsActive));
+            Assert.All(deactivated, d => Assert.NotNull(d.DeactivatedAt));
+
+            var active = allDetailsInDb.Where(d => d.IsActive).ToList();
+            Assert.Single(active);
+            Assert.Equal("29001019999913", active[0].EmployeeId);
+            Assert.Equal(700.0, active[0].Amount);
+        }
+
+        [Fact]
+        public async Task UploadExcelEmployeesToForm_OnlineMode_AggregateTotalsMatchExpected()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var (service, context, _, _, _, _) = CreateFormServiceWithSpy(dbName, dbConnectionProvider: null);
+
+            var emp1 = new Employee { Id = "29001019999921", Name = "موظف تجميع 1", IsActive = true };
+            var emp2 = new Employee { Id = "29001019999922", Name = "موظف تجميع 2", IsActive = true };
+            context.Employees.AddRange(emp1, emp2);
+
+            var form = new Form { Id = 302, Name = "استمارة تجميع 302", IsActive = true };
+            context.Set<Form>().Add(form);
+
+            // Initial details: 100.0 + 200.0 = 300.0
+            context.Set<FormDetails>().AddRange(
+                new FormDetails { FormId = 302, EmployeeId = emp1.Id, OrderNum = 1, Amount = 100.0, IsActive = true },
+                new FormDetails { FormId = 302, EmployeeId = emp2.Id, OrderNum = 2, Amount = 200.0, IsActive = true }
+            );
+            await context.SaveChangesAsync();
+
+            // Import replacement: 150.0 + 250.0 = 400.0
+            var excelFile = CreateExcelFile(
+                ("29001019999921", "", "", "قسم", "موظف تجميع 1", "150.0"),
+                ("29001019999922", "", "", "قسم", "موظف تجميع 2", "250.0")
+            );
+
+            var result = await service.UploadExcelEmployeesToForm(new UploadEmployeesToFormRequest
+            {
+                FormId = 302,
+                File = excelFile,
+                ValidateName = false
+            });
+
+            Assert.True(result.IsSuccess);
+
+            // In Online mode, aggregate queries without IsActive filter produce the exact imported total
+            var totalCount = await context.Set<FormDetails>().CountAsync(f => f.FormId == 302);
+            var totalAmount = await context.Set<FormDetails>().Where(f => f.FormId == 302).SumAsync(f => f.Amount);
+
+            Assert.Equal(2, totalCount);
+            Assert.Equal(400.0, totalAmount);
         }
     }
 }

@@ -107,19 +107,29 @@ namespace Auth.Infrastructure.Sync.Pull
 
                     if (cmd.CommandType == PullCommandType.Upsert)
                     {
-                        if (cmd.Snapshot == null)
+                        var (snapshotSyncId, hasSnapshot) = cmd.EntityType switch
                         {
-                            throw new SyncPullBatchMalformedException($"Upsert command for entity '{cmd.EntitySyncId}' has null Snapshot.");
-                        }
-                        if (cmd.Snapshot.SyncId != cmd.EntitySyncId)
+                            "Daily" => (cmd.Snapshot?.SyncId, cmd.Snapshot != null),
+                            "Form" => (cmd.FormSnapshot?.SyncId, cmd.FormSnapshot != null),
+                            "FormDetails" => (cmd.FormDetailsSnapshot?.SyncId, cmd.FormDetailsSnapshot != null),
+                            "FormRefernce" => (cmd.FormRefernceSnapshot?.SyncId, cmd.FormRefernceSnapshot != null),
+                            _ => (null, false)
+                        };
+
+                        if (!hasSnapshot || !snapshotSyncId.HasValue)
                         {
                             throw new SyncPullBatchMalformedException(
-                                $"Upsert command EntitySyncId '{cmd.EntitySyncId}' does not match Snapshot.SyncId '{cmd.Snapshot.SyncId}'.");
+                                $"Upsert command for entity '{cmd.EntitySyncId}' of type '{cmd.EntityType}' has null or missing Snapshot.");
+                        }
+                        if (snapshotSyncId.Value != cmd.EntitySyncId)
+                        {
+                            throw new SyncPullBatchMalformedException(
+                                $"Upsert command EntitySyncId '{cmd.EntitySyncId}' does not match Snapshot SyncId '{snapshotSyncId.Value}'.");
                         }
                     }
                     else if (cmd.CommandType == PullCommandType.Delete)
                     {
-                        if (cmd.Snapshot != null)
+                        if (cmd.Snapshot != null || cmd.FormSnapshot != null || cmd.FormDetailsSnapshot != null || cmd.FormRefernceSnapshot != null)
                         {
                             throw new SyncPullBatchMalformedException($"Delete command for entity '{cmd.EntitySyncId}' must have null Snapshot.");
                         }
@@ -233,123 +243,474 @@ namespace Auth.Infrastructure.Sync.Pull
                     }
                 }
 
-                // Step 3: Apply Coalesced Commands by SyncId Only
-                if (batch.Commands != null)
+                // Step 3: Apply Coalesced Commands by SyncId Only in Topological Dependency Order
+                if (batch.Commands != null && batch.Commands.Count > 0)
                 {
-                    foreach (var cmd in batch.Commands)
+                    var orderedCommands = batch.Commands
+                        .OrderBy(GetIngestionOrder)
+                        .ThenBy(c => c.TerminalServerVersion)
+                        .ToList();
+
+                    foreach (var cmd in orderedCommands)
                     {
-                    cancellationToken.ThrowIfCancellationRequested();
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                    if (cmd.CommandType == PullCommandType.Delete)
-                    {
-                        await using var delCmd = conn.CreateCommand();
-                        delCmd.Transaction = tx;
-                        delCmd.CommandText = "DELETE FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
-                        AddParam(delCmd, "@SyncId", cmd.EntitySyncId);
-
-                        var affected = await delCmd.ExecuteNonQueryAsync(cancellationToken);
-                        result.Operations.Add(new PullOperationResult
+                        if (cmd.CommandType == PullCommandType.Delete)
                         {
-                            EntitySyncId = cmd.EntitySyncId,
-                            OperationType = "HARD_DELETE",
-                            Status = affected > 0 ? "SUCCESS" : "NO_OP",
-                            TerminalServerVersion = cmd.TerminalServerVersion
-                        });
-                        result.TotalProcessed++;
-                        result.Succeeded++;
-                    }
-                    else if (cmd.CommandType == PullCommandType.Upsert && cmd.Snapshot != null)
-                    {
-                        var snap = cmd.Snapshot;
+                            var tableName = cmd.EntityType switch
+                            {
+                                "Daily" => "[dbo].[Daily]",
+                                "Form" => "[dbo].[Form]",
+                                "FormDetails" => "[dbo].[FormDetails]",
+                                "FormRefernce" => "[dbo].[FormRefernce]",
+                                _ => throw new SyncPullBatchMalformedException($"Unsupported EntityType '{cmd.EntityType}'.")
+                            };
 
-                        // Check existence by SyncId
-                        bool existsLocally;
-                        await using (var checkCmd = conn.CreateCommand())
-                        {
-                            checkCmd.Transaction = tx;
-                            checkCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
-                            AddParam(checkCmd, "@SyncId", snap.SyncId);
-                            existsLocally = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
-                        }
+                            await using var delCmd = conn.CreateCommand();
+                            delCmd.Transaction = tx;
+                            delCmd.CommandText = $"DELETE FROM {tableName} WHERE SyncId = @SyncId;";
+                            AddParam(delCmd, "@SyncId", cmd.EntitySyncId);
 
-                        if (existsLocally)
-                        {
-                            // UPDATE existing row without modifying integer Id
-                            await using var updateCmd = conn.CreateCommand();
-                            updateCmd.Transaction = tx;
-                            updateCmd.CommandText = @"
-                                UPDATE [dbo].[Daily]
-                                SET Name = @Name,
-                                    DailyDate = @DailyDate,
-                                    Closed = @Closed,
-                                    CreatedAt = @CreatedAt,
-                                    CreatedBy = @CreatedBy,
-                                    UpdatedAt = @UpdatedAt,
-                                    UpdatedBy = @UpdatedBy,
-                                    DeactivatedAt = @DeactivatedAt,
-                                    DeactivatedBy = @DeactivatedBy,
-                                    IsActive = @IsActive
-                                WHERE SyncId = @SyncId;";
-
-                            AddParam(updateCmd, "@SyncId", snap.SyncId);
-                            AddParam(updateCmd, "@Name", snap.Name);
-                            AddParam(updateCmd, "@DailyDate", snap.DailyDate);
-                            AddParam(updateCmd, "@Closed", snap.Closed);
-                            AddParam(updateCmd, "@CreatedAt", snap.CreatedAt);
-                            AddParam(updateCmd, "@CreatedBy", snap.CreatedBy);
-                            AddParam(updateCmd, "@UpdatedAt", snap.UpdatedAt);
-                            AddParam(updateCmd, "@UpdatedBy", snap.UpdatedBy);
-                            AddParam(updateCmd, "@DeactivatedAt", snap.DeactivatedAt);
-                            AddParam(updateCmd, "@DeactivatedBy", snap.DeactivatedBy);
-                            AddParam(updateCmd, "@IsActive", snap.IsActive);
-
-                            await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+                            var affected = await delCmd.ExecuteNonQueryAsync(cancellationToken);
                             result.Operations.Add(new PullOperationResult
                             {
-                                EntitySyncId = snap.SyncId,
-                                OperationType = "UPDATE",
-                                Status = "SUCCESS",
+                                EntitySyncId = cmd.EntitySyncId,
+                                OperationType = "HARD_DELETE",
+                                Status = affected > 0 ? "SUCCESS" : "NO_OP",
                                 TerminalServerVersion = cmd.TerminalServerVersion
                             });
+                            result.TotalProcessed++;
+                            result.Succeeded++;
                         }
-                        else
+                        else if (cmd.CommandType == PullCommandType.Upsert)
                         {
-                            // INSERT new row letting Local SQL identity generate integer Id
-                            await using var insertCmd = conn.CreateCommand();
-                            insertCmd.Transaction = tx;
-                            insertCmd.CommandText = @"
-                                INSERT INTO [dbo].[Daily]
-                                (SyncId, Name, DailyDate, Closed, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, DeactivatedAt, DeactivatedBy, IsActive)
-                                VALUES
-                                (@SyncId, @Name, @DailyDate, @Closed, @CreatedAt, @CreatedBy, @UpdatedAt, @UpdatedBy, @DeactivatedAt, @DeactivatedBy, @IsActive);";
-
-                            AddParam(insertCmd, "@SyncId", snap.SyncId);
-                            AddParam(insertCmd, "@Name", snap.Name);
-                            AddParam(insertCmd, "@DailyDate", snap.DailyDate);
-                            AddParam(insertCmd, "@Closed", snap.Closed);
-                            AddParam(insertCmd, "@CreatedAt", snap.CreatedAt);
-                            AddParam(insertCmd, "@CreatedBy", snap.CreatedBy);
-                            AddParam(insertCmd, "@UpdatedAt", snap.UpdatedAt);
-                            AddParam(insertCmd, "@UpdatedBy", snap.UpdatedBy);
-                            AddParam(insertCmd, "@DeactivatedAt", snap.DeactivatedAt);
-                            AddParam(insertCmd, "@DeactivatedBy", snap.DeactivatedBy);
-                            AddParam(insertCmd, "@IsActive", snap.IsActive);
-
-                            await insertCmd.ExecuteNonQueryAsync(cancellationToken);
-                            result.Operations.Add(new PullOperationResult
+                            switch (cmd.EntityType)
                             {
-                                EntitySyncId = snap.SyncId,
-                                OperationType = "INSERT",
-                                Status = "SUCCESS",
-                                TerminalServerVersion = cmd.TerminalServerVersion
-                            });
-                        }
+                                case "Daily":
+                                {
+                                    var snap = cmd.Snapshot!;
+                                    bool existsLocally;
+                                    await using (var checkCmd = conn.CreateCommand())
+                                    {
+                                        checkCmd.Transaction = tx;
+                                        checkCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Daily] WHERE SyncId = @SyncId;";
+                                        AddParam(checkCmd, "@SyncId", snap.SyncId);
+                                        existsLocally = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                                    }
 
-                        result.TotalProcessed++;
-                        result.Succeeded++;
+                                    if (existsLocally)
+                                    {
+                                        await using var updateCmd = conn.CreateCommand();
+                                        updateCmd.Transaction = tx;
+                                        updateCmd.CommandText = @"
+                                            UPDATE [dbo].[Daily]
+                                            SET Name = @Name,
+                                                DailyDate = @DailyDate,
+                                                Closed = @Closed,
+                                                CreatedAt = @CreatedAt,
+                                                CreatedBy = @CreatedBy,
+                                                UpdatedAt = @UpdatedAt,
+                                                UpdatedBy = @UpdatedBy,
+                                                DeactivatedAt = @DeactivatedAt,
+                                                DeactivatedBy = @DeactivatedBy,
+                                                IsActive = @IsActive
+                                            WHERE SyncId = @SyncId;";
+
+                                        AddParam(updateCmd, "@SyncId", snap.SyncId);
+                                        AddParam(updateCmd, "@Name", snap.Name);
+                                        AddParam(updateCmd, "@DailyDate", snap.DailyDate);
+                                        AddParam(updateCmd, "@Closed", snap.Closed);
+                                        AddParam(updateCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(updateCmd, "@CreatedBy", snap.CreatedBy);
+                                        AddParam(updateCmd, "@UpdatedAt", snap.UpdatedAt);
+                                        AddParam(updateCmd, "@UpdatedBy", snap.UpdatedBy);
+                                        AddParam(updateCmd, "@DeactivatedAt", snap.DeactivatedAt);
+                                        AddParam(updateCmd, "@DeactivatedBy", snap.DeactivatedBy);
+                                        AddParam(updateCmd, "@IsActive", snap.IsActive);
+
+                                        await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "UPDATE",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    else
+                                    {
+                                        await using var insertCmd = conn.CreateCommand();
+                                        insertCmd.Transaction = tx;
+                                        insertCmd.CommandText = @"
+                                            INSERT INTO [dbo].[Daily]
+                                            (SyncId, Name, DailyDate, Closed, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, DeactivatedAt, DeactivatedBy, IsActive)
+                                            VALUES
+                                            (@SyncId, @Name, @DailyDate, @Closed, @CreatedAt, @CreatedBy, @UpdatedAt, @UpdatedBy, @DeactivatedAt, @DeactivatedBy, @IsActive);";
+
+                                        AddParam(insertCmd, "@SyncId", snap.SyncId);
+                                        AddParam(insertCmd, "@Name", snap.Name);
+                                        AddParam(insertCmd, "@DailyDate", snap.DailyDate);
+                                        AddParam(insertCmd, "@Closed", snap.Closed);
+                                        AddParam(insertCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(insertCmd, "@CreatedBy", snap.CreatedBy);
+                                        AddParam(insertCmd, "@UpdatedAt", snap.UpdatedAt);
+                                        AddParam(insertCmd, "@UpdatedBy", snap.UpdatedBy);
+                                        AddParam(insertCmd, "@DeactivatedAt", snap.DeactivatedAt);
+                                        AddParam(insertCmd, "@DeactivatedBy", snap.DeactivatedBy);
+                                        AddParam(insertCmd, "@IsActive", snap.IsActive);
+
+                                        await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "INSERT",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    break;
+                                }
+                                case "Form":
+                                {
+                                    var snap = cmd.FormSnapshot!;
+                                    int? resolvedDailyId = null;
+                                    if (snap.DailySyncId.HasValue)
+                                    {
+                                        await using var resolveCmd = conn.CreateCommand();
+                                        resolveCmd.Transaction = tx;
+                                        resolveCmd.CommandText = "SELECT Id FROM [dbo].[Daily] WHERE SyncId = @DailySyncId;";
+                                        AddParam(resolveCmd, "@DailySyncId", snap.DailySyncId.Value);
+                                        var obj = await resolveCmd.ExecuteScalarAsync(cancellationToken);
+                                        if (obj == null || obj == DBNull.Value)
+                                        {
+                                            throw new SyncPullForeignKeyResolutionException(
+                                                $"Cannot resolve parent Daily with SyncId '{snap.DailySyncId.Value}' for Form '{snap.SyncId}'.");
+                                        }
+                                        resolvedDailyId = Convert.ToInt32(obj);
+                                    }
+
+                                    bool existsLocally;
+                                    await using (var checkCmd = conn.CreateCommand())
+                                    {
+                                        checkCmd.Transaction = tx;
+                                        checkCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[Form] WHERE SyncId = @SyncId;";
+                                        AddParam(checkCmd, "@SyncId", snap.SyncId);
+                                        existsLocally = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                                    }
+
+                                    if (existsLocally)
+                                    {
+                                        await using var updateCmd = conn.CreateCommand();
+                                        updateCmd.Transaction = tx;
+                                        updateCmd.CommandText = @"
+                                            UPDATE [dbo].[Form]
+                                            SET DailyId = @DailyId,
+                                                [Index] = @Index,
+                                                Name = @Name,
+                                                Description = @Description,
+                                                CreatedAt = @CreatedAt,
+                                                CreatedBy = @CreatedBy,
+                                                UpdatedAt = @UpdatedAt,
+                                                UpdatedBy = @UpdatedBy,
+                                                DeactivatedAt = @DeactivatedAt,
+                                                DeactivatedBy = @DeactivatedBy,
+                                                IsActive = @IsActive
+                                            WHERE SyncId = @SyncId;";
+
+                                        AddParam(updateCmd, "@SyncId", snap.SyncId);
+                                        AddParam(updateCmd, "@DailyId", resolvedDailyId);
+                                        AddParam(updateCmd, "@Index", snap.Index);
+                                        AddParam(updateCmd, "@Name", snap.Name);
+                                        AddParam(updateCmd, "@Description", snap.Description);
+                                        AddParam(updateCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(updateCmd, "@CreatedBy", snap.CreatedBy);
+                                        AddParam(updateCmd, "@UpdatedAt", snap.UpdatedAt);
+                                        AddParam(updateCmd, "@UpdatedBy", snap.UpdatedBy);
+                                        AddParam(updateCmd, "@DeactivatedAt", snap.DeactivatedAt);
+                                        AddParam(updateCmd, "@DeactivatedBy", snap.DeactivatedBy);
+                                        AddParam(updateCmd, "@IsActive", snap.IsActive);
+
+                                        await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "UPDATE",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    else
+                                    {
+                                        await using var insertCmd = conn.CreateCommand();
+                                        insertCmd.Transaction = tx;
+                                        insertCmd.CommandText = @"
+                                            INSERT INTO [dbo].[Form]
+                                            (SyncId, DailyId, [Index], Name, Description, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, DeactivatedAt, DeactivatedBy, IsActive)
+                                            VALUES
+                                            (@SyncId, @DailyId, @Index, @Name, @Description, @CreatedAt, @CreatedBy, @UpdatedAt, @UpdatedBy, @DeactivatedAt, @DeactivatedBy, @IsActive);";
+
+                                        AddParam(insertCmd, "@SyncId", snap.SyncId);
+                                        AddParam(insertCmd, "@DailyId", resolvedDailyId);
+                                        AddParam(insertCmd, "@Index", snap.Index);
+                                        AddParam(insertCmd, "@Name", snap.Name);
+                                        AddParam(insertCmd, "@Description", snap.Description);
+                                        AddParam(insertCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(insertCmd, "@CreatedBy", snap.CreatedBy);
+                                        AddParam(insertCmd, "@UpdatedAt", snap.UpdatedAt);
+                                        AddParam(insertCmd, "@UpdatedBy", snap.UpdatedBy);
+                                        AddParam(insertCmd, "@DeactivatedAt", snap.DeactivatedAt);
+                                        AddParam(insertCmd, "@DeactivatedBy", snap.DeactivatedBy);
+                                        AddParam(insertCmd, "@IsActive", snap.IsActive);
+
+                                        await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "INSERT",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    break;
+                                }
+                                case "FormDetails":
+                                {
+                                    var snap = cmd.FormDetailsSnapshot!;
+                                    int resolvedFormId;
+                                    await using (var resolveCmd = conn.CreateCommand())
+                                    {
+                                        resolveCmd.Transaction = tx;
+                                        resolveCmd.CommandText = "SELECT Id FROM [dbo].[Form] WHERE SyncId = @FormSyncId;";
+                                        AddParam(resolveCmd, "@FormSyncId", snap.FormSyncId);
+                                        var obj = await resolveCmd.ExecuteScalarAsync(cancellationToken);
+                                        if (obj == null || obj == DBNull.Value)
+                                        {
+                                            throw new SyncPullForeignKeyResolutionException(
+                                                $"Cannot resolve parent Form with SyncId '{snap.FormSyncId}' for FormDetails '{snap.SyncId}'.");
+                                        }
+                                        resolvedFormId = Convert.ToInt32(obj);
+                                    }
+
+                                    bool existsLocally;
+                                    await using (var checkCmd = conn.CreateCommand())
+                                    {
+                                        checkCmd.Transaction = tx;
+                                        checkCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[FormDetails] WHERE SyncId = @SyncId;";
+                                        AddParam(checkCmd, "@SyncId", snap.SyncId);
+                                        existsLocally = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                                    }
+
+                                    if (existsLocally)
+                                    {
+                                        await using var updateCmd = conn.CreateCommand();
+                                        updateCmd.Transaction = tx;
+                                        updateCmd.CommandText = @"
+                                            UPDATE [dbo].[FormDetails]
+                                            SET FormId = @FormId,
+                                                EmployeeId = @EmployeeId,
+                                                Amount = @Amount,
+                                                OrderNum = @OrderNum,
+                                                IsReviewed = @IsReviewed,
+                                                IsReviewedBy = @IsReviewedBy,
+                                                ReviewedAt = @ReviewedAt,
+                                                ReviewComments = @ReviewComments,
+                                                IsSummaryReviewed = @IsSummaryReviewed,
+                                                IsSummaryReviewedBy = @IsSummaryReviewedBy,
+                                                SummaryReviewedAt = @SummaryReviewedAt,
+                                                SummaryComments = @SummaryComments,
+                                                SummaryReviewMethod = @SummaryReviewMethod,
+                                                CreatedAt = @CreatedAt,
+                                                CreatedBy = @CreatedBy,
+                                                UpdatedAt = @UpdatedAt,
+                                                UpdatedBy = @UpdatedBy,
+                                                DeactivatedAt = @DeactivatedAt,
+                                                DeactivatedBy = @DeactivatedBy,
+                                                IsActive = @IsActive
+                                            WHERE SyncId = @SyncId;";
+
+                                        AddParam(updateCmd, "@SyncId", snap.SyncId);
+                                        AddParam(updateCmd, "@FormId", resolvedFormId);
+                                        AddParam(updateCmd, "@EmployeeId", (object?)snap.EmployeeId ?? DBNull.Value);
+                                        AddParam(updateCmd, "@Amount", snap.Amount);
+                                        AddParam(updateCmd, "@OrderNum", snap.OrderNum);
+                                        AddParam(updateCmd, "@IsReviewed", snap.IsReviewed);
+                                        AddParam(updateCmd, "@IsReviewedBy", (object?)snap.IsReviewedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@ReviewedAt", (object?)snap.ReviewedAt ?? DBNull.Value);
+                                        AddParam(updateCmd, "@ReviewComments", (object?)snap.ReviewComments ?? DBNull.Value);
+                                        AddParam(updateCmd, "@IsSummaryReviewed", snap.IsSummaryReviewed);
+                                        AddParam(updateCmd, "@IsSummaryReviewedBy", (object?)snap.IsSummaryReviewedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@SummaryReviewedAt", (object?)snap.SummaryReviewedAt ?? DBNull.Value);
+                                        AddParam(updateCmd, "@SummaryComments", (object?)snap.SummaryComments ?? DBNull.Value);
+                                        AddParam(updateCmd, "@SummaryReviewMethod", (object?)snap.SummaryReviewMethod ?? DBNull.Value);
+                                        AddParam(updateCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(updateCmd, "@CreatedBy", (object?)snap.CreatedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@UpdatedAt", (object?)snap.UpdatedAt ?? DBNull.Value);
+                                        AddParam(updateCmd, "@UpdatedBy", (object?)snap.UpdatedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@DeactivatedAt", (object?)snap.DeactivatedAt ?? DBNull.Value);
+                                        AddParam(updateCmd, "@DeactivatedBy", (object?)snap.DeactivatedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@IsActive", snap.IsActive);
+
+                                        await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "UPDATE",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    else
+                                    {
+                                        await using var insertCmd = conn.CreateCommand();
+                                        insertCmd.Transaction = tx;
+                                        insertCmd.CommandText = @"
+                                            INSERT INTO [dbo].[FormDetails]
+                                            (SyncId, FormId, EmployeeId, Amount, OrderNum, IsReviewed, IsReviewedBy, ReviewedAt, ReviewComments,
+                                             IsSummaryReviewed, IsSummaryReviewedBy, SummaryReviewedAt, SummaryComments, SummaryReviewMethod,
+                                             CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, DeactivatedAt, DeactivatedBy, IsActive)
+                                            VALUES
+                                            (@SyncId, @FormId, @EmployeeId, @Amount, @OrderNum, @IsReviewed, @IsReviewedBy, @ReviewedAt, @ReviewComments,
+                                             @IsSummaryReviewed, @IsSummaryReviewedBy, @SummaryReviewedAt, @SummaryComments, @SummaryReviewMethod,
+                                             @CreatedAt, @CreatedBy, @UpdatedAt, @UpdatedBy, @DeactivatedAt, @DeactivatedBy, @IsActive);";
+
+                                        AddParam(insertCmd, "@SyncId", snap.SyncId);
+                                        AddParam(insertCmd, "@FormId", resolvedFormId);
+                                        AddParam(insertCmd, "@EmployeeId", (object?)snap.EmployeeId ?? DBNull.Value);
+                                        AddParam(insertCmd, "@Amount", snap.Amount);
+                                        AddParam(insertCmd, "@OrderNum", snap.OrderNum);
+                                        AddParam(insertCmd, "@IsReviewed", snap.IsReviewed);
+                                        AddParam(insertCmd, "@IsReviewedBy", (object?)snap.IsReviewedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@ReviewedAt", (object?)snap.ReviewedAt ?? DBNull.Value);
+                                        AddParam(insertCmd, "@ReviewComments", (object?)snap.ReviewComments ?? DBNull.Value);
+                                        AddParam(insertCmd, "@IsSummaryReviewed", snap.IsSummaryReviewed);
+                                        AddParam(insertCmd, "@IsSummaryReviewedBy", (object?)snap.IsSummaryReviewedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@SummaryReviewedAt", (object?)snap.SummaryReviewedAt ?? DBNull.Value);
+                                        AddParam(insertCmd, "@SummaryComments", (object?)snap.SummaryComments ?? DBNull.Value);
+                                        AddParam(insertCmd, "@SummaryReviewMethod", (object?)snap.SummaryReviewMethod ?? DBNull.Value);
+                                        AddParam(insertCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(insertCmd, "@CreatedBy", (object?)snap.CreatedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@UpdatedAt", (object?)snap.UpdatedAt ?? DBNull.Value);
+                                        AddParam(insertCmd, "@UpdatedBy", (object?)snap.UpdatedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@DeactivatedAt", (object?)snap.DeactivatedAt ?? DBNull.Value);
+                                        AddParam(insertCmd, "@DeactivatedBy", (object?)snap.DeactivatedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@IsActive", snap.IsActive);
+
+                                        await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "INSERT",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    break;
+                                }
+                                case "FormRefernce":
+                                {
+                                    var snap = cmd.FormRefernceSnapshot!;
+                                    int resolvedFormId;
+                                    await using (var resolveCmd = conn.CreateCommand())
+                                    {
+                                        resolveCmd.Transaction = tx;
+                                        resolveCmd.CommandText = "SELECT Id FROM [dbo].[Form] WHERE SyncId = @FormSyncId;";
+                                        AddParam(resolveCmd, "@FormSyncId", snap.FormSyncId);
+                                        var obj = await resolveCmd.ExecuteScalarAsync(cancellationToken);
+                                        if (obj == null || obj == DBNull.Value)
+                                        {
+                                            throw new SyncPullForeignKeyResolutionException(
+                                                $"Cannot resolve parent Form with SyncId '{snap.FormSyncId}' for FormRefernce '{snap.SyncId}'.");
+                                        }
+                                        resolvedFormId = Convert.ToInt32(obj);
+                                    }
+
+                                    bool existsLocally;
+                                    await using (var checkCmd = conn.CreateCommand())
+                                    {
+                                        checkCmd.Transaction = tx;
+                                        checkCmd.CommandText = "SELECT COUNT(*) FROM [dbo].[FormRefernce] WHERE SyncId = @SyncId;";
+                                        AddParam(checkCmd, "@SyncId", snap.SyncId);
+                                        existsLocally = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                                    }
+
+                                    if (existsLocally)
+                                    {
+                                        await using var updateCmd = conn.CreateCommand();
+                                        updateCmd.Transaction = tx;
+                                        updateCmd.CommandText = @"
+                                            UPDATE [dbo].[FormRefernce]
+                                            SET FormId = @FormId,
+                                                ReferencePath = @ReferencePath,
+                                                CreatedAt = @CreatedAt,
+                                                CreatedBy = @CreatedBy,
+                                                UpdatedAt = @UpdatedAt,
+                                                UpdatedBy = @UpdatedBy,
+                                                DeactivatedAt = @DeactivatedAt,
+                                                DeactivatedBy = @DeactivatedBy,
+                                                IsActive = @IsActive
+                                            WHERE SyncId = @SyncId;";
+
+                                        AddParam(updateCmd, "@SyncId", snap.SyncId);
+                                        AddParam(updateCmd, "@FormId", resolvedFormId);
+                                        AddParam(updateCmd, "@ReferencePath", (object?)snap.ReferencePath ?? DBNull.Value);
+                                        AddParam(updateCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(updateCmd, "@CreatedBy", (object?)snap.CreatedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@UpdatedAt", (object?)snap.UpdatedAt ?? DBNull.Value);
+                                        AddParam(updateCmd, "@UpdatedBy", (object?)snap.UpdatedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@DeactivatedAt", (object?)snap.DeactivatedAt ?? DBNull.Value);
+                                        AddParam(updateCmd, "@DeactivatedBy", (object?)snap.DeactivatedBy ?? DBNull.Value);
+                                        AddParam(updateCmd, "@IsActive", snap.IsActive);
+
+                                        await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "UPDATE",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    else
+                                    {
+                                        await using var insertCmd = conn.CreateCommand();
+                                        insertCmd.Transaction = tx;
+                                        insertCmd.CommandText = @"
+                                            INSERT INTO [dbo].[FormRefernce]
+                                            (SyncId, FormId, ReferencePath, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy, DeactivatedAt, DeactivatedBy, IsActive)
+                                            VALUES
+                                            (@SyncId, @FormId, @ReferencePath, @CreatedAt, @CreatedBy, @UpdatedAt, @UpdatedBy, @DeactivatedAt, @DeactivatedBy, @IsActive);";
+
+                                        AddParam(insertCmd, "@SyncId", snap.SyncId);
+                                        AddParam(insertCmd, "@FormId", resolvedFormId);
+                                        AddParam(insertCmd, "@ReferencePath", (object?)snap.ReferencePath ?? DBNull.Value);
+                                        AddParam(insertCmd, "@CreatedAt", snap.CreatedAt);
+                                        AddParam(insertCmd, "@CreatedBy", (object?)snap.CreatedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@UpdatedAt", (object?)snap.UpdatedAt ?? DBNull.Value);
+                                        AddParam(insertCmd, "@UpdatedBy", (object?)snap.UpdatedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@DeactivatedAt", (object?)snap.DeactivatedAt ?? DBNull.Value);
+                                        AddParam(insertCmd, "@DeactivatedBy", (object?)snap.DeactivatedBy ?? DBNull.Value);
+                                        AddParam(insertCmd, "@IsActive", snap.IsActive);
+
+                                        await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                                        result.Operations.Add(new PullOperationResult
+                                        {
+                                            EntitySyncId = snap.SyncId,
+                                            OperationType = "INSERT",
+                                            Status = "SUCCESS",
+                                            TerminalServerVersion = cmd.TerminalServerVersion
+                                        });
+                                    }
+                                    break;
+                                }
+                                default:
+                                    throw new SyncPullBatchMalformedException($"Unsupported EntityType '{cmd.EntityType}'.");
+                            }
+
+                            result.TotalProcessed++;
+                            result.Succeeded++;
+                        }
                     }
                 }
-            }
 
                 // Step 4: Atomic Checkpoint Update with Lease Fencing
                 await using (var checkpointCmd = conn.CreateCommand())
@@ -409,6 +770,32 @@ namespace Auth.Infrastructure.Sync.Pull
             }
             p.Value = value ?? DBNull.Value;
             cmd.Parameters.Add(p);
+        }
+
+        public static int GetIngestionOrder(PullCommand cmd)
+        {
+            if (cmd.CommandType == PullCommandType.Delete)
+            {
+                return cmd.EntityType switch
+                {
+                    "FormRefernce" => 10,
+                    "FormDetails" => 20,
+                    "Form" => 30,
+                    "Daily" => 40,
+                    _ => 50
+                };
+            }
+            else
+            {
+                return cmd.EntityType switch
+                {
+                    "Daily" => 100,
+                    "Form" => 110,
+                    "FormDetails" => 120,
+                    "FormRefernce" => 130,
+                    _ => 140
+                };
+            }
         }
     }
 }

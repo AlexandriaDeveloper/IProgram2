@@ -23,12 +23,72 @@ namespace Core.Interfaces
         public required bool IsActive { get; init; }
     }
 
+    public sealed class AuthoritativeFormOriginalSnapshot
+    {
+        public required Guid SyncId { get; init; }
+        public required string? Name { get; init; }
+        public int? DailyId { get; init; }
+        public int? Index { get; init; }
+        public string? Description { get; init; }
+        public required DateTime CreatedAt { get; init; }
+        public string? CreatedBy { get; init; }
+        public DateTime? UpdatedAt { get; init; }
+        public string? UpdatedBy { get; init; }
+        public DateTime? DeactivatedAt { get; init; }
+        public string? DeactivatedBy { get; init; }
+        public required bool IsActive { get; init; }
+    }
+
+    public sealed class AuthoritativeFormDetailsOriginalSnapshot
+    {
+        public required Guid SyncId { get; init; }
+        public required int FormId { get; init; }
+        public required string EmployeeId { get; init; }
+        public required double Amount { get; init; }
+        public required int OrderNum { get; init; }
+        public required bool IsReviewed { get; init; }
+        public string? IsReviewedBy { get; init; }
+        public DateTime? ReviewedAt { get; init; }
+        public string? ReviewComments { get; init; }
+        public required bool IsSummaryReviewed { get; init; }
+        public string? IsSummaryReviewedBy { get; init; }
+        public DateTime? SummaryReviewedAt { get; init; }
+        public string? SummaryComments { get; init; }
+        public string? SummaryReviewMethod { get; init; }
+        public required DateTime CreatedAt { get; init; }
+        public string? CreatedBy { get; init; }
+        public DateTime? UpdatedAt { get; init; }
+        public string? UpdatedBy { get; init; }
+        public DateTime? DeactivatedAt { get; init; }
+        public string? DeactivatedBy { get; init; }
+        public required bool IsActive { get; init; }
+    }
+
+    public sealed class AuthoritativeFormRefernceOriginalSnapshot
+    {
+        public required Guid SyncId { get; init; }
+        public required int FormId { get; init; }
+        public string? ReferencePath { get; init; }
+        public required DateTime CreatedAt { get; init; }
+        public string? CreatedBy { get; init; }
+        public DateTime? UpdatedAt { get; init; }
+        public string? UpdatedBy { get; init; }
+        public DateTime? DeactivatedAt { get; init; }
+        public string? DeactivatedBy { get; init; }
+        public required bool IsActive { get; init; }
+    }
+
     public sealed class CapturedAuthoritativeDailyMutation
     {
+        public string EntityType { get; init; } = "Daily";
         public Daily? Daily { get; init; }
+        public object? Entity { get; init; }
         public required string OperationType { get; init; } // INSERT, UPDATE, SOFT_DELETE, HARD_DELETE
         public required Guid EntitySyncId { get; init; }
         public AuthoritativeDailyOriginalSnapshot? OriginalSnapshot { get; init; }
+        public AuthoritativeFormOriginalSnapshot? FormOriginalSnapshot { get; init; }
+        public AuthoritativeFormDetailsOriginalSnapshot? FormDetailsOriginalSnapshot { get; init; }
+        public AuthoritativeFormRefernceOriginalSnapshot? FormRefernceOriginalSnapshot { get; init; }
     }
 
     public sealed class AuthoritativeTrackingReservation

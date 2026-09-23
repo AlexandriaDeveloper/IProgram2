@@ -196,6 +196,28 @@ namespace Core.Exceptions
         public override string ErrorCode => "LOCAL_WRITE_BLOCKED_ACTIVE_SYNC";
         public SyncLocalWriteBlockedActiveSyncException(string message = "عملية الكتابة المحلية متوقفة لوجود عملية مزامنة نشطة قيد التنفيذ تحت قيد الـ Lease.") : base(message) { }
     }
+
+    public class SyncPullForeignKeyResolutionException : SyncDomainException
+    {
+        public override string ErrorCode => "PULL_FOREIGN_KEY_RESOLUTION_FAILED";
+        public SyncPullForeignKeyResolutionException(string message) : base(message) { }
+    }
+
+    public class SyncConflictRiskException : SyncDomainException
+    {
+        public override string ErrorCode => "BOTH_CHANGED_CONFLICT_RISK";
+        public long LocalVersion { get; }
+        public long ServerVersion { get; }
+        public int PendingOutboxCount { get; }
+
+        public SyncConflictRiskException(long localVersion, long serverVersion, int pendingOutboxCount, string message = "تعارض محتمل (BOTH_CHANGED / CONFLICT_RISK): توجد تعديلات محلية معلقة في الـ Outbox بينما الخادم يحتوي على تعديلات جديدة. تم حظر المزامنة للحفاظ على البيانات دون الكتابة فوقها.")
+            : base(message)
+        {
+            LocalVersion = localVersion;
+            ServerVersion = serverVersion;
+            PendingOutboxCount = pendingOutboxCount;
+        }
+    }
 }
 
 

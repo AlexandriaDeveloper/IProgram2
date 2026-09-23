@@ -44,6 +44,7 @@ namespace Application.Features
         private readonly IDbCacheKeyFactory _cacheKeyFactory;
         private readonly ICurrentUserService _currentUserService;
         private readonly IDailyClosureGuard _dailyClosureGuard;
+        private readonly IDbConnectionProvider? _dbConnectionProvider;
 
         public FormService(
             IFormRepository formRepository,
@@ -56,7 +57,8 @@ namespace Application.Features
             IMemoryCache cache,
             IDbCacheKeyFactory cacheKeyFactory,
             ICurrentUserService currentUserService,
-            IDailyClosureGuard dailyClosureGuard)
+            IDailyClosureGuard dailyClosureGuard,
+            IDbConnectionProvider? dbConnectionProvider = null)
         {
             this._dailyRepository = dailyRepository;
             this._userManager = userManager;
@@ -69,6 +71,7 @@ namespace Application.Features
             this._cacheKeyFactory = cacheKeyFactory;
             this._currentUserService = currentUserService;
             this._dailyClosureGuard = dailyClosureGuard;
+            this._dbConnectionProvider = dbConnectionProvider;
         }
 
         private void ClearFormCache()
@@ -768,8 +771,26 @@ namespace Application.Features
             }
 
             // Step 6: Atomic Replacement in a Single SaveChangesAsync
-            var deleteEntity = _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId);
-            _formDetailsRepository.DeleteRange(deleteEntity);
+            var deleteEntity = await _formDetailsRepository.GetQueryable().Where(x => x.FormId == request.FormId).ToListAsync();
+            bool isLocalFirst = _dbConnectionProvider is ISyncConnectionProvider syncProvider && syncProvider.IsLocalFirstEnabled;
+
+            if (isLocalFirst)
+            {
+                // LocalFirst mode: Soft delete old details to generate transactional sync outbox records (hard-delete blocked offline)
+                foreach (var oldDetail in deleteEntity)
+                {
+                    oldDetail.IsActive = false;
+                    oldDetail.DeactivatedAt = now;
+                    oldDetail.DeactivatedBy = currentUserId;
+                    _formDetailsRepository.Update(oldDetail);
+                }
+            }
+            else
+            {
+                // Online mode: Preserve exact pre-PR behavior: physical hard delete of old details
+                _formDetailsRepository.DeleteRange(deleteEntity);
+            }
+
             await _formDetailsRepository.AddRange(detailsToInsert);
             await _unitOfWork.SaveChangesAsync();
             ClearFormDetailsCache(request.FormId);
