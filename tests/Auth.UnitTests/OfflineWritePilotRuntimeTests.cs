@@ -366,5 +366,96 @@ namespace Auth.UnitTests
 
             mockRoleMgr.Verify(r => r.CreateAsync(It.IsAny<IdentityRole>()), Times.Never);
         }
+
+        [Fact]
+        public async Task ReadOnlyModeMiddleware_Allows_CheckOnlineStatusEndpoint_InOfflineReadWritePilot()
+        {
+            var config = CreateConfiguration(localFirstEnabled: true, readOnlyMode: false);
+            bool nextCalled = false;
+            RequestDelegate next = (ctx) =>
+            {
+                nextCalled = true;
+                ctx.Response.StatusCode = StatusCodes.Status200OK;
+                return Task.CompletedTask;
+            };
+
+            var middleware = new ReadOnlyModeMiddleware(next, config, NullLogger<ReadOnlyModeMiddleware>.Instance);
+            var context = new DefaultHttpContext();
+            context.Request.Method = "POST";
+            context.Request.Path = "/api/sync/status/check-online";
+
+            await middleware.InvokeAsync(context);
+
+            Assert.True(nextCalled, "POST /api/sync/status/check-online must be permitted as a read-only non-mutating operation in OfflineReadWritePilot");
+            Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ReadOnlyModeMiddleware_Allows_CheckOnlineStatusEndpoint_InOfflineReadOnly()
+        {
+            var config = CreateConfiguration(localFirstEnabled: true, readOnlyMode: true);
+            bool nextCalled = false;
+            RequestDelegate next = (ctx) =>
+            {
+                nextCalled = true;
+                ctx.Response.StatusCode = StatusCodes.Status200OK;
+                return Task.CompletedTask;
+            };
+
+            var middleware = new ReadOnlyModeMiddleware(next, config, NullLogger<ReadOnlyModeMiddleware>.Instance);
+            var context = new DefaultHttpContext();
+            context.Request.Method = "POST";
+            context.Request.Path = "/api/sync/status/check-online";
+
+            await middleware.InvokeAsync(context);
+
+            Assert.True(nextCalled, "POST /api/sync/status/check-online must be permitted as a read-only non-mutating operation in OfflineReadOnly");
+            Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ReadOnlyModeMiddleware_Blocks_UnrelatedMutatingPost_And_PushPullRemainFlagGoverned()
+        {
+            var inMemorySettings = new Dictionary<string, string?>
+            {
+                { "LocalFirst:Enabled", "true" },
+                { "LocalFirst:ReadOnlyMode", "false" },
+                { "Sync:PushEnabled", "false" },
+                { "Sync:PullEnabled", "false" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
+
+            var middleware = new ReadOnlyModeMiddleware(
+                next: (ctx) => Task.CompletedTask,
+                configuration: config,
+                logger: NullLogger<ReadOnlyModeMiddleware>.Instance);
+
+            // 1. Unrelated POST must be blocked fail-closed
+            var ctxUnrelated = new DefaultHttpContext();
+            ctxUnrelated.Request.Method = "POST";
+            ctxUnrelated.Request.Path = "/api/sync/unauthorized-action";
+            ctxUnrelated.Response.Body = new MemoryStream();
+
+            await middleware.InvokeAsync(ctxUnrelated);
+            Assert.Equal(StatusCodes.Status403Forbidden, ctxUnrelated.Response.StatusCode);
+
+            // 2. Push without flag must remain blocked
+            var ctxPush = new DefaultHttpContext();
+            ctxPush.Request.Method = "POST";
+            ctxPush.Request.Path = "/api/sync/push";
+            ctxPush.Response.Body = new MemoryStream();
+
+            await middleware.InvokeAsync(ctxPush);
+            Assert.Equal(StatusCodes.Status403Forbidden, ctxPush.Response.StatusCode);
+
+            // 3. Pull without flag must remain blocked
+            var ctxPull = new DefaultHttpContext();
+            ctxPull.Request.Method = "POST";
+            ctxPull.Request.Path = "/api/sync/pull";
+            ctxPull.Response.Body = new MemoryStream();
+
+            await middleware.InvokeAsync(ctxPull);
+            Assert.Equal(StatusCodes.Status403Forbidden, ctxPull.Response.StatusCode);
+        }
     }
 }
