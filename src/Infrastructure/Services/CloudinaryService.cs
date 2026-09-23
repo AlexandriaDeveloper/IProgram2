@@ -213,18 +213,34 @@ namespace Auth.Infrastructure.Services
                     return (stream, "application/octet-stream", safeFileName);
                 }
 
-                // 2. In offline/read-only mode or without Cloudinary configuration: do not attempt outbound network calls
+                // Also check alternate content path (e.g. content root in development/runtime)
+                var altContentPath = Path.Combine(Directory.GetCurrentDirectory(), "Content", folderName, safeFileName);
+                if (File.Exists(altContentPath))
+                {
+                    var stream = new FileStream(altContentPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return (stream, "application/octet-stream", safeFileName);
+                }
+
+                // 2. Binary CDN Fallback Check:
                 bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
-                bool isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
-                if (isReadOnly || isLocalFirst || _cloudinary == null)
+                bool isLocalOnlyProd = _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false);
+                bool allowFallback = _configuration.GetValue<bool>("LocalFirst:AllowCloudinaryFallback", isLocalOnlyProd);
+
+                if (isReadOnly || !allowFallback)
                 {
                     Console.WriteLine($"[INFO] Offline/Local mode: Remote attachment '{safeFileName}' is not cached locally; omitting outbound request.");
                     return null;
                 }
 
-                // 3. Normal online Cloudinary download
+                // 3. Cloudinary binary fallback download
                 var downloadUrl = GetProtectedUrl(fileUrl, folderName);
+                if (string.IsNullOrEmpty(downloadUrl))
+                {
+                    return null;
+                }
+
                 using var httpClient = new System.Net.Http.HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(15);
                 var response = await httpClient.GetAsync(downloadUrl);
                 if (!response.IsSuccessStatusCode)
                 {
@@ -235,6 +251,29 @@ namespace Auth.Infrastructure.Services
                 var memoryStream = new MemoryStream();
                 await response.Content.CopyToAsync(memoryStream);
                 memoryStream.Position = 0;
+
+                // Cache locally so future reads do not require an outbound network call
+                try
+                {
+                    var targetDir = Path.GetDirectoryName(localContentPath);
+                    if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                    {
+                        Directory.CreateDirectory(targetDir);
+                    }
+                    File.WriteAllBytes(localContentPath, memoryStream.ToArray());
+                    memoryStream.Position = 0;
+
+                    var altDir = Path.GetDirectoryName(altContentPath);
+                    if (!string.IsNullOrEmpty(altDir) && Directory.Exists(altDir) && !File.Exists(altContentPath))
+                    {
+                        File.WriteAllBytes(altContentPath, memoryStream.ToArray());
+                        memoryStream.Position = 0;
+                    }
+                }
+                catch (Exception cacheEx)
+                {
+                    Console.WriteLine($"[WARN] Could not cache attachment locally to '{localContentPath}': {cacheEx.Message}");
+                }
 
                 var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
                 var publicId = ExtractPublicIdFromUrl(fileUrl, folderName);
