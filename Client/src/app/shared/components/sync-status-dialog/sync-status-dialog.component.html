@@ -1,0 +1,119 @@
+<div class="sync-status-dialog" dir="rtl">
+  <div class="dialog-header">
+    <div class="header-icon-wrapper">
+      <mat-icon class="header-icon">sync</mat-icon>
+    </div>
+    <div class="header-titles">
+      <h2 mat-dialog-title class="dialog-title">حالة المزامنة والاتصال السحابي</h2>
+      <span class="database-badge">قاعدة البيانات: {{ syncService.onlineStatus()?.databaseId || syncService.localStatus()?.databaseId || '---' }}</span>
+    </div>
+  </div>
+
+  <mat-dialog-content class="dialog-content">
+    <!-- Checking state -->
+    <div *ngIf="syncService.isCheckingOnline()" class="checking-state">
+      <mat-spinner diameter="32" color="primary"></mat-spinner>
+      <span>جاري فحص الاتصال وقراءة حالة السحابة (فحص للقراءة فقط)...</span>
+    </div>
+
+    <ng-container *ngIf="!syncService.isCheckingOnline() && syncService.onlineStatus() as status">
+      <!-- Overall Cloud State Card -->
+      <div class="status-summary-card" [class.offline]="!status.isOnline">
+        <div class="summary-top">
+          <div class="connection-status">
+            <mat-icon [style.color]="status.isOnline ? '#2e7d32' : '#c62828'">
+              {{ status.isOnline ? 'cloud_done' : 'cloud_off' }}
+            </mat-icon>
+            <span class="connection-text">{{ status.isOnline ? 'متصل بالسحابة (Azure)' : 'غير متصل بالسحابة' }}</span>
+          </div>
+
+          <div class="overall-badge" [ngClass]="getStatusBadgeClass(status.overallStatus)">
+            {{ getStatusText(status.overallStatus) }}
+          </div>
+        </div>
+
+        <div *ngIf="status.errorMessage" class="error-notice">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ status.errorMessage }}</span>
+        </div>
+
+        <div class="version-stats-grid">
+          <div class="stat-box">
+            <span class="stat-label">الإصدار المحلي (Local Version)</span>
+            <span class="stat-value">v{{ status.localVersion }}</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">إصدار السحابة (Server Version)</span>
+            <span class="stat-value">{{ status.isOnline ? 'v' + status.serverVersion : '---' }}</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">تعديلات معلقة للرفع</span>
+            <span class="stat-value" [class.has-pending]="status.totalPendingCount > 0">
+              {{ status.totalPendingCount }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scope Breakdown Table -->
+      <div class="scope-section">
+        <h3 class="section-title">حالة النطاقات المعتمدة (Scopes)</h3>
+        <div class="scope-cards-container">
+          <div *ngFor="let sc of status.scopes" class="scope-card">
+            <div class="scope-header">
+              <div class="scope-name">
+                <mat-icon>{{ sc.scope === 'Daily' ? 'event_note' : 'description' }}</mat-icon>
+                <span class="name-text">{{ sc.scope === 'Daily' ? 'اليوميات (Daily)' : 'النماذج (Forms)' }}</span>
+              </div>
+              <span class="scope-badge" [ngClass]="getStatusBadgeClass(sc.status)">
+                {{ sc.status }}
+              </span>
+            </div>
+
+            <div class="scope-body">
+              <p class="scope-message">{{ sc.message }}</p>
+              <div class="scope-meta">
+                <span>مطابقة الأساس: <strong>{{ sc.isBaselined ? 'معتمدة ✅' : 'بانتظار الاعتماد ⚠️' }}</strong></span>
+                <span *ngIf="sc.pendingCount > 0" class="pending-scope-count">تعديلات معلقة: <strong>{{ sc.pendingCount }}</strong></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Binary Availability Notice (Explicit Architecture Invariant) -->
+      <div class="binary-notice-card">
+        <div class="notice-header">
+          <mat-icon class="notice-icon">attachment</mat-icon>
+          <strong>تنبيه هام حول النسخ المرجعية والمستندات (PDF / صور):</strong>
+        </div>
+        <p class="notice-text">
+          المرفقات والملفات الثنائية (Binary attachments) تظل مخزنة سحابياً فقط حتى اعتماد آلية النسخ الاحتياطي الثنائي في مرحلة لاحقة. وجود بيانات النماذج محلياً لا يضمن توفر الملفات المرفقة أثناء انقطاع الاتصال.
+        </p>
+      </div>
+    </ng-container>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end" class="dialog-actions">
+    <button mat-button class="action-btn" (click)="refreshStatus()" [disabled]="syncService.isCheckingOnline()">
+      <mat-icon>refresh</mat-icon>
+      <span>إعادة الفحص</span>
+    </button>
+
+    <button mat-flat-button color="primary" class="action-btn push-btn" (click)="pushNow()"
+      [disabled]="syncService.isPushing() || syncService.isCheckingOnline() || syncService.localStatus()?.isReadOnly">
+      <mat-icon>cloud_upload</mat-icon>
+      <span>{{ syncService.isPushing() ? 'جاري الرفع...' : 'رفع الآن (Push)' }}</span>
+    </button>
+
+    <button mat-flat-button color="accent" class="action-btn pull-btn" (click)="pullNow()"
+      [disabled]="syncService.isPulling() || syncService.isCheckingOnline()">
+      <mat-icon>cloud_download</mat-icon>
+      <span>{{ syncService.isPulling() ? 'جاري السحب...' : 'سحب الآن (Pull)' }}</span>
+    </button>
+
+    <button mat-stroked-button class="action-btn close-btn" (click)="close()">
+      <span>إغلاق</span>
+    </button>
+  </mat-dialog-actions>
+</div>

@@ -1,7 +1,8 @@
-import { Component, signal, inject, OnInit } from '@angular/core';
+import { Component, signal, inject, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule, RouterOutlet } from '@angular/router';
 import { AuthService } from './shared/service/auth.service';
+import { SyncService } from './shared/service/sync.service';
 import { LoadingService } from './shared/service/loading.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AngularComponentsModule } from './shared/angular-components.module';
@@ -32,6 +33,17 @@ interface IUser {
 export class AppComponent implements OnInit {
   constructor(private router: Router) { }
   loadingService = inject(LoadingService);
+  syncService = inject(SyncService);
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    const pending = this.syncService.pendingCount();
+    if (pending > 0) {
+      // Browser generic warning only. Strictly ZERO network execution or auto-push.
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
   ngOnInit(): void {
 
     this.loadCurrentUser();

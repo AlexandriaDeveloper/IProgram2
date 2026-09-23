@@ -300,7 +300,7 @@ export class FormComponent implements OnInit, AfterViewInit {
         setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
       },
       error: () => {
-        this.toasterService.openErrorToaster('تعذر فتح الملف المرجعي');
+        this.toasterService.openErrorToaster('تعذر فتح الملف المرجعي (المرفقات والمستندات الثنائية غير متاحة أوفلاين وتظل محفوظة سحابياً فقط)');
       }
     });
   }

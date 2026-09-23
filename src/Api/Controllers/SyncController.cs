@@ -24,6 +24,7 @@ namespace Api.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<SyncController> _logger;
         private readonly ILocalScopeBaselineService _scopeBaselineService;
+        private readonly ISyncStatusService? _syncStatusService;
 
         public SyncController(
             ILocalOutboxPushService pushService,
@@ -31,7 +32,8 @@ namespace Api.Controllers
             ISyncConnectionProvider syncConnectionProvider,
             IConfiguration configuration,
             ILogger<SyncController> logger,
-            ILocalScopeBaselineService scopeBaselineService)
+            ILocalScopeBaselineService scopeBaselineService,
+            ISyncStatusService? syncStatusService = null)
         {
             _pushService = pushService ?? throw new ArgumentNullException(nameof(pushService));
             _pullService = pullService ?? throw new ArgumentNullException(nameof(pullService));
@@ -39,6 +41,7 @@ namespace Api.Controllers
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _scopeBaselineService = scopeBaselineService ?? throw new ArgumentNullException(nameof(scopeBaselineService));
+            _syncStatusService = syncStatusService;
         }
 
         [HttpPost("push")]
@@ -451,6 +454,88 @@ namespace Api.Controllers
                     new { scope = "Forms", status = formsStatus == Core.Interfaces.SyncScopeBaselineStatus.Baselined ? "BASELINED" : "NOT_BASELINED" }
                 }
             });
+        }
+
+        [HttpGet("status/local")]
+        public async Task<IActionResult> GetLocalStatus(CancellationToken cancellationToken)
+        {
+            if (_syncStatusService == null)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    statusCode = StatusCodes.Status503ServiceUnavailable,
+                    code = "SYNC_STATUS_SERVICE_UNAVAILABLE",
+                    message = "ISyncStatusService is not registered or unavailable."
+                });
+            }
+
+            var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
+            if (string.IsNullOrWhiteSpace(databaseId) || (databaseId != "2026" && databaseId != "2027"))
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = "INVALID_DATABASE_SELECTION",
+                    message = $"Invalid canonical database ID '{databaseId}'. Expected '2026' or '2027'."
+                });
+            }
+
+            try
+            {
+                var status = await _syncStatusService.GetLocalStatusAsync(databaseId, cancellationToken);
+                return Ok(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get local sync status.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = "LOCAL_STATUS_ERROR",
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("status/check-online")]
+        public async Task<IActionResult> CheckOnlineStatus(CancellationToken cancellationToken)
+        {
+            if (_syncStatusService == null)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    statusCode = StatusCodes.Status503ServiceUnavailable,
+                    code = "SYNC_STATUS_SERVICE_UNAVAILABLE",
+                    message = "ISyncStatusService is not registered or unavailable."
+                });
+            }
+
+            var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
+            if (string.IsNullOrWhiteSpace(databaseId) || (databaseId != "2026" && databaseId != "2027"))
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = "INVALID_DATABASE_SELECTION",
+                    message = $"Invalid canonical database ID '{databaseId}'. Expected '2026' or '2027'."
+                });
+            }
+
+            try
+            {
+                var status = await _syncStatusService.CheckOnlineStatusAsync(databaseId, cancellationToken);
+                return Ok(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to perform read-only check online status.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = "CHECK_ONLINE_STATUS_ERROR",
+                    message = ex.Message
+                });
+            }
         }
     }
 }

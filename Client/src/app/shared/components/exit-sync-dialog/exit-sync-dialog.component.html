@@ -1,0 +1,49 @@
+<div class="exit-sync-dialog" dir="rtl">
+  <div class="dialog-header">
+    <div class="warning-icon-wrapper">
+      <mat-icon class="warning-icon">warning_amber</mat-icon>
+    </div>
+    <h2 mat-dialog-title class="dialog-title">تنبيه: تعديلات معلقة لم تُرفع</h2>
+  </div>
+
+  <mat-dialog-content class="dialog-content">
+    <p class="dialog-description">
+      توجد
+      <span class="pending-badge">⏳ {{ data?.pendingCount || 1 }} تعديلات</span>
+      محفوظة محلياً على هذا الجهاز ولم يتم رفعها إلى السحابة (Azure) بعد.
+    </p>
+
+    <div class="notice-box">
+      <mat-icon class="info-icon">info</mat-icon>
+      <span>
+        الخروج الآن بدون رفع سيبقي التعديلات مخزنة بأمان على قاعدة البيانات المحلية لهذا الجهاز، ولكن لن تظهر للمستخدمين الآخرين حتى يتم رفعها لاحقاً.
+      </span>
+    </div>
+
+    <div *ngIf="errorMessage()" class="error-banner">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ errorMessage() }}</span>
+    </div>
+
+    <div *ngIf="isPushing()" class="pushing-state">
+      <mat-spinner diameter="36" color="primary"></mat-spinner>
+      <span>جاري رفع التعديلات المعلقة للسحابة الآن...</span>
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end" class="dialog-actions">
+    <button mat-flat-button color="primary" class="action-btn push-btn" (click)="pushAndExit()" [disabled]="isPushing()">
+      <mat-icon>cloud_upload</mat-icon>
+      <span>رفع الآن وخروج</span>
+    </button>
+
+    <button mat-stroked-button color="warn" class="action-btn exit-btn" (click)="exitWithoutPush()" [disabled]="isPushing()">
+      <mat-icon>logout</mat-icon>
+      <span>خروج دون رفع</span>
+    </button>
+
+    <button mat-button class="action-btn cancel-btn" (click)="cancel()" [disabled]="isPushing()">
+      <span>إلغاء والعودة</span>
+    </button>
+  </mat-dialog-actions>
+</div>

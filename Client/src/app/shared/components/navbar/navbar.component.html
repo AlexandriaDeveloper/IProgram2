@@ -44,24 +44,40 @@ document.createElement('video');
                   aria-label="Example icon-button with share icon" (click)="logout()">
                   <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
                 </button>
-                <!-- Sync to Cloud Button (Push) -->
-                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.runtimeMode === 'Online'" mat-icon-button class="sync-btn push-btn" aria-label="Push to Cloud"
-                  (click)="syncToCloud()" [disabled]="syncService.isSyncing()"
-                  [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'رفع للسحابة ☁️⬆️'">
-                  <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'push'"
-                     style="color: #4CAF50 !important">cloud_upload</mat-icon>
-                  <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'push'"
-                    diameter="24"></mat-spinner>
+                <!-- Phase 4: Local Pending Badge (Local-only, no Azure query) -->
+                <span *ngIf="syncService.pendingCount() > 0" class="pending-badge"
+                  (click)="openSyncStatusDialog()"
+                  matTooltip="توجد تعديلات محلية معلقة للرفع للسحابة. انقر لعرض التفاصيل.">
+                  ⏳ {{ syncService.pendingCount() }} معلقة
+                </span>
+
+                <!-- Phase 4: Check Online Status (Explicit user trigger, read-only remote check) -->
+                <button *ngIf="auth?.isUserAdmin()" mat-icon-button class="sync-btn check-status-btn"
+                  aria-label="Check Online Status" (click)="openSyncStatusDialog()"
+                  [disabled]="syncService.isCheckingOnline()"
+                  [matTooltip]="syncService.isCheckingOnline() ? 'جاري فحص الاتصال...' : 'فحص الحالة السحابية 🔍☁️'">
+                  <mat-icon *ngIf="!syncService.isCheckingOnline()" style="color: #00bcd4 !important">cloud_sync</mat-icon>
+                  <mat-spinner *ngIf="syncService.isCheckingOnline()" diameter="20"></mat-spinner>
                 </button>
-                <!-- Pull from Cloud Button -->
-                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.runtimeMode === 'Online'" mat-icon-button class="sync-btn pull-btn"
-                  aria-label="Pull from Cloud" (click)="pullFromCloud()" [disabled]="syncService.isSyncing()"
-                  [matTooltip]="syncService.isSyncing() ? 'جاري المزامنة...' : 'تنزيل من السحابة ☁️⬇️'">
-                  <mat-icon *ngIf="!syncService.isSyncing() || syncService.syncDirection() !== 'pull'"
-                    style="color: #2196F3 !important">cloud_download</mat-icon>
-                  <mat-spinner *ngIf="syncService.isSyncing() && syncService.syncDirection() === 'pull'"
-                    diameter="24"></mat-spinner>
+
+                <!-- Phase 4: Push Now (Explicit manual button) -->
+                <button *ngIf="auth?.isUserAdmin() && !auth.runtimeStatusSig()?.isReadOnly" mat-icon-button class="sync-btn push-btn"
+                  aria-label="Push to Cloud" (click)="pushNow()"
+                  [disabled]="syncService.isPushing() || syncService.isPulling()"
+                  [matTooltip]="syncService.isPushing() ? 'جاري الرفع للسحابة...' : 'رفع التعديلات الآن (Push Now) ☁️⬆️'">
+                  <mat-icon *ngIf="!syncService.isPushing()" style="color: #4CAF50 !important">cloud_upload</mat-icon>
+                  <mat-spinner *ngIf="syncService.isPushing()" diameter="20"></mat-spinner>
                 </button>
+
+                <!-- Phase 4: Pull Now (Explicit manual button) -->
+                <button *ngIf="auth?.isUserAdmin()" mat-icon-button class="sync-btn pull-btn"
+                  aria-label="Pull from Cloud" (click)="pullNow()"
+                  [disabled]="syncService.isPushing() || syncService.isPulling()"
+                  [matTooltip]="syncService.isPulling() ? 'جاري السحب من السحابة...' : 'سحب التحديثات الآن (Pull Now) ☁️⬇️'">
+                  <mat-icon *ngIf="!syncService.isPulling()" style="color: #2196F3 !important">cloud_download</mat-icon>
+                  <mat-spinner *ngIf="syncService.isPulling()" diameter="20"></mat-spinner>
+                </button>
+
                 <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly' || auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
                   matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط. التعديلات معطلة والبيانات غير متزامنة مع السحابة.">
                   🔒 محلي — قراءة فقط
@@ -70,10 +86,9 @@ document.createElement('video');
                   matTooltip="التعديلات يتم حفظها محلياً ولم يتم رفعها للسحابة بعد.">
                   🟠 محلي — تعديلات غير متزامنة
                 </span>
-                <span *ngIf="syncMessage || syncService.isSyncing()" class="sync-message"
+                <span *ngIf="syncMessage || syncService.isPushing() || syncService.isPulling()" class="sync-message"
                   [class.success]="syncMessage.includes('✅')" [class.error]="syncMessage.includes('❌')">
-                  <span *ngIf="syncService.isSyncing()">🔄 {{syncService.syncLog() || 'جاري الاتصال...'}}</span>
-                  <span *ngIf="!syncService.isSyncing()">{{syncMessage}}</span>
+                  {{ syncMessage }}
                 </span>
                 <span class="welcome-msg">
                   مرحبا بك -
