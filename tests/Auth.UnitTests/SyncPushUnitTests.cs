@@ -137,6 +137,8 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var pushServiceMock = new Mock<ILocalOutboxPushService>();
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
+                .ThrowsAsync(new SyncPushDisabledException("Sync:PushEnabled is false"));
 
             var controller = new SyncController(
                 pushServiceMock.Object,
@@ -144,7 +146,8 @@ namespace Auth.UnitTests
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None);
 
@@ -170,7 +173,8 @@ namespace Auth.UnitTests
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None);
 
@@ -195,7 +199,8 @@ namespace Auth.UnitTests
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None);
 
@@ -213,7 +218,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var pushServiceMock = new Mock<ILocalOutboxPushService>();
-            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ReturnsAsync(new PushBatchResult
                 {
                     DatabaseId = "2026",
@@ -227,14 +232,15 @@ namespace Auth.UnitTests
                 syncConnectionProviderMock.Object,
                 config,
                 NullLogger<SyncController>.Instance,
-                new Mock<ILocalScopeBaselineService>().Object);
+                new Mock<ILocalScopeBaselineService>().Object,
+                new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None);
 
             var okResult = Assert.IsType<OkObjectResult>(result);
             var batchResult = Assert.IsType<PushBatchResult>(okResult.Value);
             Assert.Equal("2026", batchResult.DatabaseId);
-            pushServiceMock.Verify(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()), Times.Once);
+            pushServiceMock.Verify(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()), Times.Once);
         }
 
         #endregion
@@ -994,15 +1000,15 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncLeaseExpiredException_To_409Conflict()
         {
             var pushServiceMock = new Mock<ILocalOutboxPushService>();
-            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new SyncLeaseExpiredException());
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
+                .ThrowsAsync(new SyncLeaseExpiredException("Lease expired"));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
             syncConnectionProviderMock.Setup(p => p.IsLocalFirstEnabled).Returns(true);
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
-            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -1013,7 +1019,7 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncMetadataMismatchException_To_400BadRequest()
         {
             var pushServiceMock = new Mock<ILocalOutboxPushService>();
-            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncMetadataMismatchException("Metadata mismatch"));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
@@ -1021,7 +1027,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
-            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -1032,7 +1038,7 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncLocalStateMissingException_To_500InternalServerError()
         {
             var pushServiceMock = new Mock<ILocalOutboxPushService>();
-            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncLocalStateMissingException("LocalState missing"));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
@@ -1040,7 +1046,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
-            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);
@@ -1051,7 +1057,7 @@ namespace Auth.UnitTests
         public async Task SyncController_Maps_SyncCorruptResponseJsonException_To_500InternalServerError()
         {
             var pushServiceMock = new Mock<ILocalOutboxPushService>();
-            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>()))
+            pushServiceMock.Setup(s => s.PushPendingOutboxAsync(It.IsAny<CancellationToken>(), It.IsAny<bool>()))
                 .ThrowsAsync(new SyncCorruptResponseJsonException("Corrupt ResponseJson"));
 
             var syncConnectionProviderMock = new Mock<ISyncConnectionProvider>();
@@ -1059,7 +1065,7 @@ namespace Auth.UnitTests
             syncConnectionProviderMock.Setup(p => p.IsReadOnlyMode).Returns(false);
 
             var config = CreateConfig(localFirstEnabled: true, readOnlyMode: false, pushEnabled: true);
-            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object);
+            var controller = new SyncController(pushServiceMock.Object, new Mock<ILocalDailyPullService>().Object, syncConnectionProviderMock.Object, config, NullLogger<SyncController>.Instance, new Mock<ILocalScopeBaselineService>().Object, new Mock<ISyncStatusService>().Object);
 
             var result = await controller.PushOutbox(CancellationToken.None) as ObjectResult;
             Assert.NotNull(result);

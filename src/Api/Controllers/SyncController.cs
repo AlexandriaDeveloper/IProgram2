@@ -24,6 +24,7 @@ namespace Api.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<SyncController> _logger;
         private readonly ILocalScopeBaselineService _scopeBaselineService;
+        private readonly ISyncStatusService _syncStatusService;
 
         public SyncController(
             ILocalOutboxPushService pushService,
@@ -31,7 +32,8 @@ namespace Api.Controllers
             ISyncConnectionProvider syncConnectionProvider,
             IConfiguration configuration,
             ILogger<SyncController> logger,
-            ILocalScopeBaselineService scopeBaselineService)
+            ILocalScopeBaselineService scopeBaselineService,
+            ISyncStatusService syncStatusService)
         {
             _pushService = pushService ?? throw new ArgumentNullException(nameof(pushService));
             _pullService = pullService ?? throw new ArgumentNullException(nameof(pullService));
@@ -39,25 +41,13 @@ namespace Api.Controllers
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _scopeBaselineService = scopeBaselineService ?? throw new ArgumentNullException(nameof(scopeBaselineService));
+            _syncStatusService = syncStatusService ?? throw new ArgumentNullException(nameof(syncStatusService));
         }
 
         [HttpPost("push")]
         public async Task<IActionResult> PushOutbox(CancellationToken cancellationToken)
         {
-            // 1. Feature gate check: Fail-Closed if Sync:PushEnabled != true
-            var isPushEnabled = _configuration.GetValue<bool>("Sync:PushEnabled", false);
-            if (!isPushEnabled)
-            {
-                _logger.LogWarning("POST /api/sync/push rejected: Sync:PushEnabled is false.");
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                {
-                    statusCode = StatusCodes.Status403Forbidden,
-                    code = "SYNC_PUSH_DISABLED",
-                    message = "ميزة مزامنة الرفع معطلة حالياً (Sync:PushEnabled = false)."
-                });
-            }
-
-            // 2. Runtime mode verification: Push is exclusively permitted in OfflineReadWritePilot
+            // 1. Runtime mode verification: Push is exclusively permitted in OfflineReadWritePilot (LocalFirst && !ReadOnly)
             if (!_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
             {
                 _logger.LogWarning(
@@ -74,7 +64,7 @@ namespace Api.Controllers
 
             try
             {
-                var result = await _pushService.PushPendingOutboxAsync(cancellationToken);
+                var result = await _pushService.PushPendingOutboxAsync(cancellationToken, isExplicitManual: true);
                 return Ok(result);
             }
             catch (SyncPushAlreadyRunningException ex)
@@ -202,32 +192,20 @@ namespace Api.Controllers
         [HttpPost("pull")]
         public async Task<IActionResult> PullDaily(CancellationToken cancellationToken)
         {
-            // 1. Feature gate check: Fail-Closed if Sync:PullEnabled != true
-            var isPullEnabled = _configuration.GetValue<bool>("Sync:PullEnabled", false);
-            if (!isPullEnabled)
+            // 1. Runtime mode verification: Pull allowed only in LocalFirst mode with ReadOnly == false
+            if (!_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
             {
-                _logger.LogWarning("POST /api/sync/pull rejected: Sync:PullEnabled is false.");
+                _logger.LogWarning("POST /api/sync/pull rejected: Invalid mode. (LocalFirst: {LocalFirst}, ReadOnly: {ReadOnly})",
+                    _syncConnectionProvider.IsLocalFirstEnabled, _syncConnectionProvider.IsReadOnlyMode);
                 return StatusCode(StatusCodes.Status403Forbidden, new
                 {
                     statusCode = StatusCodes.Status403Forbidden,
-                    code = "SYNC_PULL_DISABLED",
-                    message = "ميزة مزامنة السحب معطلة حالياً (Sync:PullEnabled = false)."
+                    code = _syncConnectionProvider.IsReadOnlyMode ? "READ_ONLY_MODE_BLOCKED" : "LOCAL_FIRST_REQUIRED",
+                    message = "العملية المطلوبة غير مصرح بها خارج وضع LocalFirst مع تمكين الكتابة (!ReadOnly)."
                 });
             }
 
-            // 2. Runtime mode verification: Pull allowed only if ReadOnlyMode == false
-            if (_syncConnectionProvider.IsReadOnlyMode)
-            {
-                _logger.LogWarning("POST /api/sync/pull rejected: In ReadOnlyMode.");
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                {
-                    statusCode = StatusCodes.Status403Forbidden,
-                    code = "READ_ONLY_MODE_BLOCKED",
-                    message = "العملية المطلوبة غير مصرح بها أثناء وضع ReadOnly."
-                });
-            }
-
-            // 3. DatabaseId context verification
+            // 2. DatabaseId context verification
             var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
             if (string.IsNullOrWhiteSpace(databaseId) || (databaseId != "2026" && databaseId != "2027"))
             {
@@ -241,7 +219,7 @@ namespace Api.Controllers
 
             try
             {
-                var result = await _pullService.PullDailyChangesAsync(cancellationToken);
+                var result = await _pullService.PullDailyChangesAsync(cancellationToken, isExplicitManual: true);
                 return Ok(result);
             }
             catch (SyncPullAlreadyRunningException ex)
@@ -390,6 +368,15 @@ namespace Api.Controllers
                     message = ex.Message
                 });
             }
+            catch (SyncPullDisabledException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    code = ex.ErrorCode,
+                    message = ex.Message
+                });
+            }
             catch (SyncLocalStateMissingException ex)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, new
@@ -451,6 +438,98 @@ namespace Api.Controllers
                     new { scope = "Forms", status = formsStatus == Core.Interfaces.SyncScopeBaselineStatus.Baselined ? "BASELINED" : "NOT_BASELINED" }
                 }
             });
+        }
+
+        [HttpGet("status/local")]
+        public async Task<IActionResult> GetLocalStatus(CancellationToken cancellationToken)
+        {
+            if (!_syncConnectionProvider.IsLocalFirstEnabled)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    code = "LOCAL_FIRST_REQUIRED",
+                    message = "حالة المزامنة المحلية متاحة فقط في وضع LocalFirst."
+                });
+            }
+
+            var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
+            if (string.IsNullOrWhiteSpace(databaseId) || (databaseId != "2026" && databaseId != "2027"))
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = "INVALID_DATABASE_SELECTION",
+                    message = $"Invalid canonical database ID '{databaseId}'. Expected '2026' or '2027'."
+                });
+            }
+
+            try
+            {
+                var status = await _syncStatusService.GetLocalStatusAsync(databaseId, cancellationToken);
+                return Ok(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get local sync status.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = "LOCAL_STATUS_ERROR",
+                    message = "حدث خطأ أثناء قراءة حالة المزامنة المحلية."
+                });
+            }
+        }
+
+        [HttpPost("status/check-online")]
+        public async Task<IActionResult> CheckOnlineStatus(CancellationToken cancellationToken)
+        {
+            if (!_syncConnectionProvider.IsLocalFirstEnabled)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    code = "LOCAL_FIRST_REQUIRED",
+                    message = "فحص الحالة السحابية متاح فقط في وضع LocalFirst."
+                });
+            }
+
+            var databaseId = _syncConnectionProvider.GetSelectedDatabaseId();
+            if (string.IsNullOrWhiteSpace(databaseId) || (databaseId != "2026" && databaseId != "2027"))
+            {
+                return StatusCode(StatusCodes.Status400BadRequest, new
+                {
+                    statusCode = StatusCodes.Status400BadRequest,
+                    code = "INVALID_DATABASE_SELECTION",
+                    message = $"Invalid canonical database ID '{databaseId}'. Expected '2026' or '2027'."
+                });
+            }
+
+            try
+            {
+                var status = await _syncStatusService.CheckOnlineStatusAsync(databaseId, cancellationToken);
+                return Ok(status);
+            }
+            catch (InvalidOperationException ex) when (ex.Message == "MANUAL_SYNC_REMOTE_NOT_CONFIGURED")
+            {
+                _logger.LogWarning("CheckOnlineStatus rejected: Dedicated manual sync remote connection string is not configured.");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    statusCode = StatusCodes.Status503ServiceUnavailable,
+                    code = "MANUAL_SYNC_REMOTE_NOT_CONFIGURED",
+                    message = "الاتصال بالسحابة غير مهيأ لهذا الجهاز (MANUAL_SYNC_REMOTE_NOT_CONFIGURED)."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to perform read-only check online status.");
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    statusCode = StatusCodes.Status500InternalServerError,
+                    code = "CHECK_ONLINE_STATUS_ERROR",
+                    message = "حدث خطأ أثناء فحص الحالة السحابية."
+                });
+            }
         }
     }
 }

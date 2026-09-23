@@ -1,7 +1,7 @@
 import { AuthService } from './../../service/auth.service';
 import { SyncService } from '../../service/sync.service';
 
-import { Component, ViewChild, NgModule, inject, AfterViewInit } from '@angular/core';
+import { Component, ViewChild, NgModule, inject, AfterViewInit, OnInit } from '@angular/core';
 import { AngularComponentsModule } from '../../angular-components.module';
 import { SharedModule } from '../../shared.module';
 import { Router, RouterModule } from '@angular/router';
@@ -10,13 +10,16 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Observable, map, shareReplay, window } from 'rxjs';
 
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 
 import { CommonModule } from '@angular/common';
 import { VideoService } from '../../service/video.service';
-
+import { ExitSyncDialogComponent, ExitSyncDialogResult } from '../exit-sync-dialog/exit-sync-dialog.component';
+import { SyncStatusDialogComponent } from '../sync-status-dialog/sync-status-dialog.component';
 
 @Component({
   selector: 'app-navbar',
@@ -26,12 +29,15 @@ import { VideoService } from '../../service/video.service';
     MatDividerModule,
     MatListModule,
     MatToolbarModule,
+    MatDialogModule,
+    MatProgressSpinnerModule,
     CommonModule
   ],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
 })
-export class NavbarComponent implements AfterViewInit {
+export class NavbarComponent implements AfterViewInit, OnInit {
+  dialog = inject(MatDialog);
   auth = inject(AuthService);
   syncService = inject(SyncService);
   router = inject(Router);
@@ -117,8 +123,105 @@ export class NavbarComponent implements AfterViewInit {
     this.videoService.revoke();
   }
 
+  ngOnInit(): void {
+    if (this.auth.isAuthenticated()) {
+      this.syncService.fetchLocalStatus().subscribe();
+    }
+  }
+
   logout() {
-    this.auth.logout();
+    if (!this.auth.runtimeStatusSig()?.isLocalFirst) {
+      this.auth.logout();
+      return;
+    }
+
+    // P0-5: Perform fresh local-only status read before deciding whether to exit
+    this.syncService.fetchLocalStatus().subscribe({
+      next: (status) => {
+        const pending = status?.pendingCount ?? 0;
+        const failed = status?.failedCount ?? 0;
+        const inProgress = status?.inProgressCount ?? 0;
+        const totalUnsynced = pending + failed + inProgress;
+
+        if (totalUnsynced > 0) {
+          const dialogRef = this.dialog.open(ExitSyncDialogComponent, {
+            data: {
+              pendingCount: pending,
+              failedCount: failed,
+              inProgressCount: inProgress,
+              databaseId: status?.databaseId || this.auth.getSelectedDatabaseId() || '',
+              lastCheckTime: this.syncService.onlineStatus()?.checkedAtUtc ?? null,
+              lastKnownFreshness: this.syncService.onlineStatus()?.overallStatus ?? null,
+              isErrorState: false
+            },
+            width: '460px',
+            disableClose: true
+          });
+          dialogRef.afterClosed().subscribe((result: ExitSyncDialogResult | undefined) => {
+            if (result === 'PUSH_AND_EXIT' || result === 'EXIT_WITHOUT_PUSH') {
+              this.auth.logout();
+            }
+          });
+        } else {
+          this.auth.logout();
+        }
+      },
+      error: (err) => {
+        // Fail-closed: do NOT assume pending = 0 on error!
+        console.warn('Failed to get fresh local status before logout. Failing closed:', err);
+        const dialogRef = this.dialog.open(ExitSyncDialogComponent, {
+          data: {
+            pendingCount: this.syncService.pendingCount(),
+            databaseId: this.auth.getSelectedDatabaseId() || '',
+            isErrorState: true
+          },
+          width: '460px',
+          disableClose: true
+        });
+        dialogRef.afterClosed().subscribe((result: ExitSyncDialogResult | undefined) => {
+          if (result === 'PUSH_AND_EXIT' || result === 'EXIT_WITHOUT_PUSH') {
+            this.auth.logout();
+          }
+        });
+      }
+    });
+  }
+
+  openSyncStatusDialog() {
+    this.dialog.open(SyncStatusDialogComponent, {
+      width: '640px'
+    });
+  }
+
+  pushNow() {
+    if (this.syncService.isPushing() || this.syncService.isPulling()) return;
+    this.syncMessage = 'جاري رفع التعديلات المعلقة للسحابة...';
+    this.syncService.pushNow().subscribe({
+      next: (res) => {
+        const count = res?.itemsApplied ?? res?.operationsApplied ?? '';
+        this.syncMessage = `✅ اكتمل الرفع بنجاح ${count ? '(' + count + ' تعديل)' : ''}`;
+        setTimeout(() => this.syncMessage = '', 6000);
+      },
+      error: (err) => {
+        this.syncMessage = `❌ فشل الرفع: ${err.error?.message || err.message || 'خطأ غير متوقع'}`;
+        setTimeout(() => this.syncMessage = '', 8000);
+      }
+    });
+  }
+
+  pullNow() {
+    if (this.syncService.isPushing() || this.syncService.isPulling()) return;
+    this.syncMessage = 'جاري سحب التحديثات من السحابة...';
+    this.syncService.pullNow().subscribe({
+      next: (res) => {
+        this.syncMessage = `✅ اكتمل السحب بنجاح (الإصدار: ${res?.toVersion ?? 'المحدث'})`;
+        setTimeout(() => this.syncMessage = '', 6000);
+      },
+      error: (err) => {
+        this.syncMessage = `❌ فشل السحب: ${err.error?.message || err.message || 'خطأ غير متوقع'}`;
+        setTimeout(() => this.syncMessage = '', 8000);
+      }
+    });
   }
 
   syncToCloud(force: boolean = false) {

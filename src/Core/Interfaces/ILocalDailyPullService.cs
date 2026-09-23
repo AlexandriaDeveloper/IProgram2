@@ -7,6 +7,6 @@ namespace Core.Interfaces
 {
     public interface ILocalDailyPullService
     {
-        Task<PullResultDto> PullDailyChangesAsync(CancellationToken cancellationToken);
+        Task<PullResultDto> PullDailyChangesAsync(CancellationToken cancellationToken, bool isExplicitManual = false);
     }
 }

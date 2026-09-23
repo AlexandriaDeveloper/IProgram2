@@ -49,6 +49,9 @@ export class AuthService {
   signup(model) {
     return this.http.post(environment.apiUrl + 'account/register', model)
   }
+  getSelectedDatabaseId(): string {
+    return this.runtimeStatusSig()?.selectedDatabase || localStorage.getItem('db-selection') || '';
+  }
   getDatabases() {
     return this.http.get(environment.apiUrl + 'account/databases');
   }

@@ -9,6 +9,7 @@ namespace Core.Interfaces
         bool IsReadOnlyMode { get; }
         string GetLocalConnectionString(string databaseId);
         string GetRemoteConnectionString(string databaseId);
+        string GetManualSyncRemoteConnectionString(string databaseId);
         LocalDatabaseBinding GetLocalBinding(string databaseId);
         AzureDatabaseBinding GetRemoteBinding(string databaseId);
     }

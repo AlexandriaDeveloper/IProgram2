@@ -26,7 +26,17 @@ namespace Auth.Infrastructure.Sync.Push
                 throw new InvalidDatabaseSelectionException("Canonical database ID is required.");
             }
 
-            var remoteConnStr = _syncConnectionProvider.GetRemoteConnectionString(databaseId);
+            string remoteConnStr;
+            if (_syncConnectionProvider.IsLocalFirstEnabled)
+            {
+                // In LocalFirst, resolve ONLY the dedicated manual-sync remote source
+                remoteConnStr = _syncConnectionProvider.GetManualSyncRemoteConnectionString(databaseId);
+            }
+            else
+            {
+                remoteConnStr = _syncConnectionProvider.GetRemoteConnectionString(databaseId);
+            }
+
             var builder = new SqlConnectionStringBuilder(remoteConnStr);
 
             // Strict production binding validation: physical target must be remote Azure (IProgramDb2026 / IProgramDb2027)

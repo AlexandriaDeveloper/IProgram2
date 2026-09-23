@@ -40,21 +40,25 @@ namespace Auth.Infrastructure.Sync.Pull
             _scopeBaselineService = scopeBaselineService ?? throw new ArgumentNullException(nameof(scopeBaselineService));
         }
 
-        public async Task<PullResultDto> PullDailyChangesAsync(CancellationToken cancellationToken)
+        public async Task<PullResultDto> PullDailyChangesAsync(CancellationToken cancellationToken, bool isExplicitManual = false)
         {
-            // 1. Feature gate check: Fail-Closed if Sync:PullEnabled != true
-            var isPullEnabled = _configuration.GetValue<bool>("Sync:PullEnabled", false);
-            if (!isPullEnabled)
+            // 1. Feature gate check: background/automatic pull requires Sync:PullEnabled = true
+            if (!isExplicitManual)
             {
-                _logger.LogWarning("Pull attempt rejected: Sync:PullEnabled is false.");
-                throw new SyncPullDisabledException("ميزة مزامنة السحب (Pull) معطلة على هذا النظام (Sync:PullEnabled = false).");
+                var isPullEnabled = _configuration.GetValue<bool>("Sync:PullEnabled", false);
+                if (!isPullEnabled)
+                {
+                    _logger.LogWarning("Pull attempt rejected: Sync:PullEnabled is false.");
+                    throw new SyncPullDisabledException("ميزة مزامنة السحب (Pull) معطلة على هذا النظام (Sync:PullEnabled = false).");
+                }
             }
 
-            // 2. Runtime mode check: Strictly forbidden if ReadOnlyMode is true
-            if (_syncConnectionProvider.IsReadOnlyMode)
+            // 2. Runtime mode check: must be strictly in LocalFirst and not ReadOnly
+            if (!_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
             {
-                _logger.LogWarning("Pull attempt rejected: ReadOnlyMode is active.");
-                throw new InvalidOperationException("العملية المطلوبة غير مصرح بها أثناء وضع القراءة فقط (ReadOnlyMode).");
+                _logger.LogWarning("Pull attempt rejected: Invalid runtime mode. (LocalFirst: {LocalFirst}, ReadOnly: {ReadOnly})",
+                    _syncConnectionProvider.IsLocalFirstEnabled, _syncConnectionProvider.IsReadOnlyMode);
+                throw new InvalidOperationException("ميزة مزامنة السحب مصرح بها فقط في وضع LocalFirst مع تمكين الكتابة (!ReadOnly).");
             }
 
             // 3. DatabaseId selection: strictly derived from authenticated context
