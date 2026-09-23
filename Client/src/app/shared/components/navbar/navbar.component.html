@@ -24,7 +24,11 @@ document.createElement('video');
                   <mat-icon>login</mat-icon>
                 </a>
                 <span> Please Login</span>
-                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly' || auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'LocalOnlyProduction'" class="localonly-badge"
+                  matTooltip="النظام يعمل في وضع التشغيل المحلي الكامل (Local-Only Production). قاعدة البيانات المحلية هي مصدر الحقيقة الوحيد.">
+                  🟢 محلي كامل — قاعدة البيانات الحالية
+                </span>
+                <span *ngIf="(auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly' || auth.runtimeStatusSig()?.isReadOnly) && !auth.runtimeStatusSig()?.isLocalOnlyProduction" class="readonly-badge"
                   matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط.">
                   🔒 محلي — قراءة فقط
                 </span>
@@ -45,14 +49,14 @@ document.createElement('video');
                   <mat-icon style="color:rgba(230, 81, 0, 0.8) !important">logout</mat-icon>
                 </button>
                 <!-- Phase 4: Local Pending Badge (Local-only, no Azure query) -->
-                <span *ngIf="auth.runtimeStatusSig()?.isLocalFirst && syncService.pendingCount() > 0" class="pending-badge"
+                <span *ngIf="auth.runtimeStatusSig()?.isLocalFirst && !auth.runtimeStatusSig()?.isLocalOnlyProduction && syncService.pendingCount() > 0" class="pending-badge"
                   (click)="openSyncStatusDialog()"
                   matTooltip="توجد تعديلات محلية معلقة للرفع للسحابة. انقر لعرض التفاصيل.">
                   ⏳ {{ syncService.pendingCount() }} معلقة
                 </span>
 
                 <!-- Phase 4: Check Online Status (Explicit user trigger, read-only remote check, LocalFirst only) -->
-                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.isLocalFirst" mat-icon-button class="sync-btn check-status-btn"
+                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.isLocalFirst && !auth.runtimeStatusSig()?.isLocalOnlyProduction" mat-icon-button class="sync-btn check-status-btn"
                   aria-label="Check Online Status" (click)="openSyncStatusDialog()"
                   [disabled]="syncService.isCheckingOnline()"
                   [matTooltip]="syncService.isCheckingOnline() ? 'جاري فحص الاتصال...' : 'فحص الحالة السحابية 🔍☁️'">
@@ -61,7 +65,7 @@ document.createElement('video');
                 </button>
 
                 <!-- Phase 4: Push Now (Explicit manual button, LocalFirst && !ReadOnly only) -->
-                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.isLocalFirst && !auth.runtimeStatusSig()?.isReadOnly" mat-icon-button class="sync-btn push-btn"
+                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.isLocalFirst && !auth.runtimeStatusSig()?.isReadOnly && !auth.runtimeStatusSig()?.isLocalOnlyProduction" mat-icon-button class="sync-btn push-btn"
                   aria-label="Push to Cloud" (click)="pushNow()"
                   [disabled]="syncService.isPushing() || syncService.isPulling()"
                   [matTooltip]="syncService.isPushing() ? 'جاري الرفع للسحابة...' : 'رفع التعديلات الآن (Push Now) ☁️⬆️'">
@@ -70,7 +74,7 @@ document.createElement('video');
                 </button>
 
                 <!-- Phase 4: Pull Now (Explicit manual button, LocalFirst && !ReadOnly only) -->
-                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.isLocalFirst && !auth.runtimeStatusSig()?.isReadOnly" mat-icon-button class="sync-btn pull-btn"
+                <button *ngIf="auth?.isUserAdmin() && auth.runtimeStatusSig()?.isLocalFirst && !auth.runtimeStatusSig()?.isReadOnly && !auth.runtimeStatusSig()?.isLocalOnlyProduction" mat-icon-button class="sync-btn pull-btn"
                   aria-label="Pull from Cloud" (click)="pullNow()"
                   [disabled]="syncService.isPushing() || syncService.isPulling()"
                   [matTooltip]="syncService.isPulling() ? 'جاري السحب من السحابة...' : 'سحب التحديثات الآن (Pull Now) ☁️⬇️'">
@@ -78,7 +82,11 @@ document.createElement('video');
                   <mat-spinner *ngIf="syncService.isPulling()" diameter="20"></mat-spinner>
                 </button>
 
-                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly' || auth.runtimeStatusSig()?.isReadOnly" class="readonly-badge"
+                <span *ngIf="auth.runtimeStatusSig()?.runtimeMode === 'LocalOnlyProduction'" class="localonly-badge"
+                  matTooltip="النظام يعمل في وضع التشغيل المحلي الكامل (Local-Only Production). قاعدة البيانات المحلية هي مصدر الحقيقة الوحيد.">
+                  🟢 محلي كامل — قاعدة البيانات الحالية
+                </span>
+                <span *ngIf="(auth.runtimeStatusSig()?.runtimeMode === 'OfflineReadOnly' || auth.runtimeStatusSig()?.isReadOnly) && !auth.runtimeStatusSig()?.isLocalOnlyProduction" class="readonly-badge"
                   matTooltip="النظام متصل بقاعدة البيانات المحلية في وضع القراءة فقط. التعديلات معطلة والبيانات غير متزامنة مع السحابة.">
                   🔒 محلي — قراءة فقط
                 </span>

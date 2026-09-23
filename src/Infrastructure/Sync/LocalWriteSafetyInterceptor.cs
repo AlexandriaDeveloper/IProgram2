@@ -45,10 +45,11 @@ namespace Auth.Infrastructure.Sync
 
         private void EnforceLocalWriteSafety(DbContextEventData eventData)
         {
-            // Only active in OfflineReadWritePilot (LocalFirst:Enabled == true && ReadOnlyMode == false)
+            // Only active in OfflineReadWritePilot (LocalFirst:Enabled == true && ReadOnlyMode == false && LocalOnlyProduction == false)
             if (_syncConnectionProvider == null ||
                 !_syncConnectionProvider.IsLocalFirstEnabled ||
-                _syncConnectionProvider.IsReadOnlyMode)
+                _syncConnectionProvider.IsReadOnlyMode ||
+                _syncConnectionProvider.IsLocalOnlyProduction)
             {
                 return;
             }

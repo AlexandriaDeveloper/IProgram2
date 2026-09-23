@@ -39,6 +39,7 @@ param (
 
     [int]$Port = 5000,
     [switch]$ValidateInitialCutoverBaseline,
+    [switch]$LocalOnlyProduction,
     [switch]$SkipGitVerification,
     [switch]$AllowNonMaster,
     [switch]$AllowIsolatedTestMode,
@@ -138,7 +139,8 @@ function Get-LocalFirstChildEnvironment {
         [string]$Local2026ConnStr,
         [string]$Local2027ConnStr,
         [string]$TokenKey,
-        [bool]$IsTestMode = $false
+        [bool]$IsTestMode = $false,
+        [bool]$LocalOnlyProduction = $false
     )
 
     if ($Port -le 0 -or $Port -gt 65535) {
@@ -162,9 +164,15 @@ function Get-LocalFirstChildEnvironment {
     $envMap["ASPNETCORE_URLS"] = "http://127.0.0.1:$Port"
     $envMap["LocalFirst__Enabled"] = "true"
     $envMap["LocalFirst__ReadOnlyMode"] = "false"
+    if ($LocalOnlyProduction) {
+        $envMap["LocalFirst__LocalOnlyProduction"] = "true"
+        $envMap["LocalFirst__Mode"] = "LocalOnlyProduction"
+        $envMap["Sync__AuthoritativeTrackingEnabled"] = "false"
+    } else {
+        $envMap["Sync__AuthoritativeTrackingEnabled"] = "true"
+    }
     $envMap["Sync__PullEnabled"] = "false"
     $envMap["Sync__PushEnabled"] = "false"
-    $envMap["Sync__AuthoritativeTrackingEnabled"] = "true"
     $envMap["LegacyMigration__Enabled"] = "false"
 
     # Operational local database connections
@@ -638,6 +646,7 @@ switch ($Action) {
         Start-Sleep -Seconds 2
         & $PSCommandPath Start -Port $Port `
             -ValidateInitialCutoverBaseline:$ValidateInitialCutoverBaseline `
+            -LocalOnlyProduction:$LocalOnlyProduction `
             -SkipGitVerification:$SkipGitVerification `
             -AllowNonMaster:$AllowNonMaster `
             -AllowIsolatedTestMode:$AllowIsolatedTestMode `
@@ -650,6 +659,7 @@ switch ($Action) {
     "Run" {
         & $PSCommandPath Start -Port $Port `
             -ValidateInitialCutoverBaseline:$ValidateInitialCutoverBaseline `
+            -LocalOnlyProduction:$LocalOnlyProduction `
             -SkipGitVerification:$SkipGitVerification `
             -AllowNonMaster:$AllowNonMaster `
             -AllowIsolatedTestMode:$AllowIsolatedTestMode `
@@ -702,7 +712,8 @@ switch ($Action) {
             -Local2026ConnStr $local2026ConnStr `
             -Local2027ConnStr $local2027ConnStr `
             -TokenKey $tokenKey `
-            -IsTestMode $AllowIsolatedTestMode
+            -IsTestMode $AllowIsolatedTestMode `
+            -LocalOnlyProduction:$LocalOnlyProduction
 
         # Save snapshot of current process environment before launching
         $envSnapshot = @{}

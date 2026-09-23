@@ -54,8 +54,8 @@ namespace Auth.Infrastructure.Sync.Authoritative
 
         private void EnforceAuthoritativeTrackingSafety(DbContextEventData eventData)
         {
-            // 1. Only active in Online mode (not LocalFirst, not ReadOnlyMode)
-            if (_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
+            // 1. Only active in Online mode (not LocalFirst, not ReadOnlyMode, not LocalOnlyProduction)
+            if (_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode || _syncConnectionProvider.IsLocalOnlyProduction)
             {
                 return;
             }
@@ -99,8 +99,8 @@ namespace Auth.Infrastructure.Sync.Authoritative
             DbContextEventData eventData,
             CancellationToken cancellationToken)
         {
-            // 1. Only active in Online mode (not LocalFirst, not ReadOnlyMode)
-            if (_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
+            // 1. Only active in Online mode (not LocalFirst, not ReadOnlyMode, not LocalOnlyProduction)
+            if (_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode || _syncConnectionProvider.IsLocalOnlyProduction)
             {
                 return;
             }

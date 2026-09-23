@@ -19,6 +19,7 @@ namespace Core.Models.Sync
         public string RuntimeMode { get; set; } = string.Empty;
         public bool IsReadOnly { get; set; }
         public bool IsLocalFirst { get; set; }
+        public bool IsLocalOnlyProduction { get; set; }
         public bool HasOrphanInProgress { get; set; }
     }
 

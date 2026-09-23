@@ -139,3 +139,7 @@ script/*.sql
 .localfirst_runtime.pid
 .localfirst_runtime_state.json
 script/sync-rollout/logs/
+
+# Database backups
+*.bak
+script/local-bootstrap/backups/

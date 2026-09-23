@@ -46,6 +46,13 @@ namespace Persistence.Repository
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            // 0. LocalOnlyProduction mode: direct local persistence without Outbox or Azure tracking
+            if (_dbConnectionProvider is ISyncConnectionProvider localProdProvider &&
+                localProdProvider.IsLocalOnlyProduction)
+            {
+                return await _context.SaveChangesAsync(cancellationToken);
+            }
+
             // 1. OfflineReadWritePilot mode: coordinate transactional outbox
             if (_dbConnectionProvider is ISyncConnectionProvider syncProvider &&
                 syncProvider.IsLocalFirstEnabled &&
@@ -60,8 +67,9 @@ namespace Persistence.Repository
             {
                 var isLocalFirst = (_dbConnectionProvider as ISyncConnectionProvider)?.IsLocalFirstEnabled == true;
                 var isReadOnly = (_dbConnectionProvider as ISyncConnectionProvider)?.IsReadOnlyMode == true;
+                var isLocalOnlyProd = (_dbConnectionProvider as ISyncConnectionProvider)?.IsLocalOnlyProduction == true;
 
-                if (!isLocalFirst && !isReadOnly)
+                if (!isLocalFirst && !isReadOnly && !isLocalOnlyProd)
                 {
                     // Mandatory dependency validation for Authoritative Tracking: FAIL CLOSED
                     if (_dbConnectionProvider is not ISyncConnectionProvider onlineSyncProvider)

@@ -48,6 +48,17 @@ namespace Api.Controllers
         public async Task<IActionResult> PushOutbox(CancellationToken cancellationToken)
         {
             // 1. Runtime mode verification: Push is exclusively permitted in OfflineReadWritePilot (LocalFirst && !ReadOnly)
+            if (_syncConnectionProvider.IsLocalOnlyProduction)
+            {
+                _logger.LogWarning("POST /api/sync/push rejected: Sync operations are disabled in LocalOnlyProduction mode.");
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    code = "SYNC_DISABLED_IN_LOCAL_ONLY_PRODUCTION",
+                    message = "عمليات المزامنة مع السحابة معطلة تماماً في وضع التشغيل المحلي الكامل (Local-Only Production)."
+                });
+            }
+
             if (!_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
             {
                 _logger.LogWarning(
@@ -193,6 +204,17 @@ namespace Api.Controllers
         public async Task<IActionResult> PullDaily(CancellationToken cancellationToken)
         {
             // 1. Runtime mode verification: Pull allowed only in LocalFirst mode with ReadOnly == false
+            if (_syncConnectionProvider.IsLocalOnlyProduction)
+            {
+                _logger.LogWarning("POST /api/sync/pull rejected: Sync operations are disabled in LocalOnlyProduction mode.");
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    code = "SYNC_DISABLED_IN_LOCAL_ONLY_PRODUCTION",
+                    message = "عمليات المزامنة مع السحابة معطلة تماماً في وضع التشغيل المحلي الكامل (Local-Only Production)."
+                });
+            }
+
             if (!_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
             {
                 _logger.LogWarning("POST /api/sync/pull rejected: Invalid mode. (LocalFirst: {LocalFirst}, ReadOnly: {ReadOnly})",
@@ -484,6 +506,17 @@ namespace Api.Controllers
         [HttpPost("status/check-online")]
         public async Task<IActionResult> CheckOnlineStatus(CancellationToken cancellationToken)
         {
+            if (_syncConnectionProvider.IsLocalOnlyProduction)
+            {
+                _logger.LogWarning("POST /api/sync/status/check-online rejected: Online check is disabled in LocalOnlyProduction mode.");
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    statusCode = StatusCodes.Status403Forbidden,
+                    code = "SYNC_DISABLED_IN_LOCAL_ONLY_PRODUCTION",
+                    message = "فحص الحالة السحابية معطل تماماً في وضع التشغيل المحلي الكامل (Local-Only Production)."
+                });
+            }
+
             if (!_syncConnectionProvider.IsLocalFirstEnabled)
             {
                 return StatusCode(StatusCodes.Status403Forbidden, new

@@ -553,6 +553,44 @@ VALUES ('2026', 'UPSERT', 'Daily', NEWID(), '{"Name":"Legitimate Offline Daily W
             throw "Test mode artifact mismatch"
         }
     }
+
+    # --- TEST 10: LocalOnlyProduction Child Environment Composition ---
+    Assert-Test "Get-LocalFirstChildEnvironment composes LocalOnlyProduction environment with zero Azure/remote sync" {
+        $envMap = Get-LocalFirstChildEnvironment -Port 5055 `
+            -Local2026ConnStr "Server=localhost;Database=FixtureDb2026;Integrated Security=True;" `
+            -Local2027ConnStr "Server=localhost;Database=FixtureDb2027;Integrated Security=True;" `
+            -TokenKey "TestTokenKeySecret32CharactersMinimumLength123" `
+            -IsTestMode $true `
+            -LocalOnlyProduction $true
+
+        if ($envMap["LocalFirst__Enabled"] -ne "true") {
+            throw "Expected LocalFirst__Enabled=true"
+        }
+        if ($envMap["LocalFirst__ReadOnlyMode"] -ne "false") {
+            throw "Expected LocalFirst__ReadOnlyMode=false"
+        }
+        if ($envMap["LocalFirst__LocalOnlyProduction"] -ne "true") {
+            throw "Expected LocalFirst__LocalOnlyProduction=true"
+        }
+        if ($envMap["LocalFirst__Mode"] -ne "LocalOnlyProduction") {
+            throw "Expected LocalFirst__Mode=LocalOnlyProduction"
+        }
+        if ($envMap["Sync__AuthoritativeTrackingEnabled"] -ne "false") {
+            throw "Expected Sync__AuthoritativeTrackingEnabled=false in LocalOnlyProduction"
+        }
+        if ($envMap["Sync__PullEnabled"] -ne "false" -or $envMap["Sync__PushEnabled"] -ne "false") {
+            throw "Expected Sync Pull/Push to be false"
+        }
+        if ($envMap["ConnectionStrings__DefaultConnection"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+            throw "Expected DefaultConnection tripwire"
+        }
+        if ($envMap["ConnectionStrings__CON2027"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+            throw "Expected CON2027 tripwire"
+        }
+        if ($envMap.ContainsKey("ConnectionStrings__ManualSyncRemote2026") -or $envMap.ContainsKey("ConnectionStrings__ManualSyncRemote2027")) {
+            throw "ManualSyncRemote must not be configured in LocalOnlyProduction mode"
+        }
+    }
 } finally {
     # Complete cleanup of transient fixture databases (P0-6)
     Remove-TestFixtureDatabases

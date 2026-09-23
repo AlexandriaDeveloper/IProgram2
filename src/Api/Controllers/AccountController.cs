@@ -56,11 +56,17 @@ namespace Api.Controllers
         [HttpGet("runtime-status")]
         public IActionResult GetRuntimeStatus()
         {
-            var isReadOnly = _dbProvider is ISyncConnectionProvider syncProvider && syncProvider.IsReadOnlyMode;
-            var isLocalFirst = _dbProvider is ISyncConnectionProvider syncProv && syncProv.IsLocalFirstEnabled;
+            var syncProvider = _dbProvider as ISyncConnectionProvider;
+            var isLocalOnlyProduction = syncProvider?.IsLocalOnlyProduction == true;
+            var isReadOnly = syncProvider?.IsReadOnlyMode == true;
+            var isLocalFirst = syncProvider?.IsLocalFirstEnabled == true;
             
             string runtimeMode;
-            if (isReadOnly)
+            if (isLocalOnlyProduction)
+            {
+                runtimeMode = "LocalOnlyProduction";
+            }
+            else if (isReadOnly)
             {
                 runtimeMode = "OfflineReadOnly";
             }
@@ -77,6 +83,7 @@ namespace Api.Controllers
             {
                 isReadOnly,
                 isLocalFirst,
+                isLocalOnlyProduction,
                 runtimeMode,
                 selectedDatabase = _dbProvider.GetSelectedDatabaseId()
             });

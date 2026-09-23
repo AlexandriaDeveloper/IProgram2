@@ -41,16 +41,20 @@ namespace Auth.Infrastructure.Sync
         {
             ValidateDatabaseId(databaseId);
 
+            var isLocalOnlyProduction = _syncConnectionProvider.IsLocalOnlyProduction;
             var isReadOnly = _syncConnectionProvider.IsReadOnlyMode;
             var isLocalFirst = _syncConnectionProvider.IsLocalFirstEnabled;
-            string runtimeMode = isReadOnly ? "OfflineReadOnly" : (isLocalFirst ? "OfflineReadWritePilot" : "Online");
+            string runtimeMode = isLocalOnlyProduction
+                ? "LocalOnlyProduction"
+                : (isReadOnly ? "OfflineReadOnly" : (isLocalFirst ? "OfflineReadWritePilot" : "Online"));
 
             var dto = new LocalSyncStatusDto
             {
                 DatabaseId = databaseId,
                 RuntimeMode = runtimeMode,
                 IsReadOnly = isReadOnly,
-                IsLocalFirst = isLocalFirst
+                IsLocalFirst = isLocalFirst,
+                IsLocalOnlyProduction = isLocalOnlyProduction
             };
 
             var localConnStr = _syncConnectionProvider.GetLocalConnectionString(databaseId);
@@ -179,6 +183,11 @@ namespace Auth.Infrastructure.Sync
         public async Task<OnlineSyncStatusDto> CheckOnlineStatusAsync(string databaseId, CancellationToken cancellationToken = default)
         {
             ValidateDatabaseId(databaseId);
+
+            if (_syncConnectionProvider.IsLocalOnlyProduction)
+            {
+                throw new InvalidOperationException("ONLINE_CHECK_DISABLED_IN_LOCAL_ONLY_PRODUCTION: Online status check is disabled in LocalOnlyProduction mode.");
+            }
 
             var localStatus = await GetLocalStatusAsync(databaseId, cancellationToken);
 

@@ -384,6 +384,7 @@ namespace Auth.UnitTests
             public string GetManualSyncRemoteConnectionString(string databaseId) => _remoteConnStr;
             public bool IsReadOnlyMode => false;
             public bool IsLocalFirstEnabled => true;
+            public bool IsLocalOnlyProduction => false;
 
             public LocalDatabaseBinding GetLocalBinding(string databaseId) => LocalDatabaseBinding.For(databaseId);
             public AzureDatabaseBinding GetRemoteBinding(string databaseId) => AzureDatabaseBinding.For(databaseId);
