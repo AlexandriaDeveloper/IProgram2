@@ -171,6 +171,8 @@ namespace Auth.UnitTests
         [InlineData("POST", "/api/sync/pull")]
         [InlineData("POST", "/api/sync/push")]
         [InlineData("POST", "/api/sync/status/check-online")]
+        [InlineData("POST", "/api/migration/sync")]
+        [InlineData("POST", "/api/migration/pull")]
         public async Task ReadOnlyModeMiddleware_BlocksSyncEndpoints_InLocalOnlyProduction(string method, string path)
         {
             var config = CreateConfiguration();

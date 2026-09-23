@@ -64,11 +64,12 @@ namespace Auth.Api.Middleware
             {
                 if (path.StartsWith("/api/sync/pull", StringComparison.OrdinalIgnoreCase) ||
                     path.StartsWith("/api/sync/push", StringComparison.OrdinalIgnoreCase) ||
-                    path.StartsWith("/api/sync/status/check-online", StringComparison.OrdinalIgnoreCase))
+                    path.StartsWith("/api/sync/status/check-online", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/api/migration", StringComparison.OrdinalIgnoreCase))
                 {
                     var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
                     _logger.LogWarning(
-                        "Sync operation blocked in LocalOnlyProduction mode: {Method} {Path} (TraceId: {TraceId})",
+                        "Sync/migration operation blocked in LocalOnlyProduction mode: {Method} {Path} (TraceId: {TraceId})",
                         method, path, traceId);
 
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;

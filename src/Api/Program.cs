@@ -176,14 +176,14 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Enforce Read-Only Mode & Local-Only server-side guard
+app.UseMiddleware<Auth.Api.Middleware.ReadOnlyModeMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 // Output Cache MUST be placed after Authentication & Authorization
 app.UseOutputCache();
-
-// Enforce Read-Only Mode server-side guard
-app.UseMiddleware<Auth.Api.Middleware.ReadOnlyModeMiddleware>();
 
 if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
 {

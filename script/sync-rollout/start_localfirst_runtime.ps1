@@ -720,8 +720,25 @@ switch ($Action) {
         foreach ($k in $childEnv.Keys) {
             if (Test-Path "Env:\$k") {
                 $envSnapshot[$k] = [Environment]::GetEnvironmentVariable($k, "Process")
+            } else {
+                $envSnapshot[$k] = $null
             }
             [Environment]::SetEnvironmentVariable($k, $childEnv[$k], "Process")
+        }
+
+        # P0-1: In LocalOnlyProduction, explicitly scrub ManualSyncRemote from Process environment
+        # to guarantee the launched child process never inherits pre-existing shell/Process values.
+        # Windows User-scope stored values are never touched. Never logs/prints secret values.
+        $scrubbedRemoteKeys = @("ConnectionStrings__ManualSyncRemote2026", "ConnectionStrings__ManualSyncRemote2027")
+        if ($LocalOnlyProduction) {
+            foreach ($k in $scrubbedRemoteKeys) {
+                if (Test-Path "Env:\$k") {
+                    $envSnapshot[$k] = [Environment]::GetEnvironmentVariable($k, "Process")
+                    [Environment]::SetEnvironmentVariable($k, $null, "Process")
+                } else {
+                    $envSnapshot[$k] = $null
+                }
+            }
         }
 
         # 5. Artifact Identity & Verification (P0-7 & P0-B)
@@ -819,12 +836,8 @@ switch ($Action) {
             }
         } finally {
             # Restore parent process environment variables
-            foreach ($k in $childEnv.Keys) {
-                if ($envSnapshot.ContainsKey($k)) {
-                    [Environment]::SetEnvironmentVariable($k, $envSnapshot[$k], "Process")
-                } else {
-                    [Environment]::SetEnvironmentVariable($k, $null, "Process")
-                }
+            foreach ($k in $envSnapshot.Keys) {
+                [Environment]::SetEnvironmentVariable($k, $envSnapshot[$k], "Process")
             }
         }
     }

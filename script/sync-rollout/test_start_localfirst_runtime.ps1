@@ -591,6 +591,118 @@ VALUES ('2026', 'UPSERT', 'Daily', NEWID(), '{"Name":"Legitimate Offline Daily W
             throw "ManualSyncRemote must not be configured in LocalOnlyProduction mode"
         }
     }
+
+    # --- TEST 11: LocalOnlyProduction Child Credential Scrubbing & Lifecycle Isolation (P0-1) ---
+    Assert-Test "LocalOnlyProduction explicitly scrubs pre-existing Process-scope ManualSyncRemote credentials and keeps logs/state sanitized" {
+        $lifecyclePort = 5198
+        $testStateFile = [System.IO.Path]::GetTempFileName()
+        Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+
+        # A. Seed fake ManualSyncRemote credentials into parent Process environment BEFORE launch
+        $fakeRemoteSecret2026 = "Server=tcp:fake-azure-remote-2026.database.windows.net,1433;Database=IProgramDb2026;User ID=FakeAdmin2026;Password=P@ssw0rdFakeSecret2026!;"
+        $fakeRemoteSecret2027 = "Server=tcp:fake-azure-remote-2027.database.windows.net,1433;Database=IProgramDb2027;User ID=FakeAdmin2027;Password=P@ssw0rdFakeSecret2027!;"
+        
+        $priorUser2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "User")
+        $priorUser2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "User")
+
+        [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $fakeRemoteSecret2026, "Process")
+        [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $fakeRemoteSecret2027, "Process")
+
+        try {
+            # 1. Start LocalOnlyProduction runtime
+            $startRes = & $launcherScript Start `
+                -Port $lifecyclePort `
+                -LocalOnlyProduction `
+                -AllowIsolatedTestMode `
+                -SkipGitVerification `
+                -OverrideLocal2026ConnStr $fixtureConn2026 `
+                -OverrideLocal2027ConnStr $fixtureConn2027 `
+                -OverrideStateFilePath $testStateFile
+
+            if ($startRes.Status -ne "RUNNING") {
+                throw "Expected Status=RUNNING, got $($startRes.Status)"
+            }
+            $procPid = $startRes.Pid
+
+            # 2. Verify /health responds 200 OK
+            $healthResp = Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
+            if ($healthResp.StatusCode -ne 200) {
+                throw "Health check returned status code $($healthResp.StatusCode)"
+            }
+
+            # 3. Verify /api/account/runtime-status reports LocalOnlyProduction
+            $statusResp = Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/api/account/runtime-status" -Method Get -TimeoutSec 5 -UseBasicParsing
+            $statusJson = $statusResp.Content | ConvertFrom-Json
+            if ($statusJson.runtimeMode -ne "LocalOnlyProduction" -or -not $statusJson.isLocalOnlyProduction) {
+                throw "Runtime status mismatch: expected LocalOnlyProduction, got $($statusJson.runtimeMode)"
+            }
+
+            # 4. Prove child runtime cannot resolve/use manual sync (blocked at API layer)
+            $syncBlocked = $false
+            try {
+                Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/api/sync/pull" -Method Post -TimeoutSec 5 -UseBasicParsing
+            } catch {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+                if ($statusCode -eq 403) {
+                    $syncBlocked = $true
+                } else {
+                    Write-Host " [Unexpected Status: $statusCode] " -ForegroundColor Yellow
+                }
+            }
+            if (-not $syncBlocked) {
+                throw "Expected /api/sync/pull to return 403 Forbidden in LocalOnlyProduction!"
+            }
+
+            # 5. Stop Runtime
+            & $launcherScript Stop -Port $lifecyclePort -OverrideStateFilePath $testStateFile | Out-Null
+            Start-Sleep -Seconds 1
+
+            # 6. Verify Parent Process-scope environment was cleanly restored
+            $restoredProcess2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "Process")
+            $restoredProcess2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "Process")
+
+            if ($restoredProcess2026 -ne $fakeRemoteSecret2026 -or $restoredProcess2027 -ne $fakeRemoteSecret2027) {
+                throw "Parent process environment was not restored after launcher completed!"
+            }
+
+            # 7. Verify Windows User scope was NEVER modified or deleted
+            $currentUser2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "User")
+            $currentUser2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "User")
+            if ($currentUser2026 -ne $priorUser2026 -or $currentUser2027 -ne $priorUser2027) {
+                throw "Windows User environment was modified by launcher! User scope must remain untouched."
+            }
+
+            # 8. Verify neither fake secrets nor sensitive connection strings appear in logs or state files
+            $logsDir = Join-Path $PSScriptRoot "logs"
+            $matchingLogs = Get-ChildItem -Path $logsDir -Filter "*${lifecyclePort}*" -ErrorAction SilentlyContinue
+            foreach ($logFile in $matchingLogs) {
+                $content = Get-Content $logFile.FullName -Raw
+                if ($content -match "P@ssw0rdFakeSecret" -or $content -match "fake-azure-remote") {
+                    throw "SECURITY VIOLATION: Fake remote secret leaked into runtime log file $($logFile.FullName)!"
+                }
+            }
+
+            if (Test-Path $testStateFile) {
+                $stateContent = Get-Content $testStateFile -Raw
+                if ($stateContent -match "P@ssw0rdFakeSecret" -or $stateContent -match "fake-azure-remote") {
+                    throw "SECURITY VIOLATION: Fake remote secret leaked into runtime state file!"
+                }
+            }
+        } finally {
+            # Clean up parent process temporary fake secrets
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $null, "Process")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $null, "Process")
+
+            if (Test-Path $testStateFile) {
+                $remState = Get-RuntimeState $testStateFile
+                if ($remState -and $remState.pid) {
+                    $p = Get-Process -Id ([int]$remState.pid) -ErrorAction SilentlyContinue
+                    if ($p -and $p.ProcessName -ieq "dotnet") { $p | Stop-Process -Force -ErrorAction SilentlyContinue }
+                }
+                Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
 } finally {
     # Complete cleanup of transient fixture databases (P0-6)
     Remove-TestFixtureDatabases
