@@ -407,5 +407,46 @@ namespace Auth.UnitTests
 
             Assert.Contains("ONLINE_CHECK_DISABLED_IN_LOCAL_ONLY_PRODUCTION", ex.Message);
         }
+
+        // =========================================================================
+        // 7. Non-DB Outbound Network Zero-Remote Acceptance (File Storage / CDN)
+        // =========================================================================
+
+        [Fact]
+        public async Task LocalOnlyProduction_CloudinaryDownload_Uncached_ReturnsNull_ZeroOutboundHttp()
+        {
+            var config = CreateConfiguration(localOnlyProduction: true);
+            var service = new CloudinaryService(config);
+
+            // An uncached remote reference in LocalOnlyProduction must immediately return null without making any outbound HTTP/CDN call
+            var result = await service.DownloadFileStreamAsync("https://res.cloudinary.com/dummy/raw/authenticated/DailyReferences/uncached_remote.pdf", "DailyReferences");
+
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task LocalOnlyProduction_CloudinaryUpload_ThrowsOfflineWriteScopeException_ZeroOutboundHttp()
+        {
+            var config = CreateConfiguration(localOnlyProduction: true);
+            var service = new CloudinaryService(config);
+
+            using var ms = new MemoryStream(new byte[] { 1, 2, 3 });
+            var ex = await Assert.ThrowsAsync<OfflineWriteScopeException>(
+                () => service.UploadFileAsync(ms, "sample.pdf", "DailyReferences"));
+
+            Assert.Contains("رفع المرفقات إلى التخزين السحابي معطل في الوضع المحلي", ex.Message);
+        }
+
+        [Fact]
+        public async Task LocalOnlyProduction_CloudinaryDelete_ThrowsOfflineWriteScopeException_ZeroOutboundHttp()
+        {
+            var config = CreateConfiguration(localOnlyProduction: true);
+            var service = new CloudinaryService(config);
+
+            var ex = await Assert.ThrowsAsync<OfflineWriteScopeException>(
+                () => service.DeleteFileAsync("https://res.cloudinary.com/dummy/raw/authenticated/DailyReferences/sample.pdf", "DailyReferences"));
+
+            Assert.Contains("حذف المرفقات من التخزين السحابي معطل في الوضع المحلي", ex.Message);
+        }
     }
 }

@@ -90,11 +90,13 @@ namespace Auth.Infrastructure.Services
         {
             bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
             bool isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
+            bool isLocalOnlyProd = _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false) ||
+                                   string.Equals(_configuration.GetValue<string>("LocalFirst:Mode"), "LocalOnlyProduction", StringComparison.OrdinalIgnoreCase);
             if (isReadOnly)
             {
                 throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. رفع المرفقات معطل.");
             }
-            if (isLocalFirst)
+            if (isLocalFirst || isLocalOnlyProd)
             {
                 throw new Core.Exceptions.OfflineWriteScopeException("رفع المرفقات إلى التخزين السحابي معطل في الوضع المحلي.");
             }
@@ -221,12 +223,15 @@ namespace Auth.Infrastructure.Services
                     return (stream, "application/octet-stream", safeFileName);
                 }
 
-                // 2. Binary CDN Fallback Check:
+                // 2. Offline / Local-Only / Read-Only Guard:
+                // In LocalOnlyProduction, OfflineReadWritePilot, ReadOnlyMode, or when Cloudinary is not configured:
+                // ZERO outbound network / CDN / Cloudinary calls are allowed. Return null safely.
                 bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
-                bool isLocalOnlyProd = _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false);
-                bool allowFallback = _configuration.GetValue<bool>("LocalFirst:AllowCloudinaryFallback", isLocalOnlyProd);
+                bool isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
+                bool isLocalOnlyProd = _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false) ||
+                                       string.Equals(_configuration.GetValue<string>("LocalFirst:Mode"), "LocalOnlyProduction", StringComparison.OrdinalIgnoreCase);
 
-                if (isReadOnly || !allowFallback)
+                if (isReadOnly || isLocalFirst || isLocalOnlyProd || _cloudinary == null)
                 {
                     Console.WriteLine($"[INFO] Offline/Local mode: Remote attachment '{safeFileName}' is not cached locally; omitting outbound request.");
                     return null;
@@ -296,11 +301,13 @@ namespace Auth.Infrastructure.Services
         {
             bool isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
             bool isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
+            bool isLocalOnlyProd = _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false) ||
+                                   string.Equals(_configuration.GetValue<string>("LocalFirst:Mode"), "LocalOnlyProduction", StringComparison.OrdinalIgnoreCase);
             if (isReadOnly)
             {
                 throw new Core.Exceptions.ReadOnlyModeException("النظام يعمل حالياً في وضع القراءة المحلية فقط. حذف المرفقات معطل.");
             }
-            if (isLocalFirst)
+            if (isLocalFirst || isLocalOnlyProd)
             {
                 throw new Core.Exceptions.OfflineWriteScopeException("حذف المرفقات من التخزين السحابي معطل في الوضع المحلي.");
             }
