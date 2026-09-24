@@ -30,6 +30,9 @@ namespace Auth.Infrastructure.Services
         public bool IsLocalOnlyProduction =>
             _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false) ||
             string.Equals(_configuration.GetValue<string>("LocalFirst:Mode"), "LocalOnlyProduction", StringComparison.OrdinalIgnoreCase);
+        public bool IsLocalOnlyChangeCaptureEnabled =>
+            _configuration.GetValue<bool>("Sync:LocalOnlyChangeCaptureEnabled", false) ||
+            _configuration.GetValue<bool>("LocalFirst:LocalOnlyChangeCaptureEnabled", false);
 
         public string GetSelectedDatabaseId()
         {

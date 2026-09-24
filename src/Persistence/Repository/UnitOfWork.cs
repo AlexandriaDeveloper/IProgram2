@@ -12,6 +12,8 @@ using Core.Exceptions;
 using Core.Interfaces;
 using Core.Models;
 using Core.Models.Sync;
+using Core.Sync.Registry;
+using Core.Sync.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
@@ -50,7 +52,16 @@ namespace Persistence.Repository
             if (_dbConnectionProvider is ISyncConnectionProvider localProdProvider &&
                 localProdProvider.IsLocalOnlyProduction)
             {
-                return await _context.SaveChangesAsync(cancellationToken);
+                var isChangeCaptureEnabled = localProdProvider.IsLocalOnlyChangeCaptureEnabled ||
+                                             _configuration?.GetValue<bool>("Sync:LocalOnlyChangeCaptureEnabled", false) == true ||
+                                             _configuration?.GetValue<bool>("LocalFirst:LocalOnlyChangeCaptureEnabled", false) == true;
+
+                if (!isChangeCaptureEnabled)
+                {
+                    return await _context.SaveChangesAsync(cancellationToken);
+                }
+
+                return await SaveChangesInLocalOnlyCaptureAsync(localProdProvider, cancellationToken);
             }
 
             // 1. OfflineReadWritePilot mode: coordinate transactional outbox
@@ -1123,6 +1134,10 @@ namespace Persistence.Repository
             bool isDelete = m.OperationType == "SOFT_DELETE" || m.OperationType == "HARD_DELETE";
             if (isDelete)
             {
+                if (SyncEntityRegistry.Instance.TryGetDescriptor(m.EntityType, out var desc) && desc != null)
+                {
+                    return desc.ReverseDeleteRank;
+                }
                 return m.EntityType switch
                 {
                     "FormDetails" => 10,
@@ -1131,6 +1146,10 @@ namespace Persistence.Repository
                     _ => 40
                 };
             }
+            if (SyncEntityRegistry.Instance.TryGetDescriptor(m.EntityType, out var d) && d != null)
+            {
+                return d.TopologicalRank;
+            }
             return m.EntityType switch
             {
                 "Daily" => 100,
@@ -1138,6 +1157,242 @@ namespace Persistence.Repository
                 "FormDetails" => 120,
                 _ => 130
             };
+        }
+
+        private async Task<int> SaveChangesInLocalOnlyCaptureAsync(
+            ISyncConnectionProvider syncProvider,
+            CancellationToken cancellationToken)
+        {
+            var registry = SyncEntityRegistry.Instance;
+            var serializer = GenericOutboxPayloadSerializer.Default;
+
+            // 1. Detect and validate all tracked entries
+            var trackedEntries = _context.ChangeTracker.Entries()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted)
+                .ToList();
+
+            if (!trackedEntries.Any())
+            {
+                return 0;
+            }
+
+            var capturedMutations = new List<CapturedOfflineMutation>();
+
+            foreach (var entry in trackedEntries)
+            {
+                // Hard delete is strictly forbidden when change capture is active
+                if (entry.State == EntityState.Deleted)
+                {
+                    throw new InvalidOperationException(
+                        $"HARD_DELETE_FORBIDDEN: Hard delete is forbidden for '{entry.Metadata.ClrType.Name}' when change capture is active. Use soft-delete (IsActive = false).");
+                }
+
+                if (entry.Entity is ISyncableEntity syncableEntity)
+                {
+                    if (!registry.TryGetDescriptor(syncableEntity.GetType(), out var descriptor) || descriptor == null)
+                    {
+                        throw new InvalidOperationException(
+                            $"UNREGISTERED_SYNC_ENTITY: Entity type '{syncableEntity.GetType().Name}' is not registered in SyncEntityRegistry.");
+                    }
+
+                    if (entry.State == EntityState.Added)
+                    {
+                        if (syncableEntity.SyncId == Guid.Empty)
+                        {
+                            syncableEntity.SyncId = Guid.NewGuid();
+                        }
+
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = syncableEntity,
+                            EntityType = descriptor.EntityType,
+                            AggregateType = descriptor.EntityType,
+                            OperationType = "INSERT",
+                            CommandName = $"{descriptor.EntityType}.Insert",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = syncableEntity.SyncId
+                        });
+                    }
+                    else if (entry.State == EntityState.Modified)
+                    {
+                        var syncIdProp = entry.Property(nameof(ISyncableEntity.SyncId));
+                        if (syncIdProp.IsModified && !Equals(syncIdProp.OriginalValue, syncIdProp.CurrentValue))
+                        {
+                            throw new InvalidOperationException(
+                                $"SYNC_ID_IMMUTABLE: SyncId is immutable and cannot be modified on '{descriptor.EntityType}'.");
+                        }
+
+                        bool isSoftDelete = false;
+                        var isActiveProp = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "IsActive");
+                        if (isActiveProp != null && isActiveProp.OriginalValue is true && Equals(isActiveProp.CurrentValue, false))
+                        {
+                            isSoftDelete = true;
+                        }
+
+                        capturedMutations.Add(new CapturedOfflineMutation
+                        {
+                            Entity = syncableEntity,
+                            EntityType = descriptor.EntityType,
+                            AggregateType = descriptor.EntityType,
+                            OperationType = isSoftDelete ? "SOFT_DELETE" : "UPDATE",
+                            CommandName = isSoftDelete ? $"{descriptor.EntityType}.SoftDelete" : $"{descriptor.EntityType}.Update",
+                            ClientOperationId = Guid.NewGuid(),
+                            EntitySyncId = syncableEntity.SyncId
+                        });
+                    }
+                }
+            }
+
+            // 2. Coordinate atomic transaction: business save + LocalOutbox inserts
+            var strategy = _context.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                using var scope = LocalWriteScopeContext.BeginScope();
+                await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    var dbConnection = _context.Database.GetDbConnection();
+                    if (dbConnection.State != ConnectionState.Open)
+                    {
+                        await dbConnection.OpenAsync(cancellationToken);
+                    }
+                    var dbTransaction = transaction.GetDbTransaction();
+                    var databaseId = syncProvider.GetSelectedDatabaseId();
+                    if (string.IsNullOrWhiteSpace(databaseId))
+                    {
+                        throw new InvalidDatabaseSelectionException("Canonical database ID is missing for outbox coordination.");
+                    }
+
+                    // Query LocalState for deviceId and lastServerVersion
+                    var (deviceId, lastServerVersion) = await LockAndValidateLocalStateForOfflineWriteAsync(
+                        dbConnection, dbTransaction, databaseId, cancellationToken);
+
+                    // Step 1: Save business changes without accepting changes yet
+                    var saveResult = await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken);
+
+                    // Step 2: Sort mutations in deterministic topological dependency order
+                    var orderedMutations = capturedMutations
+                        .OrderBy(GetOfflineMutationTopologicalRank)
+                        .ToList();
+
+                    var previousMaxCreatedAtUtc = await GetMaxOutboxCreatedAtUtcAsync(
+                        dbConnection, dbTransaction, databaseId, cancellationToken);
+                    var now = DateTime.UtcNow;
+                    var minAllowed = previousMaxCreatedAtUtc.HasValue
+                        ? previousMaxCreatedAtUtc.Value.Add(MonotonicQueueIncrement)
+                        : DateTime.MinValue;
+                    var baseTimestamp = now > minAllowed ? now : minAllowed;
+
+                    for (int i = 0; i < orderedMutations.Count; i++)
+                    {
+                        var mutation = orderedMutations[i];
+                        var operationTimestamp = baseTimestamp.AddTicks(i * MonotonicQueueIncrement.Ticks);
+                        var descriptor = registry.GetDescriptor(mutation.EntityType);
+
+                        // Resolve parent SyncIds for any foreign keys
+                        var resolvedParents = new Dictionary<string, Guid?>(StringComparer.Ordinal);
+                        foreach (var dep in descriptor.ParentDependencies)
+                        {
+                            var parentSyncId = await ResolveParentSyncIdAsync(
+                                mutation.Entity, dep, dbConnection, dbTransaction, cancellationToken);
+                            resolvedParents[dep.ParentSyncIdPropertyName] = parentSyncId;
+                        }
+
+                        var payloadJson = serializer.SerializeDeterministicEnvelope(
+                            operationType: mutation.OperationType,
+                            databaseId: databaseId,
+                            deviceId: deviceId,
+                            baseServerVersion: lastServerVersion,
+                            entity: (ISyncableEntity)mutation.Entity,
+                            parentSyncIds: resolvedParents,
+                            timestampUtc: operationTimestamp);
+
+                        await InsertOutboxRecordAsync(
+                            dbConnection: dbConnection,
+                            dbTransaction: dbTransaction,
+                            clientOperationId: mutation.ClientOperationId,
+                            databaseId: databaseId,
+                            aggregateType: mutation.AggregateType,
+                            commandName: mutation.CommandName,
+                            entitySyncId: mutation.EntitySyncId,
+                            payloadJson: payloadJson,
+                            createdAtUtc: operationTimestamp,
+                            cancellationToken: cancellationToken);
+                    }
+
+                    await transaction.CommitAsync(cancellationToken);
+                    _context.ChangeTracker.AcceptAllChanges();
+                    return saveResult;
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw;
+                }
+            });
+        }
+
+        private async Task<Guid?> ResolveParentSyncIdAsync(
+            object entity,
+            SyncParentDependency dep,
+            DbConnection connection,
+            DbTransaction transaction,
+            CancellationToken ct)
+        {
+            var entityType = entity.GetType();
+            var fkProp = entityType.GetProperty(dep.ForeignKeyPropertyName);
+            if (fkProp == null) return null;
+
+            var fkValue = fkProp.GetValue(entity);
+            if (fkValue == null) return null;
+
+            var parentDescriptor = SyncEntityRegistry.Instance.GetDescriptor(dep.ParentEntityType);
+
+            // 1. Check if parent entity is tracked in ChangeTracker
+            foreach (var entry in _context.ChangeTracker.Entries())
+            {
+                if (entry.Entity.GetType() == parentDescriptor.ClrType && entry.Entity is ISyncableEntity parentSyncable)
+                {
+                    if (dep.UsesNaturalKey && !string.IsNullOrWhiteSpace(dep.NaturalKeyPropertyName))
+                    {
+                        var naturalProp = entry.Entity.GetType().GetProperty(dep.NaturalKeyPropertyName);
+                        if (naturalProp != null && Equals(naturalProp.GetValue(entry.Entity), fkValue))
+                        {
+                            return parentSyncable.SyncId;
+                        }
+                    }
+                    else
+                    {
+                        var idProp = entry.Entity.GetType().GetProperty("Id");
+                        if (idProp != null && Equals(idProp.GetValue(entry.Entity), fkValue))
+                        {
+                            return parentSyncable.SyncId;
+                        }
+                    }
+                }
+            }
+
+            // 2. Query parent table in database
+            await using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            var keyCol = dep.UsesNaturalKey && !string.IsNullOrWhiteSpace(dep.NaturalKeyPropertyName)
+                ? dep.NaturalKeyPropertyName
+                : "Id";
+            cmd.CommandText = $"SELECT SyncId FROM [{parentDescriptor.SchemaName}].[{parentDescriptor.TableName}] WHERE [{keyCol}] = @FkVal;";
+            AddParam(cmd, "@FkVal", fkValue);
+            var scalar = await cmd.ExecuteScalarAsync(ct);
+            if (scalar != null && scalar != DBNull.Value && scalar is Guid g && g != Guid.Empty)
+            {
+                return g;
+            }
+
+            if (dep.IsRequired)
+            {
+                throw new InvalidOperationException(
+                    $"PARENT_SYNC_ID_UNRESOLVABLE: Required parent '{dep.ParentEntityType}' with key '{fkValue}' could not be resolved for child entity '{entity.GetType().Name}'.");
+            }
+
+            return null;
         }
 
         private sealed class CapturedOfflineMutation
