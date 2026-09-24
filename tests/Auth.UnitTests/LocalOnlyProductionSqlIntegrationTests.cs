@@ -246,10 +246,17 @@ namespace Auth.UnitTests
                             [CommandName] NVARCHAR(100) NOT NULL,
                             [EntitySyncId] UNIQUEIDENTIFIER NOT NULL,
                             [PayloadJson] NVARCHAR(MAX) NOT NULL,
+                            [CreatedAtUtc] DATETIME2 NOT NULL,
                             [Status] NVARCHAR(20) NOT NULL,
-                            [AttemptCount] INT NOT NULL,
-                            [CreatedAtUtc] DATETIME2 NOT NULL
+                            [RetryCount] INT NOT NULL,
+                            [LastError] NVARCHAR(MAX) NULL,
+                            [CompletedAtUtc] DATETIME2 NULL,
+                            [LockedUntilUtc] DATETIME2 NULL,
+                            [LockToken] UNIQUEIDENTIFIER NULL
                         );
+
+                        INSERT INTO [sync].[LocalState] ([DatabaseId], [DeviceId], [DeviceName], [LastServerVersion])
+                        VALUES ('2026', NEWID(), 'TestDevice', 10);
 
                         CREATE TABLE [sync].[ServerChangeFeed] (
                             [FeedId] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -858,5 +865,170 @@ namespace Auth.UnitTests
             var disallowed = records.Where(r => !r.Allowed || !r.IsLocal || r.IsFallbackEndpoint).ToList();
             Assert.Empty(disallowed);
         }
+
+        [Fact]
+        public async Task Test08_ChangeCaptureEnabled_AtomicallyCommitsBusinessAndOutboxRecords()
+        {
+            await using var fixture = await LocalOnlyFixtureContext.CreateAsync();
+
+            var configDict = new Dictionary<string, string?>
+            {
+                { "LocalFirst:Enabled", "true" },
+                { "LocalFirst:ReadOnlyMode", "false" },
+                { "LocalFirst:LocalOnlyProduction", "true" },
+                { "Sync:LocalOnlyChangeCaptureEnabled", "true" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(configDict).Build();
+
+            var mockProvider = new Mock<ISyncConnectionProvider>();
+            mockProvider.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            mockProvider.Setup(p => p.IsReadOnlyMode).Returns(false);
+            mockProvider.Setup(p => p.IsLocalOnlyProduction).Returns(true);
+            mockProvider.Setup(p => p.IsLocalOnlyChangeCaptureEnabled).Returns(true);
+            mockProvider.Setup(p => p.GetSelectedDatabaseId()).Returns("2026");
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(fixture.LocalConnStr)
+                .Options;
+
+            var deptSyncId = Guid.NewGuid();
+            var dailySyncId = Guid.NewGuid();
+
+            await using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, mockProvider.Object, configuration: config);
+
+                var dept = new Department
+                {
+                    Name = "Atomic Capture Department",
+                    SyncId = deptSyncId,
+                    IsActive = true
+                };
+                var daily = new Daily
+                {
+                    Name = "Atomic Daily",
+                    DailyDate = DateTime.UtcNow,
+                    SyncId = dailySyncId,
+                    IsActive = true
+                };
+
+                context.Departments.Add(dept);
+                context.Set<Daily>().Add(daily);
+
+                var saved = await uow.SaveChangesAsync();
+                Assert.True(saved >= 2);
+            }
+
+            // Verify physical SQL state: both business rows and LocalOutbox records committed atomically
+            await using (var conn = new SqlConnection(fixture.LocalConnStr))
+            {
+                await conn.OpenAsync();
+
+                // 1. Verify business tables
+                await using var cmdDept = conn.CreateCommand();
+                cmdDept.CommandText = "SELECT COUNT(*) FROM [dbo].[Departments] WHERE [SyncId] = @SyncId;";
+                cmdDept.Parameters.AddWithValue("@SyncId", deptSyncId);
+                var deptCount = (int)await cmdDept.ExecuteScalarAsync();
+                Assert.Equal(1, deptCount);
+
+                await using var cmdDaily = conn.CreateCommand();
+                cmdDaily.CommandText = "SELECT COUNT(*) FROM [dbo].[Daily] WHERE [SyncId] = @SyncId;";
+                cmdDaily.Parameters.AddWithValue("@SyncId", dailySyncId);
+                var dailyCount = (int)await cmdDaily.ExecuteScalarAsync();
+                Assert.Equal(1, dailyCount);
+
+                // 2. Verify [sync].[LocalOutbox] rows
+                await using var cmdOutbox = conn.CreateCommand();
+                cmdOutbox.CommandText = @"
+                    SELECT [AggregateType], [CommandName], [EntitySyncId], [Status], [PayloadJson]
+                    FROM [sync].[LocalOutbox]
+                    WHERE [DatabaseId] = '2026'
+                    ORDER BY [CreatedAtUtc] ASC;";
+                await using var reader = await cmdOutbox.ExecuteReaderAsync();
+
+                var outboxRecords = new List<(string AggType, string Cmd, Guid SyncId, string Status, string Payload)>();
+                while (await reader.ReadAsync())
+                {
+                    outboxRecords.Add((
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetGuid(2),
+                        reader.GetString(3),
+                        reader.GetString(4)
+                    ));
+                }
+
+                Assert.Equal(2, outboxRecords.Count);
+                Assert.All(outboxRecords, r => Assert.Equal("PENDING", r.Status));
+
+                // Department (rank 0) and Daily (rank 0)
+                var outboxSyncIds = outboxRecords.Select(r => r.SyncId).ToHashSet();
+                Assert.Contains(deptSyncId, outboxSyncIds);
+                Assert.Contains(dailySyncId, outboxSyncIds);
+
+                foreach (var rec in outboxRecords)
+                {
+                    Assert.Contains("INSERT", rec.Payload);
+                    Assert.Contains(rec.SyncId.ToString(), rec.Payload);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Test09_ChangeCaptureEnabled_OutboxFailureRollsBackBusinessWrites()
+        {
+            await using var fixture = await LocalOnlyFixtureContext.CreateAsync();
+
+            var configDict = new Dictionary<string, string?>
+            {
+                { "LocalFirst:Enabled", "true" },
+                { "LocalFirst:ReadOnlyMode", "false" },
+                { "LocalFirst:LocalOnlyProduction", "true" },
+                { "Sync:LocalOnlyChangeCaptureEnabled", "true" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(configDict).Build();
+
+            // Provide invalid/unsupported databaseId so LocalState query fails or throws
+            var mockProvider = new Mock<ISyncConnectionProvider>();
+            mockProvider.Setup(p => p.IsLocalFirstEnabled).Returns(true);
+            mockProvider.Setup(p => p.IsReadOnlyMode).Returns(false);
+            mockProvider.Setup(p => p.IsLocalOnlyProduction).Returns(true);
+            mockProvider.Setup(p => p.IsLocalOnlyChangeCaptureEnabled).Returns(true);
+            mockProvider.Setup(p => p.GetSelectedDatabaseId()).Returns("9999"); // Missing in LocalState!
+
+            var options = new DbContextOptionsBuilder<ApplicationContext>()
+                .UseSqlServer(fixture.LocalConnStr)
+                .Options;
+
+            var deptSyncId = Guid.NewGuid();
+
+            await using (var context = new ApplicationContext(options))
+            {
+                var uow = new UnitOfWork(context, mockProvider.Object, configuration: config);
+
+                var dept = new Department
+                {
+                    Name = "Rollback Department",
+                    SyncId = deptSyncId,
+                    IsActive = true
+                };
+                context.Departments.Add(dept);
+
+                // Outbox coordination should fail because LocalState row for '9999' is absent
+                await Assert.ThrowsAnyAsync<Exception>(() => uow.SaveChangesAsync());
+            }
+
+            // Verify business table: Department must NOT exist in the database (rolled back)
+            await using (var conn = new SqlConnection(fixture.LocalConnStr))
+            {
+                await conn.OpenAsync();
+                await using var cmdDept = conn.CreateCommand();
+                cmdDept.CommandText = "SELECT COUNT(*) FROM [dbo].[Departments] WHERE [SyncId] = @SyncId;";
+                cmdDept.Parameters.AddWithValue("@SyncId", deptSyncId);
+                var deptCount = (int)await cmdDept.ExecuteScalarAsync();
+                Assert.Equal(0, deptCount);
+            }
+        }
     }
 }
+

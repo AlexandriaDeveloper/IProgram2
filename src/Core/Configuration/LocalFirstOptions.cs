@@ -9,6 +9,7 @@ namespace Core.Configuration
         public bool Enabled { get; set; } = false;
         public bool ReadOnlyMode { get; set; } = false;
         public bool LocalOnlyProduction { get; set; } = false;
+        public bool LocalOnlyChangeCaptureEnabled { get; set; } = false;
         public string Mode { get; set; } = string.Empty;
         public string SqlServerInstance { get; set; } = "localhost";
         public List<LocalDatabaseConfigItem> Databases { get; set; } = new List<LocalDatabaseConfigItem>();
