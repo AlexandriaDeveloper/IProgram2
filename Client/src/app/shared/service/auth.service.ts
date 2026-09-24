@@ -15,7 +15,7 @@ export class AuthService {
   apiUrl = environment.apiUrl;
   currentUserSig = signal<any | undefined | null>(null);
   userRoles = signal<string[]>([]);
-  runtimeStatusSig = signal<{ isReadOnly: boolean; isLocalFirst: boolean; runtimeMode: string; selectedDatabase: string } | null>(null);
+  runtimeStatusSig = signal<{ isReadOnly: boolean; isLocalFirst: boolean; isLocalOnlyProduction?: boolean; runtimeMode: string; selectedDatabase: string } | null>(null);
   constructor() {
     const userString = localStorage.getItem('user');
     const token = localStorage.getItem('token');

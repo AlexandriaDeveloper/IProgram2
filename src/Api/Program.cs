@@ -176,14 +176,14 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Enforce Read-Only Mode & Local-Only server-side guard
+app.UseMiddleware<Auth.Api.Middleware.ReadOnlyModeMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 // Output Cache MUST be placed after Authentication & Authorization
 app.UseOutputCache();
-
-// Enforce Read-Only Mode server-side guard
-app.UseMiddleware<Auth.Api.Middleware.ReadOnlyModeMiddleware>();
 
 if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
 {
@@ -193,7 +193,7 @@ if (app.Configuration.GetValue<bool>("LegacyMigration:Enabled", false))
 // Health check endpoint (application liveness)
 app.MapHealthChecks("/health");
 
-if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2E:DiagnosticsEnabled", false))
+if (app.Configuration.GetValue<bool>("E2E:DiagnosticsEnabled", false))
 {
     // Double-guarded diagnostic endpoint for E2E runtime DB safety verification (disabled in normal runtimes)
     app.MapGet("/api/diagnostics/e2e-db-safety", (IConfiguration configuration) =>

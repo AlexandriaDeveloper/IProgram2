@@ -7,6 +7,7 @@ namespace Core.Interfaces
     {
         bool IsLocalFirstEnabled { get; }
         bool IsReadOnlyMode { get; }
+        bool IsLocalOnlyProduction { get; }
         string GetLocalConnectionString(string databaseId);
         string GetRemoteConnectionString(string databaseId);
         string GetManualSyncRemoteConnectionString(string databaseId);

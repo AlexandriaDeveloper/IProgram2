@@ -52,6 +52,45 @@ namespace Auth.Api.Middleware
         {
             var isLocalFirst = _configuration.GetValue<bool>("LocalFirst:Enabled", false);
             var isReadOnly = _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
+            var isLocalOnlyProduction = _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false) ||
+                                       string.Equals(_configuration.GetValue<string>("LocalFirst:Mode"), "LocalOnlyProduction", StringComparison.OrdinalIgnoreCase);
+
+            var method = context.Request.Method;
+            var path = context.Request.Path.Value?.TrimEnd('/') ?? "";
+
+            // In LocalOnlyProduction mode: all normal business operations run unhindered;
+            // only sync trigger operations (Pull / Push / CheckOnline) are blocked fail-closed.
+            if (isLocalOnlyProduction)
+            {
+                if (path.StartsWith("/api/sync/pull", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/api/sync/push", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/api/sync/check-online", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/api/sync/status/check-online", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWith("/api/migration", StringComparison.OrdinalIgnoreCase))
+                {
+                    var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+                    _logger.LogWarning(
+                        "Sync/migration operation blocked in LocalOnlyProduction mode: {Method} {Path} (TraceId: {TraceId})",
+                        method, path, traceId);
+
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/json; charset=utf-8";
+
+                    var responsePayload = new
+                    {
+                        statusCode = StatusCodes.Status403Forbidden,
+                        message = "عمليات المزامنة مع السحابة معطلة تماماً في وضع التشغيل المحلي الكامل (Local-Only Production). قاعدة البيانات المحلية هي مصدر الحقيقة الوحيد.",
+                        code = "SYNC_DISABLED_IN_LOCAL_ONLY_PRODUCTION",
+                        traceId
+                    };
+
+                    await context.Response.WriteAsJsonAsync(responsePayload);
+                    return;
+                }
+
+                await _next(context);
+                return;
+            }
 
             // Online mode: unhindered
             if (!isLocalFirst && !isReadOnly)
@@ -59,9 +98,6 @@ namespace Auth.Api.Middleware
                 await _next(context);
                 return;
             }
-
-            var method = context.Request.Method;
-            var path = context.Request.Path.Value?.TrimEnd('/') ?? "";
 
             // 1. Block mutating GET routes (e.g. archiving/copying forms) in OfflineReadOnly mode
             if (isReadOnly && path.StartsWith("/api/form/copyformtoarchive", StringComparison.OrdinalIgnoreCase))

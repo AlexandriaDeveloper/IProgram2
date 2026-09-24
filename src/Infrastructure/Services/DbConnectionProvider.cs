@@ -27,6 +27,9 @@ namespace Auth.Infrastructure.Services
 
         public bool IsLocalFirstEnabled => _configuration.GetValue<bool>("LocalFirst:Enabled", false);
         public bool IsReadOnlyMode => _configuration.GetValue<bool>("LocalFirst:ReadOnlyMode", false);
+        public bool IsLocalOnlyProduction =>
+            _configuration.GetValue<bool>("LocalFirst:LocalOnlyProduction", false) ||
+            string.Equals(_configuration.GetValue<string>("LocalFirst:Mode"), "LocalOnlyProduction", StringComparison.OrdinalIgnoreCase);
 
         public string GetSelectedDatabaseId()
         {
@@ -57,6 +60,11 @@ namespace Auth.Infrastructure.Services
 
         public string GetRemoteConnectionString(string databaseId)
         {
+            if (IsLocalOnlyProduction)
+            {
+                throw new InvalidOperationException("AZURE_REMOTE_DISABLED_IN_LOCAL_ONLY_PRODUCTION: Remote connection resolution is forbidden in LocalOnlyProduction mode.");
+            }
+
             if (string.IsNullOrWhiteSpace(databaseId))
             {
                 throw new InvalidDatabaseSelectionException("Canonical database ID is required.");
@@ -87,6 +95,11 @@ namespace Auth.Infrastructure.Services
 
         public string GetManualSyncRemoteConnectionString(string databaseId)
         {
+            if (IsLocalOnlyProduction)
+            {
+                throw new InvalidOperationException("MANUAL_SYNC_REMOTE_DISABLED_IN_LOCAL_ONLY_PRODUCTION: Manual sync remote connection resolution is forbidden in LocalOnlyProduction mode.");
+            }
+
             if (string.IsNullOrWhiteSpace(databaseId))
             {
                 throw new InvalidDatabaseSelectionException("Canonical database ID is required.");
@@ -306,7 +319,7 @@ namespace Auth.Infrastructure.Services
                     throw new InvalidDatabaseSelectionException($"Invalid database selection '{candidate}' from source '{selectorSource}'.");
                 }
 
-                bool routeToLocal = IsLocalFirstEnabled || IsReadOnlyMode;
+                bool routeToLocal = IsLocalFirstEnabled || IsReadOnlyMode || IsLocalOnlyProduction;
                 string resolvedConnStr;
                 string connStrName;
 
@@ -332,7 +345,7 @@ namespace Auth.Infrastructure.Services
             {
                 // No explicit selector provided: resolve to default configured database (first item)
                 var defaultDb = databases[0];
-                bool routeToLocal = IsLocalFirstEnabled || IsReadOnlyMode;
+                bool routeToLocal = IsLocalFirstEnabled || IsReadOnlyMode || IsLocalOnlyProduction;
                 string resolvedConnStr;
                 string connStrName;
 

@@ -37,6 +37,9 @@ export class AppComponent implements OnInit {
 
   @HostListener('window:beforeunload', ['$event'])
   onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.auth.runtimeStatusSig()?.runtimeMode === 'LocalOnlyProduction' || this.auth.runtimeStatusSig()?.isLocalOnlyProduction) {
+      return;
+    }
     const pending = this.syncService.pendingCount();
     if (pending > 0) {
       // Browser generic warning only. Strictly ZERO network execution or auto-push.

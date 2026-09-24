@@ -71,9 +71,15 @@ EXEC('CREATE SCHEMA [sync]');
 
 CREATE TABLE [sync].[BootstrapManifest] (
     Id INT IDENTITY(1,1) PRIMARY KEY,
+    DatabaseId NVARCHAR(50) NOT NULL,
+    BootstrapTimestampUtc DATETIME2 NOT NULL,
+    AzureServerSource NVARCHAR(MAX) NULL,
+    TargetLocalEngine NVARCHAR(100) NULL,
+    MigrationHistoryHash NVARCHAR(MAX) NULL,
+    TableCheckJson NVARCHAR(MAX) NULL,
+    IdentityCheckJson NVARCHAR(MAX) NULL,
     Status NVARCHAR(50) NOT NULL,
-    IsWriteAllowed BIT NOT NULL,
-    CreatedAtUtc DATETIME2 NOT NULL
+    IsWriteAllowed BIT NOT NULL
 );
 
 CREATE TABLE [sync].[LocalState] (
@@ -124,7 +130,9 @@ CREATE TABLE [dbo].[AspNetUsers] (
     TwoFactorEnabled BIT NOT NULL DEFAULT 0,
     LockoutEnd DATETIMEOFFSET NULL,
     LockoutEnabled BIT NOT NULL DEFAULT 0,
-    AccessFailedCount INT NOT NULL DEFAULT 0
+    AccessFailedCount INT NOT NULL DEFAULT 0,
+    DisplayName NVARCHAR(MAX) NULL,
+    DisplayImage NVARCHAR(MAX) NULL
 );
 
 CREATE TABLE [dbo].[AspNetRoles] (
@@ -134,10 +142,32 @@ CREATE TABLE [dbo].[AspNetRoles] (
     ConcurrencyStamp NVARCHAR(MAX) NULL
 );
 
-INSERT INTO [sync].[BootstrapManifest] (Status, IsWriteAllowed, CreatedAtUtc) VALUES ('VERIFIED_READY', 1, SYSUTCDATETIME());
+CREATE TABLE [dbo].[AspNetUserRoles] (
+    UserId NVARCHAR(450) NOT NULL,
+    RoleId NVARCHAR(450) NOT NULL,
+    PRIMARY KEY (UserId, RoleId)
+);
+
+CREATE TABLE [dbo].[Departments] (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    Name NVARCHAR(200) NOT NULL,
+    CreatedBy NVARCHAR(100) NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT(SYSUTCDATETIME()),
+    UpdatedBy NVARCHAR(100) NULL,
+    UpdatedAt DATETIME2 NULL,
+    DeactivatedBy NVARCHAR(100) NULL,
+    DeactivatedAt DATETIME2 NULL,
+    IsActive BIT NOT NULL DEFAULT(1),
+    SyncId UNIQUEIDENTIFIER NOT NULL DEFAULT(NEWID())
+);
+
+INSERT INTO [sync].[BootstrapManifest] (DatabaseId, BootstrapTimestampUtc, AzureServerSource, TargetLocalEngine, MigrationHistoryHash, TableCheckJson, IdentityCheckJson, Status, IsWriteAllowed) 
+VALUES ('$yr', SYSUTCDATETIME(), 'tcp:azure-simulated', 'SQLSERVER2014', 'hash', '{}', '{}', 'VERIFIED_READY', 1);
 INSERT INTO [sync].[LocalState] (DatabaseId, LastServerVersion, ActiveLeaseToken, LeaseExpiresAtUtc) VALUES ('$yr', 8, NULL, NULL);
-INSERT INTO [dbo].[AspNetUsers] (Id, UserName, NormalizedUserName) VALUES ('test-user-id-$yr', 'testuser', 'TESTUSER');
+INSERT INTO [dbo].[AspNetUsers] (Id, UserName, NormalizedUserName, Email, NormalizedEmail, PasswordHash, DisplayName) 
+VALUES ('test-user-id-$yr', 'testuser', 'TESTUSER', 'testuser@fixture.local', 'TESTUSER@FIXTURE.LOCAL', 'AQAAAAIAAYagAAAAEMUIUHhw8S3f5vPsBwMjNU0azayVE+dfYmaO0VEy6QN9o8OcZ9RIMvvjoV/kmzj73w==', 'Test User $yr');
 INSERT INTO [dbo].[AspNetRoles] (Id, Name, NormalizedName) VALUES ('admin-role-id-$yr', 'Admin', 'ADMIN');
+INSERT INTO [dbo].[AspNetUserRoles] (UserId, RoleId) VALUES ('test-user-id-$yr', 'admin-role-id-$yr');
 INSERT INTO [dbo].[Daily] (SyncId, Name, DailyDate, Closed, IsActive) VALUES (NEWID(), 'Fixture Daily $yr', SYSUTCDATETIME(), 0, 1);
 "@
             $cmd.ExecuteNonQuery() | Out-Null
@@ -551,6 +581,392 @@ VALUES ('2026', 'UPSERT', 'Daily', NEWID(), '{"Name":"Legitimate Offline Daily W
         $testDll = Assert-LocalReleaseArtifact -RepoRoot $repoRoot -IsTestMode $true
         if ($testDll -ne $builtDll) {
             throw "Test mode artifact mismatch"
+        }
+    }
+
+    # --- TEST 10: LocalOnlyProduction Child Environment Composition ---
+    Assert-Test "Get-LocalFirstChildEnvironment composes LocalOnlyProduction environment with zero Azure/remote sync" {
+        $envMap = Get-LocalFirstChildEnvironment -Port 5055 `
+            -Local2026ConnStr "Server=localhost;Database=FixtureDb2026;Integrated Security=True;" `
+            -Local2027ConnStr "Server=localhost;Database=FixtureDb2027;Integrated Security=True;" `
+            -TokenKey "TestTokenKeySecret32CharactersMinimumLength123" `
+            -IsTestMode $true `
+            -LocalOnlyProduction $true
+
+        if ($envMap["LocalFirst__Enabled"] -ne "true") {
+            throw "Expected LocalFirst__Enabled=true"
+        }
+        if ($envMap["LocalFirst__ReadOnlyMode"] -ne "false") {
+            throw "Expected LocalFirst__ReadOnlyMode=false"
+        }
+        if ($envMap["LocalFirst__LocalOnlyProduction"] -ne "true") {
+            throw "Expected LocalFirst__LocalOnlyProduction=true"
+        }
+        if ($envMap["LocalFirst__Mode"] -ne "LocalOnlyProduction") {
+            throw "Expected LocalFirst__Mode=LocalOnlyProduction"
+        }
+        if ($envMap["Sync__AuthoritativeTrackingEnabled"] -ne "false") {
+            throw "Expected Sync__AuthoritativeTrackingEnabled=false in LocalOnlyProduction"
+        }
+        if ($envMap["Sync__PullEnabled"] -ne "false" -or $envMap["Sync__PushEnabled"] -ne "false") {
+            throw "Expected Sync Pull/Push to be false"
+        }
+        if ($envMap["ConnectionStrings__DefaultConnection"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+            throw "Expected DefaultConnection tripwire"
+        }
+        if ($envMap["ConnectionStrings__CON2027"] -notmatch "DISABLED_REMOTE_TRIPWIRE") {
+            throw "Expected CON2027 tripwire"
+        }
+        if ($envMap.ContainsKey("ConnectionStrings__ManualSyncRemote2026") -or $envMap.ContainsKey("ConnectionStrings__ManualSyncRemote2027")) {
+            throw "ManualSyncRemote must not be configured in LocalOnlyProduction mode"
+        }
+    }
+
+    # --- TEST 11: LocalOnlyProduction Child Credential Scrubbing & Lifecycle Isolation (P0-1) ---
+    Assert-Test "LocalOnlyProduction explicitly scrubs pre-existing Process-scope ManualSyncRemote credentials and keeps logs/state sanitized" {
+        $lifecyclePort = 5198
+        $testStateFile = [System.IO.Path]::GetTempFileName()
+        Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+
+        # A. Seed fake ManualSyncRemote credentials into parent Process environment BEFORE launch
+        $fakeRemoteSecret2026 = "Server=tcp:fake-azure-remote-2026.database.windows.net,1433;Database=IProgramDb2026;User ID=FakeAdmin2026;Password=P@ssw0rdFakeSecret2026!;"
+        $fakeRemoteSecret2027 = "Server=tcp:fake-azure-remote-2027.database.windows.net,1433;Database=IProgramDb2027;User ID=FakeAdmin2027;Password=P@ssw0rdFakeSecret2027!;"
+        
+        $priorUser2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "User")
+        $priorUser2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "User")
+
+        [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $fakeRemoteSecret2026, "Process")
+        [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $fakeRemoteSecret2027, "Process")
+
+        try {
+            # 1. Start LocalOnlyProduction runtime
+            $startRes = & $launcherScript Start `
+                -Port $lifecyclePort `
+                -LocalOnlyProduction `
+                -AllowIsolatedTestMode `
+                -SkipGitVerification `
+                -OverrideLocal2026ConnStr $fixtureConn2026 `
+                -OverrideLocal2027ConnStr $fixtureConn2027 `
+                -OverrideStateFilePath $testStateFile
+
+            if ($startRes.Status -ne "RUNNING") {
+                throw "Expected Status=RUNNING, got $($startRes.Status)"
+            }
+            $procPid = $startRes.Pid
+
+            # 2. Verify /health responds 200 OK
+            $healthResp = Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
+            if ($healthResp.StatusCode -ne 200) {
+                throw "Health check returned status code $($healthResp.StatusCode)"
+            }
+
+            # 3. Verify /api/account/runtime-status reports LocalOnlyProduction
+            $statusResp = Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/api/account/runtime-status" -Method Get -TimeoutSec 5 -UseBasicParsing
+            $statusJson = $statusResp.Content | ConvertFrom-Json
+            if ($statusJson.runtimeMode -ne "LocalOnlyProduction" -or -not $statusJson.isLocalOnlyProduction) {
+                throw "Runtime status mismatch: expected LocalOnlyProduction, got $($statusJson.runtimeMode)"
+            }
+
+            # 4. Prove child runtime cannot resolve/use manual sync (blocked at API layer)
+            $syncBlocked = $false
+            try {
+                Invoke-WebRequest -Uri "http://127.0.0.1:$lifecyclePort/api/sync/pull" -Method Post -TimeoutSec 5 -UseBasicParsing
+            } catch {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+                if ($statusCode -eq 403) {
+                    $syncBlocked = $true
+                } else {
+                    Write-Host " [Unexpected Status: $statusCode] " -ForegroundColor Yellow
+                }
+            }
+            if (-not $syncBlocked) {
+                throw "Expected /api/sync/pull to return 403 Forbidden in LocalOnlyProduction!"
+            }
+
+            # 5. Stop Runtime
+            & $launcherScript Stop -Port $lifecyclePort -OverrideStateFilePath $testStateFile | Out-Null
+            Start-Sleep -Seconds 1
+
+            # 6. Verify Parent Process-scope environment was cleanly restored
+            $restoredProcess2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "Process")
+            $restoredProcess2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "Process")
+
+            if ($restoredProcess2026 -ne $fakeRemoteSecret2026 -or $restoredProcess2027 -ne $fakeRemoteSecret2027) {
+                throw "Parent process environment was not restored after launcher completed!"
+            }
+
+            # 7. Verify Windows User scope was NEVER modified or deleted
+            $currentUser2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "User")
+            $currentUser2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "User")
+            if ($currentUser2026 -ne $priorUser2026 -or $currentUser2027 -ne $priorUser2027) {
+                throw "Windows User environment was modified by launcher! User scope must remain untouched."
+            }
+
+            # 8. Verify neither fake secrets nor sensitive connection strings appear in logs or state files
+            $logsDir = Join-Path $PSScriptRoot "logs"
+            $matchingLogs = Get-ChildItem -Path $logsDir -Filter "*${lifecyclePort}*" -ErrorAction SilentlyContinue
+            foreach ($logFile in $matchingLogs) {
+                $content = Get-Content $logFile.FullName -Raw
+                if ($content -match "P@ssw0rdFakeSecret" -or $content -match "fake-azure-remote") {
+                    throw "SECURITY VIOLATION: Fake remote secret leaked into runtime log file $($logFile.FullName)!"
+                }
+            }
+
+            if (Test-Path $testStateFile) {
+                $stateContent = Get-Content $testStateFile -Raw
+                if ($stateContent -match "P@ssw0rdFakeSecret" -or $stateContent -match "fake-azure-remote") {
+                    throw "SECURITY VIOLATION: Fake remote secret leaked into runtime state file!"
+                }
+            }
+        } finally {
+            # Clean up parent process temporary fake secrets
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $null, "Process")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $null, "Process")
+
+            if (Test-Path $testStateFile) {
+                $remState = Get-RuntimeState $testStateFile
+                if ($remState -and $remState.pid) {
+                    $p = Get-Process -Id ([int]$remState.pid) -ErrorAction SilentlyContinue
+                    if ($p -and $p.ProcessName -ieq "dotnet") { $p | Stop-Process -Force -ErrorAction SilentlyContinue }
+                }
+                Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # --- TEST 12: Pre-Launch / Build Failure Environment Restoration (P0-1) ---
+    Assert-Test "Pre-launch or build failure unconditionally restores Process-scope environment and leaves User scope untouched" {
+        $failurePort = 5196
+        $testStateFile = [System.IO.Path]::GetTempFileName()
+        Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+
+        # A. Seed fake ManualSyncRemote credentials into parent Process environment BEFORE launch
+        $fakeRemoteSecret2026 = "Server=tcp:fake-azure-prelaunch-2026.database.windows.net,1433;Database=IProgramDb2026;User ID=FakeAdmin2026;Password=P@ssw0rdFakePrelaunchSecret2026!;"
+        $fakeRemoteSecret2027 = "Server=tcp:fake-azure-prelaunch-2027.database.windows.net,1433;Database=IProgramDb2027;User ID=FakeAdmin2027;Password=P@ssw0rdFakePrelaunchSecret2027!;"
+        
+        $priorUser2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "User")
+        $priorUser2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "User")
+
+        [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $fakeRemoteSecret2026, "Process")
+        [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $fakeRemoteSecret2027, "Process")
+
+        try {
+            $failureCaught = $false
+            try {
+                & $launcherScript Start `
+                    -Port $failurePort `
+                    -LocalOnlyProduction `
+                    -AllowIsolatedTestMode `
+                    -SkipGitVerification `
+                    -SimulatePreLaunchFailure `
+                    -OverrideLocal2026ConnStr $fixtureConn2026 `
+                    -OverrideLocal2027ConnStr $fixtureConn2027 `
+                    -OverrideStateFilePath $testStateFile
+            } catch {
+                if ($_.ToString() -match "SIMULATED_PRELAUNCH_FAILURE") {
+                    $failureCaught = $true
+                } else {
+                    throw "Unexpected error caught during prelaunch failure simulation: $_"
+                }
+            }
+
+            if (-not $failureCaught) {
+                throw "Expected SIMULATED_PRELAUNCH_FAILURE to be thrown by launcher!"
+            }
+
+            # Verify Parent Process-scope environment was unconditionally restored by finally block
+            $restoredProcess2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "Process")
+            $restoredProcess2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "Process")
+
+            if ($restoredProcess2026 -ne $fakeRemoteSecret2026 -or $restoredProcess2027 -ne $fakeRemoteSecret2027) {
+                throw "Parent process environment was not restored after pre-launch failure!"
+            }
+
+            # Verify Windows User scope was NEVER modified
+            $currentUser2026 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", "User")
+            $currentUser2027 = [Environment]::GetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", "User")
+            if ($currentUser2026 -ne $priorUser2026 -or $currentUser2027 -ne $priorUser2027) {
+                throw "Windows User environment was modified during pre-launch failure! User scope must remain untouched."
+            }
+
+            # Verify no secret leaked into any logs
+            $logsDir = Join-Path $PSScriptRoot "logs"
+            $matchingLogs = Get-ChildItem -Path $logsDir -Filter "*${failurePort}*" -ErrorAction SilentlyContinue
+            foreach ($logFile in $matchingLogs) {
+                $content = Get-Content $logFile.FullName -Raw
+                if ($content -match "P@ssw0rdFakePrelaunchSecret" -or $content -match "fake-azure-prelaunch") {
+                    throw "SECURITY VIOLATION: Fake remote secret leaked into runtime log file $($logFile.FullName)!"
+                }
+            }
+        } finally {
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2026", $null, "Process")
+            [Environment]::SetEnvironmentVariable("ConnectionStrings__ManualSyncRemote2027", $null, "Process")
+            Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # --- TEST 13: Live Runtime Zero-Remote Acceptance on Isolated Fixture DB (P0-2) ---
+    Assert-Test "Live LocalOnlyProduction host on isolated fixture DB executes startup, local read, login, business write, logout, and achieves zero-remote audited acceptance" {
+        $acceptancePort = 5195
+        $testStateFile = [System.IO.Path]::GetTempFileName()
+        Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+
+        try {
+            # 1. Start LocalOnlyProduction runtime
+            $startRes = & $launcherScript Start `
+                -Port $acceptancePort `
+                -LocalOnlyProduction `
+                -AllowIsolatedTestMode `
+                -SkipGitVerification `
+                -OverrideLocal2026ConnStr $fixtureConn2026 `
+                -OverrideLocal2027ConnStr $fixtureConn2027 `
+                -OverrideStateFilePath $testStateFile
+
+            if ($startRes.Status -ne "RUNNING") {
+                throw "Expected Status=RUNNING, got $($startRes.Status)"
+            }
+
+            # 2. Verify /health responds 200 OK
+            $healthResp = Invoke-WebRequest -Uri "http://127.0.0.1:$acceptancePort/health" -Method Get -TimeoutSec 5 -UseBasicParsing
+            if ($healthResp.StatusCode -ne 200) {
+                throw "Health check returned status code $($healthResp.StatusCode)"
+            }
+
+            # 3. Clear ConnectionAuditTracker to isolate acceptance flow
+            $clearResp = Invoke-RestMethod -Uri "http://127.0.0.1:$acceptancePort/api/diagnostics/connection-audit/clear" -Method Post -TimeoutSec 5
+            
+            # 4. Verify /api/account/runtime-status reports LocalOnlyProduction
+            $statusResp = Invoke-RestMethod -Uri "http://127.0.0.1:$acceptancePort/api/account/runtime-status" -Method Get -TimeoutSec 5
+            if ($statusResp.runtimeMode -ne "LocalOnlyProduction" -or -not $statusResp.isLocalOnlyProduction) {
+                throw "Runtime status mismatch: expected LocalOnlyProduction, got $($statusResp.runtimeMode)"
+            }
+
+            # 5. Authenticated Login: Login with seeded fixture user
+            $loginBody = @{
+                username = "testuser"
+                password = "LocalProduction123!"
+            } | ConvertTo-Json
+            $loginResp = Invoke-RestMethod -Uri "http://127.0.0.1:$acceptancePort/api/account/login" `
+                -Method Post `
+                -Body $loginBody `
+                -ContentType "application/json" `
+                -TimeoutSec 5
+
+            $authToken = $loginResp.token
+            if ([string]::IsNullOrWhiteSpace($authToken)) {
+                throw "Login failed: token was null or empty in response ($($loginResp | ConvertTo-Json -Compress))"
+            }
+            Write-Host " [Auth Login: OK] " -NoNewline -ForegroundColor Gray
+
+            $authHeaders = @{
+                "Authorization" = "Bearer $authToken"
+                "X-Database-Id" = "2026"
+            }
+
+            # 6. Local Read: Query departments from local fixture DB using authenticated context
+            $deptsResp = Invoke-RestMethod -Uri "http://127.0.0.1:$acceptancePort/api/department/GetAllDepartments" `
+                -Method Get `
+                -Headers $authHeaders `
+                -TimeoutSec 5
+            Write-Host " [Local Read: OK] " -NoNewline -ForegroundColor Gray
+
+            # 7. Real Business Write on Local Fixture: Create Department
+            $deptBody = @{
+                name = "Live Acceptance Department"
+            } | ConvertTo-Json
+            $createDeptResp = Invoke-RestMethod -Uri "http://127.0.0.1:$acceptancePort/api/department" `
+                -Method Post `
+                -Headers $authHeaders `
+                -Body $deptBody `
+                -ContentType "application/json" `
+                -TimeoutSec 5
+
+            if ($null -eq $createDeptResp -or -not $createDeptResp.id) {
+                throw "Business write failed: Department creation response missing id"
+            }
+            Write-Host " [Business Write: OK] " -NoNewline -ForegroundColor Gray
+
+            # 8. Post-Write Read: Verify newly inserted department exists
+            $allDepts = Invoke-RestMethod -Uri "http://127.0.0.1:$acceptancePort/api/department/GetAllDepartments" `
+                -Method Get `
+                -Headers $authHeaders `
+                -TimeoutSec 5
+            $foundDept = $allDepts | Where-Object { $_.name -eq "Live Acceptance Department" }
+            if (-not $foundDept) {
+                throw "Post-write verification failed: newly created department was not found in local database!"
+            }
+            Write-Host " [Persistence Verified: OK] " -NoNewline -ForegroundColor Gray
+
+            # 9. Logout / Session End
+            $logoutResp = Invoke-WebRequest -Uri "http://127.0.0.1:$acceptancePort/api/account/logout" `
+                -Method Post `
+                -Headers $authHeaders `
+                -TimeoutSec 5 `
+                -UseBasicParsing
+
+            if ($logoutResp.StatusCode -ne 200) {
+                throw "Logout failed with status code $($logoutResp.StatusCode)"
+            }
+            Write-Host " [Logout: OK] " -NoNewline -ForegroundColor Gray
+
+            # 10. Verify sync & migration endpoints return 403 Forbidden
+            $blockedEndpoints = @(
+                "http://127.0.0.1:$acceptancePort/api/sync/pull",
+                "http://127.0.0.1:$acceptancePort/api/sync/push",
+                "http://127.0.0.1:$acceptancePort/api/sync/check-online",
+                "http://127.0.0.1:$acceptancePort/api/migration/sync",
+                "http://127.0.0.1:$acceptancePort/api/migration/pull"
+            )
+            foreach ($url in $blockedEndpoints) {
+                $isBlocked = $false
+                try {
+                    Invoke-WebRequest -Uri $url -Method Post -TimeoutSec 5 -UseBasicParsing
+                } catch {
+                    $sc = [int]$_.Exception.Response.StatusCode
+                    if ($sc -eq 403) { $isBlocked = $true }
+                }
+                if (-not $isBlocked) {
+                    throw "Expected 403 Forbidden for endpoint $url in LocalOnlyProduction!"
+                }
+            }
+            Write-Host " [Sync/Migration 403: OK] " -NoNewline -ForegroundColor Gray
+
+            # 10. Audit Tracker Live Verification:
+            # - Prove every connection target was Loopback/local fixture only
+            # - Prove ZERO Azure/non-local connection attempts
+            # - Prove remote factory never opened any connection
+            $auditResp = Invoke-RestMethod -Uri "http://127.0.0.1:$acceptancePort/api/diagnostics/connection-audit" -Method Get -TimeoutSec 5
+            
+            if ($auditResp.totalConnections -le 0) {
+                throw "Audit tracker recorded zero connections during acceptance flow!"
+            }
+            if ($auditResp.disallowedRemoteConnections -ne 0) {
+                throw "SECURITY VIOLATION: Audit tracker recorded $($auditResp.disallowedRemoteConnections) disallowed remote connections!"
+            }
+            if ($auditResp.fallbackAttempts -ne 0) {
+                throw "SECURITY VIOLATION: Audit tracker recorded $($auditResp.fallbackAttempts) fallback connection attempts!"
+            }
+            if ($auditResp.allowedLocalConnections -ne $auditResp.totalConnections) {
+                throw "Mismatch in allowed connections: $($auditResp.allowedLocalConnections) / $($auditResp.totalConnections)"
+            }
+            foreach ($rec in $auditResp.records) {
+                if (-not $rec.isLocal -or -not $rec.allowed -or $rec.isFallbackEndpoint) {
+                    throw "SECURITY VIOLATION: Record failed local audit invariant: $($rec | ConvertTo-Json -Compress)"
+                }
+            }
+            Write-Host " [Zero-Remote Audit: OK ($($auditResp.totalConnections) Local Connections, 0 Remote)] " -ForegroundColor Green
+
+            # 11. Stop Runtime
+            & $launcherScript Stop -Port $acceptancePort -OverrideStateFilePath $testStateFile | Out-Null
+        } finally {
+            if (Test-Path $testStateFile) {
+                $remState = Get-RuntimeState $testStateFile
+                if ($remState -and $remState.pid) {
+                    $p = Get-Process -Id ([int]$remState.pid) -ErrorAction SilentlyContinue
+                    if ($p -and $p.ProcessName -ieq "dotnet") { $p | Stop-Process -Force -ErrorAction SilentlyContinue }
+                }
+                Remove-Item $testStateFile -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 } finally {

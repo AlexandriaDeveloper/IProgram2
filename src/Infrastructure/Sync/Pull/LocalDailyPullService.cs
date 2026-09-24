@@ -53,7 +53,13 @@ namespace Auth.Infrastructure.Sync.Pull
                 }
             }
 
-            // 2. Runtime mode check: must be strictly in LocalFirst and not ReadOnly
+            // 2. Runtime mode check: must be strictly in LocalFirst and not ReadOnly, and never in LocalOnlyProduction
+            if (_syncConnectionProvider.IsLocalOnlyProduction)
+            {
+                _logger.LogWarning("Pull attempt rejected: LocalOnlyProduction mode is active.");
+                throw new InvalidOperationException("SYNC_PULL_DISABLED_IN_LOCAL_ONLY_PRODUCTION: Pull is forbidden in LocalOnlyProduction mode.");
+            }
+
             if (!_syncConnectionProvider.IsLocalFirstEnabled || _syncConnectionProvider.IsReadOnlyMode)
             {
                 _logger.LogWarning("Pull attempt rejected: Invalid runtime mode. (LocalFirst: {LocalFirst}, ReadOnly: {ReadOnly})",

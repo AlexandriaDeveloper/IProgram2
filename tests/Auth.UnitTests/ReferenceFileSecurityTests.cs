@@ -534,10 +534,83 @@ namespace Auth.UnitTests
 
             var authenticatedRawUrl = "https://res.cloudinary.com/dummy_cloud/raw/authenticated/v12345/DailyReferences/file.pdf";
             var result = service.GetProtectedUrl(authenticatedRawUrl, "DailyReferences");
-
             Assert.Contains("/raw/authenticated/", result);
             Assert.Contains("DailyReferences/file.pdf", result);
             Assert.Contains("s--", result); // signature token
+        }
+
+        [Fact]
+        public async Task CloudinaryService_LocalOnlyProduction_ServesFromLocalDisk_WhenCached()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                { "LocalFirst:Enabled", "true" },
+                { "LocalFirst:LocalOnlyProduction", "true" },
+                { "LocalFirst:Mode", "LocalOnlyProduction" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
+            var service = new CloudinaryService(config);
+
+            var folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Content", "DailyReferences");
+            Directory.CreateDirectory(folder);
+            var testFile = Path.Combine(folder, "cached_localonly_test.pdf");
+            try
+            {
+                await File.WriteAllTextAsync(testFile, "%PDF-1.4 test cached content in local-only");
+                var result = await service.DownloadFileStreamAsync("https://res.cloudinary.com/test/raw/upload/DailyReferences/cached_localonly_test.pdf", "DailyReferences");
+                Assert.NotNull(result);
+                using var reader = new StreamReader(result.Value.stream);
+                var content = await reader.ReadToEndAsync();
+                Assert.Equal("%PDF-1.4 test cached content in local-only", content);
+            }
+            finally
+            {
+                if (File.Exists(testFile)) File.Delete(testFile);
+            }
+        }
+
+        [Fact]
+        public async Task CloudinaryService_LocalOnlyProduction_ReturnsNull_WhenUncached_NoOutboundHttp()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                { "LocalFirst:Enabled", "true" },
+                { "LocalFirst:LocalOnlyProduction", "true" },
+                { "LocalFirst:Mode", "LocalOnlyProduction" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
+            var service = new CloudinaryService(config);
+
+            var result = await service.DownloadFileStreamAsync("https://res.cloudinary.com/test/raw/upload/DailyReferences/uncached_remote_localonly.pdf", "DailyReferences");
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task CloudinaryService_OfflineReadWritePilot_ReturnsNull_WhenUncached_NoOutboundHttp()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                { "LocalFirst:Enabled", "true" },
+                { "LocalFirst:ReadOnlyMode", "false" },
+                { "LocalFirst:LocalOnlyProduction", "false" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
+            var service = new CloudinaryService(config);
+
+            var result = await service.DownloadFileStreamAsync("https://res.cloudinary.com/test/raw/upload/DailyReferences/uncached_remote_pilot.pdf", "DailyReferences");
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task CloudinaryService_OnlineMode_WithoutCloudinaryConfig_ReturnsNullSafely()
+        {
+            var inMemorySettings = new Dictionary<string, string?> {
+                { "LocalFirst:Enabled", "false" },
+                { "LocalFirst:ReadOnlyMode", "false" },
+                { "LocalFirst:LocalOnlyProduction", "false" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(inMemorySettings).Build();
+            var service = new CloudinaryService(config);
+
+            var result = await service.DownloadFileStreamAsync("https://res.cloudinary.com/test/raw/upload/DailyReferences/uncached_remote_online.pdf", "DailyReferences");
+            Assert.Null(result);
         }
 
         #endregion
